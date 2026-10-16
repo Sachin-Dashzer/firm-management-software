@@ -1,17 +1,20 @@
+import { Suspense } from "react";
+import LoginForm from "./LoginForm";
+
 export const metadata = { title: "Sign in · PHMG" };
 
-/* The real form, TOTP 2FA and the branch-constellation scene are Step 1 and
-   Step 11. This route exists so the (auth) segment and its layout are in place. */
+/**
+ * The branch-constellation 3D scene belongs on this screen (spec section 15)
+ * and arrives in Step 11. It will be loaded with next/dynamic and never block
+ * this form, which is why the form is a standalone component already.
+ */
 export default function LoginPage() {
   return (
     <main className="grid min-h-dvh place-items-center p-6">
-      <div className="rounded-ledger border-rule bg-surface w-full max-w-sm border p-6">
-        <h1 className="font-display text-28 font-semibold">
-          PHMG &amp; Associates
-        </h1>
-        <p className="text-14 text-ink-muted mt-2">
-          Sign-in arrives in Step 1.
-        </p>
+      <div className="rounded-ledger border-rule bg-surface w-full max-w-sm border p-6 shadow-none">
+        <Suspense fallback={null}>
+          <LoginForm />
+        </Suspense>
       </div>
     </main>
   );

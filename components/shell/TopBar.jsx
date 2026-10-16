@@ -1,37 +1,45 @@
 "use client";
 
+import { useState } from "react";
+import { signOut } from "next-auth/react";
 import { MagnifyingGlass, Plus, Bell, UserCircle } from "@phosphor-icons/react";
 import { ThemeToggle, DensityToggle } from "./Preferences";
+import { ROLE_LABELS } from "@/lib/permissions";
 
-/* Branches come from the `branches` collection in Step 1; until users and
-   branches exist they are listed here so the switcher can be laid out.
-   ponytail: hardcoded branch list, replaced by the Atlas query in Step 1. */
-const BRANCHES = [
-  { code: "NOI", name: "Noida (head office)" },
-  { code: "DEL", name: "Delhi — Rohini" },
-  { code: "LDH", name: "Ludhiana" },
-  { code: "MRT", name: "Meerut" },
-];
+/**
+ * @param {object} props
+ * @param {{ name: string, email: string, role: string }} props.user
+ * @param {{ id: string, code: string, name: string }[]} props.branches the
+ *   branches this user is assigned to, already filtered on the server
+ */
+export default function TopBar({ user, branches }) {
+  const [menuOpen, setMenuOpen] = useState(false);
 
-export default function TopBar() {
   return (
-    <header className="border-rule bg-surface relative z-10 shrink-0 border-b">
+    <header className="border-rule bg-surface relative z-20 shrink-0 border-b">
       <div className="flex h-12 items-center gap-2 px-3">
-        <label className="sr-only" htmlFor="branch">
-          Branch
-        </label>
-        <select
-          id="branch"
-          defaultValue="all"
-          className="rounded-ledger border-rule bg-paper text-13 text-ink h-8 border px-2"
-        >
-          <option value="all">All branches</option>
-          {BRANCHES.map((b) => (
-            <option key={b.code} value={b.code}>
-              {b.name}
-            </option>
-          ))}
-        </select>
+        {branches.length > 1 && (
+          <>
+            <label className="sr-only" htmlFor="branch">
+              Branch
+            </label>
+            <select
+              id="branch"
+              defaultValue="all"
+              className="rounded-ledger border-rule bg-paper text-13 text-ink h-8 border px-2"
+            >
+              <option value="all">All my branches</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
+        {branches.length === 1 && (
+          <span className="text-13 text-ink-muted">{branches[0].name}</span>
+        )}
 
         {/* Command bar lands in Step 11 (cmdk); the entry point sits here now. */}
         <button
@@ -63,13 +71,37 @@ export default function TopBar() {
           </button>
           <DensityToggle />
           <ThemeToggle />
-          <button
-            type="button"
-            aria-label="Your profile"
-            className="rounded-ledger text-ink-muted hover:bg-carbon-wash hover:text-ink grid size-8 place-items-center"
-          >
-            <UserCircle size={20} />
-          </button>
+
+          <div className="relative">
+            <button
+              type="button"
+              aria-label="Your profile"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((v) => !v)}
+              className="rounded-ledger text-ink-muted hover:bg-carbon-wash hover:text-ink grid size-8 place-items-center"
+            >
+              <UserCircle size={20} />
+            </button>
+            {menuOpen && (
+              <div
+                className="rounded-ledger border-rule bg-surface text-14 absolute right-0 mt-1 w-56 border p-2"
+                onMouseLeave={() => setMenuOpen(false)}
+              >
+                <p className="px-2 pt-1 font-medium">{user.name}</p>
+                <p className="text-13 text-ink-muted px-2">{user.email}</p>
+                <p className="text-13 text-ink-muted px-2 pb-2">
+                  {ROLE_LABELS[user.role] ?? user.role}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => signOut({ redirectTo: "/login" })}
+                  className="rounded-ledger border-rule hover:bg-carbon-wash w-full border px-2 py-1 text-left"
+                >
+                  Sign out
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
       {/* the one gradient the design allows: a brass hairline under the top bar */}

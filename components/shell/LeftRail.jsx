@@ -13,28 +13,49 @@ import {
   Gear,
   CaretLeft,
 } from "@phosphor-icons/react";
+import { can } from "@/lib/permissions";
 
-/* Phase 1 destinations. Pages arrive in their own steps; the rail links to
-   them from the start so the shape of the app is visible. */
+/**
+ * Phase 1 destinations. `area` is the permission area from spec section 2, so
+ * a link only appears for a role that may open it — the page itself checks
+ * again, because hiding a link is not security.
+ */
 const LINKS = [
-  { href: "/today", label: "Today", icon: House },
-  { href: "/clients", label: "Clients", icon: Users },
-  { href: "/engagements", label: "Engagements", icon: Briefcase },
-  { href: "/calendar", label: "Compliance", icon: CalendarCheck },
-  { href: "/invoices", label: "Billing", icon: Receipt },
-  { href: "/reports", label: "Reports", icon: ChartBar },
-  { href: "/settings", label: "Settings", icon: Gear },
+  { href: "/today", label: "Today", icon: House, area: "dashboards" },
+  { href: "/clients", label: "Clients", icon: Users, area: "clients" },
+  {
+    href: "/engagements",
+    label: "Engagements",
+    icon: Briefcase,
+    area: "engagementsWork",
+  },
+  {
+    href: "/calendar",
+    label: "Compliance",
+    icon: CalendarCheck,
+    area: "engagementsWork",
+  },
+  { href: "/invoices", label: "Billing", icon: Receipt, area: "invoices" },
+  { href: "/reports", label: "Reports", icon: ChartBar, area: "dashboards" },
+  { href: "/settings", label: "Settings", icon: Gear, area: "usersSettings" },
 ];
 
-export default function LeftRail() {
+/** @param {string} role */
+function linksFor(role) {
+  const actor = { id: "", role, branchIds: [] };
+  return LINKS.filter((link) => can(actor, "view", link.area));
+}
+
+export default function LeftRail({ role = "partner" }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const links = linksFor(role);
 
   useEffect(() => {
     try {
       setCollapsed(localStorage.getItem("phmg-rail") === "collapsed");
     } catch {
-      // ignore: rail just starts expanded
+      // ignore: the rail just starts expanded
     }
   }, []);
 
@@ -69,7 +90,7 @@ export default function LeftRail() {
         )}
       </div>
 
-      {LINKS.map(({ href, label, icon: Icon }) => {
+      {links.map(({ href, label, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
         return (
           <Link
@@ -111,14 +132,14 @@ export default function LeftRail() {
 }
 
 /** Phone layout: the same destinations as a bottom bar (spec: works at 390 px). */
-export function MobileNav() {
+export function MobileNav({ role = "partner" }) {
   const pathname = usePathname();
   return (
     <nav
       aria-label="Main"
       className="border-rule bg-surface relative z-10 flex shrink-0 justify-between gap-1 border-t px-2 py-1 md:hidden"
     >
-      {LINKS.map(({ href, label, icon: Icon }) => {
+      {linksFor(role).map(({ href, label, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
         return (
           <Link
