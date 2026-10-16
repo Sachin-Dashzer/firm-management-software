@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 import { softDeletePlugin } from "./plugins/softDelete.js";
+import { auditPlugin } from "./plugins/audit.js";
 // relative, not the @/ alias: this file is also loaded by scripts/seed.js and
 // the Playwright tests, which run under plain Node and do not know the alias
 import { ROLES } from "../lib/permissions.js";
@@ -87,6 +88,7 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.plugin(softDeletePlugin);
+userSchema.plugin(auditPlugin, { entityType: "User" });
 
 userSchema.index(
   { email: 1 },

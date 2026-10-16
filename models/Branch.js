@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 import { softDeletePlugin } from "./plugins/softDelete.js";
+import { auditPlugin } from "./plugins/audit.js";
 
 /** The firm's offices (spec section 13). Invoice series are per branch. */
 const branchSchema = new mongoose.Schema(
@@ -40,6 +41,7 @@ const branchSchema = new mongoose.Schema(
 );
 
 branchSchema.plugin(softDeletePlugin);
+branchSchema.plugin(auditPlugin, { entityType: "Branch" });
 
 // unique among live branches, so a soft-deleted code can be reused
 branchSchema.index(

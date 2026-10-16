@@ -11,7 +11,7 @@ Last updated: 16-10-2026
 | --- | --- | --- | --- |
 | 0 | Project setup: Next.js, Tailwind tokens and fonts, ESLint, Prettier, Vitest, Playwright, Atlas connection, env handling, empty app shell | ✅ | Done 16-10-2026. Storybook deferred to Step 1; Atlas cluster still to be created by the owner |
 | 1 | Auth, users, roles and branches (login, TOTP 2FA, permission helper, user management, seed partner) | 🟡 | Built 16-10-2026. Cannot be run until the owner creates the Atlas cluster; 6 Playwright tests are waiting on it |
-| 2 | Audit log foundation (transaction helper, Mongoose plugin, hash chain, Activity tab, firm audit screen) | ⬜ | |
+| 2 | Audit log foundation (transaction helper, Mongoose plugin, hash chain, Activity tab, firm audit screen) | 🟡 | Built 16-10-2026. Needs Atlas to run: transactions require a replica set |
 | 3 | Clients (profile, contacts, GSTINs, credentials vault, groups, onboarding, duplicate checks, Excel import) | ⬜ | |
 | 4 | Service catalog (templates, versions, checklists, steps, starter catalog seed) | ⬜ | |
 | 5 | Engagements and workflow (template snapshot, status pipeline, maker-checker, tasks, comments, list/Kanban/calendar, bulk actions) | ⬜ | |
@@ -43,6 +43,10 @@ Not started. Break into steps only after the owner confirms Phase 1 is in daily 
 | 16-10-2026 | 2FA is enrolled on first sign-in (QR shown then), so no account can exist without it | Agent |
 | 16-10-2026 | Five wrong passwords locks an account for 15 minutes | Agent, owner to confirm |
 | 16-10-2026 | New users get a one-time password read out by the partner; emailed invitations wait for the mailer in Step 9 | Agent |
+| 16-10-2026 | The audit chain is serialised through one counter document, so concurrent writes conflict and retry rather than forking the chain | Agent |
+| 16-10-2026 | Audit export is CSV with a UTF-8 marker (Excel reads it natively) instead of a real .xlsx; revisit in Step 10 | Agent |
+| 16-10-2026 | PAN and Aadhaar changes are logged as "changed" without their values, per CLAUDE.md rule 7, even though spec §11 asks for before/after on every field | Agent, owner to confirm |
+| 16-10-2026 | A failed audit write rolls back the change it belongs to; the one exception is sign-out, which is never blocked by a log failure | Agent |
 
 ## What Step 0 built
 
@@ -70,6 +74,20 @@ Not started. Break into steps only after the owner confirms Phase 1 is in daily 
 - `scripts/seed.js`: the four branches and the first partner account, safe to run twice.
 - Tests: 58 Vitest (40 of them on the permission matrix), 8 Playwright on the sign-in gate, plus 6 more covering the full sign-in flow that skip until `MONGODB_URI` is set.
 
+## What Step 2 built
+
+- `lib/audit/index.js`: `withAudit()` opens the transaction a change and its audit entry share, and `recordAudit()` appends an entry. There is no path that writes data without a log.
+- `lib/audit/hash.js`: the tamper-evidence chain. Each entry hashes the one before it, so an altered entry, a resequenced one or a deleted one is detectable, and the break's position is reported.
+- `models/plugins/audit.js`: attached to every model, so `save()` and `findOneAndUpdate()` write their own field-level before/after entry inside the caller's transaction. Deliberately does **not** cover `updateMany` — it cannot say which records it touched — so bulk actions must loop.
+- `lib/audit/diff.js`: builds `{ field: [before, after] }`, redacting PAN, Aadhaar, passwords, bank details and 2FA secrets to `•••` (CLAUDE.md rule 7) and dropping bookkeeping noise like `updatedAt`.
+- `lib/audit/context.js`: carries the actor, IP address and browser for the whole request using Node's AsyncLocalStorage, so no function has to pass them down and none can forget.
+- `lib/audit/describe.js` + `components/audit/ActivityFeed.jsx`: entries as plain sentences ("Riya changed status from In progress to Under review"), ready to drop into the Activity tab on clients, engagements and invoices.
+- `/audit`: the firm-wide log, filterable by person, action, record type and date range, with a **Check for tampering** button that re-hashes the chain on demand. Partners see the firm; a CA sees their own branches.
+- Export to CSV (opens in Excel), and the export is itself logged.
+- `models/AuditLog.js`: every update and delete path is blocked in the application, and the entry schema carries `seq`, `prevHash` and `hash`.
+- Step 1's `TODO(step-2)` markers are filled in: user created, role changed, account activated/deactivated, password reset, 2FA reset — plus sign-in, failed sign-in and sign-out.
+- Tests: 23 new Vitest tests (81 total) covering the chain against editing, resequencing, deletion and re-hashing, plus redaction and the sentence builder. 4 more Playwright tests waiting on Atlas.
+
 ## Open questions waiting on the owner
 
 From spec §18 — none answered yet. These block later steps, not Step 0:
@@ -90,10 +108,20 @@ From spec §18 — none answered yet. These block later steps, not Step 0:
 - [ ] Create MongoDB Atlas cluster, DB user, network access — **blocks Step 1**
 - [ ] Decide on a GitHub (or other) remote for the code, under the firm's account
 - [ ] Create Vercel project + env vars (needed before the first deploy)
+- [ ] **Atlas: restrict the app's database user on `auditLogs` to `find` and `insert` only** (spec §11). The application already refuses to edit or delete entries; this stops anything else. Needs a custom role in Atlas — I will give click-by-click steps at go-live.
+- [ ] Atlas: set up Online Archive for `auditLogs` entries older than 2 years (spec §11), to keep the live collection fast
 - [ ] BigRock: `files.` subdomain, PHP gateway, cron jobs (Steps 6 and 7)
 - [ ] `notices@` mailbox + SPF/DKIM/DMARC (Step 9)
 
 ## Left over / known gaps
+
+**From Step 2**
+
+- **Nothing has been written to a real audit log yet.** Transactions need a replica set, which Atlas provides; the code raises a clear error if `MONGODB_URI` points somewhere without one.
+- The Activity tab component is built but has no client or engagement pages to sit on yet (Steps 3 and 5).
+- Export is CSV, not a formatted `.xlsx` (marked `ponytail:` in the route). Excel opens it fine; swap to a real workbook in Step 10 if the firm wants frozen headers.
+- Archiving entries older than 2 years to Atlas Online Archive (spec §11) is not set up — an Atlas console task for go-live, listed under owner tasks.
+- The nightly automatic chain check is listed in spec §11's spirit but belongs to the job runner in Step 7; for now it is the on-demand button.
 
 **From Step 1**
 

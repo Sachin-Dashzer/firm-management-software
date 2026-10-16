@@ -123,3 +123,42 @@ test("a partner reaches the team screen and can sign out", async ({ page }) => {
   await page.goto("/today");
   await expect(page).toHaveURL(/\/login/);
 });
+
+test("the sign-in appears in the audit log, and the chain is intact", async ({
+  page,
+}) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(EMAIL);
+  await page.getByLabel("Password").fill(PASSWORD);
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("6-digit code").fill(await codeFor(EMAIL));
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/today$/);
+
+  await page.goto("/audit");
+  await expect(page.getByRole("heading", { name: "Audit log" })).toBeVisible();
+  await expect(
+    page.getByText("Playwright Partner signed in").first(),
+  ).toBeVisible();
+
+  // the hash chain covers every entry written so far
+  await page.getByRole("button", { name: "Check for tampering" }).click();
+  await expect(page.getByRole("status")).toContainText("chain is intact");
+});
+
+test("a wrong password is recorded as a failed sign-in", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(EMAIL);
+  await page.getByLabel("Password").fill("wrong-on-purpose");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("alert")).toBeVisible();
+
+  // now sign in properly and look for the failure in the log
+  await page.getByLabel("Password").fill(PASSWORD);
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("6-digit code").fill(await codeFor(EMAIL));
+  await page.getByRole("button", { name: "Sign in" }).click();
+
+  await page.goto("/audit?action=login_failed");
+  await expect(page.getByText(/failed to sign in/).first()).toBeVisible();
+});

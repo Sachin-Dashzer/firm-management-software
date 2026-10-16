@@ -10,6 +10,7 @@ import {
   CalendarCheck,
   Receipt,
   ChartBar,
+  ClipboardText,
   Gear,
   CaretLeft,
 } from "@phosphor-icons/react";
@@ -37,6 +38,7 @@ const LINKS = [
   },
   { href: "/invoices", label: "Billing", icon: Receipt, area: "invoices" },
   { href: "/reports", label: "Reports", icon: ChartBar, area: "dashboards" },
+  { href: "/audit", label: "Audit log", icon: ClipboardText, area: "auditLog" },
   { href: "/settings", label: "Settings", icon: Gear, area: "usersSettings" },
 ];
 

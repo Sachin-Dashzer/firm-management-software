@@ -11,6 +11,31 @@ import {
   readChallenge,
   verifyTotp,
 } from "@/lib/twoFactor";
+import { audited } from "@/lib/audit/request";
+import { recordAudit, ACTIONS } from "@/lib/audit";
+
+/**
+ * Failed sign-ins are logged (spec section 11), with the email that was
+ * tried, so a run of attempts against one account is visible. A log failure
+ * must never turn a wrong password into a server error, so this swallows.
+ */
+async function logFailedSignIn(email, userId) {
+  try {
+    await audited(null, (session) =>
+      recordAudit(
+        {
+          action: ACTIONS.loginFailed,
+          entityType: "User",
+          entityId: userId ?? "unknown",
+          note: `tried to sign in as ${email}`,
+        },
+        session,
+      ),
+    );
+  } catch {
+    // the sign-in answer matters more than the log line
+  }
+}
 
 /**
  * Step one of sign-in: check the password, then hand back a challenge.
@@ -48,6 +73,7 @@ export async function startSignIn(input) {
   // account does not answer faster than a wrong password.
   if (!user) {
     await verifyPassword(password, "scrypt$16384$8$1$AAAA$AAAA");
+    await logFailedSignIn(email, null);
     return SAME_ANSWER;
   }
 
@@ -75,10 +101,14 @@ export async function startSignIn(input) {
         },
       },
     );
+    await logFailedSignIn(email, String(user._id));
     return SAME_ANSWER;
   }
 
-  if (!user.active) return SAME_ANSWER;
+  if (!user.active) {
+    await logFailedSignIn(email, String(user._id));
+    return SAME_ANSWER;
+  }
 
   const challenge = signChallenge(String(user._id));
 

@@ -6,6 +6,8 @@ import { connectDB } from "@/lib/db";
 import User from "@/models/User";
 import { decryptField } from "@/lib/crypto";
 import { readChallenge, verifyTotp } from "@/lib/twoFactor";
+import { audited } from "@/lib/audit/request";
+import { recordAudit, ACTIONS } from "@/lib/audit";
 
 /**
  * Auth.js configuration.
@@ -49,18 +51,38 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         });
         if (!result.ok) return null;
 
-        // burn the time step so this code cannot be used twice
-        await User.updateOne(
-          { _id: user._id },
-          {
-            $set: {
-              lastTotpCounter: result.counter,
-              lastLoginAt: new Date(),
-              failedLogins: 0,
-              lockedUntil: null,
+        const actor = {
+          id: String(user._id),
+          name: user.name,
+          role: user.role,
+          branchIds: user.branchIds.map(String),
+        };
+
+        // Burning the used time step and logging the sign-in happen in one
+        // transaction: a login that is not in the audit log did not happen
+        // (spec section 11).
+        await audited(actor, async (session) => {
+          await User.updateOne(
+            { _id: user._id },
+            {
+              $set: {
+                lastTotpCounter: result.counter,
+                lastLoginAt: new Date(),
+                failedLogins: 0,
+                lockedUntil: null,
+              },
             },
-          },
-        );
+            { session },
+          );
+          await recordAudit(
+            {
+              action: ACTIONS.login,
+              entityType: "User",
+              entityId: actor.id,
+            },
+            session,
+          );
+        });
 
         return {
           id: String(user._id),
@@ -74,6 +96,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
+  events: {
+    /** Signing out is logged too (spec section 11). */
+    async signOut(message) {
+      const userId = message?.token?.sub;
+      if (!userId) return;
+      try {
+        await audited(
+          {
+            id: userId,
+            name: message.token.name ?? "",
+            role: message.token.role,
+          },
+          (session) =>
+            recordAudit(
+              { action: ACTIONS.logout, entityType: "User", entityId: userId },
+              session,
+            ),
+        );
+      } catch {
+        // never leave someone stuck signed in because the log write failed
+      }
+    },
+  },
   callbacks: {
     jwt({ token, user }) {
       if (user) {

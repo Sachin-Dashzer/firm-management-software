@@ -4,22 +4,21 @@ import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireUser } from "@/auth";
-import { assertCan } from "@/lib/permissions";
+import { assertCan, ROLES } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
 import { hashPassword } from "@/lib/crypto";
-import { ROLES } from "@/lib/permissions";
+import { audited } from "@/lib/audit/request";
+import { recordAudit, ACTIONS } from "@/lib/audit";
 
 /**
  * User management, Partner only.
  *
  * Every action starts with `assertCan`, so the check cannot be skipped by
- * calling the action directly — server actions are reachable over HTTP whether
- * or not a button for them is rendered.
- *
- * The audit entries these changes need (spec section 11: role and permission
- * changes, password resets) are written by the central helper in Step 2. The
- * `TODO(step-2)` markers below are where those calls attach.
+ * calling the action directly — server actions are reachable over HTTP
+ * whether or not a button for them is rendered — and every change runs inside
+ * `audited()`, which opens the transaction the change and its audit entry
+ * share (spec section 11).
  */
 
 const userInput = z.object({
@@ -86,36 +85,80 @@ export async function createUser(_prev, formData) {
   const isIntern = data.role === "intern";
 
   try {
-    await User.create({
-      name: data.name,
-      email: data.email,
-      mobile: data.mobile,
-      role: data.role,
-      branchIds: data.branchIds,
-      reportingTo: data.reportingTo || null,
-      capacityHours: data.capacityHours,
-      isIntern,
-      articleship: isIntern
-        ? {
-            icaiRegNo: data.icaiRegNo || "",
-            start: data.articleshipStart || undefined,
-            expectedEnd: data.articleshipEnd || undefined,
-          }
-        : undefined,
-      passwordHash: await hashPassword(password),
-      mustChangePassword: true,
-      createdBy: actor.id,
-      updatedBy: actor.id,
+    // the audit entry for the create is written by the model's audit plugin,
+    // inside this same transaction
+    await audited(actor, async (session) => {
+      await User.create(
+        [
+          {
+            name: data.name,
+            email: data.email,
+            mobile: data.mobile,
+            role: data.role,
+            branchIds: data.branchIds,
+            reportingTo: data.reportingTo || null,
+            capacityHours: data.capacityHours,
+            isIntern,
+            articleship: isIntern
+              ? {
+                  icaiRegNo: data.icaiRegNo || "",
+                  start: data.articleshipStart || undefined,
+                  expectedEnd: data.articleshipEnd || undefined,
+                }
+              : undefined,
+            passwordHash: await hashPassword(password),
+            mustChangePassword: true,
+            createdBy: actor.id,
+            updatedBy: actor.id,
+          },
+        ],
+        { session },
+      );
     });
   } catch (err) {
     return { error: err.message };
   }
 
-  // TODO(step-2): audit entry — user created, by whom, with which role
   revalidatePath("/settings/users");
   return {
     ok: `${data.name} added. One-time password: ${password} — give it to them directly; they must change it and set up 2FA at first sign-in.`,
   };
+}
+
+/** Change someone's role (logged as its own action, spec section 11). */
+export async function changeRole(userId, role) {
+  const actor = await requireUser();
+  assertCan(actor, "edit", "usersSettings");
+  if (!ROLES.includes(role)) return { error: "Unknown role." };
+
+  await connectDB();
+  const user = await User.findById(userId);
+  if (!user) return { error: "That person no longer exists." };
+  if (user.role === role) return { ok: "No change." };
+  if (userId === actor.id) {
+    return { error: "You cannot change your own role. Ask another partner." };
+  }
+
+  const before = user.role;
+  await audited(actor, async (session) => {
+    await User.updateOne(
+      { _id: userId },
+      { $set: { role, isIntern: role === "intern", updatedBy: actor.id } },
+      { session },
+    );
+    await recordAudit(
+      {
+        action: ACTIONS.roleChange,
+        entityType: "User",
+        entityId: userId,
+        diff: { role: [before, role] },
+      },
+      session,
+    );
+  });
+
+  revalidatePath("/settings/users");
+  return { ok: `Role changed to ${role}.` };
 }
 
 /** Turn an account off (instant force-logout, spec section 16) or back on. */
@@ -128,12 +171,24 @@ export async function setUserActive(userId, active) {
   }
 
   await connectDB();
-  await User.updateOne(
-    { _id: userId },
-    { $set: { active: Boolean(active), updatedBy: actor.id } },
-  );
+  await audited(actor, async (session) => {
+    await User.updateOne(
+      { _id: userId },
+      { $set: { active: Boolean(active), updatedBy: actor.id } },
+      { session },
+    );
+    await recordAudit(
+      {
+        action: ACTIONS.update,
+        entityType: "User",
+        entityId: userId,
+        diff: { active: [!active, Boolean(active)] },
+        note: active ? "account activated" : "account deactivated",
+      },
+      session,
+    );
+  });
 
-  // TODO(step-2): audit entry — account activated / deactivated
   revalidatePath("/settings/users");
   return { ok: active ? "Account activated." : "Account deactivated." };
 }
@@ -145,20 +200,33 @@ export async function resetPassword(userId) {
 
   await connectDB();
   const password = temporaryPassword();
-  await User.updateOne(
-    { _id: userId },
-    {
-      $set: {
-        passwordHash: await hashPassword(password),
-        mustChangePassword: true,
-        failedLogins: 0,
-        lockedUntil: null,
-        updatedBy: actor.id,
-      },
-    },
-  );
+  const passwordHash = await hashPassword(password);
 
-  // TODO(step-2): audit entry — password reset by a partner
+  await audited(actor, async (session) => {
+    await User.updateOne(
+      { _id: userId },
+      {
+        $set: {
+          passwordHash,
+          mustChangePassword: true,
+          failedLogins: 0,
+          lockedUntil: null,
+          updatedBy: actor.id,
+        },
+      },
+      { session },
+    );
+    // the new password itself is never written to the log
+    await recordAudit(
+      {
+        action: ACTIONS.passwordReset,
+        entityType: "User",
+        entityId: userId,
+      },
+      session,
+    );
+  });
+
   revalidatePath("/settings/users");
   return { ok: `New one-time password: ${password}` };
 }
@@ -172,19 +240,29 @@ export async function reset2FA(userId) {
   assertCan(actor, "edit", "usersSettings");
 
   await connectDB();
-  await User.updateOne(
-    { _id: userId },
-    {
-      $set: {
-        totpSecret: null,
-        totpEnabledAt: null,
-        lastTotpCounter: 0,
-        updatedBy: actor.id,
+  await audited(actor, async (session) => {
+    await User.updateOne(
+      { _id: userId },
+      {
+        $set: {
+          totpSecret: null,
+          totpEnabledAt: null,
+          lastTotpCounter: 0,
+          updatedBy: actor.id,
+        },
       },
-    },
-  );
+      { session },
+    );
+    await recordAudit(
+      {
+        action: ACTIONS.twoFactorReset,
+        entityType: "User",
+        entityId: userId,
+      },
+      session,
+    );
+  });
 
-  // TODO(step-2): audit entry — 2FA reset, which phone it was for
   revalidatePath("/settings/users");
   return { ok: "Two-factor reset. They will scan a new QR code next sign-in." };
 }
