@@ -1,26 +1,175 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ---------------------------------------------------------------
+   PHMG CRM design tokens — "the modern ledger" (spec section 15)
+   Light theme: Paper.  Dark theme: Night shift.
+   The theme is chosen by data-theme on <html>; no theme attribute
+   means follow the operating system.
+   --------------------------------------------------------------- */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+:root {
+  --paper: #f5f1e8;
+  --surface: #fffdf8;
+  --ink: #1b2233;
+  --ink-muted: #5e6577;
+  --rule: #e3dccb;
+  --carbon: #2346a0;
+  --brass: #b07a2a;
+  --filed: #2f7d4f;
+  --waiting: #c98a16;
+  --redpen: #b3362c;
+
+  /* ink wash: the token colour at low opacity, for row and chip fills */
+  --filed-wash: #2f7d4f1f;
+  --waiting-wash: #c98a161f;
+  --redpen-wash: #b3362c1f;
+  --carbon-wash: #2346a014;
+
+  --grain-opacity: 0.02;
+  --rule-opacity: 1;
+
+  /* 8px spacing grid, 6px corner radius */
+  --radius: 6px;
+  --row-height: 40px; /* comfortable; compact mode overrides below */
+  --row-pad-y: 8px;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme="light"]) {
+    --paper: #12141a;
+    --surface: #1a1d25;
+    --ink: #e9e4d8;
+    --ink-muted: #9aa0ae;
+    --rule: #2a2e39;
+    --carbon: #7d9bff;
+    --brass: #d9a75a;
+    --filed: #5fbf86;
+    --waiting: #e7b04a;
+    --redpen: #f07466;
+
+    --filed-wash: #5fbf8624;
+    --waiting-wash: #e7b04a24;
+    --redpen-wash: #f0746624;
+    --carbon-wash: #7d9bff1a;
+
+    --grain-opacity: 0.035;
   }
 }
 
+:root[data-theme="dark"] {
+  --paper: #12141a;
+  --surface: #1a1d25;
+  --ink: #e9e4d8;
+  --ink-muted: #9aa0ae;
+  --rule: #2a2e39;
+  --carbon: #7d9bff;
+  --brass: #d9a75a;
+  --filed: #5fbf86;
+  --waiting: #e7b04a;
+  --redpen: #f07466;
+
+  --filed-wash: #5fbf8624;
+  --waiting-wash: #e7b04a24;
+  --redpen-wash: #f0746624;
+  --carbon-wash: #7d9bff1a;
+
+  --grain-opacity: 0.035;
+}
+
+/* compact density: same type, tighter rows (spec section 15, density toggle) */
+:root[data-density="compact"] {
+  --row-height: 32px;
+  --row-pad-y: 4px;
+}
+
+/* Expose the tokens to Tailwind as utilities: bg-surface, text-ink-muted,
+   border-rule, text-redpen, font-display, text-20 and so on. */
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-rule: var(--rule);
+  --color-carbon: var(--carbon);
+  --color-brass: var(--brass);
+  --color-filed: var(--filed);
+  --color-waiting: var(--waiting);
+  --color-redpen: var(--redpen);
+  --color-filed-wash: var(--filed-wash);
+  --color-waiting-wash: var(--waiting-wash);
+  --color-redpen-wash: var(--redpen-wash);
+  --color-carbon-wash: var(--carbon-wash);
+
+  --font-display: var(--font-fraunces), Georgia, serif;
+  --font-sans: var(--font-plex-sans), system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+
+  /* scale from the spec: 12 / 13 / 14 / 16 / 20 / 28 / 40 */
+  --text-12: 0.75rem;
+  --text-13: 0.8125rem;
+  --text-14: 0.875rem;
+  --text-16: 1rem;
+  --text-20: 1.25rem;
+  --text-28: 1.75rem;
+  --text-40: 2.5rem;
+
+  --radius-ledger: var(--radius);
+}
+
+html {
+  color-scheme: light dark;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-plex-sans), system-ui, sans-serif;
+  font-size: var(--text-14);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Paper grain: one repeating SVG turbulence tile, no image file. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: var(--grain-opacity);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/></filter><rect width='120' height='120' filter='url(%23g)'/></svg>");
+}
+
+/* Numbers are the hero: tabular figures everywhere a figure appears. */
+.num,
+table,
+input[type="number"] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Ledger ruling behind a table: hairlines on the 8px grid. */
+.ledger-rule {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--row-height) - 1px),
+    var(--rule) calc(var(--row-height) - 1px),
+    var(--rule) var(--row-height)
+  );
+}
+
+/* Focus is brass, never the browser default blue. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--brass);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

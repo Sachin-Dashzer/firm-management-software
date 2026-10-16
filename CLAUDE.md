@@ -66,21 +66,21 @@ If the spec is unclear, or something needs a business decision (fees, due dates,
 
 ## Phase 1 — Core MVP (build in this order)
 
-| Step | What to build | Spec sections |
-| --- | --- | --- |
-| 0 | Project setup: Next.js, Tailwind tokens and fonts, ESLint, Prettier, Vitest, Playwright, Storybook, Atlas connection, env handling, empty app shell (left rail, top bar), `docs/PROGRESS.md` | 14, 15 |
-| 1 | Auth, users, roles and branches: login, TOTP 2FA, role- and branch-scoped permission helper, user management screen, seed partner account | 2, 16 |
-| 2 | Audit log foundation: transaction helper, Mongoose audit plugin, hash chain, Activity tab component, firm audit log screen | 11 |
-| 3 | Clients: profile, contacts, GSTINs, encrypted credentials vault, groups, onboarding flow, duplicate checks, Excel import | 3 |
-| 4 | Service catalog: templates with versions, checklists and steps; seed the starter catalog | 4 |
-| 5 | Engagements and workflow: create from template with snapshot, status pipeline, maker-checker review, tasks, comments, list / Kanban / calendar views, bulk actions | 5 |
-| 6 | File gateway and documents: PHP gateway, storage adapter, checklist uploads, versions, permanent file, signed links, recycle bin | 6, 14 |
-| 7 | Job runner and compliance calendar: jobs queue, runner, cron setup instructions, due-date master, recurring engagement generation, compliance grid | 8, 14 |
-| 8 | Billing: GST invoices with gapless numbering, invoice PDF, payments and allocations, TDS, client ledger, unbilled work report | 7 |
-| 9 | Notifications (Phase 1 part): in-app notifications, team emails (assignment, review, overdue), daily digest, invoice emails, all through the mail queue | 12 |
-| 10 | Dashboards and reports (Phase 1 set), saved views, Excel export on every list | 10 |
-| 11 | Signature UI moments and polish: login 3D scene with fallback, audit tick, completion stamp, command bar, accessibility pass | 15 |
-| 12 | Hardening and go-live: check every Phase 1 acceptance criterion, security checklist, backups, `docs/DEPLOY.md`, data migration rehearsal | 16, 17 |
+| Step | What to build                                                                                                                                                                                | Spec sections |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| 0    | Project setup: Next.js, Tailwind tokens and fonts, ESLint, Prettier, Vitest, Playwright, Storybook, Atlas connection, env handling, empty app shell (left rail, top bar), `docs/PROGRESS.md` | 14, 15        |
+| 1    | Auth, users, roles and branches: login, TOTP 2FA, role- and branch-scoped permission helper, user management screen, seed partner account                                                    | 2, 16         |
+| 2    | Audit log foundation: transaction helper, Mongoose audit plugin, hash chain, Activity tab component, firm audit log screen                                                                   | 11            |
+| 3    | Clients: profile, contacts, GSTINs, encrypted credentials vault, groups, onboarding flow, duplicate checks, Excel import                                                                     | 3             |
+| 4    | Service catalog: templates with versions, checklists and steps; seed the starter catalog                                                                                                     | 4             |
+| 5    | Engagements and workflow: create from template with snapshot, status pipeline, maker-checker review, tasks, comments, list / Kanban / calendar views, bulk actions                           | 5             |
+| 6    | File gateway and documents: PHP gateway, storage adapter, checklist uploads, versions, permanent file, signed links, recycle bin                                                             | 6, 14         |
+| 7    | Job runner and compliance calendar: jobs queue, runner, cron setup instructions, due-date master, recurring engagement generation, compliance grid                                           | 8, 14         |
+| 8    | Billing: GST invoices with gapless numbering, invoice PDF, payments and allocations, TDS, client ledger, unbilled work report                                                                | 7             |
+| 9    | Notifications (Phase 1 part): in-app notifications, team emails (assignment, review, overdue), daily digest, invoice emails, all through the mail queue                                      | 12            |
+| 10   | Dashboards and reports (Phase 1 set), saved views, Excel export on every list                                                                                                                | 10            |
+| 11   | Signature UI moments and polish: login 3D scene with fallback, audit tick, completion stamp, command bar, accessibility pass                                                                 | 15            |
+| 12   | Hardening and go-live: check every Phase 1 acceptance criterion, security checklist, backups, `docs/DEPLOY.md`, data migration rehearsal                                                     | 16, 17        |
 
 ## Phase 2 and Phase 3
 
