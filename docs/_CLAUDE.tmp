@@ -1,0 +1,108 @@
+# PHMG Practice Management CRM — Instructions for the AI coding agent
+
+You are building the practice management CRM for PHMG & Associates, a Chartered Accountancy firm in India.
+
+## Read this first
+
+- The full product specification is `docs/SPEC.md`. Read it completely before writing any code. It is the source of truth for **what** to build. This file is the source of truth for **how** to work.
+- Progress is tracked in `docs/PROGRESS.md`. Read it at the start of every session to know what is already done. If it does not exist, create it from the phase plan below.
+- The person you work with is the firm owner, not a developer. Explain things in plain language and give exact steps when they need to do something themselves.
+
+## How to work: one step at a time
+
+For every step in the phase plan:
+
+1. Re-read the spec sections listed for that step.
+2. Write a short plan: models, routes, screens, components, tests, and any decisions needed. Show it to the owner and **wait for "go"** before coding.
+3. Build only that step. Do not start the next step or add features from later phases.
+4. Write tests: Vitest for business logic, Playwright for the main user flow of the step.
+5. Run lint, tests and `next build`. Fix every failure before reporting.
+6. Update `docs/PROGRESS.md`: tick finished items, record decisions, list anything left over.
+7. Report back with: what was built, exactly how to check it in the browser (which page, what to click), and any decision the owner must make. Suggest a git commit message.
+8. **Wait for approval** before moving to the next step.
+
+If the spec is unclear, or something needs a business decision (fees, due dates, who can see what), ask. Do not guess. If a library named in the spec does not work, explain why and propose an alternative before switching.
+
+## Fixed technical decisions (do not change without asking)
+
+- **Framework:** Next.js 15 App Router, **JavaScript only** (no TypeScript). Use JSDoc types and `// @ts-check` at the top of files in `lib/` and `models/`.
+- **UI:** Tailwind CSS v4 with the design tokens from spec section 15, Radix UI primitives, Motion, TanStack Table + TanStack Virtual, cmdk, dnd-kit, React Hook Form + Zod, Phosphor Icons, date-fns, Sonner, visx. Three.js through React Three Fiber + drei, **only** for the login scene and the optional deadline terrain view. Fonts: Fraunces, IBM Plex Sans, IBM Plex Mono via `next/font`.
+- **Database:** MongoDB Atlas (Mumbai) with Mongoose. Collections exactly as in spec section 13.
+- **Auth:** Auth.js (NextAuth) with the MongoDB adapter and mandatory TOTP 2FA for staff.
+- **App hosting:** Vercel, serverless functions pinned to region `bom1`.
+- **File storage:** a PHP file gateway on the firm's BigRock cPanel hosting, as described in spec section 14. The Next.js app talks to it only through the storage adapter in `lib/storage/`.
+- **Background jobs:** a MongoDB `jobs` queue processed by a runner that cPanel Cron Jobs on BigRock trigger every 5 minutes (spec section 14). Each run must finish within 60 seconds.
+- **Email:** cPanel mailbox `notices@phmgindia.com` over SMTP with Nodemailer, behind `lib/mailer/`, sent only through the rate-limited job queue.
+- Do not add any dependency that is not listed here or in the spec without asking first.
+
+## Rules that must never be broken
+
+1. **Permissions are enforced on the server** in every server action and route handler (spec section 2). Hiding a button is not security.
+2. **Every change is audited.** Every create, update, soft delete, status change, file download and credential reveal writes an `auditLogs` entry in the **same MongoDB transaction** as the change (spec section 11). Use the central helper in `lib/audit/`; never write data around it.
+3. **Soft delete only.** Nothing is hard-deleted from the app.
+4. **Maker and checker are different people.** Only a CA or Partner can mark an engagement Completed (spec section 5).
+5. **Money is stored as integer paise.** Display ₹ with Indian grouping (`Intl.NumberFormat('en-IN')`). Dates are stored in UTC and shown in IST as DD-MM-YYYY. The financial year runs April to March.
+6. **Secrets live only in environment variables.** Never commit `.env`. Keep `.env.example` up to date with every variable and a comment explaining it.
+7. **Sensitive fields are encrypted** (spec section 16): portal passwords, bank details, Aadhaar. Never log PAN, Aadhaar, passwords or document contents.
+8. **Never invent statutory due dates or tax rules.** Seed them from a table the owner verifies, and flag anything you are unsure of.
+9. **No lorem ipsum.** Seed data uses realistic Indian names, cities and correctly formatted (fake) PAN and GSTIN numbers.
+10. **Follow the design rules** in spec section 15, especially "What keeps it from looking AI-made". No purple gradients, glass panels, emoji icons or grids of identical shadowed cards.
+11. **Files are never public.** Uploads and downloads go only through signed, short-lived links from the file gateway.
+
+## Project structure
+
+```
+/app            Next.js routes: (auth) for login, (app) for the signed-in CRM
+/components     UI components, each with a Storybook story
+/lib            db, auth, permissions, audit, storage, mailer, jobs, money, dates, validators
+/models         Mongoose models, one file per collection
+/jobs           job handlers (one file per job type)
+/runner         the job runner script started by BigRock cron
+/gateway        PHP file gateway, deployed separately to BigRock
+/scripts        seed, Excel import, backup helpers
+/docs           SPEC.md, PROGRESS.md, DEPLOY.md
+/tests          Vitest and Playwright tests
+```
+
+## Phase 1 — Core MVP (build in this order)
+
+| Step | What to build | Spec sections |
+| --- | --- | --- |
+| 0 | Project setup: Next.js, Tailwind tokens and fonts, ESLint, Prettier, Vitest, Playwright, Storybook, Atlas connection, env handling, empty app shell (left rail, top bar), `docs/PROGRESS.md` | 14, 15 |
+| 1 | Auth, users, roles and branches: login, TOTP 2FA, role- and branch-scoped permission helper, user management screen, seed partner account | 2, 16 |
+| 2 | Audit log foundation: transaction helper, Mongoose audit plugin, hash chain, Activity tab component, firm audit log screen | 11 |
+| 3 | Clients: profile, contacts, GSTINs, encrypted credentials vault, groups, onboarding flow, duplicate checks, Excel import | 3 |
+| 4 | Service catalog: templates with versions, checklists and steps; seed the starter catalog | 4 |
+| 5 | Engagements and workflow: create from template with snapshot, status pipeline, maker-checker review, tasks, comments, list / Kanban / calendar views, bulk actions | 5 |
+| 6 | File gateway and documents: PHP gateway, storage adapter, checklist uploads, versions, permanent file, signed links, recycle bin | 6, 14 |
+| 7 | Job runner and compliance calendar: jobs queue, runner, cron setup instructions, due-date master, recurring engagement generation, compliance grid | 8, 14 |
+| 8 | Billing: GST invoices with gapless numbering, invoice PDF, payments and allocations, TDS, client ledger, unbilled work report | 7 |
+| 9 | Notifications (Phase 1 part): in-app notifications, team emails (assignment, review, overdue), daily digest, invoice emails, all through the mail queue | 12 |
+| 10 | Dashboards and reports (Phase 1 set), saved views, Excel export on every list | 10 |
+| 11 | Signature UI moments and polish: login 3D scene with fallback, audit tick, completion stamp, command bar, accessibility pass | 15 |
+| 12 | Hardening and go-live: check every Phase 1 acceptance criterion, security checklist, backups, `docs/DEPLOY.md`, data migration rehearsal | 16, 17 |
+
+## Phase 2 and Phase 3
+
+Only start these after the owner confirms Phase 1 is in daily use. At the start of each phase, read spec section 17, break the phase into steps like the table above, add them to `docs/PROGRESS.md`, and get the owner's approval of the step list first.
+
+## Definition of done for every step
+
+- Does what the listed spec sections describe, nothing more.
+- Server-side permission checks and audit entries are in place.
+- Tests, lint and build all pass.
+- Works at 390 px (phone), 1280 px (laptop) and 1920 px (monitor), in light and dark themes, and with the keyboard alone.
+- `docs/PROGRESS.md` is updated.
+
+## Things the owner must do (give them exact instructions)
+
+You cannot log in to the firm's accounts. When a step needs any of the following, stop and give the owner numbered, click-by-click instructions, then wait for them to confirm:
+
+- creating the MongoDB Atlas cluster, database user and network access
+- creating the Vercel project and adding environment variables
+- creating the `files.` subdomain, uploading the PHP gateway and setting cron jobs in BigRock cPanel
+- creating the `notices@` mailbox and setting SPF, DKIM and DMARC (cPanel and GoDaddy DNS)
+
+## Starting
+
+When the owner says "start", read `docs/SPEC.md` in full, create `docs/PROGRESS.md`, then present your plan for Step 0 and wait for approval.
