@@ -12,7 +12,7 @@ Last updated: 16-10-2026
 | 0 | Project setup: Next.js, Tailwind tokens and fonts, ESLint, Prettier, Vitest, Playwright, Atlas connection, env handling, empty app shell | ✅ | Done 16-10-2026. Storybook deferred to Step 1; Atlas cluster still to be created by the owner |
 | 1 | Auth, users, roles and branches (login, TOTP 2FA, permission helper, user management, seed partner) | 🟡 | Built 16-10-2026. Cannot be run until the owner creates the Atlas cluster; 6 Playwright tests are waiting on it |
 | 2 | Audit log foundation (transaction helper, Mongoose plugin, hash chain, Activity tab, firm audit screen) | 🟡 | Built 16-10-2026. Needs Atlas to run: transactions require a replica set |
-| 3 | Clients (profile, contacts, GSTINs, credentials vault, groups, onboarding, duplicate checks, Excel import) | ⬜ | |
+| 3 | Clients (profile, contacts, GSTINs, credentials vault, groups, onboarding, duplicate checks, Excel import) | 🟡 | Built 16-10-2026. Needs Atlas to run; 22 Playwright tests waiting |
 | 4 | Service catalog (templates, versions, checklists, steps, starter catalog seed) | ⬜ | |
 | 5 | Engagements and workflow (template snapshot, status pipeline, maker-checker, tasks, comments, list/Kanban/calendar, bulk actions) | ⬜ | |
 | 6 | File gateway and documents (PHP gateway, storage adapter, uploads, versions, permanent file, signed links, recycle bin) | ⬜ | |
@@ -47,6 +47,11 @@ Not started. Break into steps only after the owner confirms Phase 1 is in daily 
 | 16-10-2026 | Audit export is CSV with a UTF-8 marker (Excel reads it natively) instead of a real .xlsx; revisit in Step 10 | Agent |
 | 16-10-2026 | PAN and Aadhaar changes are logged as "changed" without their values, per CLAUDE.md rule 7, even though spec §11 asks for before/after on every field | Agent, owner to confirm |
 | 16-10-2026 | A failed audit write rolls back the change it belongs to; the one exception is sign-out, which is never blocked by a log failure | Agent |
+| 16-10-2026 | Client import accepts CSV (Excel's "Save as → CSV UTF-8") rather than .xlsx, to avoid a spreadsheet-parsing dependency | Agent, owner to confirm |
+| 16-10-2026 | Client list is a server-paged plain table instead of TanStack Table + Virtual; revisit at the compliance grid in Step 7 | Agent, owner to confirm |
+| 16-10-2026 | A duplicate PAN or GSTIN blocks saving but can be overridden with a tick box; a shared mobile only warns | Agent, owner to confirm |
+| 16-10-2026 | Client codes run PHMG-<branch>-0001 upward, one series per branch, never reused | Agent |
+| 16-10-2026 | A revealed portal password clears from the screen after one minute | Agent |
 
 ## What Step 0 built
 
@@ -88,6 +93,22 @@ Not started. Break into steps only after the owner confirms Phase 1 is in daily 
 - Step 1's `TODO(step-2)` markers are filled in: user created, role changed, account activated/deactivated, password reset, 2FA reset — plus sign-in, failed sign-in and sign-out.
 - Tests: 23 new Vitest tests (81 total) covering the chain against editing, resequencing, deletion and re-hashing, plus redaction and the sentence builder. 4 more Playwright tests waiting on Atlas.
 
+## What Step 3 built
+
+- `lib/validators.js`: PAN, GSTIN, TAN, CIN/LLPIN, Udyam, IEC, Aadhaar, mobile, IFSC. **GSTIN and Aadhaar check digits are verified properly**, not just the shape — a GSTIN with one mistyped character is caught at the keyboard, and so is a transposed pair of Aadhaar digits. A PAN whose 4th character disagrees with the entity type is flagged as the wrong PAN pasted in.
+- `models/Client.js`: the full profile from spec §3 — identity, statutory IDs, embedded contacts / GSTINs / addresses / fee agreements, firm side, classification, commercials, status. Aadhaar stored encrypted with only the last four digits in the clear.
+- `models/ClientCredential.js`: the vault, in its own collection so it never loads with the client; passwords and notes encrypted, `select: false`.
+- `models/ClientGroup.js` and `models/Comment.js` (notes + communication log, reused for engagement comments in Step 5).
+- `lib/clients/validate.js`: **one validator shared by the form and the import**, so the import cannot accept what the form would reject.
+- `lib/clients/duplicates.js`: PAN and GSTIN clashes block; a shared mobile or identical name warns. Soft-deleted clients are included, so a PAN sitting on a deleted record is explained rather than causing a database error.
+- `/clients`: list with search across name, code, PAN, GSTIN and mobile, filters, paging, CSV export.
+- `/clients/new` and `/clients/[id]/edit`: the onboarding form with live duplicate checking as the PAN or a GSTIN loses focus.
+- `/clients/[id]`: the case file with folder tabs — Overview, Notes and Activity are live; Engagements, Documents, Invoices and Compliance say which step fills them.
+- Credentials vault UI: reveal-on-click, the revealed password clears itself after a minute, and every reveal writes an audit entry naming the person.
+- `/clients/import`: download a template, upload a CSV, see a row-by-row preview with every problem named, then import only the good rows — a 300-row file with 3 bad rows imports 297 and lists the 3.
+- Client codes (`PHMG-NOI-0142`) from an atomic per-branch counter inside the transaction, so two people onboarding at once cannot collide.
+- Tests: 51 new Vitest tests (132 total) on the identifiers, the CSV parser and the import pipeline; 14 new Playwright tests waiting on Atlas.
+
 ## Open questions waiting on the owner
 
 From spec §18 — none answered yet. These block later steps, not Step 0:
@@ -114,6 +135,17 @@ From spec §18 — none answered yet. These block later steps, not Step 0:
 - [ ] `notices@` mailbox + SPF/DKIM/DMARC (Step 9)
 
 ## Left over / known gaps
+
+**From Step 3**
+
+- **Interns currently see an empty client list.** Spec §2 limits them to clients they are assigned to, and assignment comes from engagements (Step 5). Showing them their whole branch would be wider than the spec allows, so the list explains itself and stays empty until Step 5.
+- Import is **CSV, not .xlsx** (marked `ponytail:` in `lib/csv.js`). The screen tells the owner to use Excel's "Save as → CSV UTF-8". A real .xlsx reader means another dependency — say if it is wanted.
+- The client list is a plain server-paged table, **not TanStack Table + Virtual** as spec §15 lists. At 50 rows a page there is nothing to virtualise. Flagged as a deviation to confirm; Step 7's compliance grid is where virtual scrolling genuinely earns its place.
+- Opening balances are not imported (spec §17 mentions them for go-live) — they need invoices, so Step 8.
+- Spec §3 step 5 offers to create recurring engagements on activation; the offer needs the service catalog (Step 4) and engagements (Step 5).
+- KYC document and engagement letter upload (onboarding step 3) needs the file gateway, Step 6.
+- Closing a client should first require open engagements to be finished (spec §3) — the check is noted in `setClientStatus` and lands in Step 5.
+- Fee agreements are stored on the model but have no editing UI yet; the quote captured at lead stage covers Phase 1 onboarding.
 
 **From Step 2**
 
