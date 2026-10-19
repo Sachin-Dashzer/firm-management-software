@@ -102,6 +102,12 @@ every upload.
 
 ### Step 7 — check it works
 
+0. On your own machine, with the gateway settings in `.env.local`, run
+   `npm run doctor`. It uploads a probe file through the real gateway,
+   downloads it, compares the bytes and erases it — the whole path in one
+   command, before any client file goes near it. The steps below are the
+   same thing by hand, through the app.
+
 1. Open the CRM, go to any engagement, and attach a small PDF to a checklist
    item.
 2. It should say the file is attached, and the checklist item should move to
@@ -350,9 +356,9 @@ redeploy; nothing is lost, and the queue resumes when you turn it back on.
    | `NEXT_PUBLIC_APP_URL` | the same address |
    | `FIELD_ENCRYPTION_KEY` | `openssl rand -base64 32` — **this one is irreplaceable**, see below |
    | `STORAGE_ENCRYPTION_KEY` | the key from section 1, Step 1 |
-   | `STORAGE_GATEWAY_URL`, `STORAGE_GATEWAY_SECRET` | from section 1 |
+   | `STORAGE_GATEWAY_URL`, `STORAGE_SHARED_SECRET` | from section 1 |
    | `EMAIL_*` | from section 3 |
-   | `JOB_RUNNER_SECRET` | from section 2 |
+   | `JOBS_SECRET` | from section 2 |
 
 5. **Deploy.**
 
@@ -363,9 +369,25 @@ redeploy; nothing is lost, and the queue resumes when you turn it back on.
 > in the firm's password manager **and** on paper in a sealed envelope in
 > the office safe. Do this on the day you create them, not later.
 
-### Step 3 — the first partner account
+### Step 3 — check it, then make the first partner account
 
-Once the cluster is live and the app is deployed, on your own machine:
+Once the cluster is live, on your own machine:
+
+```
+npm run doctor
+```
+
+This is the pre-flight check. It reads your `.env.local`, opens the
+database, proves transactions work (nothing can be audited without them),
+builds the indexes, walks the audit chain, puts a probe file through the
+vault, and then lists what is still missing — branch GSTINs, unconfirmed
+due-date rules, services still at ₹0. **Run it again after every go-live
+step below**; it is the fastest way to see where you are. It writes
+nothing except the probe file, which it erases.
+
+It explains Atlas's own errors in plain words: a wrong password, a cluster
+address that does not exist, an IP that is not allowed in. When it is
+clean:
 
 ```
 npm run seed
@@ -445,8 +467,8 @@ offers "restore to a new cluster", and that is the only safe way to test.
 Do not do these in parallel. Each one is checkable, and a problem found at
 step 3 is much easier than the same problem found at step 8.
 
-1. **Atlas cluster** (section 4) → `npm run seed` → sign in. *Check: you can
-   sign in and the Today screen loads.*
+1. **Atlas cluster** (section 4) → `npm run doctor` → `npm run seed` → sign
+   in. *Check: doctor is clean, you can sign in and the Today screen loads.*
 2. **Vercel project and all environment variables** → deploy. *Check: the
    deployed address signs you in too.*
 3. **File gateway on BigRock** (section 1). *Check: upload a file to a
@@ -466,7 +488,9 @@ step 3 is much easier than the same problem found at step 8.
    import): team, clients, opening balances, in that order. **Rehearse it
    first** — section 7.
 10. **Backups, and the restore test** (section 5).
-11. **Walk `docs/ACCEPTANCE.md`** with a partner and mark it off.
+11. **Walk `docs/ACCEPTANCE.md`** with a partner and mark it off. Run
+    `npm run doctor` once more: the "still to do" list at the foot of it
+    should be empty.
 12. **Turn client email on**: `EMAIL_CLIENTS_ENABLED=true`, and remove
     `EMAIL_REDIRECT_TO`. This is the point of no return for anything that
     reaches a client, so it is deliberately last.

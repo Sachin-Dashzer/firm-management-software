@@ -194,7 +194,9 @@ Spec §16 says to treat it as acceptance criteria too.
 
 In order:
 
-1. **Atlas cluster.** Everything below needs it.
+1. **Atlas cluster.** Everything below needs it. Then `npm run doctor`,
+   which proves the connection, the transactions every audit entry depends
+   on, the indexes and the vault in one command.
 2. **Run the 56 Playwright tests** against it. They are the real check on
    criteria 1–10.
 3. **Walk this document** with a partner, screen by screen, and mark each
