@@ -14,6 +14,12 @@ import {
   signChallenge,
   readChallenge,
 } from "@/lib/twoFactor";
+import {
+  isLocked,
+  afterFailure,
+  MAX_ATTEMPTS,
+  LOCK_MINUTES,
+} from "@/lib/security/lockout";
 import { TOTP, Secret } from "otpauth";
 
 beforeAll(() => {
@@ -179,5 +185,49 @@ describe("the sign-in challenge", () => {
     delete process.env.AUTH_SECRET;
     expect(() => signChallenge("user-123")).toThrow(/AUTH_SECRET/);
     process.env.AUTH_SECRET = saved;
+  });
+});
+
+describe("the sign-in lockout", () => {
+  const now = new Date("2026-10-19T10:00:00Z");
+
+  it("counts failures and locks on the fifth", () => {
+    let record = {};
+    for (let attempt = 1; attempt < MAX_ATTEMPTS; attempt += 1) {
+      record = afterFailure(record, now);
+      expect(record.failedLogins).toBe(attempt);
+      expect(record.lockedUntil, `attempt ${attempt}`).toBeNull();
+    }
+
+    record = afterFailure(record, now);
+    expect(record.failedLogins).toBe(MAX_ATTEMPTS);
+    expect(record.lockedUntil).toEqual(
+      new Date(now.getTime() + LOCK_MINUTES * 60 * 1000),
+    );
+  });
+
+  it("reports a live lock and lets it lapse", () => {
+    const locked = {
+      failedLogins: 5,
+      lockedUntil: new Date("2026-10-19T10:05:00Z"),
+    };
+    expect(isLocked(locked, now)).toBe(true);
+    expect(isLocked(locked, new Date("2026-10-19T10:05:01Z"))).toBe(false);
+  });
+
+  it("treats a fresh record and a missing one as unlocked", () => {
+    expect(isLocked({}, now)).toBe(false);
+    expect(isLocked({ failedLogins: 4, lockedUntil: null }, now)).toBe(false);
+    expect(isLocked(null, now)).toBe(false);
+    expect(isLocked(undefined, now)).toBe(false);
+  });
+
+  /**
+   * The client portal signs in against `clientUsers` with the same rule
+   * (P2-9a). This is the test that the rule is one piece of code and not two.
+   */
+  it("works on any record with the two fields, not only a User", () => {
+    const clientUser = { email: "ops@example.in", failedLogins: 4 };
+    expect(afterFailure(clientUser, now).lockedUntil).not.toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { requireUser } from "@/auth";
+import { currentUser, requireUser } from "@/auth";
 import { can } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import Engagement from "@/models/Engagement";
@@ -20,11 +20,26 @@ import { DueChip, StatusChip } from "../chips";
 
 export const dynamic = "force-dynamic";
 
+/** The code names the client's branch and service, so it is checked like the page. */
 export async function generateMetadata({ params }) {
+  const generic = { title: "Engagement · PHMG" };
+  const actor = await currentUser();
+  if (!actor) return generic;
+
   const { id } = await params;
   await connectDB();
-  const engagement = await Engagement.findById(id).select("code").lean();
-  return { title: engagement ? `${engagement.code} · PHMG` : "Engagement" };
+  const engagement = await Engagement.findById(id)
+    .select("code branchId assigneeId reviewerId")
+    .lean();
+  if (!engagement) return generic;
+
+  const maySee = can(actor, "view", "engagementsWork", {
+    branchId: String(engagement.branchId),
+    assigneeId: String(engagement.assigneeId ?? ""),
+    reviewerId: String(engagement.reviewerId ?? ""),
+  });
+
+  return maySee ? { title: `${engagement.code} · PHMG` } : generic;
 }
 
 export default async function EngagementPage({ params }) {

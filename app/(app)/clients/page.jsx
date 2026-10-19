@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/auth";
-import { can, branchFilter, scopeOf } from "@/lib/permissions";
+import { can, branchFilter, seesOnlyOwnRecords } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import Client from "@/models/Client";
 import Engagement from "@/models/Engagement";
@@ -45,10 +45,11 @@ export default async function ClientsPage({ searchParams }) {
     query.branchId = { $in: actor.branchIds };
   }
 
-  // An intern may see only clients they are assigned to (spec section 2).
-  // Assignment comes from engagements, so the list is the clients of the work
-  // on their desk — nothing else in the branch.
-  const assignedOnly = scopeOf(actor, "clients") === "assigned";
+  // An employee or intern may see only clients they are attached to (spec
+  // section 2, owner decision D3). Attachment comes from engagements, so the
+  // list is the clients of the work on their desk — nothing else in the
+  // branch. P2-2 widens this to include Client Access Grants.
+  const assignedOnly = seesOnlyOwnRecords(actor, "clients");
   if (assignedOnly) {
     const mine = await Engagement.distinct("clientId", {
       $or: [{ assigneeId: actor.id }, { reviewerId: actor.id }],

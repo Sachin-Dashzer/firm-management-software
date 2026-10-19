@@ -14,6 +14,7 @@ import {
 } from "@/lib/twoFactor";
 import { audited } from "@/lib/audit/request";
 import { recordAudit, ACTIONS } from "@/lib/audit";
+import { isLocked, afterFailure, LOCK_MINUTES } from "@/lib/security/lockout";
 
 /**
  * Failed sign-ins are logged (spec section 11), with the email that was
@@ -46,9 +47,6 @@ async function logFailedSignIn(email, userId) {
  * password and an inactive account all give the same answer.
  */
 
-const LOCK_AFTER = 5;
-const LOCK_MINUTES = 15;
-
 const passwordStep = z.object({
   email: z.string().trim().toLowerCase().email(),
   password: z.string().min(1),
@@ -78,7 +76,7 @@ export async function startSignIn(input) {
     return SAME_ANSWER;
   }
 
-  if (user.lockedUntil && user.lockedUntil > new Date()) {
+  if (isLocked(user)) {
     return {
       error: `Too many attempts. Try again after ${LOCK_MINUTES} minutes, or ask a partner to reset your password.`,
     };
@@ -89,19 +87,7 @@ export async function startSignIn(input) {
     : false;
 
   if (!ok) {
-    const failed = (user.failedLogins ?? 0) + 1;
-    await User.updateOne(
-      { _id: user._id },
-      {
-        $set: {
-          failedLogins: failed,
-          lockedUntil:
-            failed >= LOCK_AFTER
-              ? new Date(Date.now() + LOCK_MINUTES * 60 * 1000)
-              : null,
-        },
-      },
-    );
+    await User.updateOne({ _id: user._id }, { $set: afterFailure(user) });
     await logFailedSignIn(email, String(user._id));
     return SAME_ANSWER;
   }

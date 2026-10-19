@@ -1,5 +1,5 @@
 import { requireUser } from "@/auth";
-import { can, branchFilter, scopeOf } from "@/lib/permissions";
+import { can, branchFilter, seesOnlyOwnRecords } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import Client from "@/models/Client";
 import Engagement from "@/models/Engagement";
@@ -45,8 +45,8 @@ export async function GET(request) {
   if (can(actor, "view", "clients")) {
     const query = { ...(branchFilter(actor, "clients") ?? {}) };
 
-    // an intern sees the clients they have work on, and no others
-    if (scopeOf(actor, "clients") === "assigned") {
+    // an employee or intern finds the clients they have work on, and no others
+    if (seesOnlyOwnRecords(actor, "clients")) {
       const mine = await Engagement.find({
         $or: [{ assigneeId: actor.id }, { reviewerId: actor.id }],
       }).distinct("clientId");

@@ -111,10 +111,20 @@ export async function importTeam(csvText) {
   };
 }
 
-/** Check an opening-balance sheet without writing anything. */
+/**
+ * Check an opening-balance sheet without writing anything.
+ *
+ * Gated on `usersSettings`, the same area as the page it sits behind, rather
+ * than on `invoices`. The `invoices` check these two used to carry had no
+ * target, so it passed for anyone with firm-wide billing rights — the
+ * accounts person already, and a CA the moment they were given `edit/branch`
+ * (owner decision D2, which excludes "Bringing data in" by name). Raising
+ * opening balances is a Partner act: it reads every client in the firm and
+ * writes money the firm says it is owed.
+ */
 export async function checkOpeningSheet(csvText) {
   const actor = await requireUser();
-  assertCan(actor, "edit", "invoices");
+  assertCan(actor, "edit", "usersSettings");
 
   await connectDB();
   const clients = await Client.find({})
@@ -141,7 +151,7 @@ export async function checkOpeningSheet(csvText) {
  */
 export async function importOpeningBalances(csvText) {
   const actor = await requireUser();
-  assertCan(actor, "edit", "invoices");
+  assertCan(actor, "edit", "usersSettings");
 
   const prepared = await checkOpeningSheet(csvText);
   const ready = prepared.rows.filter((row) => row.errors.length === 0);

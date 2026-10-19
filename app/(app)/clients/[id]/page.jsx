@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { requireUser } from "@/auth";
+import { currentUser, requireUser } from "@/auth";
 import { can } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import Client from "@/models/Client";
@@ -44,15 +44,32 @@ const TABS = [
   { key: "activity", label: "Activity" },
 ];
 
+/**
+ * The tab title is the client's name, so it needs the same permission check
+ * the page runs. Without one, a guessed id told anybody signed in — an intern
+ * included — who that client was, in the browser tab.
+ *
+ * It checks on the branch alone, which is all it can do without a second
+ * query for a tab title: a Partner, a CA and the accounts person see the
+ * name, and everyone else gets the generic title even on a client they are
+ * allowed to open. Cosmetic, and on the safe side.
+ */
 export async function generateMetadata({ params }) {
+  const generic = { title: "Client · PHMG" };
+  const actor = await currentUser();
+  if (!actor) return generic;
+
   const { id } = await params;
   await connectDB();
-  const client = await Client.findById(id).select("legalName tradeName").lean();
-  return {
-    title: client
-      ? `${client.tradeName || client.legalName} · PHMG`
-      : "Client · PHMG",
-  };
+  const client = await Client.findById(id)
+    .select("legalName tradeName branchId")
+    .lean();
+  if (!client) return generic;
+  if (!can(actor, "view", "clients", { branchId: String(client.branchId) })) {
+    return generic;
+  }
+
+  return { title: `${client.tradeName || client.legalName} · PHMG` };
 }
 
 export default async function ClientPage({ params, searchParams }) {
@@ -64,17 +81,41 @@ export default async function ClientPage({ params, searchParams }) {
   const client = await Client.findById(id).lean();
   if (!client) notFound();
 
-  // Branch scoping: a CA in Ludhiana cannot open a Noida client (spec 2)
-  if (!can(actor, "view", "clients", { branchId: String(client.branchId) })) {
-    redirect("/clients");
-  }
+  /**
+   * Who may open this file. A CA is scoped to their branches (spec section 2);
+   * an employee or intern reaches a client through the work on their desk,
+   * which means the check needs to know who is on that work, not just which
+   * branch it is in. Without these ids the `granted` scope has nothing to
+   * match and the page would turn away the very people it is for — which is
+   * what happened to interns before this.
+   *
+   * ponytail: two queries' worth of access logic lives here for one step.
+   * P2-2 replaces it with `accessFor()`, which adds Client Access Grants.
+   */
+  const onThisClient = await Engagement.find({ clientId: client._id })
+    .select("assigneeId reviewerId")
+    .lean();
+  const assignedUserIds = onThisClient
+    .flatMap((e) => [e.assigneeId, e.reviewerId])
+    .filter(Boolean)
+    .map(String);
 
+  const scope = { branchId: String(client.branchId), assignedUserIds };
+
+  if (!can(actor, "view", "clients", scope)) redirect("/clients");
+
+  /**
+   * Sensitive data is deliberately checked on the branch alone, not on
+   * `scope`: this one area still covers both the statutory IDs and the
+   * credentials vault, and the owner's decision of 19-10-2026 separates them
+   * — identifiers may be granted to an employee, the vault never. P2-2 splits
+   * the area in two, when grant sections exist to hang them on. Until then
+   * this stays exactly as wide as it was.
+   */
   const seeSensitive = can(actor, "view", "clientSensitive", {
     branchId: String(client.branchId),
   });
-  const mayEdit = can(actor, "edit", "clients", {
-    branchId: String(client.branchId),
-  });
+  const mayEdit = can(actor, "edit", "clients", scope);
 
   const [branch, partner, manager, group] = await Promise.all([
     Branch.findById(client.branchId).select("code name").lean(),

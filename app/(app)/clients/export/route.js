@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { requireUser } from "@/auth";
-import { can, branchFilter, scopeOf } from "@/lib/permissions";
+import { can, branchFilter, seesOnlyOwnRecords } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import Client from "@/models/Client";
 import Branch from "@/models/Branch";
@@ -23,7 +23,10 @@ export async function GET(request) {
   if (!can(actor, "view", "clients")) {
     return new Response("Not allowed", { status: 403 });
   }
-  if (scopeOf(actor, "clients") === "assigned") {
+  // Somebody who only sees the clients on their own desk does not get a
+  // spreadsheet of them: the export carries the whole filtered list, and
+  // narrowing it per record is not what this route is for.
+  if (seesOnlyOwnRecords(actor, "clients")) {
     return new Response("Not allowed", { status: 403 });
   }
 

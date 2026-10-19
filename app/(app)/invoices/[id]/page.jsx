@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { requireUser } from "@/auth";
+import { currentUser, requireUser } from "@/auth";
 import { can } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import Invoice from "@/models/Invoice";
@@ -16,11 +16,21 @@ import InvoiceEditor from "./InvoiceEditor";
 
 export const dynamic = "force-dynamic";
 
+/** An invoice number names a branch, a financial year and a sequence. Checked. */
 export async function generateMetadata({ params }) {
+  const generic = { title: "Invoice · PHMG" };
+  const actor = await currentUser();
+  if (!actor) return generic;
+
   const { id } = await params;
   await connectDB();
-  const invoice = await Invoice.findById(id).select("number").lean();
-  return { title: `${invoice?.number ?? "Draft invoice"} · PHMG` };
+  const invoice = await Invoice.findById(id).select("number branchId").lean();
+  if (!invoice) return generic;
+  if (!can(actor, "view", "invoices", { branchId: String(invoice.branchId) })) {
+    return generic;
+  }
+
+  return { title: `${invoice.number ?? "Draft invoice"} · PHMG` };
 }
 
 export default async function InvoicePage({ params }) {

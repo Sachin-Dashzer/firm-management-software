@@ -30,9 +30,38 @@ Last updated: 19-10-2026
 | 11 | Signature UI moments and polish (login 3D scene + fallback, audit tick, stamp, command bar, a11y pass) | 🟡 | Built 18-10-2026. All 8 signature moments of spec §15 built, plus Kanban drag. Needs Atlas to run; 5 more Playwright tests waiting. **Three light-theme colours darkened to pass WCAG AA — see decisions** |
 | 12 | Hardening and go-live (acceptance criteria, security checklist, backups, DEPLOY.md, migration rehearsal) | 🟡 | Built 19-10-2026. **Two holes found and fixed: a deactivated user kept working for up to 30 minutes, and a soft delete was saved outside its own audit transaction.** DPDP export and redaction, incident log, team and opening-balance imports, backup script, `docs/ACCEPTANCE.md`, a finished `DEPLOY.md` with the migration rehearsal and the monitoring setup. **Everything still open is owner-side or needs the database** |
 
-## Phase 2 / Phase 3
+## Phase 2 — role panels, 360° views, practice modules, A/B/C hierarchy, Portal Log
 
-Not started. Break into steps only after the owner confirms Phase 1 is in daily use (spec §17).
+Step list approved by the owner 19-10-2026, against the Phase 2 upgrade brief.
+**Opened although Phase 1 is not yet in daily use**, which `CLAUDE.md` gates
+Phase 2 on — see the decisions table. Nothing in Phase 1 has ever run against a
+database, so every Phase 2 step will report "built, needs Atlas" for the same
+reason, including the security fixes in P2-1.
+
+| Step | What | Status | Notes |
+| --- | --- | --- | --- |
+| P2-0 | Verify the brief's gap analysis against the code, then present the step plan | ✅ | Done 19-10-2026. 15 of 15 rows confirmed; 6 corrections and 6 further gaps found — see below |
+| P2-1 | Permissions: D2, D3, `granted` scope, 9 new areas, `describeMatrix()`, client actor kind; the `generateMetadata` leak; the lockout helper | 🟡 | Built 19-10-2026. **Three more holes found and fixed on the way through.** Splitting `clientSensitive` moved to P2-2, where grant sections exist to hang it on. Needs Atlas to run; 2 Playwright tests waiting |
+| P2-2 | `ClientAccess` + `lib/access/clientAccess.js` wired into the clients list, case file, tabs, document links, vault, search and command bar; grant UI; `expireGrants` job | ⬜ | |
+| P2-2b | Sample seed data: 6 staff with `reportingTo`, 4 clients, services across A/B/C, grants of three widths, a portal user | ⬜ | Moved early: without it no step after P2-2 can be checked by hand |
+| P2-3 | `/me` (and `mustChangePassword` finally enforced) · employee rail · My senior CA · `/team` + `/team/[id]` Employee 360 · offboard wizard · MobileNav "More" sheet | ⬜ | |
+| P2-4 | A/B/C labels and `TierBadge` everywhere · per-step `minRole` and `assignTask` · the four enforcement gaps · C-tier bulk approve | ⬜ | |
+| P2-5 | Client 360: the new tab set, tab counts, outstanding balance in the header, Compliance tab filled | ⬜ | |
+| P2-6 | `FirmSettings` · ICAI page · `User.icai` · CPE log · ICAI notes | ⬜ | |
+| P2-7 | UDIN register (and engagement sync) · DSC register (and `dsc_expiring` rule, dashboard tile) | ⬜ | |
+| P2-8a | Audits · Statutory · Tax page, plus the `assurance` fields and `filedOn` | ⬜ | |
+| P2-8b | Based Docs: `DocTemplate`, `lib/docs/resolve.js`, `templatePdf.jsx`, draft/final tier rules, 8 draft templates, template admin | ⬜ | |
+| P2-8c | DOCX output | ⬜ | Needs the `docx` dependency — owner approval first |
+| P2-9a | `ClientUser` · client auth provider (2FA optional) · `/client/login` · middleware · portal-user admin · `sharedWithClient` | ⬜ | |
+| P2-9b | The `/client/*` pages: overview, work, documents, invoices and PDF, ledger, profile and change request | ⬜ | |
+| P2-10a | Portal Log: rename, redirects, redesign | ⬜ | |
+| P2-10b | Settings: section layout and "Needs attention" | ⬜ | |
+| P2-10c | Reports: KPI strip, category nav, 8 new report definitions | ⬜ | |
+| P2-10d | Final rail and Practice group · `scripts/doctor.js` additions · full Phase 2 acceptance pass | ⬜ | |
+
+## Phase 3
+
+Not started (spec §17).
 
 ## Decisions made
 
@@ -138,6 +167,125 @@ Not started. Break into steps only after the owner confirms Phase 1 is in daily 
 | 19-10-2026 | Errors only: performance tracing, session replay and profiling are all off. Each would send far more of what a staff member was doing than knowing about a crash requires | Agent |
 | 19-10-2026 | Every error report is scrubbed before it leaves (`lib/observability/scrub.js`): no request body, cookies, headers or query string, no email or IP, and PAN, Aadhaar and GSTIN written over wherever they appear, including inside the error message itself. An error report is a log that leaves India, and CLAUDE.md rule 7 applies to it | Agent |
 | 19-10-2026 | Sentry's build plugin is applied only when `SENTRY_AUTH_TOKEN` is set. Its only job is uploading source maps, and it roughly doubled the build time with nothing to upload | Agent |
+| 19-10-2026 | **Phase 2 opened although Phase 1 is not in daily use**, which is what `CLAUDE.md` gates Phase 2 on. Phase 1 has never run against a database; the gate cannot be met until the Atlas cluster exists, and the owner chose to carry on building rather than wait | Owner, approved |
+| 19-10-2026 | D1: the existing `partner` role **is** Admin. No new `admin` role; the label stays "Partner / Admin" | Owner |
+| 19-10-2026 | D2: a CA gets everything a Partner has within their own branches, except creating or removing team accounts, role changes, Settings → Team / Security / Background jobs / Bringing data in, fee write-offs, soft delete and purge. `invoices.ca` moves from view/branch to **edit/branch** | Owner |
+| 19-10-2026 | D3: employee and intern client access **narrows** to assignee or reviewer on an engagement, or an active Client Access Grant. This replaces `clients.employee = view/branch` | Owner |
+| 19-10-2026 | D4: the A/B/C hierarchy is a relabelling of the stored levels — L3→A, L2→B, L1→C. **No data migration** | Owner |
+| 19-10-2026 | D5: a C-tier job still cannot close without CA sign-off. Maker-checker stays; C-tier gets a **bulk "Approve selected"** in the review queue that records each sign-off separately and still blocks self-approval | Owner |
+| 19-10-2026 | D6: offboarding is deactivate plus soft delete, never a hard delete, and is blocked until open engagements are reassigned and grants revoked. The email can be reused afterwards, because the unique index is partial on `deletedAt: null` | Owner |
+| 19-10-2026 | D7: client logins live in a separate `clientUsers` collection, not `users`. Authenticator 2FA is **optional** for clients; staff 2FA stays mandatory. A CA or Partner issues the first one-time password | Owner |
+| 19-10-2026 | D8: "Audit log" becomes **Portal log** in the words and the route only. The `AuditLog` model, the `auditLogs` collection, `lib/audit/*`, `ACTIONS`, the hash chain and the `auditLog` permission key all stay — the log is append-only and hash-chained, so copying it into a new collection would break `verifyAuditChain` | Owner |
+| 19-10-2026 | D9: Based Docs output is **PDF first**, through the `@react-pdf/renderer` already used for invoices. DOCX needs the `docx` package and waits for its own approval (P2-8c) | Owner |
+| 19-10-2026 | D10: the client panel is `/client/*`, login at `/client/login`, separate from the staff `/clients` list | Owner |
+| 19-10-2026 | **Plain forms, not React Hook Form.** Spec §15 and the Phase 2 brief both name it; it is not installed, and neither are Radix, Motion, TanStack, date-fns, Sonner or visx. Every form in the app is a `<form>` and a server action, and Based Docs will be too | Owner, approved |
+| 19-10-2026 | **An `identifiers` grant widens `clientSensitive` for an employee**, so the grant UI cannot offer a section the server then refuses. Never for an intern, and `credentials` is never reachable by any grant | Owner, approved |
+| 19-10-2026 | **Storybook stays unbuilt.** Deferred from Step 0 and now declined for Phase 2. Spec §15's "every component built in Storybook against a Figma token file" is a process item the firm has chosen not to meet | Owner, approved |
+| 19-10-2026 | Sample seed data moved early, to P2-2b: with no clients, staff or grants in the database, no step after P2-2 could be checked in a browser | Agent |
+| 19-10-2026 | P2-8, P2-9 and P2-10 of the brief split into three, two and four steps — each was several steps' work in one row | Agent |
+| 19-10-2026 | The `granted` scope is **not branch-tested**, unlike `assigned`. A grant names one person, one client and a reason, and is audited, so a branch check could only take back access somebody meant to give; it also stops a branch transfer stranding work already on someone's desk | Agent, owner to confirm |
+| 19-10-2026 | `seesOnlyOwnRecords()` replaces three copies of `scopeOf(actor, "clients") === "assigned"`. Comparing a scope to a string by hand meant renaming the scope would silently widen all three lists — which is exactly what D3 would have done | Agent |
+| 19-10-2026 | A client's name appears in the browser tab only for a Partner, a CA or the accounts person. An employee or intern gets "Client · PHMG" even on a client they may open: the title cannot be checked properly without a second query for a decoration, and the safe side of that trade is the dull title | Agent, owner to confirm |
+| 19-10-2026 | **Splitting `clientSensitive` into identifiers and credentials deferred to P2-2.** One area covers both the statutory IDs and the credentials vault, so the owner's "identifiers yes for an employee, the vault never" cannot be expressed until there are grant sections to attach them to. P2-1 therefore leaves sensitive data exactly as wide as it was | Agent |
+
+## What P2-0 found
+
+The brief's own gap analysis was read against the code; all fifteen rows hold.
+What it did not say:
+
+- **The tab-title leak is in three pages, not one.** `generateMetadata` reads
+  the database before any permission check in `clients/[id]` (the legal name),
+  `engagements/[id]` (the code) and `invoices/[id]` (the number). Only
+  `reports/[report]` is clean, because it reads nothing.
+- **Document downloads do not go through `app/api/storage/*`.** The single
+  chokepoint is `linkToDocument()` in `app/(app)/documents/actions.js`;
+  `app/api/storage/local/route.js` is the development driver, which verifies
+  its own HMAC ticket and must never ask about permissions.
+- **The sign-in lockout is not in `lib/security/password.js`** (that file holds
+  only `temporaryPassword()`); five strikes and fifteen minutes is written
+  inline in `app/(auth)/login/actions.js`.
+- **`MATRIX` is module-private**, so the read-only permission screen needs a
+  `describeMatrix()` helper rather than the object.
+- **`Comment.kind` is an enum** and `internal` defaults to `true`, so a client
+  change request has to extend the enum and set `internal: false` by hand.
+- **`MobileNav` renders every rail link**, which is already at the edge of
+  390 px with nine; the final rail has seventeen.
+- **`scripts/seed.js` has no sample data at all** — four branches, one partner
+  and the starter catalog, in 150 lines.
+- **There is no `/me` or profile page**, and `mustChangePassword` has been
+  recorded, displayed and unenforced since Step 1.
+- **The audit chain is serialised through one counter document**, so a bulk
+  approve writes one chain link per row inside a single transaction; the batch
+  needs a cap.
+- **`clientSensitive` had no grant story** — resolved by the owner's decision
+  above.
+- **D2 opens a hole**: `checkOpeningSheet` and `importOpeningBalances` in
+  `app/(app)/settings/migration/actions.js` are gated on `edit invoices` with
+  no target, while their page is gated on `usersSettings`. Giving a CA
+  `invoices: edit/branch` would hand them the opening-balance importer, which
+  D2 excludes by name. Fixed in P2-1.
+
+## What P2-1 built
+
+- **`lib/permissions.js`, rewritten.** D2 gives a CA `invoices: edit/branch`, so
+  they bill their own branches; the write-off, the team accounts, the bin and
+  the data imports stay out of reach because each is its own area. D3 moves
+  `clients` and `documents` for an employee and an intern onto a new
+  **`granted`** scope: work on their desk, or a Client Access Grant. Nine new
+  areas for the Phase 2 screens (`team`, `clientAccess`, `udin`, `dsc`,
+  `practice`, `icai`, `docTemplates`, `docGenerate`, `clientPortalUsers`).
+- **A client portal user can never pass a staff check.** `can()` refuses
+  anything with `kind: "client"` on its first line. They already failed because
+  `"client"` is not a role, so this is the second lock: one careless matrix row
+  added later cannot open a staff screen to a client. Tested against *every*
+  area by iteration, so a tenth area cannot be forgotten.
+- **`describeMatrix()`** turns the matrix into words ("Create and edit in their
+  own branches") for the read-only permissions screen in P2-10b. `MATRIX`
+  itself stays private — an exported object is one assignment away from a
+  permission change nobody reviewed.
+- **The tab-title leak, in all three pages that had it.** `generateMetadata`
+  read the record before any permission check in `clients/[id]`,
+  `engagements/[id]` and `invoices/[id]`, so a guessed id put a client's legal
+  name, an engagement code or an invoice number in the browser tab of anybody
+  signed in. All three now check first and fall back to a generic title.
+  `reports/[report]` was already clean; it reads nothing.
+- **`lib/security/lockout.js`** — five wrong passwords, fifteen minutes, as a
+  pure function of a record and a moment. It was written inline in the staff
+  login action; the client portal signs in against a different collection with
+  the same rule in P2-9a, and two copies of a lockout drift apart quietly.
+
+**Three holes found while doing it**
+
+- **An intern could not open any client case file.** The page checked
+  `can(actor, "view", "clients", { branchId })` — a target with no assignment
+  in it, so the `assigned` scope had nothing to match and said no. The list
+  showed them their clients and the file turned them away. The page now reads
+  who is on the client's engagements and passes it, so the check can answer
+  properly; under D3 the same ids are what lets an employee in at all.
+- **The opening-balance importer was reachable by the accounts person**, and
+  would have become reachable by every CA under D2. `checkOpeningSheet` and
+  `importOpeningBalances` asserted `edit invoices` with **no target**, while
+  the page they sit behind asserts `usersSettings`. Both now assert
+  `usersSettings` too. Raising opening balances reads every client in the firm
+  and writes money the firm says it is owed.
+- **The client spreadsheet would have opened up.** `/clients/export` refused
+  anybody on the `assigned` scope by comparing the scope to that string.
+  Renaming the scope to `granted` would have turned the refusal off and handed
+  an intern the whole branch as a workbook. Now `seesOnlyOwnRecords()`, in one
+  place, used by the list, the export and the command bar alike.
+
+**What P2-1 deliberately did not change:** the `documents` row moved to
+`granted` but behaves identically until P2-2 supplies `grantedUserIds`, and
+sensitive client data is still checked on the branch alone. So there is no step
+in this sequence where anybody can see more than they could yesterday.
+
+- Tests: 35 new Vitest tests (565 total) — the `granted` scope including that
+  it ignores the branch and refuses somebody else's grant, every new and
+  changed row, a client actor against every area, `seesOnlyOwnRecords`,
+  `describeMatrix` and the lockout. 2 new Playwright tests waiting on Atlas:
+  an unconnected intern turned away from a client with the name absent from
+  the tab title, the list, the search API and the export, and a partner
+  opening the same client and seeing it.
 
 ## What Step 0 built
 
