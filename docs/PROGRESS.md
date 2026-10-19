@@ -43,7 +43,7 @@ reason, including the security fixes in P2-1.
 | P2-0 | Verify the brief's gap analysis against the code, then present the step plan | ✅ | Done 19-10-2026. 15 of 15 rows confirmed; 6 corrections and 6 further gaps found — see below |
 | P2-1 | Permissions: D2, D3, `granted` scope, 9 new areas, `describeMatrix()`, client actor kind; the `generateMetadata` leak; the lockout helper | 🟡 | Built 19-10-2026. **Three more holes found and fixed on the way through.** Splitting `clientSensitive` moved to P2-2, where grant sections exist to hang it on. Needs Atlas to run; 2 Playwright tests waiting |
 | P2-2 | `ClientAccess` + `lib/access/clientAccess.js` wired into the clients list, case file, tabs, document links, vault, search and command bar; grant UI; `expireGrants` job | 🟡 | Built 19-10-2026. **The worst hole in the build found and fixed: an employee could download the whole DPDP dossier of any client in the firm.** Includes the `clientSensitive` split deferred from P2-1, and the Team & access tab brought forward from P2-5. Needs Atlas to run; 6 Playwright tests waiting |
-| P2-2b | Sample seed data: 6 staff with `reportingTo`, 4 clients, services across A/B/C, grants of three widths, a portal user | ⬜ | Moved early: without it no step after P2-2 can be checked by hand |
+| P2-2b | Sample seed data: 6 staff with `reportingTo`, 4 clients, services across A/B/C, 9 engagements, grants of three widths | 🟡 | Built 19-10-2026. Opt-in behind `--sample`, and refuses to run with `NODE_ENV=production`. The portal user, UDIN rows, DSC tokens and document templates are seeded by the steps that create those models. Needs Atlas to run |
 | P2-3 | `/me` (and `mustChangePassword` finally enforced) · employee rail · My senior CA · `/team` + `/team/[id]` Employee 360 · offboard wizard · MobileNav "More" sheet | ⬜ | |
 | P2-4 | A/B/C labels and `TierBadge` everywhere · per-step `minRole` and `assignTask` · the four enforcement gaps · C-tier bulk approve | ⬜ | |
 | P2-5 | Client 360: the new tab set, tab counts, outstanding balance in the header, Compliance tab filled | ⬜ | |
@@ -195,6 +195,9 @@ Not started (spec §17).
 | 19-10-2026 | **The per-client Activity tab now follows the `auditLog` permission**, so an employee and an intern no longer see a client's full change history. Spec §11 gives them no access to the log; it also asks for an Activity tab "on every client", and the two readings disagree. Taken the narrow one | Agent, **owner should confirm** |
 | 19-10-2026 | An expiry is honoured when the grant is **read**, not when the nightly job runs. `jobs/expireGrants.js` only tidies the access list, so a cron that fails for a week cannot leave anybody's access open past its date | Agent |
 | 19-10-2026 | The Team & access tab was brought forward from P2-5 rather than given the grant UI a temporary home. P2-5 adds its other two halves: who works on the client, and the client's portal accounts | Agent |
+| 19-10-2026 | **Sample data is opt-in and separate.** `scripts/seed.js` writes what the firm needs and is what runs against the live cluster; `scripts/sample.js` invents clients and only runs on `--sample`, never under `NODE_ENV=production`. People carry an `@sample.phmgindia.test` address and clients the tag `sample`, so `--drop-sample` finds them all again | Agent |
+| 19-10-2026 | Sample PANs and GSTINs are **built, not typed.** `checkGSTIN` verifies the state code, the embedded PAN, that the PAN's holder-type character agrees with the entity type, *and* a check digit — so an invented number would be refused by the firm's own form the first time anybody edited the client. `gstinCheckDigit` is now exported for that, and every seeded identifier goes through its validator in `tests/sample.test.js` | Agent |
+| 19-10-2026 | The sample portal user, UDIN rows, DSC tokens and the eight document templates from §11 of the brief are seeded by P2-9a, P2-7 and P2-8b — the steps that create those models. They cannot be seeded before the collections exist | Agent |
 
 ## What P2-0 found
 
@@ -370,6 +373,47 @@ every one of those hand-written targets silently refused.
   request; an expired grant doing nothing without the job having run; the
   drawer disabling the vault and the fees; and a partner giving access that
   the employee then sees.
+
+## What P2-2b built
+
+- **`scripts/sample.js`** — six colleagues, four clients, eight service
+  subscriptions, nine engagements and three access grants, all invented. It is
+  **opt-in** (`npm run seed -- --sample`), refuses to run with
+  `NODE_ENV=production`, and marks everything it writes so
+  `npm run seed -- --drop-sample` can take it out again by soft delete.
+  `scripts/seed.js` is untouched in what it does by default: the firm's four
+  branches, the catalog, the due-date rules and the first partner.
+- **The identifiers are built rather than guessed.** `checkGSTIN` verifies a
+  real state code, the embedded PAN, that the PAN's fourth character agrees
+  with the entity type, *and* a check digit — so a number invented at the
+  keyboard would be accepted by the seed (which writes through the model) and
+  then refused the first time anybody opened the client for editing. The owner
+  would have found that, not us. `gstinCheckDigit` is exported for the purpose
+  and every seeded identifier is run through its own validator in the tests.
+  Four entity types — company, LLP, partnership firm, individual — so the
+  holder-type character has to be right four different ways.
+- **The people hang together**: everybody below partner has a reporting CA who
+  really is a CA, the intern is registered under one, and there is somebody in
+  Noida, Rohini and Ludhiana.
+- **The subscriptions cover all three tiers**, and the A-tier ones default to a
+  CA. That matters more than it looks: a sample row that defaulted an employee
+  onto an L3 service would make P2-4's enforcement look broken when it was
+  working exactly as asked, so the test asserts `canExecute` for every row.
+- **Nine engagements** across Scheduled, Awaiting documents, In progress, Under
+  review and Completed — including one closed job, which is the fixture that
+  shows access through an assignment lapsing rather than lasting for ever.
+- **Three grants of different widths**, one expiring in three days, plus one
+  deliberate absence: an employee who shares a branch with a client and has no
+  way into it. That absence is the fixture behind acceptance check 1.
+- **`scripts/doctor.js`** warns about any live employee or intern with no
+  reporting CA, because `/me`'s "My senior CA" card has nothing to show
+  without one.
+
+- Tests: 33 new Vitest tests (615 total). Every PAN, GSTIN, CIN, mobile and
+  email through the validator the firm's own forms use; the check digit proved
+  by nudging it and watching the validator refuse; all three tiers present; no
+  default assignee who is not allowed to do the work; no grant above its
+  role's ceiling; and the deliberate absence still absent.
 
 ## What Step 0 built
 

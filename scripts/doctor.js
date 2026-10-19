@@ -290,6 +290,26 @@ async function readiness() {
     );
   }
 
+  /**
+   * Everybody below a CA should have a reporting CA. The "My senior CA" card
+   * on `/me` has nothing to show without one, and nor does the team view —
+   * so this is a warning about a screen that will look broken, not about
+   * anything unsafe.
+   */
+  const { default: User } = await import("../models/User.js");
+  const noSenior = await User.countDocuments({
+    active: true,
+    role: { $in: ["employee", "intern"] },
+    $or: [{ reportingTo: null }, { reportingTo: { $exists: false } }],
+  });
+  if (noSenior) {
+    warn(
+      `${noSenior} employee(s) or intern(s) have no reporting CA: their "My senior CA" card will be empty (Team).`,
+    );
+  } else {
+    pass("every employee and intern has a reporting CA");
+  }
+
   const beat = await Counter.findById(HEARTBEAT_ID).lean();
   if (!beat) {
     warn("the job runner has never run (DEPLOY.md §2).");

@@ -39,11 +39,28 @@ function temporaryPassword() {
 }
 
 async function main() {
-  const [name, email] = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  const wantsSample = args.includes("--sample");
+  const wantsDrop = args.includes("--drop-sample");
+  const [name, email] = args.filter((a) => !a.startsWith("--"));
+
+  if (wantsDrop) {
+    await connectDB();
+    const { dropSample } = await import("./sample.js");
+    const { removed } = await dropSample();
+    console.log(`Sample data removed: ${removed} records soft-deleted.`);
+    await mongoose.disconnect();
+    return;
+  }
+
   if (!name || !email) {
     console.error(
-      'Usage: node --env-file=.env.local scripts/seed.js "Owner Name" owner@phmgindia.com',
+      'Usage: node --env-file=.env.local scripts/seed.js "Owner Name" owner@phmgindia.com [--sample]',
     );
+    console.error(
+      "       --sample       also write the demo clients and colleagues",
+    );
+    console.error("       --drop-sample  take the demo data out again");
     process.exit(1);
   }
 
@@ -137,6 +154,25 @@ async function main() {
     console.log(`One-time password: ${password}`);
     console.log(
       "Sign in with it now; you will be asked to scan a 2FA QR code.",
+    );
+  }
+
+  /**
+   * The sample dataset is deliberately opt-in. Everything above is what the
+   * firm actually needs; what follows invents clients, so it only happens
+   * when somebody asks for it by name and never under NODE_ENV=production.
+   */
+  if (wantsSample) {
+    const { seedSample } = await import("./sample.js");
+    console.log("\nWriting the sample dataset:");
+    const counts = await seedSample({
+      log: (line) => console.log(`  ${line}`),
+    });
+    console.log(
+      `\n${counts.clients} clients, ${counts.people} colleagues, ${counts.services} services and ${counts.grants} access grants.`,
+    );
+    console.log(
+      "None of it is real. Remove it with: npm run seed -- --drop-sample",
     );
   }
 
