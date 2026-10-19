@@ -5,6 +5,7 @@ import Image from "next/image";
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { startSignIn, confirmTotpSetup } from "./actions";
+import { ARRIVE_EVENT, ARRIVE_MS } from "@/components/login/capability";
 
 /**
  * Sign-in in two steps: password, then the 6-digit code from the
@@ -20,6 +21,7 @@ export default function LoginForm() {
   const [secret, setSecret] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [arriving, setArriving] = useState(false);
 
   async function onPassword(formData) {
     setBusy(true);
@@ -64,11 +66,28 @@ export default function LoginForm() {
     if (result?.error) {
       return setError("That code is not right. Check the app and try again.");
     }
+
+    // the scene glides into the head office and the panel dissolves, then
+    // we leave (spec section 15). If nothing is listening — the flat map,
+    // reduced motion, a phone — the wait is skipped and this is instant.
+    const watching = window.matchMedia?.(
+      "(prefers-reduced-motion: no-preference)",
+    ).matches;
+    if (watching && document.querySelector("canvas")) {
+      setArriving(true);
+      window.dispatchEvent(new Event(ARRIVE_EVENT));
+      await new Promise((resolve) => setTimeout(resolve, ARRIVE_MS));
+    }
+
     window.location.assign(next);
   }
 
   return (
-    <div className="w-full max-w-sm">
+    <div
+      className={`w-full max-w-sm transition-opacity duration-500 motion-reduce:transition-none ${
+        arriving ? "opacity-0" : "opacity-100"
+      }`}
+    >
       <h1 className="font-display text-28 font-semibold">
         PHMG &amp; Associates
       </h1>

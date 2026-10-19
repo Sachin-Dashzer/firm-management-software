@@ -2,8 +2,11 @@ import { redirect } from "next/navigation";
 import { currentUser } from "@/auth";
 import { connectDB } from "@/lib/db";
 import Branch from "@/models/Branch";
+import Notification from "@/models/Notification";
 import LeftRail, { MobileNav } from "@/components/shell/LeftRail";
 import TopBar from "@/components/shell/TopBar";
+import CommandBar from "@/components/shell/CommandBar";
+import { AREAS, can } from "@/lib/permissions";
 
 /**
  * Every page in here depends on who is signed in, so none of them may be
@@ -23,14 +26,27 @@ export default async function AppLayout({ children }) {
 
   await connectDB();
   // a user only ever sees their own branches in the switcher (spec section 2)
-  const branches = await Branch.find(
-    user.role === "partner" ? {} : { _id: { $in: user.branchIds } },
-  )
-    .sort({ code: 1 })
-    .lean();
+  const [branches, unreadCount] = await Promise.all([
+    Branch.find(user.role === "partner" ? {} : { _id: { $in: user.branchIds } })
+      .sort({ code: 1 })
+      .lean(),
+    Notification.countDocuments({ userId: user.id, readAt: null }),
+  ]);
+
+  // what this person may even be offered in the command bar; the server
+  // checks again when they get there
+  const allowed = AREAS.filter((area) => can(user, "view", area));
 
   return (
     <div className="flex h-dvh flex-col">
+      {/* first thing in the tab order: past the rail and straight to work */}
+      <a
+        href="#content"
+        className="focus:bg-surface focus:border-brass focus:text-ink rounded-ledger text-14 sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:border focus:px-3 focus:py-2"
+      >
+        Skip to content
+      </a>
+
       <div className="flex min-h-0 flex-1">
         <LeftRail role={user.role} />
         <div className="flex min-w-0 flex-1 flex-col">
@@ -41,13 +57,18 @@ export default async function AppLayout({ children }) {
               code: b.code,
               name: b.name,
             }))}
+            unreadCount={unreadCount}
           />
-          <main className="relative z-10 min-h-0 flex-1 overflow-auto">
+          <main
+            id="content"
+            className="relative z-10 min-h-0 flex-1 overflow-auto"
+          >
             {children}
           </main>
         </div>
       </div>
       <MobileNav role={user.role} />
+      <CommandBar allowed={allowed} />
     </div>
   );
 }

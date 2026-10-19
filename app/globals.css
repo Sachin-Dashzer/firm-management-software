@@ -15,9 +15,23 @@
   --rule: #e3dccb;
   --carbon: #2346a0;
   --brass: #b07a2a;
-  --filed: #2f7d4f;
-  --waiting: #c98a16;
+
+  /* Filed green and Waiting amber are a few steps darker than the hex in
+     spec section 15. The spec also sets WCAG 2.2 AA as a quality bar, and
+     on Paper its own values give 4.47:1 for the green and 2.61:1 for the
+     amber as text — the amber failing badly. These are the darkest-by-the
+     -smallest-amount values that clear 4.5:1 on Paper, on Surface and on
+     their own wash; the washes below keep the spec's brighter hues, so a
+     chip is still the right colour, with legible ink on it.
+     tests/contrast.test.js measures all of this and fails if it drifts. */
+  --filed: #2d784c;
+  --waiting: #8d610f;
   --redpen: #b3362c;
+
+  /* Brass is a boundary colour and clears the 3:1 bar a focus ring has to
+     meet, so the ring keeps the spec's value. Where brass is used as
+     *text* it needs 4.5:1, which this is for. */
+  --brass-ink: #8d6222;
 
   /* ink wash: the token colour at low opacity, for row and chip fills */
   --filed-wash: #2f7d4f1f;
@@ -46,6 +60,8 @@
     --filed: #5fbf86;
     --waiting: #e7b04a;
     --redpen: #f07466;
+    /* dark brass already clears 4.5:1, so text and ring are the same */
+    --brass-ink: #d9a75a;
 
     --filed-wash: #5fbf8624;
     --waiting-wash: #e7b04a24;
@@ -67,6 +83,7 @@
   --filed: #5fbf86;
   --waiting: #e7b04a;
   --redpen: #f07466;
+  --brass-ink: #d9a75a;
 
   --filed-wash: #5fbf8624;
   --waiting-wash: #e7b04a24;
@@ -92,6 +109,7 @@
   --color-rule: var(--rule);
   --color-carbon: var(--carbon);
   --color-brass: var(--brass);
+  --color-brass-ink: var(--brass-ink);
   --color-filed: var(--filed);
   --color-waiting: var(--waiting);
   --color-redpen: var(--redpen);
@@ -172,4 +190,75 @@ input[type="number"] {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Signature moments (spec section 15)
+
+   Both of these are CSS rather than an animation library. A tick is a
+   stroke drawn along a path and a stamp is one transform; the global
+   reduced-motion rule above already switches both off, so a library would
+   add thirty kilobytes and a client component to do what the browser does
+   natively.
+   --------------------------------------------------------------------------- */
+
+/* The auditor's tick: ink laid down along the path, left to right. */
+@keyframes ink-tick {
+  from {
+    stroke-dashoffset: var(--tick-length, 48);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Scratching it out again: two strokes, drawn the same way. */
+@keyframes ink-scratch {
+  from {
+    stroke-dashoffset: var(--tick-length, 48);
+    opacity: 0.9;
+  }
+  to {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+.ink-draw {
+  stroke-dasharray: var(--tick-length, 48);
+  animation: ink-tick 320ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+
+.ink-scratch {
+  stroke-dasharray: var(--tick-length, 48);
+  animation: ink-scratch 260ms cubic-bezier(0.3, 0.8, 0.4, 1) forwards;
+}
+
+/* The rubber stamp: a press, a small overshoot, then it sits crooked. */
+@keyframes stamp-press {
+  0% {
+    opacity: 0;
+    transform: rotate(-9deg) scale(1.5);
+  }
+  55% {
+    opacity: 1;
+    transform: rotate(-3.2deg) scale(0.97);
+  }
+  72% {
+    transform: rotate(-3.6deg) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(-3.4deg) scale(1);
+  }
+}
+
+.stamp-press {
+  animation: stamp-press 420ms cubic-bezier(0.18, 0.9, 0.22, 1) forwards;
+  transform-origin: 60% 70%;
+}
+
+/* A stamp already on the page when it loads is not pressed again. */
+.stamp-set {
+  transform: rotate(-3.4deg);
 }

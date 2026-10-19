@@ -8,6 +8,7 @@ import {
   Users,
   Briefcase,
   CalendarCheck,
+  FolderOpen,
   Receipt,
   ChartBar,
   ClipboardText,
@@ -36,10 +37,18 @@ const LINKS = [
     icon: CalendarCheck,
     area: "engagementsWork",
   },
+  {
+    href: "/documents",
+    label: "Documents",
+    icon: FolderOpen,
+    area: "documents",
+  },
   { href: "/invoices", label: "Billing", icon: Receipt, area: "invoices" },
   { href: "/reports", label: "Reports", icon: ChartBar, area: "dashboards" },
   { href: "/audit", label: "Audit log", icon: ClipboardText, area: "auditLog" },
-  { href: "/settings", label: "Settings", icon: Gear, area: "usersSettings" },
+  // everyone can read the service catalog, which lives under Settings;
+  // the sections inside are filtered by role
+  { href: "/settings", label: "Settings", icon: Gear, area: "serviceCatalog" },
 ];
 
 /** @param {string} role */

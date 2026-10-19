@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { MagnifyingGlass, Plus, Bell, UserCircle } from "@phosphor-icons/react";
 import { ThemeToggle, DensityToggle } from "./Preferences";
@@ -12,7 +13,7 @@ import { ROLE_LABELS } from "@/lib/permissions";
  * @param {{ id: string, code: string, name: string }[]} props.branches the
  *   branches this user is assigned to, already filtered on the server
  */
-export default function TopBar({ user, branches }) {
+export default function TopBar({ user, branches, unreadCount = 0 }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -41,11 +42,11 @@ export default function TopBar({ user, branches }) {
           <span className="text-13 text-ink-muted">{branches[0].name}</span>
         )}
 
-        {/* Command bar lands in Step 11 (cmdk); the entry point sits here now. */}
+        {/* the command bar lives at the window level; this opens it */}
         <button
           type="button"
-          disabled
-          className="rounded-ledger border-rule bg-paper text-13 text-ink-muted flex h-8 min-w-0 flex-1 items-center gap-2 border px-2 md:max-w-md"
+          onClick={() => window.dispatchEvent(new Event("phmg:command-bar"))}
+          className="rounded-ledger border-rule bg-paper text-13 text-ink-muted hover:border-brass hover:text-ink flex h-8 min-w-0 flex-1 items-center gap-2 border px-2 md:max-w-md"
         >
           <MagnifyingGlass size={16} />
           <span className="truncate">Search clients, PAN, GSTIN…</span>
@@ -55,20 +56,30 @@ export default function TopBar({ user, branches }) {
         </button>
 
         <div className="ml-auto flex items-center gap-1">
+          {/* quick-add opens the command bar rather than a second menu of
+              the same links: one list of things you can do, not two */}
           <button
             type="button"
-            aria-label="Quick add"
+            aria-label="Quick add — opens the command bar"
+            onClick={() => window.dispatchEvent(new Event("phmg:command-bar"))}
             className="rounded-ledger text-ink-muted hover:bg-carbon-wash hover:text-ink grid size-8 place-items-center"
           >
             <Plus size={18} />
           </button>
-          <button
-            type="button"
-            aria-label="Notifications"
-            className="rounded-ledger text-ink-muted hover:bg-carbon-wash hover:text-ink grid size-8 place-items-center"
+          <Link
+            href="/notifications"
+            aria-label={
+              unreadCount > 0
+                ? `Notifications, ${unreadCount} unread`
+                : "Notifications"
+            }
+            className="rounded-ledger text-ink-muted hover:bg-carbon-wash hover:text-ink relative grid size-8 place-items-center"
           >
             <Bell size={18} />
-          </button>
+            {unreadCount > 0 && (
+              <span className="bg-redpen absolute top-1 right-1 size-2 rounded-full" />
+            )}
+          </Link>
           <DensityToggle />
           <ThemeToggle />
 

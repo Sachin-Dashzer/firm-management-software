@@ -5,6 +5,7 @@ import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
 import Branch from "../../models/Branch.js";
 import { hashPassword, decryptField } from "../../lib/crypto.js";
+import { systemAudit } from "../../lib/audit/system.js";
 
 /**
  * The whole sign-in flow against a real database: password, first-time 2FA
@@ -22,18 +23,26 @@ const PASSWORD = "test-password-not-real";
 
 test.beforeAll(async () => {
   await connectDB();
-  const branch = await Branch.findOneAndUpdate(
-    { code: "NOI" },
-    { $setOnInsert: { name: "Noida (head office)", invoicePrefix: "NOI" } },
-    { new: true, upsert: true },
-  );
   await User.deleteOne({ email: EMAIL }); // a leftover from a failed run
-  await User.create({
-    name: "Playwright Partner",
-    email: EMAIL,
-    role: "partner",
-    branchIds: [branch._id],
-    passwordHash: await hashPassword(PASSWORD),
+  // audited models refuse to write outside a transaction, fixtures included
+  await systemAudit(async (session) => {
+    const branch = await Branch.findOneAndUpdate(
+      { code: "NOI" },
+      { $setOnInsert: { name: "Noida (head office)", invoicePrefix: "NOI" } },
+      { new: true, upsert: true, session },
+    );
+    await User.create(
+      [
+        {
+          name: "Playwright Partner",
+          email: EMAIL,
+          role: "partner",
+          branchIds: [branch._id],
+          passwordHash: await hashPassword(PASSWORD),
+        },
+      ],
+      { session },
+    );
   });
 });
 
