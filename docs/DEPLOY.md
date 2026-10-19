@@ -359,6 +359,7 @@ redeploy; nothing is lost, and the queue resumes when you turn it back on.
    | `STORAGE_GATEWAY_URL`, `STORAGE_SHARED_SECRET` | from section 1 |
    | `EMAIL_*` | from section 3 |
    | `JOBS_SECRET` | from section 2 |
+   | `SENTRY_*` | from section 8, or leave blank |
 
 5. **Deploy.**
 
@@ -607,13 +608,68 @@ hours rather than minutes, the cron has stopped — section 2 Step B. This is
 the one that fails quietly: no screen breaks, deadlines simply stop being
 generated and nothing is emailed.
 
-### Error tracking — Sentry (needs your decision)
+### Error tracking — Sentry (built; switched off until you fill this in)
 
-Spec §14 names Sentry. It is not installed, because it needs an account of
-the firm's and a paid-or-free plan decision, and because Vercel already shows
-you the last day of errors under **Deployments → Logs** at no cost.
+Sentry tells you that a staff member hit an error, with the line of code it
+happened on, grouped so you see "this happened eleven times today" instead of
+scrolling Vercel's logs. It is wired in and **does nothing at all until a DSN
+is set** — no DSN, no account, no code loaded, not a byte added to what the
+browser downloads.
 
-What Sentry adds is the thing Vercel's logs do not: an email when a staff
-member hits an error, grouped so you see "this happened eleven times today"
-rather than scrolling. If you want it, create the account and send me the
-DSN — about an hour's work to wire in, and nothing in the app changes.
+#### What you do
+
+1. **sentry.io** → **Sign up** with the firm's email. The free plan allows
+   5,000 errors a month, which is many times what a firm this size will
+   produce.
+2. Create a project: platform **Next.js**, name it `phmg-crm`. Note the
+   **organisation slug** and the **project slug** from the address bar
+   (`sentry.io/organizations/<org>/projects/<project>/`).
+3. It shows you a **DSN** — a long `https://…@…ingest.sentry.io/…` line. Copy
+   it.
+4. **Settings → Auth Tokens → Create New Token**, scopes `project:releases`
+   and `org:read`. This one is only used while building, so that a stack
+   trace names real lines instead of minified ones. Copy it.
+5. Add five variables to Vercel (**Settings → Environment Variables**), for
+   Production and Preview:
+
+   | Variable | What to put |
+   | --- | --- |
+   | `SENTRY_DSN` | the DSN from step 3 |
+   | `NEXT_PUBLIC_SENTRY_DSN` | the same DSN again |
+   | `SENTRY_ORG` | the organisation slug |
+   | `SENTRY_PROJECT` | `phmg-crm` |
+   | `SENTRY_AUTH_TOKEN` | the token from step 4 |
+
+6. **Alerts → Create Alert → Issues**, "a new issue is created", email the
+   partner. Without this, Sentry is a website nobody visits.
+7. Redeploy. The next error anybody hits reaches you.
+
+> The DSN is public by design — it can only send events in, never read them
+> out — which is why the browser copy of it is a `NEXT_PUBLIC_` variable. The
+> **auth token** is not public and belongs only in Vercel.
+
+#### What is sent, and what is not
+
+An error report leaves India, so it is scrubbed before it goes
+(`lib/observability/scrub.js`, nine tests):
+
+- **Never sent:** the body of whatever was being submitted, cookies, request
+  headers, the query string, and any field whose name mentions a password, a
+  secret, a token, an OTP, a PAN or Aadhaar.
+- **Written over wherever it appears**, including inside the error message
+  itself: PAN (`ABCDE1234F` → `[pan]`), Aadhaar, GSTIN.
+- **Sent:** the error and its stack, the page it happened on without the
+  query string, the staff member's user id — not their name, email or IP
+  address — and the release the deployment was built from.
+- **Off deliberately:** performance tracing, session replay and profiling.
+  All three would send far more of what a staff member was doing than
+  knowing about a crash requires, and the firm wants the crash.
+
+Console output is never sent as context either: it is whatever the app
+printed, which is not a list anybody can promise is clean.
+
+#### If you decide against it
+
+Leave the variables blank. Vercel's own **Deployments → Logs** keeps about a
+day of errors, which is enough to diagnose something a staff member reports
+while they are still on the telephone.
