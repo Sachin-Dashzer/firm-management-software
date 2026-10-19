@@ -1,20 +1,27 @@
 // @ts-check
 
 /**
- * First-run seed: the firm's four branches and one partner account.
+ * First-run seed: the firm's four branches, the starter service catalog and
+ * one partner account.
  *
  *   node --env-file=.env.local scripts/seed.js "Owner Name" owner@phmgindia.com
  *
- * Safe to run twice: branches are matched on their code and the partner on
- * their email, so nothing is duplicated. It prints a one-time password, which
- * is the only time it is shown — 2FA is set up at first sign-in.
+ * Safe to run twice: branches and services are matched on their code and the
+ * partner on their email, so nothing is duplicated and an edited service is
+ * never overwritten. It prints a one-time password, which is the only time it
+ * is shown — 2FA is set up at first sign-in.
  */
 
 import mongoose from "mongoose";
 import { connectDB } from "../lib/db.js";
 import Branch from "../models/Branch.js";
 import User from "../models/User.js";
+import ServiceTemplate from "../models/ServiceTemplate.js";
 import { hashPassword } from "../lib/crypto.js";
+import { systemAudit } from "../lib/audit/system.js";
+import { STARTER_CATALOG } from "../lib/services/starter.js";
+import DueDateRule from "../models/DueDateRule.js";
+import { STARTER_DUE_RULES } from "../lib/compliance/starterRules.js";
 import { randomBytes } from "node:crypto";
 
 /** The offices named in spec section 1. Addresses and GSTINs: firm to fill in. */
@@ -42,15 +49,62 @@ async function main() {
 
   await connectDB();
 
-  const branchIds = [];
-  for (const branch of BRANCHES) {
-    const existing = await Branch.findOneAndUpdate(
-      { code: branch.code },
-      { $setOnInsert: { ...branch, createdBy: "seed", updatedBy: "seed" } },
-      { new: true, upsert: true },
+  // every write here goes through the same audited transaction the app uses,
+  // so the seed shows up in the audit log as System rather than appearing
+  // from nowhere
+  const branchIds = await systemAudit(async (session) => {
+    const ids = [];
+    for (const branch of BRANCHES) {
+      const existing = await Branch.findOneAndUpdate(
+        { code: branch.code },
+        { $setOnInsert: { ...branch, createdBy: "seed", updatedBy: "seed" } },
+        { new: true, upsert: true, session },
+      );
+      ids.push(existing._id);
+      console.log(`branch ${branch.code}  ${existing.name}`);
+    }
+    return ids;
+  });
+
+  let added = 0;
+  for (const service of STARTER_CATALOG) {
+    // an existing service is left exactly as the firm has edited it
+    if (await ServiceTemplate.findOne({ code: service.code })) continue;
+    await systemAudit(async (session) => {
+      await ServiceTemplate.create(
+        [{ ...service, createdBy: "seed", updatedBy: "seed" }],
+        { session },
+      );
+    });
+    added += 1;
+  }
+  console.log(
+    `\nservice catalog: ${added} added, ${STARTER_CATALOG.length - added} already there`,
+  );
+  if (added > 0) {
+    console.log(
+      "Fees are seeded at zero and most SAC codes are blank — set them in Settings → Services before billing.",
     );
-    branchIds.push(existing._id);
-    console.log(`branch ${branch.code}  ${existing.name}`);
+  }
+
+  let rulesAdded = 0;
+  for (const rule of STARTER_DUE_RULES) {
+    if (await DueDateRule.findOne({ serviceCode: rule.serviceCode })) continue;
+    await systemAudit(async (session) => {
+      await DueDateRule.create(
+        [{ ...rule, createdBy: "seed", updatedBy: "seed" }],
+        { session },
+      );
+    });
+    rulesAdded += 1;
+  }
+  console.log(
+    `due-date rules: ${rulesAdded} added, ${STARTER_DUE_RULES.length - rulesAdded} already there`,
+  );
+  if (rulesAdded > 0) {
+    console.log(
+      "NONE of them is confirmed, and none will put a date on any engagement until a partner confirms it in Settings -> Due dates.",
+    );
   }
 
   const lower = email.toLowerCase();
@@ -60,17 +114,24 @@ async function main() {
     console.log("To issue a new password, use Settings → Team in the app.");
   } else {
     const password = temporaryPassword();
-    await User.create({
-      name,
-      email: lower,
-      role: "partner",
-      branchIds,
-      capacityHours: 8,
-      active: true,
-      passwordHash: await hashPassword(password),
-      mustChangePassword: true,
-      createdBy: "seed",
-      updatedBy: "seed",
+    await systemAudit(async (session) => {
+      await User.create(
+        [
+          {
+            name,
+            email: lower,
+            role: "partner",
+            branchIds,
+            capacityHours: 8,
+            active: true,
+            passwordHash: await hashPassword(password),
+            mustChangePassword: true,
+            createdBy: "seed",
+            updatedBy: "seed",
+          },
+        ],
+        { session },
+      );
     });
     console.log(`\nPartner account created for ${lower}`);
     console.log(`One-time password: ${password}`);
