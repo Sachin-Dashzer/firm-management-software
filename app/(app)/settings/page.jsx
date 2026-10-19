@@ -8,11 +8,11 @@ export const metadata = { title: "Settings · PHMG" };
 /** Later steps add their own sections here: due dates, numbering, templates. */
 const SECTIONS = [
   {
-    href: "/settings/users",
+    href: "/team",
     title: "Team and access",
-    body: "Add team members, set roles and branches, reset passwords and 2FA.",
-    area: "usersSettings",
-    action: "edit",
+    body: "Everybody in the firm: what is on their desk, who they report to, and — for a partner — roles, passwords and offboarding.",
+    area: "team",
+    action: "view",
   },
   {
     href: "/settings/services",

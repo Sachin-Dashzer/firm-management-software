@@ -66,7 +66,9 @@ const ACTIONS = [
     href: "/settings/messages",
     area: "usersSettings",
   },
-  { title: "Team", href: "/settings/users", area: "usersSettings" },
+  { title: "Team", href: "/team", area: "team" },
+  { title: "My page", href: "/me", area: null },
+  { title: "Change my password", href: "/change-password?from=me", area: null },
   { title: "Due dates", href: "/settings/due-dates", area: "serviceCatalog" },
 ];
 

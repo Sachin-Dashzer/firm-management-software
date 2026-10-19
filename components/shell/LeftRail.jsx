@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import {
   House,
   Users,
+  UsersThree,
+  UserCircle,
   Briefcase,
   CalendarCheck,
   FolderOpen,
@@ -14,8 +16,9 @@ import {
   ClipboardText,
   Gear,
   CaretLeft,
+  DotsThree,
 } from "@phosphor-icons/react";
-import { can } from "@/lib/permissions";
+import { can, scopeOf, seesOnlyOwnRecords } from "@/lib/permissions";
 
 /**
  * Phase 1 destinations. `area` is the permission area from spec section 2, so
@@ -24,7 +27,16 @@ import { can } from "@/lib/permissions";
  */
 const LINKS = [
   { href: "/today", label: "Today", icon: House, area: "dashboards" },
-  { href: "/clients", label: "Clients", icon: Users, area: "clients" },
+  {
+    href: "/clients",
+    label: "Clients",
+    // An employee or an intern reaches clients one at a time, through work on
+    // their desk or a grant (owner decision D3), so "Clients" would promise a
+    // list of the firm's clients that they will never see.
+    narrowLabel: "My clients",
+    icon: Users,
+    area: "clients",
+  },
   {
     href: "/engagements",
     label: "Engagements",
@@ -44,17 +56,38 @@ const LINKS = [
     area: "documents",
   },
   { href: "/invoices", label: "Billing", icon: Receipt, area: "invoices" },
+  { href: "/team", label: "Team", icon: UsersThree, area: "team" },
   { href: "/reports", label: "Reports", icon: ChartBar, area: "dashboards" },
   { href: "/audit", label: "Audit log", icon: ClipboardText, area: "auditLog" },
   // everyone can read the service catalog, which lives under Settings;
   // the sections inside are filtered by role
   { href: "/settings", label: "Settings", icon: Gear, area: "serviceCatalog" },
+  // everybody has one of these, which is the point of it
+  { href: "/me", label: "Me", icon: UserCircle, area: null },
 ];
 
-/** @param {string} role */
+/**
+ * What this role may open, with the labels that tell the truth for it.
+ *
+ * `/team` appears for everybody — a Partner and a CA get the list, and an
+ * employee or an intern has `team: view/own`, which the page turns into a
+ * redirect to `/me`. So the rail drops it for them and shows "Me" instead.
+ *
+ * @param {string} role
+ */
 function linksFor(role) {
   const actor = { id: "", role, branchIds: [] };
-  return LINKS.filter((link) => can(actor, "view", link.area));
+  return LINKS.filter((link) => {
+    if (link.area === null) return true;
+    if (link.href === "/team" && scopeOf(actor, "team") === "own") return false;
+    return can(actor, "view", link.area);
+  }).map((link) => ({
+    ...link,
+    label:
+      link.narrowLabel && seesOnlyOwnRecords(actor, link.area)
+        ? link.narrowLabel
+        : link.label,
+  }));
 }
 
 export default function LeftRail({ role = "partner" }) {
@@ -142,30 +175,106 @@ export default function LeftRail({ role = "partner" }) {
   );
 }
 
-/** Phone layout: the same destinations as a bottom bar (spec: works at 390 px). */
+/**
+ * Phone layout (spec section 15: works at 390 px).
+ *
+ * Four links and a More sheet. Every link used to be rendered as a bottom
+ * bar, which already filled the width for a Partner at nine of them — and
+ * the rail is still growing. The current page is always one of the four, so
+ * wherever somebody is, the bar shows where they are.
+ */
+const MOBILE_SHOWN = 4;
+
 export function MobileNav({ role = "partner" }) {
   const pathname = usePathname();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const links = linksFor(role);
+
+  const isActive = (href) =>
+    pathname === href || pathname.startsWith(`${href}/`);
+
+  // whichever page they are on comes to the front, so it is never hidden
+  const current = links.findIndex((link) => isActive(link.href));
+  const shown =
+    current >= MOBILE_SHOWN
+      ? [...links.slice(0, MOBILE_SHOWN - 1), links[current]]
+      : links.slice(0, MOBILE_SHOWN);
+  const rest = links.filter((link) => !shown.includes(link));
+
   return (
-    <nav
-      aria-label="Main"
-      className="border-rule bg-surface relative z-10 flex shrink-0 justify-between gap-1 border-t px-2 py-1 md:hidden"
-    >
-      {linksFor(role).map(({ href, label, icon: Icon }) => {
-        const active = pathname === href || pathname.startsWith(`${href}/`);
-        return (
-          <Link
-            key={href}
-            href={href}
-            aria-label={label}
-            aria-current={active ? "page" : undefined}
+    <>
+      {moreOpen && rest.length > 0 && (
+        <>
+          {/* tapping anywhere else closes it */}
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={() => setMoreOpen(false)}
+            className="bg-ink/20 fixed inset-0 z-20 md:hidden"
+          />
+          <div
+            role="dialog"
+            aria-label="More places"
+            className="border-rule bg-surface fixed inset-x-0 bottom-12 z-30 border-t p-2 md:hidden"
+          >
+            <ul className="flex flex-col">
+              {rest.map(({ href, label, icon: Icon }) => (
+                <li key={href}>
+                  <Link
+                    href={href}
+                    onClick={() => setMoreOpen(false)}
+                    aria-current={isActive(href) ? "page" : undefined}
+                    className={`rounded-ledger text-14 flex h-11 items-center gap-3 px-3 ${
+                      isActive(href)
+                        ? "bg-carbon-wash text-carbon font-medium"
+                        : "text-ink"
+                    }`}
+                  >
+                    <Icon size={22} />
+                    {label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
+      )}
+
+      <nav
+        aria-label="Main"
+        className="border-rule bg-surface relative z-10 flex h-12 shrink-0 items-center justify-between gap-1 border-t px-2 md:hidden"
+      >
+        {shown.map(({ href, label, icon: Icon }) => {
+          const active = isActive(href);
+          return (
+            <Link
+              key={href}
+              href={href}
+              aria-label={label}
+              aria-current={active ? "page" : undefined}
+              className={`rounded-ledger grid size-10 place-items-center ${
+                active ? "bg-carbon-wash text-carbon" : "text-ink-muted"
+              }`}
+            >
+              <Icon size={22} weight={active ? "duotone" : "regular"} />
+            </Link>
+          );
+        })}
+
+        {rest.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setMoreOpen((v) => !v)}
+            aria-expanded={moreOpen}
+            aria-label={`More — ${rest.length} more places`}
             className={`rounded-ledger grid size-10 place-items-center ${
-              active ? "bg-carbon-wash text-carbon" : "text-ink-muted"
+              moreOpen ? "bg-carbon-wash text-carbon" : "text-ink-muted"
             }`}
           >
-            <Icon size={22} weight={active ? "duotone" : "regular"} />
-          </Link>
-        );
-      })}
-    </nav>
+            <DotsThree size={22} weight="bold" />
+          </button>
+        )}
+      </nav>
+    </>
   );
 }

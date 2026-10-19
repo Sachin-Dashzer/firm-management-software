@@ -44,7 +44,7 @@ reason, including the security fixes in P2-1.
 | P2-1 | Permissions: D2, D3, `granted` scope, 9 new areas, `describeMatrix()`, client actor kind; the `generateMetadata` leak; the lockout helper | 🟡 | Built 19-10-2026. **Three more holes found and fixed on the way through.** Splitting `clientSensitive` moved to P2-2, where grant sections exist to hang it on. Needs Atlas to run; 2 Playwright tests waiting |
 | P2-2 | `ClientAccess` + `lib/access/clientAccess.js` wired into the clients list, case file, tabs, document links, vault, search and command bar; grant UI; `expireGrants` job | 🟡 | Built 19-10-2026. **The worst hole in the build found and fixed: an employee could download the whole DPDP dossier of any client in the firm.** Includes the `clientSensitive` split deferred from P2-1, and the Team & access tab brought forward from P2-5. Needs Atlas to run; 6 Playwright tests waiting |
 | P2-2b | Sample seed data: 6 staff with `reportingTo`, 4 clients, services across A/B/C, 9 engagements, grants of three widths | 🟡 | Built 19-10-2026. Opt-in behind `--sample`, and refuses to run with `NODE_ENV=production`. The portal user, UDIN rows, DSC tokens and document templates are seeded by the steps that create those models. Needs Atlas to run |
-| P2-3 | `/me` (and `mustChangePassword` finally enforced) · employee rail · My senior CA · `/team` + `/team/[id]` Employee 360 · offboard wizard · MobileNav "More" sheet | ⬜ | |
+| P2-3 | `/me` (and `mustChangePassword` finally enforced) · employee rail · My senior CA · `/team` + `/team/[id]` Employee 360 · offboard wizard · MobileNav "More" sheet | 🟡 | Built 19-10-2026. **Nobody could change their own password at all, and `mustChangePassword` was written in three places and read in none.** `/settings/users` is now a redirect to `/team`. Needs Atlas to run; 6 Playwright tests waiting |
 | P2-4 | A/B/C labels and `TierBadge` everywhere · per-step `minRole` and `assignTask` · the four enforcement gaps · C-tier bulk approve | ⬜ | |
 | P2-5 | Client 360: the new tab set, tab counts, outstanding balance in the header, Compliance tab filled | ⬜ | |
 | P2-6 | `FirmSettings` · ICAI page · `User.icai` · CPE log · ICAI notes | ⬜ | |
@@ -198,6 +198,14 @@ Not started (spec §17).
 | 19-10-2026 | **Sample data is opt-in and separate.** `scripts/seed.js` writes what the firm needs and is what runs against the live cluster; `scripts/sample.js` invents clients and only runs on `--sample`, never under `NODE_ENV=production`. People carry an `@sample.phmgindia.test` address and clients the tag `sample`, so `--drop-sample` finds them all again | Agent |
 | 19-10-2026 | Sample PANs and GSTINs are **built, not typed.** `checkGSTIN` verifies the state code, the embedded PAN, that the PAN's holder-type character agrees with the entity type, *and* a check digit — so an invented number would be refused by the firm's own form the first time anybody edited the client. `gstinCheckDigit` is now exported for that, and every seeded identifier goes through its validator in `tests/sample.test.js` | Agent |
 | 19-10-2026 | The sample portal user, UDIN rows, DSC tokens and the eight document templates from §11 of the brief are seeded by P2-9a, P2-7 and P2-8b — the steps that create those models. They cannot be seeded before the collections exist | Agent |
+| 19-10-2026 | **The forced password change lives outside the `(app)` layout**, at `/change-password`. The layout redirects there unconditionally when `mustChangePassword` is set; a screen inside the layout it protects would need the layout to know which page it was rendering just to avoid redirecting to itself | Agent |
+| 19-10-2026 | **Changing your own password, and resetting your own 2FA, both require the current password.** The session already proves who they are, but a session is a cookie on a machine that may be borrowed — and moving the second factor onto a different phone is the one move that turns a borrowed laptop into a permanent account takeover | Agent |
+| 19-10-2026 | **A demotion is refused while the person is still on work the new role could not do or review**, with the engagements named. Letting it through would leave engagements nobody is allowed to touch | Agent |
+| 19-10-2026 | A partner cannot be offboarded from a screen, and nobody can offboard themselves. Two partners should do the first together | Agent, owner to confirm |
+| 19-10-2026 | The offboarding wizard reassigns **one engagement at a time**, through the same `reassign` action the engagement screen and the bulk list use. Each row has its own minimum role, so one dropdown for all of them would offer somebody who cannot legally take half — and the wizard adds no new path into an engagement | Agent |
+| 19-10-2026 | `MobileNav` shows **four links and a More sheet**, with the current page always among the four. It used to render every rail link, which already filled 390 px at nine and would have overflowed badly at seventeen | Agent |
+| 19-10-2026 | "Clients" in the rail reads **"My clients"** for an employee or an intern. The label followed the permission scope rather than the role, so it is right for anybody who reaches clients one at a time | Agent |
+| 19-10-2026 | A/B/C tier counts per person deferred to P2-4, which is where the tier labels and the badge are built. The team list and the Work tab show open and overdue counts and the old level label until then | Agent |
 
 ## What P2-0 found
 
@@ -414,6 +422,69 @@ every one of those hand-written targets silently refused.
   by nudging it and watching the validator refuse; all three tiers present; no
   default assignee who is not allowed to do the work; no grant above its
   role's ceiling; and the deliberate absence still absent.
+
+## What P2-3 built
+
+**The hole that had been open since Step 1.** `mustChangePassword` was written
+when a partner created an account, reset a password or imported the team — and
+read nowhere. There was also **no way for anybody in the firm to change their
+own password**, so a one-time password read out across a desk stayed that
+person's password for good.
+
+- **`/change-password`**, outside the `(app)` layout so there is nothing to
+  loop against, and one unconditional redirect in the layout when the flag is
+  set. The current password is required even though the session proves who they
+  are: a session is a cookie on a machine that may be borrowed, and this is the
+  action that replaces the thing only they know.
+- **`/me`, for everybody.** An employee or an intern had nowhere in the app
+  that answered "who is my senior", "what have I been given access to" and
+  "how do I change my password", and the app answered none of the three. Now:
+  the senior CA's name, email, mobile and branch (or "Not set — ask a
+  partner", which is what `scripts/doctor.js` warns about); the grants they
+  hold with the reason each was given; their open work, overdue count and
+  rework; the articleship panel for an intern with an amber note near the
+  leave limit; mobile, password and 2FA. **Mobile is the only field they can
+  change** — somebody who can edit their own role has no role worth enforcing.
+- **`/team`** — name, role, offices, reporting CA, open, overdue, awaiting
+  their review, 2FA state, with filters and an Excel export. A CA sees their
+  branches, a Partner the firm. An employee or intern is sent to `/me`.
+- **`/team/[id]`**, the Employee 360, on the same folder tabs as a client:
+  Profile · Work · Reviews · Clients & access · Activity · Admin, each tab
+  filtered by permission. Work is grouped in pipeline order; Reviews shows a
+  CA's queue and a maker's returned work as **a count beside a count, never a
+  percentage**; Clients & access separates what the work on their desk opens
+  from what somebody deliberately granted.
+- **Offboarding** (owner decision D6) as a four-step checklist, because the
+  first step is real work: somebody has to decide who picks up each engagement,
+  and an A-tier job cannot land on an employee. Each row offers only people who
+  may legally take it, worked out on the server, and goes through the same
+  `reassign` action as everywhere else — so the wizard adds no new path into an
+  engagement. The last step refuses to run until the list is empty, then
+  deactivates, revokes every grant and soft deletes in **one** transaction.
+  Nothing is hard-deleted: a firm that deletes the person also deletes the
+  answer to "who prepared this return".
+- **A demotion is now refused** while the person is still on work the new role
+  could not do or review, naming the engagements. It would otherwise leave
+  engagements nobody is allowed to touch.
+- **`MobileNav`** shows four links and a More sheet, with the current page
+  always among the four. It used to render every rail link — already the full
+  width of a 390 px phone at nine of them, and the rail is going to seventeen.
+- **`/settings/users` is a redirect to `/team`**; its five actions moved to
+  `app/(app)/team/actions.js` and are still Partner-only (`usersSettings`, not
+  `team` — a CA reads the records and changes nothing).
+
+- Tests: 22 new Vitest tests (637 total) on the arithmetic, which is the part
+  that goes wrong quietly — doing counted apart from reviewing, the statutory
+  date preferred over the internal target, undated work never called late,
+  finished work never called late however old its date, rework as two counts,
+  ids compared as strings so an ObjectId does not read as nobody, and the
+  assignment rules the wizard and the demotion guard both lean on. 6 new
+  Playwright tests waiting on Atlas: the senior-CA card, an employee turned
+  away from `/team` and the export, a one-time password getting no further than
+  the change screen, a CA reading a record with no Admin tab and no offboarding
+  screen, offboarding blocked by open work, and offboarding going through with
+  the account dead, the grants revoked, the email reusable and the engagement
+  still carrying their name.
 
 ## What Step 0 built
 

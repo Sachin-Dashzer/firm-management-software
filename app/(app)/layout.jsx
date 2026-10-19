@@ -24,6 +24,17 @@ export default async function AppLayout({ children }) {
   const user = await currentUser();
   if (!user) redirect("/login");
 
+  /**
+   * A one-time password is not a password. Somebody whose account was created,
+   * reset or imported by a partner gets no further into the app until they
+   * have set one only they know (spec section 16).
+   *
+   * The screen for it sits outside this layout, so there is nothing here to
+   * loop against: one unconditional redirect, and the flag is cleared inside
+   * the same audit transaction as the new hash.
+   */
+  if (user.mustChangePassword) redirect("/change-password");
+
   await connectDB();
   // a user only ever sees their own branches in the switcher (spec section 2)
   const [branches, unreadCount] = await Promise.all([
