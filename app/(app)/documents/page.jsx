@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/auth";
-import { can, branchFilter } from "@/lib/permissions";
+import { can } from "@/lib/permissions";
+import { scopedByClient } from "@/lib/access/clientAccess";
 import { connectDB } from "@/lib/db";
 import DocumentModel from "@/models/Document";
 import Client from "@/models/Client";
@@ -32,7 +33,13 @@ export default async function DocumentsPage({ searchParams }) {
   const search = String(params.q ?? "").trim();
 
   await connectDB();
-  const scope = branchFilter(actor, "documents");
+  /**
+   * The firm-wide file search was scoped by branch alone, which for an
+   * employee or an intern meant every document name in their office — the
+   * client list they are not allowed to see, spelled out in file names.
+   * Scoped by client now, through the same filter as `/clients`.
+   */
+  const scope = await scopedByClient(actor, "clientId");
 
   if (tab === "pending") {
     const rows = await pendingFromClients(actor, scope);

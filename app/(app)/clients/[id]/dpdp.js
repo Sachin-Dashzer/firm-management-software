@@ -119,11 +119,19 @@ export async function actionRedaction(clientId, reason) {
 /** Record that a client asked, before anybody acts on it. */
 export async function logDataRequest(clientId, kind, note = "") {
   const actor = await requireUser();
-  assertCan(actor, "view", "clientSensitive");
 
   await connectDB();
-  const client = await Client.findById(clientId).select("legalName").lean();
+  const client = await Client.findById(clientId)
+    .select("legalName branchId")
+    .lean();
   if (!client) return { error: "That client no longer exists." };
+
+  // A Partner or the client's own CA. Checked with the branch in hand, not
+  // before the client is loaded: a scope that needs a record says yes to
+  // nothing at all, which is how the export route beside this one was open.
+  assertCan(actor, "view", "clientCredentials", {
+    branchId: String(client.branchId),
+  });
 
   await audited(actor, async (session) => {
     await recordAudit(

@@ -92,7 +92,7 @@ export default async function EditClientPage({ params }) {
         }))}
         partners={partners.map((p) => ({ id: String(p._id), name: p.name }))}
         groups={groups.map((g) => ({ id: String(g._id), name: g.name }))}
-        canEditSensitive={can(actor, "edit", "clientSensitive", {
+        canEditSensitive={can(actor, "edit", "clientIdentifiers", {
           branchId: String(client.branchId),
         })}
       />

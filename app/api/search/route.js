@@ -1,5 +1,6 @@
 import { requireUser } from "@/auth";
-import { can, branchFilter, seesOnlyOwnRecords } from "@/lib/permissions";
+import { can, branchFilter } from "@/lib/permissions";
+import { clientListFilter } from "@/lib/access/clientAccess";
 import { connectDB } from "@/lib/db";
 import Client from "@/models/Client";
 import Engagement from "@/models/Engagement";
@@ -43,15 +44,9 @@ export async function GET(request) {
   const groups = [];
 
   if (can(actor, "view", "clients")) {
-    const query = { ...(branchFilter(actor, "clients") ?? {}) };
-
-    // an employee or intern finds the clients they have work on, and no others
-    if (seesOnlyOwnRecords(actor, "clients")) {
-      const mine = await Engagement.find({
-        $or: [{ assigneeId: actor.id }, { reviewerId: actor.id }],
-      }).distinct("clientId");
-      query._id = { $in: mine };
-    }
+    // the same filter the client list and its export use, so the command bar
+    // cannot find a client the list would not show
+    const query = await clientListFilter(actor);
 
     query.$or = [
       { legalName: loose },

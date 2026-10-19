@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireUser } from "@/auth";
-import { assertCan, can } from "@/lib/permissions";
+import { assertCan, can, seesOnlyOwnRecords } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import { audited } from "@/lib/audit/request";
 import { recordAudit, ACTIONS } from "@/lib/audit";
@@ -17,6 +17,7 @@ import Engagement from "@/models/Engagement";
 import ServiceTemplate from "@/models/ServiceTemplate";
 import ClientService from "@/models/ClientService";
 import Client from "@/models/Client";
+import ClientAccess from "@/models/ClientAccess";
 import Branch from "@/models/Branch";
 import Comment from "@/models/Comment";
 import User from "@/models/User";
@@ -401,7 +402,35 @@ export async function reassign(id, { assigneeId, reviewerId }) {
 
   revalidatePath(`/engagements/${id}`);
   revalidatePath("/engagements");
-  return { ok: "Reassigned." };
+  return { ok: "Reassigned.", hint: await accessHint(engagement, assignee) };
+}
+
+/**
+ * A line of explanation when work is handed to somebody who reaches clients
+ * one at a time (owner decision D3).
+ *
+ * The point is that assigning work is now also an access decision, and a
+ * small one: it opens this engagement and its documents, and nothing else of
+ * the client. A CA who wanted to give more has somewhere to go. Not a dialog
+ * — it is a note on a successful action, not a question.
+ */
+async function accessHint(engagement, assignee) {
+  if (!assignee?.id || !seesOnlyOwnRecords(assignee, "clients")) return null;
+
+  const existing = await ClientAccess.findOne({
+    userId: assignee.id,
+    clientId: engagement.clientId,
+    active: true,
+  })
+    .select("_id")
+    .lean();
+  if (existing) return null;
+
+  const first = assignee.name?.split(" ")[0] ?? assignee.name;
+  return {
+    text: `${first} will see this engagement and its documents only. Give wider access?`,
+    href: `/clients/${engagement.clientId}?tab=access`,
+  };
 }
 
 // --- doing the work ---------------------------------------------------------

@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { requireUser } from "@/auth";
 import { can } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
+import Client from "@/models/Client";
 import { buildClientExport } from "@/lib/dpdp";
 import { buildWorkbook, xlsxResponse } from "@/lib/excel";
 import {
@@ -31,12 +32,26 @@ export async function GET(request, { params }) {
   const actor = await requireUser();
   const { id } = await params;
 
-  // the sensitive-data permission, not the ordinary client one
-  if (!can(actor, "view", "clientSensitive")) {
+  await connectDB();
+  const client = await Client.findById(id).select("branchId").lean();
+  if (!client) return new Response("Not found", { status: 404 });
+
+  /**
+   * A Partner, or a CA in this client's own branch.
+   *
+   * The check here used to be `can(actor, "view", "clientSensitive")` with no
+   * target — and a scope that needs a record to judge passes when it is
+   * handed none, because that is how a screen-level question is answered. So
+   * an employee could take this workbook for *any* client in the firm,
+   * whatever branch it was in and whether or not they worked on it. Nothing
+   * else in the route stopped them; the comment above said Partner-level and
+   * the code did not. Found in P2-2.
+   */
+  const where = { branchId: String(client.branchId) };
+  if (!can(actor, "view", "clientCredentials", where)) {
     return new Response("Not allowed", { status: 403 });
   }
 
-  await connectDB();
   const result = await buildClientExport(id);
   if (!result) return new Response("Not found", { status: 404 });
 

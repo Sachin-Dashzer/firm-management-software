@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { requireUser } from "@/auth";
-import { can, branchFilter, seesOnlyOwnRecords } from "@/lib/permissions";
+import { can, seesOnlyOwnRecords } from "@/lib/permissions";
+import { clientListFilter } from "@/lib/access/clientAccess";
 import { connectDB } from "@/lib/db";
 import Client from "@/models/Client";
 import Branch from "@/models/Branch";
@@ -34,10 +35,7 @@ export async function GET(request) {
   const url = new URL(request.url);
 
   /** @type {Record<string, any>} */
-  const query = {};
-  if (branchFilter(actor, "clients")) {
-    query.branchId = { $in: actor.branchIds };
-  }
+  const query = await clientListFilter(actor);
   for (const [param, field] of [
     ["status", "status"],
     ["entityType", "entityType"],
@@ -53,7 +51,7 @@ export async function GET(request) {
   ]);
   const branchCode = new Map(branches.map((b) => [String(b._id), b.code]));
 
-  const showPan = can(actor, "view", "clientSensitive");
+  const showPan = can(actor, "view", "clientIdentifiers");
 
   const rows = [
     [

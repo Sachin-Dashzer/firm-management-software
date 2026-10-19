@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/auth";
 import { assertCan, can } from "@/lib/permissions";
+import { targetForClient } from "@/lib/access/clientAccess";
 import { connectDB } from "@/lib/db";
 import Client from "@/models/Client";
 import Branch from "@/models/Branch";
@@ -27,7 +28,14 @@ import { CONTACT_CHANNELS, PORTALS } from "@/lib/validators";
  *   4. change it, audited       — audited(actor, session => ...)
  */
 
-/** Read a client's branch before deciding whether someone may touch it. */
+/**
+ * Read a client before deciding whether someone may touch it.
+ *
+ * The target comes from `targetForClient`, so the `granted` scope has both
+ * kinds of attachment to match — being on the client's open work, and
+ * holding a grant. For a Partner, a CA or the accounts person it is still
+ * just the branch, and no extra query is run.
+ */
 async function loadForWrite(actor, clientId, area = "clients") {
   await connectDB();
   const client = await Client.findById(clientId).select(
@@ -38,7 +46,7 @@ async function loadForWrite(actor, clientId, area = "clients") {
     err.code = "NOT_FOUND";
     throw err;
   }
-  assertCan(actor, "edit", area, { branchId: String(client.branchId) });
+  assertCan(actor, "edit", area, await targetForClient(actor, client));
   return client;
 }
 
@@ -176,7 +184,7 @@ export async function updateClient(clientId, formData) {
 
   // PAN, Aadhaar and the rest of the sensitive block need the higher grant
   if ("pan" in value || "aadhaar" in input) {
-    assertCan(actor, "edit", "clientSensitive", {
+    assertCan(actor, "edit", "clientIdentifiers", {
       branchId: String(existing.branchId),
     });
   }
@@ -355,7 +363,7 @@ export async function addClientNote(clientId, formData) {
 
 export async function saveCredential(clientId, formData) {
   const actor = await requireUser();
-  const client = await loadForWrite(actor, clientId, "clientSensitive");
+  const client = await loadForWrite(actor, clientId, "clientCredentials");
 
   const portal = String(formData.get("portal") ?? "");
   const username = String(formData.get("username") ?? "").trim();
@@ -414,7 +422,7 @@ export async function revealCredential(credentialId) {
   const client = await Client.findById(credential.clientId)
     .select("branchId legalName")
     .lean();
-  assertCan(actor, "view", "clientSensitive", {
+  assertCan(actor, "view", "clientCredentials", {
     branchId: String(client?.branchId),
   });
 
@@ -454,7 +462,7 @@ export async function revealCredential(credentialId) {
 
 export async function deleteCredential(clientId, credentialId) {
   const actor = await requireUser();
-  await loadForWrite(actor, clientId, "clientSensitive");
+  await loadForWrite(actor, clientId, "clientCredentials");
 
   await connectDB();
   const credential = await ClientCredential.findById(credentialId);

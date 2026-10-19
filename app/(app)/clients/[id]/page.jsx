@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { currentUser, requireUser } from "@/auth";
-import { can } from "@/lib/permissions";
+import { branchFilter, can, ROLE_LABELS } from "@/lib/permissions";
+import { accessFor, targetForClient } from "@/lib/access/clientAccess";
 import { connectDB } from "@/lib/db";
 import Client from "@/models/Client";
 import Branch from "@/models/Branch";
@@ -30,18 +31,28 @@ import { buildLedger, outstandingOf } from "@/lib/billing/allocation";
 import { StatusChip as EngagementStatusChip } from "../../engagements/chips";
 import FolderTabs from "@/components/clients/FolderTabs";
 import DataRights from "./DataRights";
+import ClientAccess from "@/models/ClientAccess";
+import TeamAccess from "./TeamAccess";
 
 export const dynamic = "force-dynamic";
 
-/** The folder tabs of the case file (spec section 3 and 15). */
+/**
+ * The folder tabs of the case file (spec section 3 and 15).
+ *
+ * `needs` is the grant section (or permission area) that decides whether the
+ * tab exists for this person at all — and the panel below checks the same
+ * thing before it queries anything, so a tab is never the only thing
+ * standing between somebody and the data behind it.
+ */
 const TABS = [
-  { key: "overview", label: "Overview" },
-  { key: "engagements", label: "Engagements" },
-  { key: "documents", label: "Documents" },
-  { key: "invoices", label: "Invoices" },
-  { key: "compliance", label: "Compliance" },
-  { key: "notes", label: "Notes" },
-  { key: "activity", label: "Activity" },
+  { key: "overview", label: "Overview", needs: "profile" },
+  { key: "engagements", label: "Engagements", needs: "engagements" },
+  { key: "compliance", label: "Compliance", needs: "engagements" },
+  { key: "documents", label: "Documents", needs: "documents" },
+  { key: "invoices", label: "Invoices", needs: "billing" },
+  { key: "access", label: "Team & access", needs: "team-access" },
+  { key: "notes", label: "Notes", needs: "notes" },
+  { key: "activity", label: "Activity", needs: "activity" },
 ];
 
 /**
@@ -82,40 +93,36 @@ export default async function ClientPage({ params, searchParams }) {
   if (!client) notFound();
 
   /**
-   * Who may open this file. A CA is scoped to their branches (spec section 2);
-   * an employee or intern reaches a client through the work on their desk,
-   * which means the check needs to know who is on that work, not just which
-   * branch it is in. Without these ids the `granted` scope has nothing to
-   * match and the page would turn away the very people it is for — which is
-   * what happened to interns before this.
-   *
-   * ponytail: two queries' worth of access logic lives here for one step.
-   * P2-2 replaces it with `accessFor()`, which adds Client Access Grants.
+   * One question, asked once: who is this person to this client, and which
+   * parts of the file may they see (`lib/access/clientAccess.js`). A Partner
+   * or a CA gets everything their role allows; an employee or an intern gets
+   * what the work on their desk or a CA's grant gives them.
    */
-  const onThisClient = await Engagement.find({ clientId: client._id })
-    .select("assigneeId reviewerId")
-    .lean();
-  const assignedUserIds = onThisClient
-    .flatMap((e) => [e.assigneeId, e.reviewerId])
-    .filter(Boolean)
-    .map(String);
+  const access = await accessFor(actor, client);
+  if (!access.visible) redirect("/clients");
 
-  const scope = { branchId: String(client.branchId), assignedUserIds };
+  const scope = await targetForClient(actor, client);
+  const sees = (section) => access.sections.has(section);
 
-  if (!can(actor, "view", "clients", scope)) redirect("/clients");
-
-  /**
-   * Sensitive data is deliberately checked on the branch alone, not on
-   * `scope`: this one area still covers both the statutory IDs and the
-   * credentials vault, and the owner's decision of 19-10-2026 separates them
-   * — identifiers may be granted to an employee, the vault never. P2-2 splits
-   * the area in two, when grant sections exist to hang them on. Until then
-   * this stays exactly as wide as it was.
-   */
-  const seeSensitive = can(actor, "view", "clientSensitive", {
-    branchId: String(client.branchId),
-  });
+  const seeIdentifiers = sees("identifiers");
+  const seeVault = sees("credentials");
   const mayEdit = can(actor, "edit", "clients", scope);
+
+  // The per-client history is the audit log for one record, so it follows the
+  // audit-log permission rather than the client one: spec section 11 gives an
+  // employee and an intern no access to it.
+  const seeActivity = can(actor, "view", "auditLog", scope);
+  const seeAccess = can(actor, "view", "clientAccess", scope);
+
+  const tabs = TABS.filter(({ needs }) => {
+    if (needs === "activity") return seeActivity;
+    if (needs === "team-access") return seeAccess;
+    return sees(needs);
+  });
+
+  // a bookmark to a tab this person cannot see lands on the first they can
+  const active = tabs.some((t) => t.key === tab) ? tab : tabs[0]?.key;
+  if (!active) redirect("/clients");
 
   const [branch, partner, manager, group] = await Promise.all([
     Branch.findById(client.branchId).select("code name").lean(),
@@ -170,7 +177,7 @@ export default async function ClientPage({ params, searchParams }) {
         <dl className="text-13 flex flex-wrap gap-x-6 gap-y-2">
           <Chip
             label="PAN"
-            value={seeSensitive ? client.pan : client.pan ? "•••" : ""}
+            value={seeIdentifiers ? client.pan : client.pan ? "•••" : ""}
             mono
           />
           {client.gstins?.map((g) => (
@@ -193,33 +200,32 @@ export default async function ClientPage({ params, searchParams }) {
 
       {/* --- folder-style tab dividers, with the divider that slides --- */}
       <FolderTabs
-        tabs={TABS}
-        active={tab}
+        tabs={tabs}
+        active={active}
         hrefFor={(key) => `/clients/${id}?tab=${key}`}
         label="Client sections"
       />
 
-      {tab === "overview" && (
+      {active === "overview" && (
         <Overview
           client={client}
           partner={partner}
           manager={manager}
           primary={primary}
-          seeSensitive={seeSensitive}
-          actorCanEditSensitive={can(actor, "edit", "clientSensitive", {
-            branchId: String(client.branchId),
-          })}
+          seeIdentifiers={seeIdentifiers}
+          seeVault={seeVault}
+          mayEditVault={can(actor, "edit", "clientCredentials", scope)}
           clientId={id}
         />
       )}
 
-      {tab === "notes" && <NotesTab clientId={id} mayEdit={mayEdit} />}
-      {tab === "activity" && (
+      {active === "notes" && <NotesTab clientId={id} mayEdit={mayEdit} />}
+      {active === "activity" && (
         <div className="flex flex-col gap-4">
           <ActivityTab clientId={id} actor={actor} />
           {/* the DPDP rights sit with the history, because that is where a
               partner looks when a client asks what is held on them */}
-          {can(actor, "view", "clientSensitive") && (
+          {can(actor, "view", "clientCredentials", scope) && (
             <DataRights
               clientId={id}
               clientName={client.tradeName || client.legalName}
@@ -230,18 +236,33 @@ export default async function ClientPage({ params, searchParams }) {
           )}
         </div>
       )}
-      {tab === "engagements" && (
-        <EngagementsTab clientId={id} actor={actor} mayEdit={mayEdit} />
+      {active === "engagements" && (
+        <EngagementsTab
+          clientId={id}
+          actor={actor}
+          mayEdit={mayEdit}
+          only={access.engagementIds}
+        />
       )}
-      {tab === "documents" && (
-        <DocumentsTab clientId={id} actor={actor} client={client} />
+      {active === "documents" && (
+        <DocumentsTab
+          clientId={id}
+          actor={actor}
+          client={client}
+          scope={scope}
+          only={access.engagementIds}
+        />
       )}
 
-      {tab === "invoices" && (
+      {active === "invoices" && (
         <InvoicesTab clientId={id} actor={actor} client={client} />
       )}
 
-      {tab === "compliance" && <Placeholder tab={tab} />}
+      {active === "access" && (
+        <TeamAccessTab clientId={id} actor={actor} client={client} />
+      )}
+
+      {active === "compliance" && <Placeholder tab={active} />}
     </div>
   );
 }
@@ -251,11 +272,12 @@ async function Overview({
   partner,
   manager,
   primary,
-  seeSensitive,
-  actorCanEditSensitive,
+  seeIdentifiers,
+  seeVault,
+  mayEditVault,
   clientId,
 }) {
-  const credentials = seeSensitive
+  const credentials = seeVault
     ? await ClientCredential.find({ clientId })
         .select("portal label username lastRevealedAt")
         .sort({ portal: 1 })
@@ -276,12 +298,12 @@ async function Overview({
         />
         <Row
           label="PAN"
-          value={seeSensitive ? client.pan || "—" : "•••"}
+          value={seeIdentifiers ? client.pan || "—" : "•••"}
           mono
         />
         <Row
           label="TAN"
-          value={seeSensitive ? client.tan || "—" : "•••"}
+          value={seeIdentifiers ? client.tan || "—" : "•••"}
           mono
         />
         <Row label="CIN / LLPIN" value={client.cin || "—"} mono />
@@ -388,7 +410,7 @@ async function Overview({
         </Panel>
       )}
 
-      {seeSensitive && (
+      {seeVault && (
         <div className="lg:col-span-3">
           <CredentialsVault
             clientId={clientId}
@@ -401,7 +423,7 @@ async function Overview({
                 ? formatISTDate(new Date(c.lastRevealedAt))
                 : null,
             }))}
-            mayEdit={actorCanEditSensitive}
+            mayEdit={mayEditVault}
           />
         </div>
       )}
@@ -455,9 +477,20 @@ async function ActivityTab({ clientId, actor }) {
 }
 
 /** The client's work: what is running now, and what they are signed up for. */
-async function EngagementsTab({ clientId, actor, mayEdit }) {
+/**
+ * @param {object} props
+ * @param {string[]|null} props.only when somebody is here through the work on
+ *   their desk rather than a grant, the only engagements they may see. `null`
+ *   means no such limit.
+ */
+async function EngagementsTab({ clientId, actor, mayEdit, only }) {
+  const mine = only ? { _id: { $in: only } } : {};
+
   const [engagements, subscriptions, templates, team] = await Promise.all([
-    Engagement.find({ clientId }).sort({ createdAt: -1 }).limit(200).lean(),
+    Engagement.find({ clientId, ...mine })
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .lean(),
     ClientService.find({ clientId, active: true }).lean(),
     ServiceTemplate.find({ active: true })
       .select("name code recurrence minExecRole minReviewRole defaultFeePaise")
@@ -553,12 +586,21 @@ async function EngagementsTab({ clientId, actor, mayEdit }) {
 }
 
 /** The client's files: the permanent file first, then work by engagement. */
-async function DocumentsTab({ clientId, actor, client }) {
-  const mayEdit = can(actor, "edit", "documents", {
-    branchId: String(client.branchId),
-  });
+async function DocumentsTab({ clientId, actor, scope, only }) {
+  const mayEdit = can(actor, "edit", "documents", scope);
 
-  const documents = await DocumentModel.find({ clientId })
+  /**
+   * Somebody here through the work on their desk sees that work's files and
+   * the client's permanent file — the PAN card, the incorporation
+   * certificate, the things every engagement refers to. Not the files of
+   * work they are not on.
+   */
+  const documents = await DocumentModel.find({
+    clientId,
+    ...(only
+      ? { $or: [{ engagementId: { $in: only } }, { isPermanent: true }] }
+      : {}),
+  })
     .sort({ createdAt: -1 })
     .lean();
 
@@ -660,6 +702,72 @@ async function InvoicesTab({ clientId, actor, client }) {
           total: formatPaise(i.totalPaise ?? 0),
           outstanding: formatPaise(outstandingOf(i)),
         }))}
+    />
+  );
+}
+
+/**
+ * Who can see this client and why (owner decision D3).
+ *
+ * P2-5 adds the other two halves of this tab: the people who work on the
+ * client, counted off its engagements, and the client's own portal accounts.
+ */
+async function TeamAccessTab({ clientId, actor, client }) {
+  const mayEdit = can(actor, "edit", "clientAccess", {
+    branchId: String(client.branchId),
+  });
+
+  const grants = await ClientAccess.find({ clientId })
+    .sort({ active: -1, createdAt: -1 })
+    .lean();
+
+  const people = await User.find({
+    _id: { $in: grants.map((g) => g.userId) },
+  })
+    .select("name role")
+    .lean();
+  const person = new Map(people.map((p) => [String(p._id), p]));
+
+  // Only an employee or an intern can hold a grant worth giving: a CA and a
+  // Partner already see the client through their role, so offering them
+  // would be offering nothing.
+  const team = await User.find({
+    active: true,
+    role: { $in: ["employee", "intern"] },
+    ...(branchFilter(actor, "clientAccess") ?? {}),
+  })
+    .select("name role")
+    .sort({ name: 1 })
+    .lean();
+
+  const now = new Date();
+
+  return (
+    <TeamAccess
+      clientId={clientId}
+      mayEdit={mayEdit}
+      grants={grants.map((grant) => {
+        const who = person.get(String(grant.userId));
+        return {
+          id: String(grant._id),
+          name: who?.name ?? "A former colleague",
+          roleLabel: ROLE_LABELS[who?.role] ?? "",
+          sections: grant.sections ?? [],
+          reason: grant.reason,
+          expiresAt: grant.expiresAt ? formatISTDate(grant.expiresAt) : null,
+          expired: Boolean(grant.expiresAt && grant.expiresAt <= now),
+          revoked: !grant.active,
+          revokedAt: grant.revokedAt ? formatISTDate(grant.revokedAt) : null,
+          grantedByName: grant.grantedByName,
+          grantedAt: formatISTDate(grant.createdAt),
+        };
+      })}
+      team={team.map((p) => ({
+        id: String(p._id),
+        name: p.name,
+        role: p.role,
+        roleLabel: ROLE_LABELS[p.role] ?? p.role,
+      }))}
     />
   );
 }

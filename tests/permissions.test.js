@@ -45,13 +45,23 @@ describe("the matrix matches spec section 2", () => {
   });
 
   it("keeps interns away from sensitive client data", () => {
-    expect(can(intern, "view", "clientSensitive", { branchId: NOI })).toBe(
-      false,
-    );
-    expect(can(accounts, "view", "clientSensitive", { branchId: NOI })).toBe(
-      false,
-    );
-    expect(can(ca, "edit", "clientSensitive", { branchId: NOI })).toBe(true);
+    for (const area of ["clientIdentifiers", "clientCredentials"]) {
+      expect(can(intern, "view", area, { branchId: NOI }), area).toBe(false);
+      expect(can(accounts, "view", area, { branchId: NOI }), area).toBe(false);
+      expect(can(ca, "edit", area, { branchId: NOI }), area).toBe(true);
+    }
+  });
+
+  /**
+   * The statutory IDs and the credentials vault used to be one area. A PAN
+   * identifies a client; a portal password *acts as* them, which is a
+   * different risk and now a different row (owner, 19-10-2026).
+   */
+  it("separates the statutory IDs from the credentials vault", () => {
+    const where = { branchId: NOI, grantedUserIds: [employee.id] };
+    expect(can(employee, "view", "clientIdentifiers", where)).toBe(true);
+    expect(can(employee, "view", "clientCredentials", where)).toBe(false);
+    expect(can(employee, "edit", "clientIdentifiers", where)).toBe(false);
   });
 
   it("keeps accounts out of working papers but in charge of invoices", () => {
@@ -313,11 +323,22 @@ describe("the granted scope (owner decision D3)", () => {
   });
 
   it("leaves an intern out of sensitive data however they got in", () => {
+    const widest = {
+      branchId: NOI,
+      grantedUserIds: [intern.id],
+      assigneeId: intern.id,
+      assignedUserIds: [intern.id],
+    };
+    expect(can(intern, "view", "clientIdentifiers", widest)).toBe(false);
+    expect(can(intern, "view", "clientCredentials", widest)).toBe(false);
+  });
+
+  it("leaves the credentials vault out of reach for an employee too", () => {
     expect(
-      can(intern, "view", "clientSensitive", {
+      can(employee, "view", "clientCredentials", {
         branchId: NOI,
-        grantedUserIds: [intern.id],
-        assigneeId: intern.id,
+        grantedUserIds: [employee.id],
+        assigneeId: employee.id,
       }),
     ).toBe(false);
   });

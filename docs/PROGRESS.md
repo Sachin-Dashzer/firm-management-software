@@ -42,7 +42,7 @@ reason, including the security fixes in P2-1.
 | --- | --- | --- | --- |
 | P2-0 | Verify the brief's gap analysis against the code, then present the step plan | ✅ | Done 19-10-2026. 15 of 15 rows confirmed; 6 corrections and 6 further gaps found — see below |
 | P2-1 | Permissions: D2, D3, `granted` scope, 9 new areas, `describeMatrix()`, client actor kind; the `generateMetadata` leak; the lockout helper | 🟡 | Built 19-10-2026. **Three more holes found and fixed on the way through.** Splitting `clientSensitive` moved to P2-2, where grant sections exist to hang it on. Needs Atlas to run; 2 Playwright tests waiting |
-| P2-2 | `ClientAccess` + `lib/access/clientAccess.js` wired into the clients list, case file, tabs, document links, vault, search and command bar; grant UI; `expireGrants` job | ⬜ | |
+| P2-2 | `ClientAccess` + `lib/access/clientAccess.js` wired into the clients list, case file, tabs, document links, vault, search and command bar; grant UI; `expireGrants` job | 🟡 | Built 19-10-2026. **The worst hole in the build found and fixed: an employee could download the whole DPDP dossier of any client in the firm.** Includes the `clientSensitive` split deferred from P2-1, and the Team & access tab brought forward from P2-5. Needs Atlas to run; 6 Playwright tests waiting |
 | P2-2b | Sample seed data: 6 staff with `reportingTo`, 4 clients, services across A/B/C, grants of three widths, a portal user | ⬜ | Moved early: without it no step after P2-2 can be checked by hand |
 | P2-3 | `/me` (and `mustChangePassword` finally enforced) · employee rail · My senior CA · `/team` + `/team/[id]` Employee 360 · offboard wizard · MobileNav "More" sheet | ⬜ | |
 | P2-4 | A/B/C labels and `TierBadge` everywhere · per-step `minRole` and `assignTask` · the four enforcement gaps · C-tier bulk approve | ⬜ | |
@@ -187,6 +187,14 @@ Not started (spec §17).
 | 19-10-2026 | `seesOnlyOwnRecords()` replaces three copies of `scopeOf(actor, "clients") === "assigned"`. Comparing a scope to a string by hand meant renaming the scope would silently widen all three lists — which is exactly what D3 would have done | Agent |
 | 19-10-2026 | A client's name appears in the browser tab only for a Partner, a CA or the accounts person. An employee or intern gets "Client · PHMG" even on a client they may open: the title cannot be checked properly without a second query for a decoration, and the safe side of that trade is the dull title | Agent, owner to confirm |
 | 19-10-2026 | **Splitting `clientSensitive` into identifiers and credentials deferred to P2-2.** One area covers both the statutory IDs and the credentials vault, so the owner's "identifiers yes for an employee, the vault never" cannot be expressed until there are grant sections to attach them to. P2-1 therefore leaves sensitive data exactly as wide as it was | Agent |
+| 19-10-2026 | `clientSensitive` is now `clientIdentifiers` and `clientCredentials`. A PAN identifies a client; a portal password *acts as* them, and the two are not the same risk. The vault is in no grant ceiling below CA, so no list of sections anybody can post opens it | Owner's decision, applied |
+| 19-10-2026 | **A grant is not branch-tested and `clientListFilter` adds no branch condition for an employee or an intern.** A CA can only grant their own branch's clients, so the branch is checked when the grant is given rather than every time it is read — and a person moved between offices keeps the clients somebody deliberately opened to them | Agent, owner to confirm |
+| 19-10-2026 | **Being on the work gives the profile, the engagements and the documents — not the statutory IDs.** Spec §2 reads "sensitive IDs: employee V (assigned only)", which was wider; the Phase 2 brief lists what implicit access gives, and a PAN is not in it. A CA who wants an employee to have it grants `identifiers` by name. Narrower than §2, deliberately | Agent, **owner should confirm** |
+| 19-10-2026 | **Access through an assignment lapses when the work closes.** Only *open* engagements open a client, so a finished job stops being a reason to hold the file open. A grant is how access outlives the work | Agent |
+| 19-10-2026 | A grant lets somebody see that a client *has* this work; it does not let them open it. The `engagements` section hangs off the `clients` area, and the engagement screen itself stays on `engagementsWork`, which is assignment-scoped — so a grant shows the list without handing over the working papers | Agent |
+| 19-10-2026 | **The per-client Activity tab now follows the `auditLog` permission**, so an employee and an intern no longer see a client's full change history. Spec §11 gives them no access to the log; it also asks for an Activity tab "on every client", and the two readings disagree. Taken the narrow one | Agent, **owner should confirm** |
+| 19-10-2026 | An expiry is honoured when the grant is **read**, not when the nightly job runs. `jobs/expireGrants.js` only tidies the access list, so a cron that fails for a week cannot leave anybody's access open past its date | Agent |
+| 19-10-2026 | The Team & access tab was brought forward from P2-5 rather than given the grant UI a temporary home. P2-5 adds its other two halves: who works on the client, and the client's portal accounts | Agent |
 
 ## What P2-0 found
 
@@ -286,6 +294,82 @@ in this sequence where anybody can see more than they could yesterday.
   an unconnected intern turned away from a client with the name absent from
   the tab title, the list, the search API and the export, and a partner
   opening the same client and seeing it.
+
+## What P2-2 built
+
+- **`models/ClientAccess.js`** — one CA's decision to open one client to one
+  person, for named sections, with a reason that is a required field, and an
+  optional end date. One row per person per client, so widening a grant is an
+  edit with an audit entry saying which sections were added rather than a
+  second row nobody notices.
+- **`lib/access/sections.js`** — what a grant can open and how far each role
+  may ever be opened. **`credentials` and `billing` are in no ceiling below
+  CA**, which is the owner's decision made structural: there is no list of
+  sections anybody can post that opens the credentials vault or the fees to an
+  employee or an intern. An intern is narrower again — no statutory IDs, per
+  spec §2. The grant form and the server action call the same `capSections`,
+  so the tick boxes cannot offer what the server then refuses, and the refusal
+  reads the same in both places.
+- **`lib/access/clientAccess.js`** — the one question, asked in one place.
+  `accessFor()` for the case file, `scopedByClient()` for any list of a
+  client's records, `clientListFilter()` for the client list itself,
+  `targetForClient()` wherever a client's branch alone used to be passed to
+  `can()`. The three client lists, the case file's eight tabs, every client
+  write, the document links, the firm file search and the command bar now all
+  read from it.
+- **`clientSensitive` split into `clientIdentifiers` and `clientCredentials`**
+  — the piece deferred from P2-1 — across twelve call sites.
+- **The Team & access tab**, brought forward from P2-5: who has been given
+  access, with sections, expiry, reason and who gave it; a drawer to give or
+  widen one, with everything above the person's ceiling disabled and saying
+  why; revoke, which leaves the row so the access review can still read it.
+- **`jobs/expireGrants.js`**, nightly at 02:10. It enforces nothing — a lapsed
+  grant already stops working when it is read — it tidies the access list so
+  nobody has to date-check it by eye. One `save()` per grant, because the
+  audit plugin cannot report what an `updateMany` touched, and "when did she
+  stop being able to see this client" is what a confidentiality review asks.
+- **The assignment hint**: handing work to an employee now also decides access,
+  so `reassign` returns a line saying it opens this engagement and its
+  documents only, linking to the drawer. A note on a success, not a dialog.
+
+**Three more holes, and the worst one in the build so far**
+
+- **An employee could download the complete DPDP dossier of any client in the
+  firm.** `/clients/[id]/export` builds a workbook of every record held on one
+  client, across every collection. Its own comment said "Partner-level"; its
+  check was `can(actor, "view", "clientSensitive")` with **no target** — and a
+  scope that needs a record to judge says yes when it is handed none, because
+  that is how a screen-level question gets answered. Any branch, any client,
+  no assignment needed. Now checked with the client's branch in hand, against
+  `clientCredentials`. `logDataRequest` beside it had the same shape.
+- **The firm file search was branch-wide.** `/documents` scoped by branch
+  alone, so an employee got every document name in their office — which is the
+  client list they are not allowed to see, spelled out in file names. Scoped
+  by client now, through the same filter as `/clients`.
+- **The new-and-lost-clients report was branch-wide**, and `reports/[report]`
+  only asks `can(actor, "view", "clients")` with no record in hand, which a
+  record-level scope passes. It now refuses the report to a role that sees
+  clients one at a time and says why, rather than narrowing a firm trend to
+  three clients and calling it a report.
+
+**And one consistency fix:** the five paths that decide whether somebody may
+touch a document each built their own `can()` target, three of them by hand.
+They now share one `targetOf()`, which also means an employee on a client's
+work can reach that client's **permanent file** — the PAN card, the
+incorporation certificate — which belongs to no single engagement and which
+every one of those hand-written targets silently refused.
+
+- Tests: 17 new Vitest tests (582 total) on the part that decides — every
+  ceiling, every refusal wording, no role below CA that any request can open
+  the vault for, a path-traversal string in a section list, and that the
+  section list and the permission matrix agree about an assignee. 6 new
+  Playwright tests waiting on Atlas, covering acceptance 1, 2 and 3: a client
+  with no grant absent from the list, the case file, the search API and the
+  file search; a two-section grant showing exactly two tabs with the PAN still
+  masked and the dossier export refused; revoking closing it on the next
+  request; an expired grant doing nothing without the job having run; the
+  drawer disabling the vault and the fees; and a partner giving access that
+  the employee then sees.
 
 ## What Step 0 built
 

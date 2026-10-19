@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/auth";
 import { assertCan, can } from "@/lib/permissions";
+import { targetForClient } from "@/lib/access/clientAccess";
 import { connectDB } from "@/lib/db";
 import { audited } from "@/lib/audit/request";
 import { recordAudit, ACTIONS } from "@/lib/audit";
@@ -57,9 +58,33 @@ async function loadTarget(actor, { engagementId, clientId }) {
 }
 
 /** The permission target for a document: its branch and the work it is on. */
-function targetOf(engagement, client) {
+/**
+ * The target for a `can(… "documents" …)` call about one file.
+ *
+ * Everything that decides whether somebody may touch a document asks this,
+ * so the five paths through this file cannot drift apart. It carries three
+ * kinds of attachment:
+ *
+ *  - the branch, for a CA;
+ *  - the engagement's own assignee and reviewer, for work on their desk;
+ *  - who holds a grant on the client, and whether this person is on any of
+ *    its open work (`targetForClient`) — which is what lets somebody reach
+ *    the client's **permanent file**, the PAN card and the incorporation
+ *    certificate that belong to no single engagement.
+ *
+ * `targetForClient` returns early for a Partner, a CA or the accounts
+ * person, so their downloads pay for no extra query.
+ */
+async function targetOf(actor, engagement, client, clientId) {
+  const id = String(engagement?.clientId ?? client?._id ?? clientId ?? "");
+  const branchId = String(engagement?.branchId ?? client?.branchId ?? "");
+
+  const base = id
+    ? await targetForClient(actor, { _id: id, branchId })
+    : { branchId };
+
   return {
-    branchId: String(engagement?.branchId ?? client?.branchId ?? ""),
+    ...base,
     assigneeId: String(engagement?.assigneeId ?? ""),
     reviewerId: String(engagement?.reviewerId ?? ""),
   };
@@ -81,7 +106,7 @@ function targetOf(engagement, client) {
 export async function requestUpload(input) {
   const actor = await requireUser();
   const { engagement, client } = await loadTarget(actor, input);
-  const target = targetOf(engagement, client);
+  const target = await targetOf(actor, engagement, client);
 
   assertCan(actor, "edit", "documents", target);
 
@@ -130,7 +155,7 @@ export async function requestUpload(input) {
 export async function confirmUpload(input) {
   const actor = await requireUser();
   const { engagement, client } = await loadTarget(actor, input);
-  const target = targetOf(engagement, client);
+  const target = await targetOf(actor, engagement, client);
   assertCan(actor, "edit", "documents", target);
 
   if (!input.key || !input.checksum) {
@@ -239,11 +264,12 @@ export async function linkToDocument(id, options = {}) {
     ? await Engagement.findById(document.engagementId).lean()
     : null;
 
-  assertCan(actor, "view", "documents", {
-    branchId: String(document.branchId ?? ""),
-    assigneeId: String(engagement?.assigneeId ?? ""),
-    reviewerId: String(engagement?.reviewerId ?? ""),
-  });
+  assertCan(
+    actor,
+    "view",
+    "documents",
+    await targetOf(actor, engagement, null, document.clientId),
+  );
 
   const version = options.versionId
     ? document.versions?.find((v) => String(v._id) === options.versionId)
@@ -288,11 +314,12 @@ export async function deleteDocument(id, reason = "") {
     ? await Engagement.findById(document.engagementId).lean()
     : null;
 
-  assertCan(actor, "edit", "documents", {
-    branchId: String(document.branchId ?? ""),
-    assigneeId: String(engagement?.assigneeId ?? ""),
-    reviewerId: String(engagement?.reviewerId ?? ""),
-  });
+  assertCan(
+    actor,
+    "edit",
+    "documents",
+    await targetOf(actor, engagement, null, document.clientId),
+  );
 
   if (engagement?.status === "Completed") {
     return { error: "A completed engagement is locked." };
@@ -397,9 +424,16 @@ export async function updateDocument(id, { name, kind, permanent }) {
 
   const document = await Document.findById(id);
   if (!document) return { error: "That file is gone." };
-  assertCan(actor, "edit", "documents", {
-    branchId: String(document.branchId ?? ""),
-  });
+
+  const engagement = document.engagementId
+    ? await Engagement.findById(document.engagementId).lean()
+    : null;
+  assertCan(
+    actor,
+    "edit",
+    "documents",
+    await targetOf(actor, engagement, null, document.clientId),
+  );
 
   await audited(actor, async (session) => {
     if (name !== undefined) document.name = String(name).trim();

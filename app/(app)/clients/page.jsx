@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/auth";
-import { can, branchFilter, seesOnlyOwnRecords } from "@/lib/permissions";
+import { can, seesOnlyOwnRecords } from "@/lib/permissions";
+import { clientListFilter } from "@/lib/access/clientAccess";
 import { connectDB } from "@/lib/db";
 import Client from "@/models/Client";
-import Engagement from "@/models/Engagement";
 import Branch from "@/models/Branch";
 import { CLIENT_STATUSES, ENTITY_TYPES, RISK_RATINGS } from "@/lib/validators";
 
@@ -39,23 +39,16 @@ export default async function ClientsPage({ searchParams }) {
 
   await connectDB();
 
+  /**
+   * One filter, from one place (`lib/access/clientAccess.js`): the branch for
+   * a CA, and for an employee or an intern the clients they have open work on
+   * or hold a grant for. The list, the export, the firm document search and
+   * the command bar all ask the same function, so none of them can be wider
+   * than the others.
+   */
   /** @type {Record<string, any>} */
-  const query = {};
-  if (branchFilter(actor, "clients")) {
-    query.branchId = { $in: actor.branchIds };
-  }
-
-  // An employee or intern may see only clients they are attached to (spec
-  // section 2, owner decision D3). Attachment comes from engagements, so the
-  // list is the clients of the work on their desk — nothing else in the
-  // branch. P2-2 widens this to include Client Access Grants.
+  const query = await clientListFilter(actor);
   const assignedOnly = seesOnlyOwnRecords(actor, "clients");
-  if (assignedOnly) {
-    const mine = await Engagement.distinct("clientId", {
-      $or: [{ assigneeId: actor.id }, { reviewerId: actor.id }],
-    });
-    query._id = { $in: mine };
-  }
 
   if (status) query.status = status;
   if (entityType) query.entityType = entityType;
