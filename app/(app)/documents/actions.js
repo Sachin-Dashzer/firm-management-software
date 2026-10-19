@@ -1,0 +1,438 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { requireUser } from "@/auth";
+import { assertCan, can } from "@/lib/permissions";
+import { connectDB } from "@/lib/db";
+import { audited } from "@/lib/audit/request";
+import { recordAudit, ACTIONS } from "@/lib/audit";
+import Document from "@/models/Document";
+import Client from "@/models/Client";
+import Engagement from "@/models/Engagement";
+import {
+  ALLOWED_TYPES,
+  MAX_UPLOAD_BYTES,
+  getUploadTicket,
+  getDownloadLink,
+  remove,
+} from "@/lib/storage";
+import { buildFileKey } from "@/lib/storage/paths";
+import { financialYearLabel } from "@/lib/dates";
+import { canEditWork } from "@/lib/engagements/status";
+
+/**
+ * Documents (spec section 6).
+ *
+ * Uploading is two steps on purpose: the browser asks here for a ticket,
+ * then sends the bytes straight to the gateway, which keeps large files away
+ * from Vercel's request limit. Only when the gateway confirms what it stored
+ * does the app record the document — so a failed upload leaves no row, and a
+ * row never points at bytes that are not there.
+ *
+ * Every view, download and delete is audited (spec section 6).
+ */
+
+/**
+ * Who may touch files on this engagement or client, and what they are.
+ * @param {object} actor
+ * @param {{ engagementId?: string, clientId?: string }} where
+ */
+async function loadTarget(actor, { engagementId, clientId }) {
+  await connectDB();
+
+  if (engagementId) {
+    const engagement = await Engagement.findById(engagementId).lean();
+    if (!engagement) throw new Error("That engagement no longer exists.");
+    const client = await Client.findById(engagement.clientId)
+      .select("code branchId legalName tradeName")
+      .lean();
+    return { engagement, client };
+  }
+
+  const client = await Client.findById(clientId)
+    .select("code branchId legalName tradeName")
+    .lean();
+  if (!client) throw new Error("That client no longer exists.");
+  return { engagement: null, client };
+}
+
+/** The permission target for a document: its branch and the work it is on. */
+function targetOf(engagement, client) {
+  return {
+    branchId: String(engagement?.branchId ?? client?.branchId ?? ""),
+    assigneeId: String(engagement?.assigneeId ?? ""),
+    reviewerId: String(engagement?.reviewerId ?? ""),
+  };
+}
+
+/**
+ * Step one of an upload: check the person may do it, work out where the file
+ * will live, and hand back a ten-minute ticket for the browser to use.
+ *
+ * @param {object} input
+ * @param {string} [input.engagementId]
+ * @param {string} [input.clientId]
+ * @param {string} [input.checklistItemId]
+ * @param {string} input.filename
+ * @param {string} input.mime
+ * @param {number} input.size
+ * @param {boolean} [input.permanent]
+ */
+export async function requestUpload(input) {
+  const actor = await requireUser();
+  const { engagement, client } = await loadTarget(actor, input);
+  const target = targetOf(engagement, client);
+
+  assertCan(actor, "edit", "documents", target);
+
+  if (engagement && !canEditWork(actor, engagement)) {
+    return {
+      error: `Nothing can be attached while this is ${engagement.status}.`,
+    };
+  }
+
+  if (!input.filename) return { error: "That file has no name." };
+  if (!Number.isFinite(input.size) || input.size <= 0) {
+    return { error: "That file is empty." };
+  }
+  if (input.size > MAX_UPLOAD_BYTES) {
+    return {
+      error: `That file is ${Math.round(input.size / 1024 / 1024)} MB. The limit is ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB.`,
+    };
+  }
+  if (!ALLOWED_TYPES.includes(input.mime)) {
+    return { error: `${input.mime || "That kind of file"} is not accepted.` };
+  }
+
+  const fy = engagement?.periodStart
+    ? `FY${financialYearLabel(new Date(engagement.periodStart))}`
+    : `FY${financialYearLabel(new Date())}`;
+
+  const key = buildFileKey({
+    clientCode: client.code,
+    filename: input.filename,
+    fy,
+    serviceCode: engagement?.templateSnapshot?.code,
+    engagementCode: engagement?.code,
+    permanent: Boolean(input.permanent),
+  });
+
+  const ticket = getUploadTicket({ key, maxBytes: MAX_UPLOAD_BYTES });
+  return { ok: true, key, fy, ...ticket };
+}
+
+/**
+ * Step two: the gateway has the bytes, so record the document.
+ *
+ * `replacesId` keeps the old file as a version rather than overwriting it
+ * (spec section 6).
+ */
+export async function confirmUpload(input) {
+  const actor = await requireUser();
+  const { engagement, client } = await loadTarget(actor, input);
+  const target = targetOf(engagement, client);
+  assertCan(actor, "edit", "documents", target);
+
+  if (!input.key || !input.checksum) {
+    return { error: "The upload did not finish." };
+  }
+
+  const existing = input.replacesId
+    ? await Document.findById(input.replacesId)
+    : null;
+
+  const saved = await audited(actor, async (session) => {
+    if (existing) {
+      // the previous file becomes a version; nothing is overwritten
+      existing.versions.push({
+        fileKey: existing.fileKey,
+        size: existing.size,
+        checksum: existing.checksum,
+        uploadedAt: existing.updatedAt ?? new Date(),
+        uploadedBy: existing.uploadedBy,
+        uploadedByName: existing.uploadedByName,
+      });
+      existing.fileKey = input.key;
+      existing.size = input.size ?? 0;
+      existing.mime = input.mime ?? existing.mime;
+      existing.checksum = input.checksum;
+      existing.uploadedBy = actor.id;
+      existing.uploadedByName = actor.name;
+      existing.updatedBy = actor.id;
+      await existing.save({ session });
+      return existing;
+    }
+
+    const [document] = await Document.create(
+      [
+        {
+          name: input.name || input.filename,
+          fileKey: input.key,
+          size: input.size ?? 0,
+          mime: input.mime ?? "application/octet-stream",
+          checksum: input.checksum,
+          fy: input.fy ?? "",
+          kind: input.kind ?? "",
+          isPermanent: Boolean(input.permanent),
+          clientId: client._id,
+          engagementId: engagement?._id ?? null,
+          checklistItemId: input.checklistItemId || null,
+          branchId: engagement?.branchId ?? client.branchId,
+          uploadedBy: actor.id,
+          uploadedByName: actor.name,
+          createdBy: actor.id,
+          updatedBy: actor.id,
+        },
+      ],
+      { session },
+    );
+
+    await recordAudit(
+      {
+        action: ACTIONS.documentUpload,
+        entityType: "Document",
+        entityId: document._id,
+        clientId: client._id,
+        note: document.name,
+      },
+      session,
+    );
+
+    // attaching a file to a checklist item moves it along (spec section 6)
+    if (engagement && input.checklistItemId) {
+      const live = await Engagement.findById(engagement._id).session(session);
+      const item = live?.checklist?.id(input.checklistItemId);
+      if (item) {
+        item.documentIds.push(document._id);
+        if (item.status === "Pending" || item.status === "Requested") {
+          item.status = "Received";
+          item.receivedAt = new Date();
+        }
+        live.updatedBy = actor.id;
+        await live.save({ session });
+      }
+    }
+
+    return document;
+  });
+
+  if (engagement) revalidatePath(`/engagements/${engagement._id}`);
+  revalidatePath(`/clients/${client._id}`);
+  return { ok: `${saved.name} uploaded.`, id: String(saved._id) };
+}
+
+/**
+ * A five-minute link to read a file, with the audit entry written first —
+ * the log records the intention to read, whether or not the bytes arrive.
+ *
+ * @param {string} id
+ * @param {{ inline?: boolean, versionId?: string }} [options]
+ */
+export async function linkToDocument(id, options = {}) {
+  const actor = await requireUser();
+  await connectDB();
+
+  const document = await Document.findById(id).lean({ withDeleted: true });
+  if (!document) return { error: "That file is gone." };
+
+  const engagement = document.engagementId
+    ? await Engagement.findById(document.engagementId).lean()
+    : null;
+
+  assertCan(actor, "view", "documents", {
+    branchId: String(document.branchId ?? ""),
+    assigneeId: String(engagement?.assigneeId ?? ""),
+    reviewerId: String(engagement?.reviewerId ?? ""),
+  });
+
+  const version = options.versionId
+    ? document.versions?.find((v) => String(v._id) === options.versionId)
+    : null;
+  if (options.versionId && !version) return { error: "No such version." };
+
+  await audited(actor, (session) =>
+    recordAudit(
+      {
+        action: options.inline
+          ? ACTIONS.documentView
+          : ACTIONS.documentDownload,
+        entityType: "Document",
+        entityId: document._id,
+        clientId: document.clientId,
+        note: version ? `${document.name} (earlier version)` : document.name,
+      },
+      session,
+    ),
+  );
+
+  return {
+    ok: true,
+    url: getDownloadLink({
+      key: version ? version.fileKey : document.fileKey,
+      name: document.name,
+      mime: document.mime,
+      inline: Boolean(options.inline),
+    }),
+  };
+}
+
+/** Send a file to the recycle bin: 90 days, then a Partner can purge it. */
+export async function deleteDocument(id, reason = "") {
+  const actor = await requireUser();
+  await connectDB();
+
+  const document = await Document.findById(id);
+  if (!document) return { error: "Already gone." };
+
+  const engagement = document.engagementId
+    ? await Engagement.findById(document.engagementId).lean()
+    : null;
+
+  assertCan(actor, "edit", "documents", {
+    branchId: String(document.branchId ?? ""),
+    assigneeId: String(engagement?.assigneeId ?? ""),
+    reviewerId: String(engagement?.reviewerId ?? ""),
+  });
+
+  if (engagement?.status === "Completed") {
+    return { error: "A completed engagement is locked." };
+  }
+
+  // the vault move first: if it fails, the record stays and so does the file
+  await remove(document.fileKey);
+
+  await audited(actor, async (session) => {
+    await recordAudit(
+      {
+        action: ACTIONS.documentDelete,
+        entityType: "Document",
+        entityId: document._id,
+        clientId: document.clientId,
+        note: reason ? `${document.name} — ${reason}` : document.name,
+      },
+      session,
+    );
+    document.updatedBy = actor.id;
+    await document.softDelete(actor.id, { session });
+  });
+
+  if (engagement) revalidatePath(`/engagements/${engagement._id}`);
+  revalidatePath(`/clients/${document.clientId}`);
+  revalidatePath("/documents/bin");
+  return { ok: `${document.name} moved to the recycle bin.` };
+}
+
+/** Bring a file back out of the bin. */
+export async function restoreDocument(id) {
+  const actor = await requireUser();
+  assertCan(actor, "approve", "deleteRecord");
+
+  await connectDB();
+  const document = await Document.findById(id).setOptions({
+    withDeleted: true,
+  });
+  if (!document) return { error: "That file is gone." };
+  if (!document.deletedAt) return { ok: "It was never deleted." };
+
+  await remove(document.fileKey, { restore: true });
+
+  await audited(actor, async (session) => {
+    document.updatedBy = actor.id;
+    await document.restore(actor.id, { session });
+  });
+
+  revalidatePath("/documents/bin");
+  revalidatePath(`/clients/${document.clientId}`);
+  return { ok: `${document.name} restored.` };
+}
+
+/**
+ * Erase a file for good. Partner only, and only from the bin — this is the
+ * one path in the app that destroys anything.
+ */
+export async function purgeDocument(id) {
+  const actor = await requireUser();
+  assertCan(actor, "approve", "deleteRecord");
+
+  await connectDB();
+  const document = await Document.findById(id).setOptions({
+    withDeleted: true,
+  });
+  if (!document) return { error: "Already gone." };
+  if (!document.deletedAt) {
+    return { error: "Delete it first; only binned files can be purged." };
+  }
+
+  await remove(document.fileKey, { purge: true });
+  for (const version of document.versions ?? []) {
+    await remove(version.fileKey, { purge: true }).catch(() => {});
+  }
+
+  await audited(actor, async (session) => {
+    await recordAudit(
+      {
+        action: ACTIONS.documentDelete,
+        entityType: "Document",
+        entityId: document._id,
+        clientId: document.clientId,
+        note: `purged for good: ${document.name}`,
+      },
+      session,
+    );
+    document.name = `${document.name} (purged)`;
+    document.fileKey = "";
+    document.versions = [];
+    document.updatedBy = actor.id;
+    await document.save({ session });
+  });
+
+  revalidatePath("/documents/bin");
+  return { ok: "File erased. The record of it staying deleted remains." };
+}
+
+/** Rename a document, or mark it part of the client's permanent file. */
+export async function updateDocument(id, { name, kind, permanent }) {
+  const actor = await requireUser();
+  await connectDB();
+
+  const document = await Document.findById(id);
+  if (!document) return { error: "That file is gone." };
+  assertCan(actor, "edit", "documents", {
+    branchId: String(document.branchId ?? ""),
+  });
+
+  await audited(actor, async (session) => {
+    if (name !== undefined) document.name = String(name).trim();
+    if (kind !== undefined) document.kind = String(kind).trim();
+    if (permanent !== undefined) document.isPermanent = Boolean(permanent);
+    document.updatedBy = actor.id;
+    await document.save({ session });
+  });
+
+  revalidatePath(`/clients/${document.clientId}`);
+  if (document.engagementId) {
+    revalidatePath(`/engagements/${document.engagementId}`);
+  }
+  return { ok: "Saved." };
+}
+
+/** Everything attached to one engagement, for the checklist. */
+export async function documentsForEngagement(engagementId) {
+  const actor = await requireUser();
+  if (!can(actor, "view", "documents")) return [];
+
+  await connectDB();
+  const documents = await Document.find({ engagementId })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  return documents.map((d) => ({
+    id: String(d._id),
+    name: d.name,
+    size: d.size,
+    mime: d.mime,
+    checklistItemId: d.checklistItemId ? String(d.checklistItemId) : null,
+    versions: (d.versions ?? []).length,
+    uploadedByName: d.uploadedByName,
+  }));
+}
