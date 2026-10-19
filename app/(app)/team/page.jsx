@@ -65,7 +65,9 @@ export default async function TeamPage({ searchParams }) {
   const engagements = await Engagement.find({
     $or: [{ assigneeId: { $in: ids } }, { reviewerId: { $in: ids } }],
   })
-    .select("status statutoryDue internalDue assigneeId reviewerId reworkCount")
+    .select(
+      "status statutoryDue internalDue assigneeId reviewerId reworkCount templateSnapshot.level",
+    )
     .limit(10000)
     .lean();
 
@@ -200,6 +202,9 @@ export default async function TeamPage({ searchParams }) {
               <th scope="col" className="px-3 py-2 text-right font-normal">
                 Open
               </th>
+              <th scope="col" className="px-3 py-2 font-normal">
+                A · B · C
+              </th>
               <th scope="col" className="px-3 py-2 text-right font-normal">
                 Overdue
               </th>
@@ -251,6 +256,20 @@ export default async function TeamPage({ searchParams }) {
                   <td className="px-3 py-2 text-right font-mono tabular-nums">
                     {figures?.asAssignee ?? 0}
                   </td>
+                  {/* three counts, so who carries the crucial work is visible */}
+                  <td className="text-13 px-3 py-2 font-mono tabular-nums">
+                    <span
+                      className={
+                        figures?.byTier?.A ? "text-brass-ink" : "text-ink-muted"
+                      }
+                    >
+                      {figures?.byTier?.A ?? 0}
+                    </span>
+                    <span className="text-ink-muted">
+                      {" · "}
+                      {figures?.byTier?.B ?? 0} · {figures?.byTier?.C ?? 0}
+                    </span>
+                  </td>
                   <td
                     className={`px-3 py-2 text-right font-mono tabular-nums ${
                       figures?.overdue ? "text-redpen" : "text-ink-muted"
@@ -278,7 +297,7 @@ export default async function TeamPage({ searchParams }) {
             })}
             {people.length === 0 && (
               <tr>
-                <td colSpan={8} className="text-14 text-ink-muted px-3 py-8">
+                <td colSpan={9} className="text-14 text-ink-muted px-3 py-8">
                   Nobody matches those filters.
                 </td>
               </tr>

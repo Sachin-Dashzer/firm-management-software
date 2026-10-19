@@ -5,13 +5,15 @@ import { useRouter } from "next/navigation";
 import {
   EXEC_ROLES,
   LEVEL_DEFAULTS,
-  LEVEL_DESCRIPTIONS,
-  LEVEL_LABELS,
+  LEVEL_OF,
   RECURRENCES,
   RECURRENCE_LABELS,
   REVIEW_ROLES,
   SERVICE_CATEGORIES,
-  SERVICE_LEVELS,
+  TIERS,
+  TIER_LABELS,
+  TIER_RULES,
+  tierOf,
 } from "@/lib/services/catalog";
 import { ROLE_LABELS } from "@/lib/permissions";
 import { saveService } from "./actions";
@@ -52,7 +54,8 @@ export default function ServiceForm({ service }) {
         startTransition(async () => {
           const result = await saveService(null, formData);
           setMessage(result);
-          if (result?.ok) router.push("/settings/services");
+          // a warning has to be read, so the form stays where it is
+          if (result?.ok && !result.warning) router.push("/settings/services");
         })
       }
       className="flex flex-col gap-6"
@@ -68,6 +71,15 @@ export default function ServiceForm({ service }) {
         >
           {message.error}
         </p>
+      )}
+      {message?.warning && (
+        <div
+          role="status"
+          className="rounded-ledger border-waiting bg-waiting-wash text-13 flex flex-col gap-1 border px-3 py-2"
+        >
+          <p className="font-medium">{message.ok}</p>
+          <p>{message.warning}</p>
+        </div>
       )}
 
       <section className="rounded-ledger border-rule bg-surface grid gap-4 border p-4 sm:grid-cols-2">
@@ -89,21 +101,22 @@ export default function ServiceForm({ service }) {
         />
 
         <label className="flex flex-col gap-1">
-          <span className="text-13 text-ink-muted font-medium">Complexity</span>
+          <span className="text-13 text-ink-muted font-medium">Tier</span>
           <select
             name="level"
             value={level}
             onChange={(e) => chooseLevel(e.target.value)}
             className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
           >
-            {SERVICE_LEVELS.map((l) => (
-              <option key={l} value={l}>
-                {LEVEL_LABELS[l]}
+            {/* A first: the firm reads the tiers downward, not L1 upward */}
+            {TIERS.map((t) => (
+              <option key={t} value={LEVEL_OF[t]}>
+                {TIER_LABELS[t]}
               </option>
             ))}
           </select>
           <span className="text-12 text-ink-muted">
-            {LEVEL_DESCRIPTIONS[level]}
+            {TIER_RULES[tierOf(level)]}
           </span>
         </label>
 
@@ -203,10 +216,25 @@ export default function ServiceForm({ service }) {
 
       <ItemList
         title="Steps"
-        hint="The order the work is done in, e.g. Collect data, Prepare, Review, File."
+        hint="The order the work is done in, e.g. Collect data, Prepare, Review, File. A step can ask for more than the tier does — “Sign the report” on work an employee prepares."
         items={steps}
         onChange={setSteps}
-        blank={{ name: "" }}
+        blank={{ name: "", minRole: "" }}
+        renderExtra={(item, update) => (
+          <select
+            aria-label="Who may do this step"
+            value={item.minRole ?? ""}
+            onChange={(e) => update({ minRole: e.target.value })}
+            className="rounded-ledger border-rule bg-paper text-13 h-9 border px-2"
+          >
+            <option value="">Anyone on the job</option>
+            {EXEC_ROLES.map((r) => (
+              <option key={r} value={r}>
+                {ROLE_LABELS[r]} or above
+              </option>
+            ))}
+          </select>
+        )}
       />
 
       <section className="rounded-ledger border-rule bg-surface grid gap-4 border p-4 sm:grid-cols-2">

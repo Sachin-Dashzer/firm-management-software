@@ -5,11 +5,13 @@ import ServiceTemplate from "../models/ServiceTemplate.js";
 import Client from "../models/Client.js";
 import Branch from "../models/Branch.js";
 import Engagement from "../models/Engagement.js";
+import User from "../models/User.js";
 import DueDateRule from "../models/DueDateRule.js";
 import { connectDB } from "../lib/db.js";
 import { systemAudit } from "../lib/audit/system.js";
 import { periodFor, parsePeriod } from "../lib/engagements/period.js";
 import { buildEngagement } from "../lib/engagements/create.js";
+import { checkAssignment } from "../lib/engagements/assign.js";
 import { nextEngagementCode } from "../lib/engagements/code.js";
 import {
   statutoryDueFor,
@@ -52,6 +54,7 @@ export async function generateRecurring(options = {}) {
 
   const created = [];
   const waiting = [];
+  const unassigned = [];
   const skipped = [];
 
   // one read each, reused across every subscription on this pass
@@ -99,14 +102,47 @@ export async function generateRecurring(options = {}) {
         .lean();
       if (exists) continue;
 
+      /**
+       * The subscription's usual people were legal when somebody chose them
+       * (`saveClientService` checks), but a default goes stale: the person is
+       * demoted, or the service's level is raised to A-tier, and the row
+       * still names somebody who may no longer do the work.
+       *
+       * So the generator checks before it assigns, and when the default no
+       * longer qualifies it **creates the work unassigned and says why** —
+       * the same discipline as an unconfirmed due date (rule 8). The job
+       * appears on time; who does it waits for a person. Assigning somebody
+       * who is not allowed to do the work would make every later check a lie.
+       */
+      const people = await loadRoles([
+        subscription.defaultAssigneeId,
+        subscription.defaultReviewerId,
+      ]);
+      const assignee = people.get(String(subscription.defaultAssigneeId ?? ""));
+      const reviewer = people.get(String(subscription.defaultReviewerId ?? ""));
+      const legal = checkAssignment(template, assignee ?? null, reviewer ?? null);
+
+      if (!legal.ok) {
+        unassigned.push({
+          client: client.code,
+          service: template.code,
+          period: period.code,
+          why: legal.error,
+        });
+      }
+
       try {
         const engagement = await systemAudit(async (session) => {
           const fields = buildEngagement({
             template,
             client,
             period,
-            assigneeId: subscription.defaultAssigneeId ?? null,
-            reviewerId: subscription.defaultReviewerId ?? null,
+            assigneeId: legal.ok
+              ? (subscription.defaultAssigneeId ?? null)
+              : null,
+            reviewerId: legal.ok
+              ? (subscription.defaultReviewerId ?? null)
+              : null,
             feePaise: subscription.feePaise || undefined,
             now,
           });
@@ -133,9 +169,14 @@ export async function generateRecurring(options = {}) {
                   {
                     to: "Scheduled",
                     byName: "System",
-                    reason: due.date
-                      ? `created automatically, due ${due.date.toISOString().slice(0, 10)}`
-                      : `created automatically — ${due.why}`,
+                    reason: [
+                      due.date
+                        ? `created automatically, due ${due.date.toISOString().slice(0, 10)}`
+                        : `created automatically — ${due.why}`,
+                      legal.ok ? null : `left unassigned — ${legal.error}`,
+                    ]
+                      .filter(Boolean)
+                      .join("; "),
                   },
                 ],
                 createdBy: null,
@@ -165,10 +206,35 @@ export async function generateRecurring(options = {}) {
   return {
     created: created.length,
     withoutDate: waiting.length,
+    withoutAssignee: unassigned.length,
     skipped,
     // named so the admin screen can say which rules are holding things up
     waiting: waiting.slice(0, 20),
+    // and which subscriptions name somebody who may no longer do the work
+    unassigned: unassigned.slice(0, 20),
   };
+}
+
+/**
+ * The roles of the people a subscription names, so `checkAssignment` has
+ * something to judge. One query a subscription, which is the price of not
+ * assigning work to somebody who may not do it.
+ *
+ * @param {any[]} ids
+ */
+async function loadRoles(ids) {
+  const wanted = ids.filter(Boolean).map(String);
+  if (wanted.length === 0) return new Map();
+
+  const rows = await User.find({ _id: { $in: wanted }, active: true })
+    .select("name role")
+    .lean();
+  return new Map(
+    rows.map((row) => [
+      String(row._id),
+      { id: String(row._id), name: row.name, role: row.role },
+    ]),
+  );
 }
 
 export default generateRecurring;

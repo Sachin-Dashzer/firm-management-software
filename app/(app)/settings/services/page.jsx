@@ -6,7 +6,6 @@ import { connectDB } from "@/lib/db";
 import ServiceTemplate from "@/models/ServiceTemplate";
 import { formatPaise } from "@/lib/money";
 import {
-  LEVEL_LABELS,
   RECURRENCE_LABELS,
   SERVICE_CATEGORIES,
   turnaroundLabel,
@@ -40,7 +39,8 @@ export default async function ServicesPage({ searchParams }) {
     code: t.code,
     category: t.category,
     level: t.level,
-    levelLabel: LEVEL_LABELS[t.level] ?? t.level,
+    // steps that ask for more than the service does, so the list can say so
+    strictSteps: (t.steps ?? []).filter((s) => s.minRole).length,
     recurrence: RECURRENCE_LABELS[t.recurrence] ?? t.recurrence,
     turnaround: turnaroundLabel(t),
     fee: t.defaultFeePaise ? formatPaise(t.defaultFeePaise) : "Not set",

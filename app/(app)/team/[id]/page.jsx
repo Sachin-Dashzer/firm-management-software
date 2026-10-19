@@ -12,7 +12,7 @@ import AuditLog from "@/models/AuditLog";
 import ActivityFeed from "@/components/audit/ActivityFeed";
 import FolderTabs from "@/components/clients/FolderTabs";
 import { formatISTDate } from "@/lib/dates";
-import { LEVEL_LABELS } from "@/lib/services/catalog";
+import TierBadge from "@/components/ledger/TierBadge";
 import { SECTION_LABELS } from "@/lib/access/sections";
 import { STATUSES, CLOSED_STATUSES } from "@/lib/engagements/status";
 import { loadFor, groupByStatus, isOverdue } from "@/lib/team/workload";
@@ -162,6 +162,12 @@ export default async function TeamMemberPage({ params, searchParams }) {
           />
           <Chip label="Reports to" value={senior?.name ?? "Not set"} />
           <Chip label="Open work" value={String(load.asAssignee)} />
+          {/* by tier, so "busy" and "carrying the crucial work" read apart */}
+          <Chip
+            label="A · B · C"
+            value={`${load.byTier.A} · ${load.byTier.B} · ${load.byTier.C}`}
+            mono
+          />
           {load.overdue > 0 && (
             <Chip label="Overdue" value={String(load.overdue)} tone="late" />
           )}
@@ -591,7 +597,7 @@ function EngagementTable({ rows, clientName, showRework = false }) {
               Client
             </th>
             <th scope="col" className="px-3 py-2 font-normal">
-              Level
+              Tier
             </th>
             <th scope="col" className="px-3 py-2 font-normal">
               Due
@@ -623,9 +629,8 @@ function EngagementTable({ rows, clientName, showRework = false }) {
               <td className="text-13 px-3 py-2">
                 {clientName.get(String(e.clientId)) ?? "—"}
               </td>
-              {/* P2-4 replaces this with the A/B/C tier badge */}
               <td className="text-13 px-3 py-2">
-                {LEVEL_LABELS[e.templateSnapshot?.level] ?? "—"}
+                <TierBadge level={e.templateSnapshot?.level} />
               </td>
               <td
                 className={`text-13 px-3 py-2 font-mono ${

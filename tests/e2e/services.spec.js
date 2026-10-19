@@ -36,7 +36,7 @@ test.beforeAll(async () => {
     const branch = await Branch.findOneAndUpdate(
       { code: "NOI" },
       { $setOnInsert: { name: "Noida (head office)", invoicePrefix: "NOI" } },
-      { new: true, upsert: true, session },
+      { returnDocument: "after", upsert: true, session },
     );
     await User.create(
       [
@@ -93,7 +93,7 @@ test("add a service, edit it, and archive it", async ({ page }) => {
   await page.getByLabel("Name").fill("Playwright test service");
   await page.getByLabel("Code").fill(CODE);
   await page.getByLabel("Category").selectOption("Direct Tax");
-  await page.getByLabel("Complexity").selectOption("L2");
+  await page.getByLabel("Tier").selectOption("L2");
   await page.getByLabel("Recurrence").selectOption("quarterly");
   await page.getByLabel("Turnaround (working days)").fill("7");
 

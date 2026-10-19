@@ -110,23 +110,34 @@ const styles = StyleSheet.create({
 /** @param {{invoice: object}} props */
 export function InvoicePdf({ invoice }) {
   const isCreditNote = invoice.type === "Credit note";
+  /**
+   * The firm's own record (P2-6). The fallback is what this file said before
+   * there was a settings screen, so an invoice still prints if the firm
+   * document is missing: a blank letterhead on a tax invoice is not an
+   * option.
+   */
+  const firm = invoice.firm ?? {};
+  const firmName = firm.name || "PHMG & Associates";
 
   return (
-    <Document
-      title={invoice.number ?? "Draft invoice"}
-      author="PHMG & Associates"
-    >
+    <Document title={invoice.number ?? "Draft invoice"} author={firmName}>
       <Page size="A4" style={styles.page}>
         {!invoice.number && <Text style={styles.draft}>DRAFT</Text>}
 
         <View style={styles.header}>
           <View>
-            <Text style={styles.firm}>PHMG &amp; Associates</Text>
-            <Text style={styles.muted}>Chartered Accountants</Text>
+            <Text style={styles.firm}>{firmName}</Text>
+            {firm.tagline === "" ? null : (
+              <Text style={styles.muted}>
+                {firm.tagline || "Chartered Accountants"}
+              </Text>
+            )}
             {invoice.branchAddress ? (
               <Text style={styles.muted}>{invoice.branchAddress}</Text>
             ) : null}
             <Text style={styles.muted}>GSTIN {invoice.supplierGstin}</Text>
+            {/* the FRN belongs on a CA firm's invoice when the firm has one */}
+            {firm.frn ? <Text style={styles.muted}>FRN {firm.frn}</Text> : null}
           </View>
           <View>
             <Text style={styles.title}>

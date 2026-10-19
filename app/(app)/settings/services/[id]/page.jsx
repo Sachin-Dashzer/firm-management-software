@@ -41,7 +41,10 @@ export default async function EditServicePage({ params }) {
       side: c.side,
       mandatory: c.mandatory !== false,
     })),
-    steps: (doc.steps ?? []).map((s) => ({ name: s.name })),
+    steps: (doc.steps ?? []).map((s) => ({
+      name: s.name,
+      minRole: s.minRole ?? "",
+    })),
   };
 
   return (

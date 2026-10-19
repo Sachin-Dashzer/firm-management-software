@@ -28,6 +28,49 @@ const articleshipSchema = new mongoose.Schema(
   { _id: false },
 );
 
+/**
+ * A member's own ICAI record (P2-6). Separate from `articleship`, which is
+ * the intern's side: one is somebody qualifying, the other somebody
+ * qualified, and a person is never both at once.
+ */
+const icaiSchema = new mongoose.Schema(
+  {
+    membershipNo: { type: String, trim: true, default: "" },
+    /** Associate or Fellow — the ICAI's own two grades. */
+    grade: { type: String, enum: ["", "ACA", "FCA"], default: "" },
+    admittedOn: { type: Date, default: null },
+    /** A Certificate of Practice is what lets a member sign as a CA. */
+    copHeld: { type: Boolean, default: false },
+    copFrom: { type: Date, default: null },
+  },
+  { _id: false },
+);
+
+/**
+ * One entry in a member's CPE log (P2-6).
+ *
+ * A subdocument rather than a collection of its own: a member logs a couple
+ * of dozen a year, they are always read with the person, and spec section 13
+ * fixes the collection list. Hours are stored in whole and half hours,
+ * because that is how a programme is credited.
+ */
+const cpeEntrySchema = new mongoose.Schema(
+  {
+    on: { type: Date, required: true },
+    hours: { type: Number, required: true, min: 0.5, max: 24 },
+    /** The ICAI counts structured and unstructured learning apart. */
+    kind: {
+      type: String,
+      enum: ["structured", "unstructured"],
+      default: "structured",
+    },
+    programme: { type: String, required: true, trim: true, maxlength: 200 },
+    organiser: { type: String, trim: true, default: "", maxlength: 200 },
+    createdBy: { type: String, default: null },
+  },
+  { _id: true, timestamps: true },
+);
+
 const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -66,6 +109,9 @@ const userSchema = new mongoose.Schema(
     active: { type: Boolean, default: true },
     isIntern: { type: Boolean, default: false },
     articleship: { type: articleshipSchema, default: undefined },
+    /** Only a qualified member has one; absent for everybody else. */
+    icai: { type: icaiSchema, default: undefined },
+    cpe: { type: [cpeEntrySchema], default: [] },
 
     // --- credentials: never selected by default ---
     passwordHash: { type: String, select: false },

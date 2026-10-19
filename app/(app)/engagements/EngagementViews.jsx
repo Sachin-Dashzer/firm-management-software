@@ -13,13 +13,17 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import {
+  BULK_APPROVE_LIMIT,
   NEEDS_REASON,
   PRIORITIES,
   STATUSES,
   transitionsFrom,
 } from "@/lib/engagements/status";
+import { tierOf } from "@/lib/services/catalog";
+import TierBadge from "@/components/ledger/TierBadge";
 import { DueChip, PriorityChip, StatusChip } from "./chips";
 import {
+  bulkApprove,
   bulkInternalDue,
   bulkPriority,
   bulkReassign,
@@ -44,6 +48,7 @@ export default function EngagementViews({
   pageSize,
   showingAll,
   mayManage,
+  mayApprove = false,
   team,
   params,
 }) {
@@ -56,6 +61,23 @@ export default function EngagementViews({
   const [pending, startTransition] = useTransition();
 
   const ids = [...selected];
+
+  /**
+   * Whether to offer the batch sign-off, and when not, why (owner decision
+   * D5). Only routine work is offered, only to a checker, and only from a
+   * status that can reach Completed — the server checks all three again, so
+   * this is the sentence rather than the lock.
+   */
+  const chosen = rows.filter((r) => selected.has(r.id));
+  const approve = !mayApprove
+    ? null
+    : chosen.some((r) => tierOf(r.level) !== "C")
+      ? { why: "Only routine (C) work can be signed off in a batch." }
+      : chosen.some((r) => !transitionsFrom(r.status).includes("Completed"))
+        ? { why: "Everything selected has to be under review first." }
+        : chosen.length > BULK_APPROVE_LIMIT
+          ? { why: `${BULK_APPROVE_LIMIT} at a time.` }
+          : { ready: true };
 
   function toggle(id) {
     setSelected((old) => {
@@ -157,6 +179,8 @@ export default function EngagementViews({
           count={ids.length}
           pending={pending}
           team={team}
+          approve={approve}
+          onApprove={() => run(bulkApprove)}
           onStatus={(to, reason) => run((list) => bulkStatus(list, to, reason))}
           onAssignee={(id) =>
             run((list) => bulkReassign(list, { assigneeId: id }))
@@ -208,6 +232,8 @@ function BulkBar({
   count,
   pending,
   team,
+  approve,
+  onApprove,
   onStatus,
   onAssignee,
   onReviewer,
@@ -233,6 +259,30 @@ function BulkBar({
           clear
         </button>
       </p>
+
+      {approve && (
+        <div className="flex flex-col gap-1">
+          <span className="text-12 text-ink-muted">Routine work</span>
+          <button
+            type="button"
+            disabled={!approve.ready || pending}
+            title={
+              approve.ready
+                ? "Each one is signed off separately, with its own entry in the log."
+                : approve.why
+            }
+            onClick={onApprove}
+            className="rounded-ledger border-filed text-filed text-14 hover:bg-filed-wash h-9 border px-3 font-medium disabled:opacity-60"
+          >
+            Approve selected
+          </button>
+          {!approve.ready && (
+            <span className="text-12 text-ink-muted max-w-56">
+              {approve.why}
+            </span>
+          )}
+        </div>
+      )}
 
       <label className="flex flex-col gap-1">
         <span className="text-12 text-ink-muted">Move to</span>
@@ -369,6 +419,7 @@ function ListView({
               )}
               <Th>Client</Th>
               <Th>Service</Th>
+              <Th>Tier</Th>
               <Th>Period</Th>
               <Th>Status</Th>
               <Th>Due</Th>
@@ -405,6 +456,9 @@ function ListView({
                 <Td>
                   {r.service} <PriorityChip priority={r.priority} />
                 </Td>
+                <Td>
+                  <TierBadge level={r.level} />
+                </Td>
                 <Td className="text-13">{r.period}</Td>
                 <Td>
                   <StatusChip status={r.status} />
@@ -428,7 +482,7 @@ function ListView({
             {rows.length === 0 && (
               <tr>
                 <td
-                  colSpan={selectable ? 9 : 8}
+                  colSpan={selectable ? 10 : 9}
                   className="text-ink-muted px-3 py-6 text-center"
                 >
                   Nothing matches these filters.
@@ -624,7 +678,8 @@ function BoardCard({ row, selected, toggle, selectable, hidden, moving }) {
           >
             {row.client}
           </Link>
-          <p className="text-13 text-ink-muted">
+          <p className="text-13 text-ink-muted flex items-center gap-1.5">
+            <TierBadge level={row.level} />
             {row.service} · {row.period}
           </p>
         </div>

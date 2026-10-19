@@ -162,3 +162,78 @@ describe("the grid", () => {
     expect(grid.totalLate).toBe(0);
   });
 });
+
+describe("the same grid, one client's services down the side", () => {
+  const periods = periodsInYear("monthly", 2026);
+  const services = [
+    { id: "s-gst", name: "GSTR-3B filing" },
+    { id: "s-tds", name: "TDS return" },
+  ];
+
+  /** The client's own Compliance tab passes `keyOf` and nothing else changes. */
+  const forOneClient = (engagements) =>
+    buildGrid({
+      clients: services,
+      periods,
+      now: NOW,
+      engagements,
+      keyOf: (engagement) => String(engagement.serviceTemplateId),
+    });
+
+  it("lines engagements up with their service instead of their client", () => {
+    const grid = forOneClient([
+      {
+        _id: "e1",
+        clientId: "c1",
+        serviceTemplateId: "s-gst",
+        period: "2026-04",
+        status: "Completed",
+      },
+      {
+        _id: "e2",
+        clientId: "c1",
+        serviceTemplateId: "s-tds",
+        period: "2026-04",
+        status: "In progress",
+        statutoryDue: istDate(2026, 5, 20),
+      },
+    ]);
+
+    expect(grid.rows[0].cells[0].engagementId).toBe("e1");
+    expect(grid.rows[0].cells[0].state).toBe("done");
+    expect(grid.rows[1].cells[0].state).toBe("late");
+  });
+
+  it("counts a service's holes the same way it counts a client's", () => {
+    const grid = forOneClient([
+      {
+        _id: "e1",
+        clientId: "c1",
+        serviceTemplateId: "s-gst",
+        period: "2026-04",
+        status: "Completed",
+      },
+    ]);
+    // Apr to Sep have ended; October is current and counts against nobody
+    expect(grid.rows[0].missing).toBe(5);
+    expect(grid.rows[1].missing).toBe(6);
+  });
+
+  it("still keys on the client when nothing says otherwise", () => {
+    const grid = buildGrid({
+      clients: [{ id: "c1", name: "Aggarwal Traders" }],
+      periods,
+      now: NOW,
+      engagements: [
+        {
+          _id: "e1",
+          clientId: "c1",
+          serviceTemplateId: "s-gst",
+          period: "2026-04",
+          status: "Completed",
+        },
+      ],
+    });
+    expect(grid.rows[0].cells[0].engagementId).toBe("e1");
+  });
+});

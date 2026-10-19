@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import TierBadge from "@/components/ledger/TierBadge";
 import { setServiceActive } from "./actions";
 
 /**
@@ -63,7 +64,7 @@ export default function CatalogList({ rows, categories, editable }) {
                 <thead>
                   <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
                     <Th>Service</Th>
-                    <Th>Level</Th>
+                    <Th>Tier</Th>
                     <Th>Recurrence</Th>
                     <Th>Turnaround</Th>
                     <Th>Default fee</Th>
@@ -98,7 +99,9 @@ export default function CatalogList({ rows, categories, editable }) {
                           {r.code}
                         </span>
                       </Td>
-                      <Td title={r.levelLabel}>{r.level}</Td>
+                      <Td>
+                        <TierBadge level={r.level} />
+                      </Td>
                       <Td>{r.recurrence}</Td>
                       <Td className="text-13">{r.turnaround}</Td>
                       <Td className="num text-13">{r.fee}</Td>
@@ -107,6 +110,12 @@ export default function CatalogList({ rows, categories, editable }) {
                       </Td>
                       <Td className="text-13">
                         {r.checklistCount} items · {r.stepCount} steps
+                        {r.strictSteps > 0 && (
+                          <span className="text-brass-ink">
+                            {" "}
+                            · {r.strictSteps} restricted
+                          </span>
+                        )}
                       </Td>
                       <Td className="num text-13">v{r.version}</Td>
                       {editable && (

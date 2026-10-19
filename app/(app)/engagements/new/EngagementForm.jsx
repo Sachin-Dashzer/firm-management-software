@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { periodOptions } from "@/lib/engagements/period";
-import { canExecute, canReview } from "@/lib/services/catalog";
+import { canExecute, canReview, tierLabel } from "@/lib/services/catalog";
+import { ROLE_LABELS } from "@/lib/permissions";
 import { PRIORITIES } from "@/lib/engagements/status";
 import { createEngagement, subscriptionDefaults } from "../actions";
 
@@ -183,7 +184,8 @@ export default function EngagementForm({
           </select>
           {template && (
             <span className="text-12 text-ink-muted">
-              {template.level}: needs at least {template.minExecRole}
+              {tierLabel(template.level)} · needs{" "}
+              {ROLE_LABELS[template.minExecRole]} or above
             </span>
           )}
         </label>

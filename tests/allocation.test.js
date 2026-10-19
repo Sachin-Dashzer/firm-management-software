@@ -6,6 +6,7 @@ import {
   checkAllocation,
   ageReceivables,
   buildLedger,
+  outstandingSummary,
 } from "../lib/billing/allocation.js";
 
 /**
@@ -336,5 +337,63 @@ describe("the client ledger", () => {
     );
     expect(entries).toHaveLength(0);
     expect(closingPaise).toBe(0);
+  });
+});
+
+describe("what a client owes, for the case-file header", () => {
+  const NOW = new Date("2026-10-19T12:00:00+05:30");
+  const JUNE = new Date("2026-06-30T12:00:00+05:30");
+  const NOVEMBER = new Date("2026-11-30T12:00:00+05:30");
+
+  it("adds up what is left and says how much of it is late", () => {
+    const summary = outstandingSummary(
+      [
+        invoice("I1", 100000, 0, 0, { dueDate: JUNE }),
+        invoice("I2", 50000, 0, 0, { dueDate: NOVEMBER }),
+      ],
+      NOW,
+    );
+    expect(summary.totalPaise).toBe(150000);
+    expect(summary.overduePaise).toBe(100000);
+    expect(summary.oldest).toEqual(JUNE);
+  });
+
+  it("counts TDS as paid, so a settled bill is not chased", () => {
+    const summary = outstandingSummary(
+      [invoice("I1", 100000, 90000, 10000, { dueDate: JUNE })],
+      NOW,
+    );
+    expect(summary.totalPaise).toBe(0);
+    expect(summary.overduePaise).toBe(0);
+    expect(summary.oldest).toBeNull();
+  });
+
+  it("keeps the oldest due date, not the last one it read", () => {
+    const summary = outstandingSummary(
+      [
+        invoice("I1", 10000, 0, 0, { dueDate: NOW }),
+        invoice("I2", 10000, 0, 0, { dueDate: JUNE }),
+        invoice("I3", 10000, 0, 0, { dueDate: new Date("2026-08-31") }),
+      ],
+      NOW,
+    );
+    expect(summary.oldest).toEqual(JUNE);
+  });
+
+  it("treats a bill with no due date as owed but not late", () => {
+    const summary = outstandingSummary(
+      [invoice("I1", 100000, 0, 0, { dueDate: null })],
+      NOW,
+    );
+    expect(summary.totalPaise).toBe(100000);
+    expect(summary.overduePaise).toBe(0);
+  });
+
+  it("is zero on an empty list rather than undefined", () => {
+    expect(outstandingSummary([], NOW)).toEqual({
+      totalPaise: 0,
+      overduePaise: 0,
+      oldest: null,
+    });
   });
 });

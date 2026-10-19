@@ -58,7 +58,9 @@ export async function GET(request) {
   const engagements = await Engagement.find({
     $or: [{ assigneeId: { $in: ids } }, { reviewerId: { $in: ids } }],
   })
-    .select("status statutoryDue internalDue assigneeId reviewerId reworkCount")
+    .select(
+      "status statutoryDue internalDue assigneeId reviewerId reworkCount templateSnapshot.level",
+    )
     .limit(20000)
     .lean();
   const load = loadForEach(engagements, ids);
@@ -86,6 +88,9 @@ export async function GET(request) {
       joined: person.joiningDate ?? null,
       capacity: person.capacityHours ?? 8,
       open: figures?.asAssignee ?? 0,
+      tierA: figures?.byTier?.A ?? 0,
+      tierB: figures?.byTier?.B ?? 0,
+      tierC: figures?.byTier?.C ?? 0,
       overdue: figures?.overdue ?? 0,
       toReview: figures?.awaitingMyReview ?? 0,
       reworked: figures?.reworked ?? 0,
@@ -108,6 +113,9 @@ export async function GET(request) {
         { header: "Joined", key: "joined", width: 14, kind: "date" },
         { header: "Capacity (h/day)", key: "capacity", width: 16 },
         { header: "Open work", key: "open", width: 12 },
+        { header: "A (CA only)", key: "tierA", width: 12 },
+        { header: "B (supervised)", key: "tierB", width: 14 },
+        { header: "C (routine)", key: "tierC", width: 12 },
         { header: "Overdue", key: "overdue", width: 12 },
         { header: "Awaiting their review", key: "toReview", width: 20 },
         { header: "Returned for rework", key: "reworked", width: 20 },

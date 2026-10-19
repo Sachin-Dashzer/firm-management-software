@@ -16,6 +16,7 @@ import {
   contextFromRequest,
 } from "@/lib/audit";
 import { engagementQuery } from "@/lib/engagements/filter";
+import { tierOf } from "@/lib/services/catalog";
 
 /**
  * The engagement list as a spreadsheet (spec section 14: export on every
@@ -58,6 +59,7 @@ export async function GET(request) {
       "Client code",
       "Branch",
       "Service",
+      "Tier",
       "Period",
       "Status",
       "Priority",
@@ -83,6 +85,7 @@ export async function GET(request) {
         client?.code ?? "",
         branchCode.get(String(e.branchId)) ?? "",
         e.templateSnapshot?.name ?? "",
+        tierOf(e.templateSnapshot?.level) ?? "",
         e.periodLabel || e.period,
         e.status,
         e.priority,

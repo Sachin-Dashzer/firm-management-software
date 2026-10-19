@@ -11,7 +11,15 @@ import {
   isRework,
   STATUSES,
 } from "../lib/engagements/status.js";
-import { checkAssignment } from "../lib/engagements/assign.js";
+import { checkAssignment, stepFloor } from "../lib/engagements/assign.js";
+import {
+  canExecute,
+  tierOf,
+  tierLabel,
+  LEVEL_OF,
+  TIERS,
+  TIER_RULES,
+} from "../lib/services/catalog.js";
 import { buildEngagement } from "../lib/engagements/create.js";
 import { addWorkingDays, daysUntil, formatISTDate } from "../lib/dates.js";
 
@@ -357,5 +365,139 @@ describe("building an engagement from a template", () => {
       period,
     });
     expect(audit.reviewChecklist.some((i) => /UDIN/.test(i.name))).toBe(true);
+  });
+});
+
+describe("the A / B / C tiers (owner decision D4)", () => {
+  it("relabels the stored levels without changing them", () => {
+    expect(tierOf("L3")).toBe("A");
+    expect(tierOf("L2")).toBe("B");
+    expect(tierOf("L1")).toBe("C");
+    // the reverse, for a filter or a report given a letter
+    expect(LEVEL_OF.A).toBe("L3");
+    expect(LEVEL_OF.C).toBe("L1");
+  });
+
+  it("accepts a letter it is given back, and nothing else", () => {
+    expect(tierOf("A")).toBe("A");
+    expect(tierOf("L4")).toBeNull();
+    expect(tierOf("")).toBeNull();
+    expect(tierLabel("L3")).toContain("A");
+    expect(tierLabel("nonsense")).toBe("");
+  });
+
+  it("states every tier's rule, so a badge can read it out", () => {
+    for (const tier of TIERS) {
+      expect(TIER_RULES[tier].length).toBeGreaterThan(20);
+    }
+  });
+});
+
+describe("the tier's own sign-off rule", () => {
+  const aTier = { minReviewRole: "partner", level: "L3" };
+
+  it("refuses a CA on A-tier work, named reviewer or not", () => {
+    const named = checkStatusChange(
+      checker,
+      work("Under review", { ...aTier, reviewerId: "checker" }),
+      "Completed",
+    );
+    expect(named.ok).toBe(false);
+    expect(named.error).toContain("a partner");
+
+    // the hole: nobody named as reviewer, so any CA could close it
+    const nobody = checkStatusChange(
+      checker,
+      work("Under review", { ...aTier, reviewerId: "" }),
+      "Completed",
+    );
+    expect(nobody.ok).toBe(false);
+  });
+
+  it("lets a partner sign A-tier work off", () => {
+    expect(
+      checkStatusChange(
+        partner,
+        work("Under review", { ...aTier, reviewerId: "" }),
+        "Completed",
+      ).ok,
+    ).toBe(true);
+  });
+
+  it("leaves C-tier and B-tier to a CA", () => {
+    expect(
+      checkStatusChange(
+        checker,
+        work("Under review", { minReviewRole: "ca", level: "L1" }),
+        "Completed",
+      ).ok,
+    ).toBe(true);
+  });
+
+  it("asks for a CA when the snapshot says nothing", () => {
+    // every engagement before P2-4 behaves exactly as it did
+    expect(
+      checkStatusChange(checker, work("Under review"), "Completed").ok,
+    ).toBe(true);
+    expect(
+      checkStatusChange(
+        { id: "e", role: "employee" },
+        work("Under review"),
+        "Completed",
+      ).ok,
+    ).toBe(false);
+  });
+});
+
+describe("a step's own minimum role", () => {
+  const engagement = { templateSnapshot: { minExecRole: "employee" } };
+
+  it("falls back to the service's floor when the step names none", () => {
+    expect(stepFloor(engagement, { minRole: "" })).toBe("employee");
+    expect(stepFloor(engagement, {})).toBe("employee");
+  });
+
+  it("lets one step ask for more than the service does", () => {
+    expect(stepFloor(engagement, { minRole: "ca" })).toBe("ca");
+    expect(
+      canExecute("employee", stepFloor(engagement, { minRole: "ca" })),
+    ).toBe(false);
+    expect(canExecute("ca", stepFloor(engagement, { minRole: "ca" }))).toBe(
+      true,
+    );
+  });
+
+  it("holds work with no snapshot at the weakest role rather than crashing", () => {
+    expect(stepFloor({}, {})).toBe("intern");
+  });
+
+  it("copies the step's role into the engagement's own tasks", () => {
+    const made = buildEngagement({
+      template: {
+        _id: "tpl",
+        name: "Statutory audit",
+        code: "AUD",
+        category: "Audit and Assurance",
+        version: 1,
+        level: "L2",
+        minExecRole: "employee",
+        minReviewRole: "ca",
+        recurrence: "annual",
+        turnaroundDays: null,
+        udinRequired: false,
+        defaultFeePaise: 0,
+        sac: "",
+        gstRate: 18,
+        checklist: [],
+        steps: [
+          { name: "Prepare" },
+          { name: "Sign the report", minRole: "ca" },
+        ],
+      },
+      client: { _id: "cli", branchId: "br" },
+      period: periodFor("annual", FRIDAY),
+      now: FRIDAY,
+    });
+    expect(made.tasks.map((t) => t.minRole)).toEqual(["", "ca"]);
   });
 });

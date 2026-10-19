@@ -8,6 +8,10 @@ import { connectDB } from "@/lib/db";
 import { audited } from "@/lib/audit/request";
 import { toPaise } from "@/lib/money";
 import ServiceTemplate from "@/models/ServiceTemplate";
+import ClientService from "@/models/ClientService";
+import Client from "@/models/Client";
+import User from "@/models/User";
+import { checkAssignment } from "@/lib/engagements/assign";
 import {
   SERVICE_CATEGORIES,
   SERVICE_LEVELS,
@@ -61,7 +65,13 @@ const serviceInput = z.object({
   udinRequired: z.boolean().default(false),
   checklist: z.array(checklistItem).default([]),
   steps: z
-    .array(z.object({ name: z.string().trim().min(1) }))
+    .array(
+      z.object({
+        name: z.string().trim().min(1),
+        // blank means the step inherits the service's own `minExecRole`
+        minRole: z.enum(["", ...EXEC_ROLES]).default(""),
+      }),
+    )
     .default([])
     .refine((s) => s.length > 0, "Add at least one step"),
 });
@@ -175,14 +185,82 @@ export async function saveService(_prev, formData) {
 
     revalidatePath("/settings/services");
     revalidatePath(`/settings/services/${data.id}`);
+    revalidatePath("/clients");
+
+    const stale = await staleSubscriptions(existing);
     return {
       ok: bumped
         ? `${data.name} saved as version ${existing.version}. Engagements already created keep the old version.`
         : `${data.name} saved.`,
+      warning: stale,
     };
   } catch (err) {
     return { error: err.message };
   }
+}
+
+/**
+ * Which clients now name somebody who may no longer do this work.
+ *
+ * Raising a service to A-tier, or lifting its minimum role, leaves every
+ * subscription that named an employee pointing at somebody the rules no
+ * longer allow. Engagements already created are untouched — they hold their
+ * own snapshot — but the recurring generator will create the next period's
+ * work unassigned rather than assign it to somebody who may not do it. So
+ * the save says so, with the clients to go and fix, instead of leaving it to
+ * be discovered on the 1st of next month.
+ *
+ * @param {{_id: any, minExecRole: string, minReviewRole: string}} template
+ * @returns {Promise<string>} empty when nothing is stale
+ */
+async function staleSubscriptions(template) {
+  const subscriptions = await ClientService.find({
+    serviceTemplateId: template._id,
+    active: true,
+  })
+    .select("clientId defaultAssigneeId defaultReviewerId")
+    .lean();
+  if (subscriptions.length === 0) return "";
+
+  const ids = subscriptions
+    .flatMap((s) => [s.defaultAssigneeId, s.defaultReviewerId])
+    .filter(Boolean)
+    .map(String);
+  if (ids.length === 0) return "";
+
+  const people = new Map(
+    (
+      await User.find({ _id: { $in: ids }, active: true })
+        .select("name role")
+        .lean()
+    ).map((u) => [
+      String(u._id),
+      { id: String(u._id), name: u.name, role: u.role },
+    ]),
+  );
+
+  const broken = subscriptions.filter((s) => {
+    const named = [s.defaultAssigneeId, s.defaultReviewerId].map((id) =>
+      id ? String(id) : "",
+    );
+    if (named.some((id) => id && !people.has(id))) return true;
+    return !checkAssignment(
+      template,
+      people.get(named[0]) ?? null,
+      people.get(named[1]) ?? null,
+    ).ok;
+  });
+  if (broken.length === 0) return "";
+
+  const clients = await Client.find({
+    _id: { $in: broken.map((s) => s.clientId) },
+  })
+    .select("legalName tradeName")
+    .limit(10)
+    .lean();
+  const names = clients.map((c) => c.tradeName || c.legalName);
+
+  return `${broken.length} ${broken.length === 1 ? "client names" : "clients name"} somebody who may no longer do this work (${names.slice(0, 5).join(", ")}${names.length > 5 ? ", …" : ""}). Their next period will be created unassigned until the usual people are changed on the client.`;
 }
 
 /**

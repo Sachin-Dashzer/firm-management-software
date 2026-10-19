@@ -12,7 +12,12 @@ import ClientCredential from "@/models/ClientCredential";
 import Comment from "@/models/Comment";
 import AuditLog from "@/models/AuditLog";
 import ActivityFeed from "@/components/audit/ActivityFeed";
-import { formatISTDate } from "@/lib/dates";
+import TierBadge from "@/components/ledger/TierBadge";
+import { formatISTDate, financialYearStart, istDate } from "@/lib/dates";
+import { periodsInYear, buildGrid } from "@/lib/compliance/grid";
+import { RECURRENCES, RECURRENCE_LABELS } from "@/lib/services/catalog";
+import { CLOSED_STATUSES } from "@/lib/engagements/status";
+import ClientCompliance from "./ClientCompliance";
 import { formatPaise } from "@/lib/money";
 import { StatusChip } from "../page";
 import CredentialsVault from "./CredentialsVault";
@@ -27,7 +32,12 @@ import DocumentsPanel from "./DocumentsPanel";
 import Invoice from "@/models/Invoice";
 import Payment from "@/models/Payment";
 import LedgerPanel from "./LedgerPanel";
-import { buildLedger, outstandingOf } from "@/lib/billing/allocation";
+import {
+  buildLedger,
+  outstandingOf,
+  outstandingSummary,
+} from "@/lib/billing/allocation";
+import { checkAssignment } from "@/lib/engagements/assign";
 import { StatusChip as EngagementStatusChip } from "../../engagements/chips";
 import FolderTabs from "@/components/clients/FolderTabs";
 import DataRights from "./DataRights";
@@ -44,6 +54,13 @@ export const dynamic = "force-dynamic";
  * thing before it queries anything, so a tab is never the only thing
  * standing between somebody and the data behind it.
  */
+/**
+ * The statuses that mean money is still owed. "Overdue" is not among them
+ * because it is never stored (spec section 7): a bill is overdue when its due
+ * date has passed, which is worked out when it is read.
+ */
+const OWING_STATUSES = ["Sent", "Partially paid", "Disputed"];
+
 const TABS = [
   { key: "overview", label: "Overview", needs: "profile" },
   { key: "engagements", label: "Engagements", needs: "engagements" },
@@ -86,7 +103,8 @@ export async function generateMetadata({ params }) {
 export default async function ClientPage({ params, searchParams }) {
   const actor = await requireUser();
   const { id } = await params;
-  const tab = (await searchParams)?.tab ?? "overview";
+  const query = (await searchParams) ?? {};
+  const tab = query.tab ?? "overview";
 
   await connectDB();
   const client = await Client.findById(id).lean();
@@ -114,11 +132,27 @@ export default async function ClientPage({ params, searchParams }) {
   const seeActivity = can(actor, "view", "auditLog", scope);
   const seeAccess = can(actor, "view", "clientAccess", scope);
 
-  const tabs = TABS.filter(({ needs }) => {
+  const visible = TABS.filter(({ needs }) => {
     if (needs === "activity") return seeActivity;
     if (needs === "team-access") return seeAccess;
     return sees(needs);
   });
+
+  /**
+   * The number on each divider, and the balance in the header.
+   *
+   * Counted only for the tabs this person can open, so a count never tells
+   * somebody the size of something they may not look at — and counted within
+   * their own scope, so an employee's "7" is the seven engagements they can
+   * reach, not the firm's seventy. Overview, Compliance and Activity carry no
+   * number: an audit log has no meaningful total, and a count that means
+   * something different on every tab is noise rather than information.
+   */
+  const [counts, money] = await Promise.all([
+    tabCounts(visible, { clientId: id, only: access.engagementIds }),
+    sees("billing") ? outstandingFor(id) : null,
+  ]);
+  const tabs = visible.map((tab) => ({ ...tab, count: counts.get(tab.key) }));
 
   // a bookmark to a tab this person cannot see lands on the first they can
   const active = tabs.some((t) => t.key === tab) ? tab : tabs[0]?.key;
@@ -189,6 +223,37 @@ export default async function ClientPage({ params, searchParams }) {
           />
           <Chip label="Risk" value={client.risk} />
           <Chip label="Credit period" value={`${client.creditDays} days`} />
+          {/**
+           * What they owe, where a partner picking up the phone will see it.
+           * Only for somebody who may see billing at all, and the overdue
+           * part is said separately because that is the half that changes the
+           * conversation.
+           */}
+          {money && (
+            <div className="flex items-center gap-2">
+              <dt className="text-12 text-ink-muted tracking-wide uppercase">
+                Outstanding
+              </dt>
+              <dd className="num text-13">
+                <Link
+                  href={`/clients/${id}?tab=invoices`}
+                  className="underline underline-offset-4"
+                >
+                  {formatPaise(money.totalPaise)}
+                </Link>
+                {money.overduePaise > 0 && (
+                  <span className="text-redpen">
+                    {" · "}
+                    {formatPaise(money.overduePaise)} overdue since{" "}
+                    {formatISTDate(money.oldest)}
+                  </span>
+                )}
+                {money.totalPaise === 0 && (
+                  <span className="text-ink-muted"> · nothing due</span>
+                )}
+              </dd>
+            </div>
+          )}
           {group && <Chip label="Group" value={group.name} />}
         </dl>
         {client.statusReason && (
@@ -262,7 +327,13 @@ export default async function ClientPage({ params, searchParams }) {
         <TeamAccessTab clientId={id} actor={actor} client={client} />
       )}
 
-      {active === "compliance" && <Placeholder tab={active} />}
+      {active === "compliance" && (
+        <ComplianceTab
+          clientId={id}
+          fy={query.fy}
+          only={access.engagementIds}
+        />
+      )}
     </div>
   );
 }
@@ -493,13 +564,49 @@ async function EngagementsTab({ clientId, actor, mayEdit, only }) {
       .lean(),
     ClientService.find({ clientId, active: true }).lean(),
     ServiceTemplate.find({ active: true })
-      .select("name code recurrence minExecRole minReviewRole defaultFeePaise")
+      .select(
+        "name code level recurrence minExecRole minReviewRole defaultFeePaise",
+      )
       .sort({ name: 1 })
       .lean(),
     User.find({ active: true }).select("name role").sort({ name: 1 }).lean(),
   ]);
 
   const templateName = new Map(templates.map((t) => [String(t._id), t.name]));
+  const byId = new Map(templates.map((t) => [String(t._id), t]));
+  const person = new Map(
+    team.map((u) => [
+      String(u._id),
+      { id: String(u._id), name: u.name, role: u.role },
+    ]),
+  );
+
+  /**
+   * A subscription's usual people were legal when somebody chose them, but a
+   * default goes stale — the person is demoted, or the service is raised to
+   * A-tier. The recurring generator refuses to assign work to somebody who
+   * may not do it and creates it unassigned instead, which is the safe half;
+   * this is the other half, said where it can be fixed.
+   */
+  function staleDefault(subscription) {
+    const template = byId.get(String(subscription.serviceTemplateId));
+    if (!template) return "";
+
+    const named = ["defaultAssigneeId", "defaultReviewerId"].map((key) =>
+      subscription[key] ? String(subscription[key]) : "",
+    );
+    // a name the team list no longer holds is somebody who has left
+    if (named.some((id) => id && !person.has(id))) {
+      return "Somebody named here no longer works at the firm.";
+    }
+
+    const check = checkAssignment(
+      template,
+      person.get(named[0]) ?? null,
+      person.get(named[1]) ?? null,
+    );
+    return check.ok ? "" : check.error;
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -535,6 +642,9 @@ async function EngagementsTab({ clientId, actor, mayEdit, only }) {
                       {e.code}
                     </span>
                   </td>
+                  <td className="px-3 py-2">
+                    <TierBadge level={e.templateSnapshot?.level} />
+                  </td>
                   <td className="text-13 px-3 py-2">
                     {e.periodLabel || e.period}
                   </td>
@@ -565,12 +675,15 @@ async function EngagementsTab({ clientId, actor, mayEdit, only }) {
           id: String(s._id),
           serviceTemplateId: String(s.serviceTemplateId),
           name: templateName.get(String(s.serviceTemplateId)) ?? "Service",
+          level: byId.get(String(s.serviceTemplateId))?.level ?? "",
           fee: formatPaise(s.feePaise ?? 0),
+          stale: staleDefault(s),
         }))}
         templates={templates.map((t) => ({
           id: String(t._id),
           name: t.name,
           code: t.code,
+          level: t.level,
           defaultFee: String((t.defaultFeePaise ?? 0) / 100),
           minExecRole: t.minExecRole,
           minReviewRole: t.minReviewRole,
@@ -664,7 +777,7 @@ async function InvoicesTab({ clientId, actor, client }) {
   const open = invoices
     .filter(
       (i) =>
-        ["Sent", "Partially paid", "Disputed"].includes(i.status) &&
+        OWING_STATUSES.includes(i.status) &&
         i.type !== "Credit note" &&
         outstandingOf(i) > 0,
     )
@@ -717,16 +830,77 @@ async function TeamAccessTab({ clientId, actor, client }) {
     branchId: String(client.branchId),
   });
 
-  const grants = await ClientAccess.find({ clientId })
-    .sort({ active: -1, createdAt: -1 })
-    .lean();
+  const [grants, working] = await Promise.all([
+    ClientAccess.find({ clientId }).sort({ active: -1, createdAt: -1 }).lean(),
+    /**
+     * Who is actually on this client's work (the half of this tab deferred
+     * from P2-2). It is derived from the engagements rather than stored:
+     * reassigning work is the act that changes who works on a client, and a
+     * second list of the same fact would be a second list to get wrong.
+     */
+    Engagement.find({ clientId, status: { $nin: CLOSED_STATUSES } })
+      .select("assigneeId reviewerId")
+      .limit(500)
+      .lean(),
+  ]);
+
+  const desks = new Map();
+  const note = (id, field) => {
+    if (!id) return;
+    const key = String(id);
+    const row = desks.get(key) ?? { doing: 0, reviewing: 0 };
+    row[field] += 1;
+    desks.set(key, row);
+  };
+  for (const engagement of working) {
+    note(engagement.assigneeId, "doing");
+    note(engagement.reviewerId, "reviewing");
+  }
 
   const people = await User.find({
-    _id: { $in: grants.map((g) => g.userId) },
+    _id: {
+      $in: [
+        ...grants.map((g) => g.userId),
+        ...desks.keys(),
+        client.clientPartnerId,
+        client.relationshipManagerId,
+      ].filter(Boolean),
+    },
   })
     .select("name role")
     .lean();
   const person = new Map(people.map((p) => [String(p._id), p]));
+
+  /** The client partner and the relationship manager belong on this list too. */
+  const named = new Map(
+    [
+      [client.clientPartnerId, "Client partner"],
+      [client.relationshipManagerId, "Relationship manager"],
+    ]
+      .filter(([id]) => id)
+      .map(([id, title]) => [String(id), title]),
+  );
+
+  const workers = [...new Set([...named.keys(), ...desks.keys()])]
+    .map((id) => {
+      const who = person.get(id);
+      const desk = desks.get(id) ?? { doing: 0, reviewing: 0 };
+      return {
+        id,
+        name: who?.name ?? "A former colleague",
+        roleLabel: ROLE_LABELS[who?.role] ?? "",
+        title: named.get(id) ?? "",
+        doing: desk.doing,
+        reviewing: desk.reviewing,
+      };
+    })
+    // the named people first, then whoever carries the most open work
+    .sort(
+      (a, b) =>
+        Number(Boolean(b.title)) - Number(Boolean(a.title)) ||
+        b.doing + b.reviewing - (a.doing + a.reviewing) ||
+        a.name.localeCompare(b.name),
+    );
 
   // Only an employee or an intern can hold a grant worth giving: a CA and a
   // Partner already see the client through their role, so offering them
@@ -746,6 +920,7 @@ async function TeamAccessTab({ clientId, actor, client }) {
     <TeamAccess
       clientId={clientId}
       mayEdit={mayEdit}
+      workers={workers}
       grants={grants.map((grant) => {
         const who = person.get(String(grant.userId));
         return {
@@ -772,13 +947,189 @@ async function TeamAccessTab({ clientId, actor, client }) {
   );
 }
 
-function Placeholder({ tab }) {
-  const step = { compliance: "Step 7c" }[tab];
+/**
+ * One client's compliance year (spec section 3: "Compliance calendar" on the
+ * client page).
+ *
+ * The services are the ones they are signed up for **plus** any service they
+ * have work against in this year, so a subscription stopped in November does
+ * not erase April to October. Each recurrence gets its own grid: a monthly
+ * return and an annual audit do not share columns.
+ *
+ * Somebody who reaches this client through the work on their desk does not
+ * get a grid at all. They would see every period they are not on as a hole,
+ * which is exactly the thing this screen is supposed to mean something by.
+ */
+async function ComplianceTab({ clientId, fy, only }) {
+  if (only) {
+    return (
+      <p className="rounded-ledger border-rule bg-surface text-14 text-ink-muted border p-6">
+        You can see the work assigned to you on this client, not the whole file,
+        so a compliance grid here would show gaps that are not real ones. A CA
+        or a Partner can give you access to the client if you need the full
+        picture.
+      </p>
+    );
+  }
+
+  const thisYear = financialYearStart(new Date());
+  const asked = Number(fy);
+  const fyStart =
+    Number.isInteger(asked) && asked >= thisYear - 6 && asked <= thisYear
+      ? asked
+      : thisYear;
+
+  const [subscriptions, engagements] = await Promise.all([
+    ClientService.find({ clientId, active: true })
+      .select("serviceTemplateId")
+      .lean(),
+    Engagement.find({
+      clientId,
+      periodStart: {
+        $gte: istDate(fyStart, 4, 1),
+        $lt: istDate(fyStart + 1, 4, 1),
+      },
+    })
+      .select(
+        "serviceTemplateId period status statutoryDue internalDue templateSnapshot.name templateSnapshot.recurrence",
+      )
+      .limit(500)
+      .lean(),
+  ]);
+
+  const wanted = [
+    ...new Set([
+      ...subscriptions.map((s) => String(s.serviceTemplateId)),
+      ...engagements.map((e) => String(e.serviceTemplateId)),
+    ]),
+  ];
+  const services = await ServiceTemplate.find({ _id: { $in: wanted } })
+    .select("name code recurrence")
+    .sort({ name: 1 })
+    .lean();
+
+  /** One grid per recurrence, in the order the catalog uses. */
+  const sections = RECURRENCES.map((recurrence) => {
+    const mine = services.filter((s) => s.recurrence === recurrence);
+    if (mine.length === 0) return null;
+
+    const periods = periodsInYear(recurrence, fyStart);
+    const ids = new Set(mine.map((s) => String(s._id)));
+    const grid = buildGrid({
+      clients: mine.map((s) => ({ id: String(s._id), name: s.name })),
+      engagements: engagements.filter((e) =>
+        ids.has(String(e.serviceTemplateId)),
+      ),
+      periods,
+      keyOf: (engagement) => String(engagement.serviceTemplateId),
+    });
+
+    return {
+      recurrence,
+      label: RECURRENCE_LABELS[recurrence] ?? recurrence,
+      periods: periods.map((p) => ({ code: p.code, short: p.short })),
+      grid,
+    };
+  }).filter(Boolean);
+
   return (
-    <p className="rounded-ledger border-rule bg-surface text-14 text-ink-muted border p-6">
-      This tab fills in at {step}.
-    </p>
+    <ClientCompliance
+      clientId={clientId}
+      fyStart={fyStart}
+      sections={sections}
+      years={[thisYear, thisYear - 1, thisYear - 2]}
+      totalMissing={sections.reduce((sum, s) => sum + s.grid.totalMissing, 0)}
+    />
   );
+}
+
+/**
+ * The number on each divider.
+ *
+ * Every count is the same query the tab itself runs, narrowed the same way —
+ * including `only`, the engagements somebody is on when that is how they
+ * reach this client. A count that disagreed with the rows behind it would be
+ * worse than no count at all, so the filters are copied rather than
+ * approximated.
+ *
+ * @param {{key: string}[]} tabs the tabs this person can actually open
+ * @param {{clientId: string, only: string[]|null}} scope
+ * @returns {Promise<Map<string, number>>}
+ */
+async function tabCounts(tabs, { clientId, only }) {
+  const wanted = new Set(tabs.map((tab) => tab.key));
+  const jobs = [];
+
+  if (wanted.has("engagements")) {
+    jobs.push([
+      "engagements",
+      Engagement.countDocuments({
+        clientId,
+        status: { $nin: CLOSED_STATUSES },
+        ...(only ? { _id: { $in: only } } : {}),
+      }),
+    ]);
+  }
+  if (wanted.has("documents")) {
+    jobs.push([
+      "documents",
+      DocumentModel.countDocuments({
+        clientId,
+        ...(only
+          ? { $or: [{ engagementId: { $in: only } }, { isPermanent: true }] }
+          : {}),
+      }),
+    ]);
+  }
+  if (wanted.has("invoices")) {
+    // what is still owed on, not every bill ever raised
+    jobs.push([
+      "invoices",
+      Invoice.countDocuments({
+        clientId,
+        type: { $ne: "Credit note" },
+        status: { $in: OWING_STATUSES },
+      }),
+    ]);
+  }
+  if (wanted.has("notes")) {
+    jobs.push([
+      "notes",
+      Comment.countDocuments({ entityType: "Client", entityId: clientId }),
+    ]);
+  }
+  if (wanted.has("access")) {
+    jobs.push([
+      "access",
+      ClientAccess.countDocuments({ clientId, active: true }),
+    ]);
+  }
+
+  const values = await Promise.all(jobs.map(([, query]) => query));
+  return new Map(jobs.map(([key], index) => [key, values[index]]));
+}
+
+/**
+ * What this client owes, for the header.
+ *
+ * `overdue` is the part already past its due date, which is the half of the
+ * figure that changes the conversation. Credit notes are excluded and TDS
+ * counts as settled, both through `outstandingOf` — a client who pays 90%
+ * and deducts 10% has paid the bill.
+ *
+ * @param {string} clientId
+ */
+async function outstandingFor(clientId) {
+  const invoices = await Invoice.find({
+    clientId,
+    type: { $ne: "Credit note" },
+    status: { $in: OWING_STATUSES },
+  })
+    .select("totalPaise paidPaise tdsCreditedPaise dueDate")
+    .limit(1000)
+    .lean();
+
+  return outstandingSummary(invoices);
 }
 
 function Panel({ title, className = "", children }) {

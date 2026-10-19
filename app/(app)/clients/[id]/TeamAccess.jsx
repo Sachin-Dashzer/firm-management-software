@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { SECTIONS, SECTION_LABELS, capSections } from "@/lib/access/sections";
 import { grantAccess, revokeAccess } from "./access";
 
@@ -13,10 +14,18 @@ import { grantAccess, revokeAccess } from "./access";
  * something the server would then refuse, and the refusal reads the same in
  * both places.
  *
- * P2-5 adds the rest of this tab: who works on the client, and the client's
- * own portal accounts.
+ * "Who works on this client" sits above it, derived from the engagements:
+ * being on the work is the commonest way into a file, so the two belong on
+ * one screen. The client's own portal accounts are the last piece and arrive
+ * with `ClientUser` in P2-9a.
  */
-export default function TeamAccess({ clientId, mayEdit, grants, team }) {
+export default function TeamAccess({
+  clientId,
+  mayEdit,
+  grants,
+  team,
+  workers = [],
+}) {
   const [adding, setAdding] = useState(false);
   const [userId, setUserId] = useState("");
   const [message, setMessage] = useState(null);
@@ -41,6 +50,75 @@ export default function TeamAccess({ clientId, mayEdit, grants, team }) {
 
   return (
     <div className="flex flex-col gap-6">
+      <section className="flex flex-col gap-2">
+        <h2 className="font-display text-20">Who works on this client</h2>
+        <p className="text-13 text-ink-muted max-w-[62ch]">
+          Taken from the open engagements, so it is right by the time you read
+          it: handing work over is what changes this list.
+        </p>
+
+        <div className="rounded-ledger border-rule bg-surface border">
+          <table className="text-14 w-full">
+            <caption className="sr-only">
+              The people on this client&rsquo;s open work
+            </caption>
+            <thead>
+              <tr className="border-rule text-13 text-ink-muted border-b text-left">
+                <th scope="col" className="px-3 py-2 font-normal">
+                  Name
+                </th>
+                <th scope="col" className="px-3 py-2 font-normal">
+                  On this client
+                </th>
+                <th scope="col" className="px-3 py-2 text-right font-normal">
+                  Doing
+                </th>
+                <th scope="col" className="px-3 py-2 text-right font-normal">
+                  Reviewing
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {workers.map((worker) => (
+                <tr
+                  key={worker.id}
+                  className="border-rule border-b last:border-0"
+                >
+                  <td className="px-3 py-2">
+                    <Link
+                      href={`/team/${worker.id}`}
+                      className="underline underline-offset-4"
+                    >
+                      {worker.name}
+                    </Link>
+                    <span className="text-13 text-ink-muted block">
+                      {worker.roleLabel}
+                    </span>
+                  </td>
+                  <td className="text-13 px-3 py-2">
+                    {worker.title || "On the work"}
+                  </td>
+                  <td className="num text-13 px-3 py-2 text-right">
+                    {worker.doing || "—"}
+                  </td>
+                  <td className="num text-13 px-3 py-2 text-right">
+                    {worker.reviewing || "—"}
+                  </td>
+                </tr>
+              ))}
+              {workers.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="text-14 text-ink-muted px-3 py-6">
+                    Nobody is on this client: no open work, and no client
+                    partner or relationship manager named on the profile.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="font-display text-20">Access to this client</h2>

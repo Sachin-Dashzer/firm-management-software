@@ -1,8 +1,9 @@
 import { requestDetails } from "./actions";
 import PublicUpload from "./PublicUpload";
+import { firmProfile } from "@/lib/firm/settings";
 
 export const metadata = {
-  title: "Send documents · PHMG & Associates",
+  title: "Send documents",
   // a link sent to a client must never end up in a search index
   robots: { index: false, follow: false },
 };
@@ -19,14 +20,17 @@ export const dynamic = "force-dynamic";
  */
 export default async function UploadPage({ params }) {
   const { token } = await params;
-  const details = await requestDetails(token);
+  // the firm as it names itself (P2-6): this page is the client's first
+  // sight of the firm, and it is reached without signing in
+  const [details, firm] = await Promise.all([
+    requestDetails(token),
+    firmProfile(),
+  ]);
 
   return (
     <main className="mx-auto flex max-w-[640px] flex-col gap-6 p-4 md:p-8">
       <header className="border-brass flex flex-col gap-1 border-b pb-4">
-        <p className="font-display text-24 font-semibold">
-          PHMG &amp; Associates
-        </p>
+        <p className="font-display text-24 font-semibold">{firm.name}</p>
         <p className="text-13 text-ink-muted">
           Chartered Accountants · secure document upload
         </p>

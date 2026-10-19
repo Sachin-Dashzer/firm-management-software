@@ -11,6 +11,7 @@ import DocumentModel from "@/models/Document";
 import DocRequest from "@/models/DocRequest";
 import AuditLog from "@/models/AuditLog";
 import ActivityFeed from "@/components/audit/ActivityFeed";
+import TierBadge from "@/components/ledger/TierBadge";
 import { formatISTDate, formatISTDateTime, daysUntil } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
 import { nextStatuses, canEditWork } from "@/lib/engagements/status";
@@ -111,6 +112,9 @@ export default async function EngagementPage({ params }) {
     service: engagement.templateSnapshot?.name ?? "Service",
     serviceCode: engagement.templateSnapshot?.code ?? "",
     templateVersion: engagement.templateSnapshot?.version ?? 1,
+    level: engagement.templateSnapshot?.level ?? "",
+    // the floor a step falls back to when it names no role of its own
+    minExecRole: engagement.templateSnapshot?.minExecRole ?? "intern",
     udinRequired: Boolean(engagement.templateSnapshot?.udinRequired),
     periodLabel: engagement.periodLabel || engagement.period,
     fee: formatPaise(engagement.feePaise ?? 0),
@@ -150,6 +154,9 @@ export default async function EngagementPage({ params }) {
       id: String(t._id),
       name: t.name,
       done: t.done,
+      // empty means the step inherits the service's own floor
+      minRole: t.minRole || "",
+      assigneeId: t.assigneeId ? String(t.assigneeId) : "",
     })),
     checklist: (engagement.checklist ?? []).map((c) => ({
       id: String(c._id),
@@ -198,6 +205,7 @@ export default async function EngagementPage({ params }) {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <TierBadge level={view.level} withLabel />
             <StatusChip status={view.status} />
             {view.statutoryDue ? (
               <DueChip
@@ -227,10 +235,13 @@ export default async function EngagementPage({ params }) {
           status: engagement.status,
           assigneeId: target.assigneeId,
           reviewerId: target.reviewerId,
+          minReviewRole: engagement.templateSnapshot?.minReviewRole ?? "",
+          level: engagement.templateSnapshot?.level ?? "",
         })}
         canEditWork={mayWork && canEditWork(actor, engagement)}
         mayManage={mayManage}
         isReviewer={isReviewer}
+        actorRole={actor.role}
         documents={documents.map((d) => ({
           id: String(d._id),
           name: d.name,

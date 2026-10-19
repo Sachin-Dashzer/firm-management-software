@@ -13,6 +13,7 @@ import {
 import { CLOSED_STATUSES } from "@/lib/engagements/status";
 import { DueChip, PriorityChip } from "../engagements/chips";
 import RoleDashboard from "@/components/dashboard/RoleDashboard";
+import TierBadge from "@/components/ledger/TierBadge";
 
 export const metadata = { title: "Today · PHMG" };
 export const dynamic = "force-dynamic";
@@ -199,7 +200,8 @@ export default async function TodayPage() {
                         >
                           {clientName.get(String(e.clientId)) ?? "Client"}
                         </Link>
-                        <span className="text-13 text-ink-muted">
+                        <span className="text-13 text-ink-muted flex items-center gap-1.5">
+                          <TierBadge level={e.templateSnapshot?.level} />
                           {e.templateSnapshot?.name} ·{" "}
                           {e.periodLabel || e.period}
                         </span>

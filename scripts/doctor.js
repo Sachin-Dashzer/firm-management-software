@@ -310,6 +310,30 @@ async function readiness() {
     pass("every employee and intern has a reporting CA");
   }
 
+  /**
+   * The firm's own record (P2-6). Until a partner saves it the app signs
+   * itself with the name that used to be hardcoded, which is right for this
+   * firm and wrong for anybody else — and an FRN missing from an invoice is
+   * the kind of thing a client's auditor notices.
+   */
+  const { default: FirmSettings } = await import("../models/FirmSettings.js");
+  const firm = await FirmSettings.findOne({ key: "firm" }).lean();
+  if (!firm) {
+    warn(
+      "the firm's own record has never been saved (Settings → ICAI): invoices use the built-in name and carry no FRN.",
+    );
+  } else {
+    if (!firm.frn) warn("no firm registration number is recorded (ICAI).");
+    if (!firm.cpeTargetStructured && !firm.cpeTargetUnstructured) {
+      warn(
+        "no CPE target is set, so hours are totalled but not judged (ICAI).",
+      );
+    }
+    if (firm.frn && firm.cpeTargetStructured) {
+      pass("the firm's ICAI record is filled in");
+    }
+  }
+
   const beat = await Counter.findById(HEARTBEAT_ID).lean();
   if (!beat) {
     warn("the job runner has never run (DEPLOY.md §2).");

@@ -60,6 +60,16 @@ export default function FolderTabs({ tabs, active, hrefFor, label }) {
             }`}
           >
             {tab.label}
+            {/**
+             * The count, when the tab has one. It is part of the link's text
+             * rather than a badge beside it, so a screen reader reads "Documents
+             * 24" as one thing and the sliding divider still measures the whole
+             * tab. Zero is shown, not hidden: "Documents 0" answers the
+             * question, an absent number leaves it open.
+             */}
+            {typeof tab.count === "number" && (
+              <span className="num text-ink-muted ml-1.5">{tab.count}</span>
+            )}
           </Link>
         );
       })}

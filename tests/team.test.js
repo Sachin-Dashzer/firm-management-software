@@ -231,3 +231,38 @@ describe("who may take over the work (offboarding and demotion)", () => {
     expect(checkAssignment(routine, null, employee).ok).toBe(false);
   });
 });
+
+describe("open work by tier (owner decision D4)", () => {
+  const tiered = (level, fields = {}) =>
+    work({ templateSnapshot: { level }, ...fields });
+
+  it("counts the three tiers apart, from each engagement's own snapshot", () => {
+    const load = loadFor(
+      [
+        tiered("L3"),
+        tiered("L3"),
+        tiered("L2"),
+        tiered("L1"),
+        // finished work is nobody's load, whatever its tier
+        tiered("L3", { status: "Completed" }),
+      ],
+      ANKIT,
+      NOW,
+    );
+    expect(load.byTier).toEqual({ A: 2, B: 1, C: 1 });
+    expect(load.asAssignee).toBe(4);
+  });
+
+  it("counts somebody else's work against them, not against this person", () => {
+    const load = loadFor(
+      [tiered("L3", { assigneeId: RITIKA }), tiered("L1")],
+      ANKIT,
+      NOW,
+    );
+    expect(load.byTier).toEqual({ A: 0, B: 0, C: 1 });
+  });
+
+  it("leaves work with no snapshot out rather than guessing a tier", () => {
+    expect(loadFor([work()], ANKIT, NOW).byTier).toEqual({ A: 0, B: 0, C: 0 });
+  });
+});

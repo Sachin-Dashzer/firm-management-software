@@ -116,3 +116,20 @@ describe("due dates", () => {
     ]);
   });
 });
+
+describe("the tier filter (owner decision D4)", () => {
+  it("reads the engagement's own snapshot, not the template", () => {
+    // a service re-tiered last month must not re-tier work already under way
+    expect(
+      engagementQuery(partner, { tier: "A" }, NOW)["templateSnapshot.level"],
+    ).toBe("L3");
+    expect(
+      engagementQuery(partner, { tier: "C" }, NOW)["templateSnapshot.level"],
+    ).toBe("L1");
+  });
+
+  it("ignores a letter that is not a tier", () => {
+    const query = engagementQuery(partner, { tier: "L3" }, NOW);
+    expect(query["templateSnapshot.level"]).toBeUndefined();
+  });
+});

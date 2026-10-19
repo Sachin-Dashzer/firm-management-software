@@ -67,7 +67,7 @@ test.beforeAll(async ({}, testInfo) => {
     const branch = await Branch.findOneAndUpdate(
       { code: "NOI" },
       { $setOnInsert: { name: "Noida (head office)", invoicePrefix: "NOI" } },
-      { new: true, upsert: true, session },
+      { returnDocument: "after", upsert: true, session },
     );
 
     const [partner] = await User.create(

@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { PRIORITIES, NEEDS_REASON } from "@/lib/engagements/status";
+import { canExecute } from "@/lib/services/catalog";
+import { ROLE_LABELS } from "@/lib/permissions";
 import Uploader from "@/components/documents/Uploader";
 import DocumentList from "@/components/documents/DocumentList";
 import AuditTick from "@/components/ledger/AuditTick";
@@ -17,6 +19,7 @@ import {
   setPriority,
   setReviewItem,
   setTaskDone,
+  assignTask,
 } from "../actions";
 
 const CHECKLIST_STATES = ["Pending", "Requested", "Received", "Verified"];
@@ -34,6 +37,7 @@ export default function EngagementWork({
   canEditWork,
   mayManage,
   isReviewer,
+  actorRole,
   team,
   comments,
   documents = [],
@@ -272,30 +276,69 @@ export default function EngagementWork({
         <section className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4">
           <h2 className="font-display text-20">Steps</h2>
           <ul className="flex flex-col">
-            {engagement.tasks.map((task) => (
-              <li
-                key={task.id}
-                className="border-rule flex items-center gap-2 border-b py-2 last:border-0"
-              >
-                <input
-                  type="checkbox"
-                  id={`task-${task.id}`}
-                  checked={task.done}
-                  disabled={!canEditWork || pending}
-                  onChange={(e) =>
-                    run(() =>
-                      setTaskDone(engagement.id, task.id, e.target.checked),
-                    )
-                  }
-                />
-                <label
-                  htmlFor={`task-${task.id}`}
-                  className={`text-14 ${task.done ? "text-ink-muted line-through" : ""}`}
+            {engagement.tasks.map((task) => {
+              // the step's own floor, or the service's when it names none
+              const floor = task.minRole || engagement.minExecRole;
+              const mayTick = canExecute(actorRole, floor);
+              return (
+                <li
+                  key={task.id}
+                  className="border-rule flex flex-wrap items-center gap-2 border-b py-2 last:border-0"
                 >
-                  {task.name}
-                </label>
-              </li>
-            ))}
+                  <input
+                    type="checkbox"
+                    id={`task-${task.id}`}
+                    checked={task.done}
+                    disabled={!canEditWork || !mayTick || pending}
+                    onChange={(e) =>
+                      run(() =>
+                        setTaskDone(engagement.id, task.id, e.target.checked),
+                      )
+                    }
+                  />
+                  <label
+                    htmlFor={`task-${task.id}`}
+                    className={`text-14 flex-1 ${task.done ? "text-ink-muted line-through" : ""}`}
+                  >
+                    {task.name}
+                    {task.minRole && (
+                      <span className="text-12 text-brass-ink">
+                        {" "}
+                        · {ROLE_LABELS[task.minRole]} or above
+                      </span>
+                    )}
+                    {!mayTick && (
+                      <span className="text-12 text-ink-muted">
+                        {" "}
+                        · not yours to tick
+                      </span>
+                    )}
+                  </label>
+                  {mayManage && (
+                    <select
+                      aria-label={`Who does “${task.name}”`}
+                      value={task.assigneeId}
+                      disabled={!canEditWork || pending}
+                      onChange={(e) =>
+                        run(() =>
+                          assignTask(engagement.id, task.id, e.target.value),
+                        )
+                      }
+                      className="rounded-ledger border-rule bg-paper text-13 h-8 border px-1"
+                    >
+                      <option value="">— anyone —</option>
+                      {team
+                        .filter((u) => canExecute(u.role, floor))
+                        .map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name}
+                          </option>
+                        ))}
+                    </select>
+                  )}
+                </li>
+              );
+            })}
             {engagement.tasks.length === 0 && (
               <li className="text-13 text-ink-muted">
                 This service has no steps.

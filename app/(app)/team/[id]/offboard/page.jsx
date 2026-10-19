@@ -8,7 +8,7 @@ import Client from "@/models/Client";
 import Engagement from "@/models/Engagement";
 import ClientAccess from "@/models/ClientAccess";
 import { CLOSED_STATUSES } from "@/lib/engagements/status";
-import { canExecute, canReview, LEVEL_LABELS } from "@/lib/services/catalog";
+import { canExecute, canReview, tierLabel } from "@/lib/services/catalog";
 import { SECTION_LABELS } from "@/lib/access/sections";
 import { formatISTDate } from "@/lib/dates";
 import Offboard from "./Offboard";
@@ -102,7 +102,7 @@ export default async function OffboardPage({ params }) {
       id: String(engagement._id),
       code: engagement.code,
       service: snapshot.name ?? "Work",
-      level: LEVEL_LABELS[snapshot.level] ?? "",
+      level: tierLabel(snapshot.level),
       period: engagement.periodLabel || engagement.period,
       status: engagement.status,
       client: clientName.get(String(engagement.clientId)) ?? "—",

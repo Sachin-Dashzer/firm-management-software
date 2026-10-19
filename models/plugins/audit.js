@@ -119,6 +119,8 @@ export function auditPlugin(schema, { entityType, clientIdField } = {}) {
    * log it, so make that the default rather than relying on every caller.
    */
   schema.pre("findOneAndUpdate", function returnTheNewOne() {
-    if (this.getOptions().new === undefined) this.setOptions({ new: true });
+    const o = this.getOptions();
+    if (o.new === undefined && o.returnDocument === undefined)
+      this.setOptions({ returnDocument: "after" });
   });
 }

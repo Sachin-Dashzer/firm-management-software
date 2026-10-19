@@ -29,6 +29,13 @@ const SECTIONS = [
     action: "edit",
   },
   {
+    href: "/settings/icai",
+    title: "ICAI",
+    body: "The firm's own record — name, registration number, peer review — who holds what membership, and the CPE log.",
+    area: "icai",
+    action: "view",
+  },
+  {
     href: "/settings/due-dates",
     title: "Statutory due dates",
     body: "How each deadline is worked out, and whether anyone has confirmed it.",

@@ -9,6 +9,7 @@ import { formatPaise } from "@/lib/money";
 import { formatISTDate } from "@/lib/dates";
 import { amountInWords } from "@/lib/billing/gst";
 import { InvoicePdf } from "@/lib/billing/invoicePdf";
+import { firmProfile } from "@/lib/firm/settings";
 import {
   withAudit,
   recordAudit,
@@ -83,6 +84,8 @@ export async function GET(request, { params }) {
     zero: formatPaise(0),
     notes: invoice.notes ?? "",
     bankDetails: process.env.FIRM_BANK_DETAILS ?? "",
+    // the firm as it is now, not as it was hardcoded (P2-6)
+    firm: await firmProfile(),
   };
 
   const pdf = await renderToBuffer(<InvoicePdf invoice={view} />);

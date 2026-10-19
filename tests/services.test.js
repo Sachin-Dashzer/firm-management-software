@@ -60,6 +60,16 @@ describe("bumpsVersion", () => {
     expect(bumpsVersion(base, after)).toBe(true);
   });
 
+  it("bumps when a step starts asking for a senior role", () => {
+    const after = {
+      ...base,
+      steps: [{ name: "Collect data" }, { name: "File", minRole: "ca" }],
+    };
+    expect(bumpsVersion(base, after)).toBe(true);
+    // and not when the same list is saved again unchanged
+    expect(bumpsVersion(after, { ...after })).toBe(false);
+  });
+
   it("bumps when a checklist item stops being mandatory", () => {
     const after = {
       ...base,

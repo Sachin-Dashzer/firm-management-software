@@ -45,9 +45,9 @@ reason, including the security fixes in P2-1.
 | P2-2 | `ClientAccess` + `lib/access/clientAccess.js` wired into the clients list, case file, tabs, document links, vault, search and command bar; grant UI; `expireGrants` job | 🟡 | Built 19-10-2026. **The worst hole in the build found and fixed: an employee could download the whole DPDP dossier of any client in the firm.** Includes the `clientSensitive` split deferred from P2-1, and the Team & access tab brought forward from P2-5. Needs Atlas to run; 6 Playwright tests waiting |
 | P2-2b | Sample seed data: 6 staff with `reportingTo`, 4 clients, services across A/B/C, 9 engagements, grants of three widths | 🟡 | Built 19-10-2026. Opt-in behind `--sample`, and refuses to run with `NODE_ENV=production`. The portal user, UDIN rows, DSC tokens and document templates are seeded by the steps that create those models. Needs Atlas to run |
 | P2-3 | `/me` (and `mustChangePassword` finally enforced) · employee rail · My senior CA · `/team` + `/team/[id]` Employee 360 · offboard wizard · MobileNav "More" sheet | 🟡 | Built 19-10-2026. **Nobody could change their own password at all, and `mustChangePassword` was written in three places and read in none.** `/settings/users` is now a redirect to `/team`. Needs Atlas to run; 6 Playwright tests waiting |
-| P2-4 | A/B/C labels and `TierBadge` everywhere · per-step `minRole` and `assignTask` · the four enforcement gaps · C-tier bulk approve | ⬜ | |
-| P2-5 | Client 360: the new tab set, tab counts, outstanding balance in the header, Compliance tab filled | ⬜ | |
-| P2-6 | `FirmSettings` · ICAI page · `User.icai` · CPE log · ICAI notes | ⬜ | |
+| P2-4 | A/B/C labels and `TierBadge` everywhere · per-step `minRole` and `assignTask` · the four enforcement gaps · C-tier bulk approve | 🟡 | Built 19-10-2026. **An A-tier job could be signed off by a CA, and any step was tickable by anybody on the engagement.** Also: tier counts per person, brought over from P2-3. Needs Atlas to run; 8 Playwright tests waiting |
+| P2-5 | Client 360: the new tab set, tab counts, outstanding balance in the header, Compliance tab filled | 🟡 | Built 19-10-2026. Tab set kept at the eight that exist (owner, D10), with counts. The firm grid and the client grid are now one component. Includes "who works on this client", deferred from P2-2. Needs Atlas to run; 8 Playwright tests waiting |
+| P2-6 | `FirmSettings` · ICAI page · `User.icai` · CPE log · ICAI notes | 🟡 | Built 19-10-2026. **The firm had no record of itself: its name was a literal in fifteen files and its FRN nowhere.** Now one document, wired into invoices, reports, exports, emails and the client upload page. No ICAI requirement is assumed (owner, D11). Needs Atlas to run; 6 Playwright tests waiting |
 | P2-7 | UDIN register (and engagement sync) · DSC register (and `dsc_expiring` rule, dashboard tile) | ⬜ | |
 | P2-8a | Audits · Statutory · Tax page, plus the `assurance` fields and `filedOn` | ⬜ | |
 | P2-8b | Based Docs: `DocTemplate`, `lib/docs/resolve.js`, `templatePdf.jsx`, draft/final tier rules, 8 draft templates, template admin | ⬜ | |
@@ -206,6 +206,24 @@ Not started (spec §17).
 | 19-10-2026 | `MobileNav` shows **four links and a More sheet**, with the current page always among the four. It used to render every rail link, which already filled 390 px at nine and would have overflowed badly at seventeen | Agent |
 | 19-10-2026 | "Clients" in the rail reads **"My clients"** for an employee or an intern. The label followed the permission scope rather than the role, so it is right for anybody who reaches clients one at a time | Agent |
 | 19-10-2026 | A/B/C tier counts per person deferred to P2-4, which is where the tier labels and the badge are built. The team list and the Work tab show open and overdue counts and the old level label until then | Agent |
+| 19-10-2026 | The A/B/C letters are a **presentation layer over the stored levels**: `TIER_OF` / `LEVEL_OF` in `lib/services/catalog.js` are the only place they meet, and no data was migrated. Relabelling must not touch work already in progress | Agent |
+| 19-10-2026 | The tier filter, the tier badge and the tier counts all read **`templateSnapshot.level`**, never the template. A service re-tiered this month therefore does not re-tier work started last month | Agent |
+| 19-10-2026 | A step whose `minRole` changes **bumps the service version**: who may do a step is part of what the work is. Blank inherits the service's `minExecRole`, which every step and task created before P2-4 holds | Agent |
+| 19-10-2026 | Batch sign-off is capped at **25 a press** and lives in `lib/engagements/status.js` rather than beside the action, because a `"use server"` module may only export async functions and the bulk bar has to state the number before it sends anything | Agent |
+| 19-10-2026 | When a subscription's usual people no longer qualify, the recurring generator **creates the work unassigned and says why** rather than assigning somebody who may not do it, and the client screen and the service save name what to fix | Agent, owner to confirm |
+| 19-10-2026 | The starter catalog gets **no per-step restrictions**: which step of which service is a CA's is firm policy, not ours to invent. Every step inherits its service until the owner restricts one | Agent, owner to confirm |
+| 19-10-2026 | **D10: the client case file keeps its eight tabs** — Overview · Engagements · Compliance · Documents · Invoices · Team & access · Notes · Activity — each with a count. Contacts stays a panel inside Overview and the ledger stays inside Invoices | Owner |
+| 19-10-2026 | A tab count is the tab's own query, narrowed the same way, and is counted only for the tabs that person can open. Overview, Compliance and Activity have no count: an audit log has no meaningful total | Agent |
+| 19-10-2026 | The per-client Compliance tab is **one grid per recurrence**, not one grid with mixed columns. Stretching an annual service across twelve monthly periods would invent holes, which is the one thing this screen must not do | Agent |
+| 19-10-2026 | Somebody who reaches a client through their own work sees **no compliance grid**, with a line saying why: a partial grid shows gaps that are not real ones | Agent, owner to confirm |
+| 19-10-2026 | "Who works on this client" is **derived from the open engagements** plus the named partner and relationship manager, never stored. Reassigning work is what changes it | Agent |
+| 19-10-2026 | **D11: the firm enters its own CPE targets.** ICAI's hour requirements are not seeded, not guessed and not hardcoded (CLAUDE.md rule 8); until a partner enters them, hours are totalled and every year reads 'not set' rather than failed | Owner |
+| 19-10-2026 | `FirmSettings` is **one document keyed `firm`**, read through a one-minute cache that never throws: a missing document, or no database, returns what the app said before the screen existed. An invoice must print even if the firm record is gone | Agent |
+| 19-10-2026 | A **blank the firm saved is kept blank** — clearing the line under the firm name means no line. Only the name itself refuses to be empty | Agent |
+| 19-10-2026 | The authenticator-app issuer and the browser tab title **stay hardcoded**: renaming the issuer would confuse every enrolled phone and buy nothing | Agent |
+| 19-10-2026 | The CPE log is a **subdocument on the user**, not a collection: a couple of dozen entries a year, always read with the person, and spec §13 fixes the collection list | Agent |
+| 19-10-2026 | A CPE year runs on the basis the firm picks (January–December or April–March). The rest of the app is April–March, but a CPE block is the ICAI's year and not ours to assume | Agent, owner to confirm |
+| 19-10-2026 | Everybody may **read** the firm record (it is the letterhead, and somebody filling in a form needs the FRN); only a Partner changes it. The new `firmProfile` area is the one P2-1 said would arrive with this model | Agent |
 
 ## What P2-0 found
 
@@ -485,6 +503,211 @@ person's password for good.
   screen, offboarding blocked by open work, and offboarding going through with
   the account dead, the grants revoked, the email reusable and the engagement
   still carrying their name.
+
+## What P2-6 built
+
+Until now **the firm had no record of itself.** Its name was a literal in
+fifteen files, its ICAI registration number was nowhere at all, and the
+document retention period spec section 6 calls "configurable in settings" was
+a number in the source.
+
+- **`FirmSettings`: one document, for ever.** Who the firm is as a client sees
+  it (name, the line underneath, PAN, head office, phone, email), its ICAI
+  record (FRN, constitution, peer review validity, the firm's own notes), the
+  CPE targets, and the retention period. `key: "firm"` is unique, so an upsert
+  cannot fork into two. Read through `firmProfile()`, cached for a minute like
+  the notification rules, and **it never throws**: no document, or no database
+  at all, returns exactly what the app said before this screen existed. A
+  blank letterhead on a tax invoice is not an option.
+- **A blank the firm chose is respected.** Clearing "Chartered Accountants"
+  means no second line; only the name itself refuses to be empty. The first
+  version of `withDefaults()` filled empty strings back in, which made the
+  PDF's own check for a cleared tagline dead code — found by writing the test.
+- **Wired into what the firm sends out**, not merely stored: the invoice PDF
+  (which now also prints the FRN when there is one), the report PDF, the author
+  of every Excel export, the DPDP dossier's title, the public upload page a
+  client sees without signing in, and the signature of every email — the
+  templates already filled `{placeholders}`, so "PHMG & Associates" became
+  `{firm}` and `compose()` supplies it in one place. **Two things stay
+  hardcoded on purpose**: the authenticator-app issuer, because changing it
+  would confuse every enrolled phone for no gain, and the browser tab title.
+- **`User.icai`** — membership number, ACA or FCA, admitted on, and whether
+  they hold a Certificate of Practice and from when. Separate from
+  `articleship`, which is the intern's side: one is somebody qualifying, the
+  other somebody qualified, and nobody is both at once.
+- **The CPE log** as entries on the member (date, hours in halves, structured
+  or unstructured, programme, organiser) — a subdocument rather than a new
+  collection, because a member logs a couple of dozen a year and they are
+  always read with the person.
+- **Settings → ICAI**, following the permissions P2-1 already set: everybody
+  reads the firm's half (it is the letterhead, and somebody filling in a form
+  needs the FRN without waiting for a partner to come out of a meeting); a CA
+  keeps their own membership and hours; a Partner keeps everybody's; the
+  accounts role has no business here at all. The new `firmProfile` permission
+  area is the one P2-1 said would arrive with this model.
+- **No ICAI requirement is assumed anywhere** (CLAUDE.md rule 8, and the
+  owner's decision of 19-10-2026). The CPE targets are the firm's own figures,
+  entered by a partner. Until they are, every year reads **"not set"** — never
+  a cross, because an unanswered question is not a failure and marking it as
+  one would have people chasing hours nobody has asked them for. The firm also
+  says whether its CPE year runs January–December or April–March; the rest of
+  the app runs April–March, but a CPE block is the ICAI's year, not the tax
+  year.
+- **`scripts/doctor.js`** now warns when the firm's record has never been
+  saved, when there is no FRN, and when no CPE target is set.
+
+- Tests: 18 new Vitest tests (680 total) — the defaults when there is no
+  document, a stored blank kept blank, a nameless firm refused, a field the
+  stored document has never heard of, the CPE year on both bases including an
+  entry made at 23:30 IST on 31 December, structured and unstructured totalled
+  apart, a year left unjudged until a target exists and then judged with what
+  is short, an entry with no kind counted as structured, and `{firm}` reaching
+  a composed email with and without a caller supplying it. 6 new Playwright
+  tests waiting on Atlas (3 × 2 projects): a partner recording the FRN and
+  watching the "no CPE target" warning go away, a CA keeping their own log and
+  seeing nobody else's with the firm's half read-only, and — the one that
+  matters — renaming the firm and reading the new name back out of a generated
+  Excel file, which is the surface that can actually be checked (a PDF's text
+  streams are compressed).
+
+## What P2-5 built
+
+The case file answers three questions it could not answer before: how much of
+each thing there is, what the client owes, and which periods nobody filed.
+
+- **A count on every divider** (`FolderTabs` takes one): open engagements,
+  files, unpaid bills, notes, people with access. Each count runs the **same
+  query, narrowed the same way**, as the tab behind it — including the
+  engagement-scoped narrowing, so an employee's "1" is the one job they can
+  reach and not the firm's view of the client. Overview, Compliance and
+  Activity carry no number: an audit log has no meaningful total, and a count
+  that means something different on each tab is noise. **Counted only for the
+  tabs that person can open**, so a number never reports the size of something
+  they may not look at.
+- **Outstanding in the header**, for anybody who may see billing, with the
+  overdue part said separately and the date it has been overdue since — ₹2 lakh
+  outstanding on this month's bills is a business; ₹2 lakh overdue since June
+  is a problem. The arithmetic moved into `outstandingSummary()` beside the
+  rest of the money code: credit notes never reach it, and TDS counts as paid,
+  because a client who pays 90% and deducts 10% has settled the bill.
+- **The Compliance tab, filled.** The client's services down the side, periods
+  across the top, one financial year at a time with the last three offered. The
+  services are the ones they subscribe to **plus** any service they have work
+  against that year, so a subscription stopped in November does not erase April
+  to October. **One grid per recurrence**: a monthly return and an annual audit
+  cannot honestly share twelve columns, and stretching one over the other's
+  periods would invent holes — the one thing this screen must not do.
+- **`components/compliance/StatusGrid.jsx`** — the firm's grid from Step 7c and
+  this one are now the same component, differing only in what goes down the
+  side (`buildGrid` takes a `keyOf`). The colours, the arrow keys and above all
+  the mark that means *nothing was ever created here* cannot come to mean two
+  different things on two screens.
+- **"Who works on this client"**, the half of the Team & access tab deferred
+  from P2-2: the client partner, the relationship manager, and everyone holding
+  open work, with how much each is doing and reviewing. **Derived from the
+  engagements, not stored** — handing work over is the act that changes this
+  list, and a second copy of that fact would be a second thing to get wrong.
+- **Somebody who reaches a client through their own work gets no grid**, and is
+  told why: they would see every period they are not on as a hole, and a grid
+  whose empty cells mean two different things is worse than no grid.
+
+- Tests: 8 new Vitest tests (662 total) — the grid keyed by service instead of
+  client, counting a service's holes the same way, and still keying on the
+  client when nothing says otherwise; the balance arithmetic with a mix of late
+  and current bills, TDS settling a bill in full, the oldest due date kept
+  rather than the last one read, an undated bill owed but not late, and zero on
+  an empty list. 8 new Playwright tests waiting on Atlas: the header's figure
+  and its overdue line, a divider's count matching the rows behind it, the
+  Compliance tab showing April filed, **May never created** and June in hand
+  with the hole counted in words, and an employee on the work getting the
+  explanation instead of a misleading grid.
+
+## What P2-4 built
+
+The A / B / C hierarchy (owner decision D4) stops being a label on a settings
+screen and becomes the thing the server enforces.
+
+**The letters are a presentation layer.** `L1`, `L2` and `L3` are still what
+every `serviceTemplates.level` holds and what every engagement copied into its
+snapshot; `TIER_OF` / `LEVEL_OF` in `lib/services/catalog.js` are the only
+place the two meet. Nothing was migrated, so no work already under way was
+touched for a relabelling.
+
+- **`TierBadge`** — the letter in a ruled box, with the tier's whole rule as
+  its accessible name. **Colour and the letter, never colour alone**: a brass
+  square on its own is unreadable to about one reader in twelve. It is on the
+  engagements list, the board cards, the engagement header, Today, the client's
+  work and services, `/me`, the Employee 360 and the catalog, and the tier is a
+  column in the engagements Excel export.
+- **A tier filter on the engagements list**, which reads
+  `templateSnapshot.level` and not the template — so a service re-tiered last
+  month does not retrospectively re-tier work already in flight. Indexed with
+  the status.
+- **Per-step `minRole`.** A service can now carry a step stricter than itself:
+  an employee prepares the audit file and "Sign the report" is a CA's. Set in
+  the catalog, copied into each engagement's tasks like everything else, and
+  it bumps the template version, because changing who may do a step changes
+  what the work is. Empty inherits the service's `minExecRole` — which is what
+  every step and every task created before P2-4 holds, so nothing in flight
+  behaves differently.
+- **`assignTask`.** `tasks[].assigneeId` has been on the model since Step 5a
+  and no action ever set it: the field existed and the feature did not. A step
+  can now be given to one person, and only to somebody who may do it — a step
+  nobody may do is a step nobody may be given.
+- **Bulk "Approve selected"** (owner decision D5), offered only to a checker,
+  only for routine (C) work, and only from a status that can reach Completed.
+  **It skips no rule whatsoever**: it loops `changeStatus(id, "Completed")`, so
+  each engagement separately still refuses self-approval, refuses a reviewer
+  who is not the named one, demands every mandatory checklist item verified,
+  every review point ticked and a UDIN where the service needs one — and each
+  sign-off writes its own audit entry. What is faster is that the CA presses
+  one button instead of twelve; what comes back names every row that would not
+  go through and why. Capped at 25 a press (`BULK_APPROVE_LIMIT`), because the
+  audit chain is serialised through one counter document.
+- **Tier counts per person**, deferred here from P2-3: A · B · C beside the
+  open count on the team list, the Employee 360 and the team export. Three
+  counts and not a weighted score — "busy" and "carrying the crucial work" are
+  different sentences, and one index would hide the second.
+
+**The four enforcement gaps.** The brief's list was reconstructed from the
+code, so say if one of these is not the fourth you meant:
+
+1. **An A-tier job could be signed off by a CA.** `checkStatusChange` demanded
+   a CA or a Partner and never read the tier's own `minReviewRole`.
+   `checkAssignment` stops a CA being *named* as reviewer of an L3 service, but
+   an engagement with **nobody named** could be completed by any CA. The tier's
+   rule is now checked on the actor, so A-tier waits for a Partner.
+2. **Any step was tickable by anybody who could edit the engagement**, so
+   "Sign the report" was tickable by the intern who collected the data. Every
+   tick and every per-step assignment now goes through `stepFloor()`.
+3. **The recurring generator trusted stale defaults.** A subscription's usual
+   people were legal when somebody chose them, but a default goes stale: the
+   person is demoted, or the service is raised to A-tier. The generator now
+   checks before it assigns and, when the default no longer qualifies,
+   **creates the work unassigned and records why** — the same discipline as an
+   unconfirmed due date. The job appears on time; who does it waits for a
+   person. Assigning somebody who may not do the work would make every later
+   check a lie.
+4. **A stale default was invisible until generation day.** The client's
+   services list now says which subscription names somebody who may no longer
+   do the work, and raising a service's bar warns on save, naming the clients
+   to go and fix. The save stays on the form when there is a warning to read.
+
+- Tests: 17 new Vitest tests (654 total) — the letter/level mapping both ways
+  and its refusal of anything that is not a tier; a CA refused on A-tier work
+  with a reviewer named and with nobody named, and a Partner allowed; a
+  snapshot that says nothing still behaving exactly as it did before P2-4; the
+  step floor inheriting, overriding and surviving a snapshot that is missing;
+  the step's role copied into the engagement's tasks; a step's role bumping the
+  version; the tier filter reading the snapshot and ignoring a level handed to
+  it as a tier; and the per-tier counts, including that finished work is
+  nobody's load and work with no snapshot is not guessed at. 8 new Playwright
+  tests waiting on Atlas (4 × 2 projects): an employee ticking the step that is
+  theirs and refused the one that is not, a CA-only step offering only seniors,
+  A-tier refusing a CA with nobody named as reviewer, and the batch sign-off
+  offered for one C-tier row, withdrawn the moment an A-tier row joins the
+  selection, and going through with the work signed off by somebody other than
+  the person who did it.
 
 ## What Step 0 built
 
@@ -782,6 +1005,86 @@ From spec §18 — none answered yet. These block later steps, not Step 0:
 - [ ] `notices@` mailbox + SPF/DKIM/DMARC (Step 9)
 
 ## Left over / known gaps
+
+**From P2-6**
+
+- **Nothing here has run against a database**, like every step since Step 1.
+  The firm record, the CPE arithmetic and `{firm}` in an email are unit-tested;
+  the 6 Playwright tests wait on Atlas.
+- **The firm's record is empty until a partner saves it**, and until then the
+  app signs itself with the name that used to be hardcoded — right for this
+  firm, wrong for anybody else. `npm run doctor` warns about it. It is
+  deliberately **not seeded**: seeding an FRN or a peer review date would be
+  inventing the firm's own credentials.
+- **No CPE target is set**, by design, so no year is judged. The ICAI's
+  requirements depend on whether a member holds a Certificate of Practice and
+  on their age, and they change — they are the firm's figures to enter.
+- **CPE is per year only.** If the ICAI block the firm works to is a rolling
+  three-year one, that is not modelled; the notes field can hold the rule and
+  the per-year figures still add up. Say if a block total is wanted.
+- **Nothing reminds anybody about CPE.** No rule fires as a year closes with
+  hours short, and the peer review expiry raises nothing either — both are
+  notification rules, and spec §12's set is closed until somebody asks.
+- **Bank details stay in `FIRM_BANK_DETAILS`**, an environment variable, not in
+  `FirmSettings`: CLAUDE.md rule 7 keeps bank details out of plain fields, and
+  an encrypted settings field would need the vault pattern for one value.
+- The firm's **logo is not uploadable** — the invoice is typeset, not
+  letterheaded. It would need the file gateway and a size discipline of its own.
+- A member's ICAI record and CPE log are **not on their `/team/[id]` page yet**,
+  only on Settings → ICAI. The Employee 360's tab set is settled; adding a
+  seventh tab is a P2-10d decision.
+- `User.cpe` grows for ever. At a couple of dozen entries a year that is fine
+  for a decade; a member of twenty years' standing is still under 500
+  subdocuments. If it ever matters, the log becomes its own collection.
+
+**From P2-5**
+
+- **Nothing here has run against a database**, like every step since Step 1.
+  The grid keying and the balance arithmetic are unit-tested; the 8 Playwright
+  tests that drive the counts, the header and the hole in May wait on Atlas.
+- **The client's portal accounts are still missing from Team & access** — the
+  third part of that tab. `ClientUser` does not exist until P2-9a, so there is
+  nothing to list yet.
+- **The counts cost five more queries per client page**, run in parallel and
+  only for the tabs that person can open. Nothing has been measured against a
+  real database; if the case file ever feels slow, these are the first thing to
+  look at.
+- The Compliance tab offers **this financial year and the two before it**. A
+  longer history is a wider query and nobody has asked for one.
+- The grid's columns are **the service's own recurrence**, so a service whose
+  recurrence was changed in the catalog shows this year under the new shape.
+  Engagements keep their snapshot, so the cells are still right; the columns
+  are not re-created per period.
+- `ClientService.startPeriod` is **not** used to blank out periods before a
+  client signed up, so a service added in September shows April to August as
+  holes. Deliberate for now — the firm's existing clients are being migrated
+  with history — but say if a subscription's start should close the grid off.
+
+**From P2-4**
+
+- **Nothing here has run against a database either**, like every step since
+  Step 1. The tier rules, the step floor and the batch sign-off are unit-tested
+  on the pure functions; the 8 Playwright tests that drive them through the
+  screens are waiting on Atlas.
+- **B and C differ only in who may execute.** Both demand a CA to sign off, so
+  the enforced difference between a B-tier and a C-tier job is the floor on the
+  person doing it (employee against intern) plus the batch sign-off being
+  offered for C only. If B-tier work should demand something more of its
+  reviewer, say so and it is one line.
+- **Giving somebody a step tells them nothing.** `assignTask` writes the name
+  and the audit entry but sends no notification — spec §12's events are per
+  engagement, not per step. Worth adding if steps are going to be handed round.
+- **The batch sign-off lives on the engagements list**, filtered to Under
+  review, not inside the CA dashboard's review panel: that panel is tiles that
+  link to this list, so the button sits where the rows are. Say if it should be
+  on the dashboard itself.
+- The starter catalog has **no restricted steps** (see the decisions table), so
+  nothing demonstrates per-step `minRole` until the owner sets one or the
+  sample data is extended.
+- Reports and the compliance grid do **not** break down by tier yet; the report
+  set is P2-10c.
+- An engagement whose snapshot has no `level` — none exist, but nothing stops
+  one — shows an em dash and is counted in no tier rather than guessed at.
 
 **From Step 12**
 

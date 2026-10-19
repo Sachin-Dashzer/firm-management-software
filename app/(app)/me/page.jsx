@@ -8,7 +8,7 @@ import Client from "@/models/Client";
 import Engagement from "@/models/Engagement";
 import ClientAccess from "@/models/ClientAccess";
 import { formatISTDate } from "@/lib/dates";
-import { LEVEL_LABELS } from "@/lib/services/catalog";
+import TierBadge from "@/components/ledger/TierBadge";
 import { SECTION_LABELS } from "@/lib/access/sections";
 import { loadFor, isOverdue } from "@/lib/team/workload";
 import { CLOSED_STATUSES } from "@/lib/engagements/status";
@@ -186,7 +186,7 @@ export default async function MePage() {
                     Client
                   </th>
                   <th scope="col" className="px-3 py-2 font-normal">
-                    Level
+                    Tier
                   </th>
                   <th scope="col" className="px-3 py-2 font-normal">
                     Status
@@ -216,9 +216,8 @@ export default async function MePage() {
                     <td className="text-13 px-3 py-2">
                       {clientName.get(String(e.clientId)) ?? "—"}
                     </td>
-                    {/* P2-4 replaces this with the A/B/C tier badge */}
                     <td className="text-13 px-3 py-2">
-                      {LEVEL_LABELS[e.templateSnapshot?.level] ?? "—"}
+                      <TierBadge level={e.templateSnapshot?.level} />
                     </td>
                     <td className="text-13 px-3 py-2">{e.status}</td>
                     <td

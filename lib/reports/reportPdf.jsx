@@ -93,10 +93,24 @@ const flexOf = (column) =>
  * @param {Array<{label: string, value: string}>} [props.totals]
  * @param {string} props.by      who ran it
  * @param {string} props.at
+ * @param {Record<string, any>} [props.firm] the firm's own record
  */
-export function ReportPdf({ title, columns, rows, note, totals, by, at }) {
+export function ReportPdf({
+  title,
+  columns,
+  rows,
+  note,
+  totals,
+  by,
+  at,
+  firm = {},
+}) {
+  // the firm as the settings screen has it (P2-6); the fallback is what this
+  // file said before that screen existed
+  const firmName = firm.name || "PHMG & Associates";
+
   return (
-    <Document title={`PHMG — ${title}`} author="PHMG & Associates">
+    <Document title={`${firmName} — ${title}`} author={firmName}>
       <Page size="A4" orientation="landscape" style={styles.page}>
         <View style={styles.header} fixed>
           <View>
@@ -106,10 +120,12 @@ export function ReportPdf({ title, columns, rows, note, totals, by, at }) {
             </Text>
           </View>
           <View>
-            <Text style={styles.firm}>PHMG &amp; Associates</Text>
-            <Text style={[styles.firm, styles.muted]}>
-              Chartered Accountants
-            </Text>
+            <Text style={styles.firm}>{firmName}</Text>
+            {firm.tagline === "" ? null : (
+              <Text style={[styles.firm, styles.muted]}>
+                {firm.tagline || "Chartered Accountants"}
+              </Text>
+            )}
           </View>
         </View>
 

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { DueChip, StatusChip } from "../engagements/chips";
+import StatusGrid from "@/components/compliance/StatusGrid";
 
 /**
  * The firm's deadlines, two ways (spec section 8): a calendar of what is
@@ -167,51 +168,6 @@ export default function ComplianceViews({
   );
 }
 
-const CELL_TONE = {
-  done: "bg-filed-wash text-filed",
-  filed: "bg-filed-wash text-filed",
-  open: "bg-carbon-wash text-carbon",
-  late: "bg-redpen-wash text-redpen",
-  missing: "bg-redpen-wash text-redpen font-bold",
-  held: "bg-waiting-wash text-waiting",
-  cancelled: "text-ink-muted",
-  current: "text-ink-muted",
-  future: "text-ink-muted",
-};
-
-/**
- * Arrow-key movement across the grid (spec section 15).
- *
- * The cells are found in the DOM by their row and column rather than held
- * in state: the grid is already rendered, and reading where to go next off
- * the markup is both shorter and impossible to get out of step with it.
- */
-function onGridKeys(event) {
-  const keys = {
-    ArrowRight: [0, 1],
-    ArrowLeft: [0, -1],
-    ArrowDown: [1, 0],
-    ArrowUp: [-1, 0],
-  };
-  const step = keys[event.key];
-  if (!step) return;
-
-  const current = event.target.closest?.("[data-cell]");
-  if (!current) return;
-
-  const [row, column] = current.dataset.cell.split("-").map(Number);
-  const next = event.currentTarget.querySelector(
-    `[data-cell="${row + step[0]}-${column + step[1]}"]`,
-  );
-  if (!next) return;
-
-  event.preventDefault();
-  // only one cell is ever in the tab order, and it is the one you are on
-  current.tabIndex = -1;
-  next.tabIndex = 0;
-  next.focus();
-}
-
 function Grid({ grid, service }) {
   if (!service || !grid) {
     return (
@@ -237,119 +193,15 @@ function Grid({ grid, service }) {
         />
       </div>
 
-      {/* Arrow keys walk the grid (spec section 15). One tab stop gets you
-          in, the arrows move from cell to cell, Enter opens the one you are
-          on — the same way a spreadsheet behaves, which is what this is. */}
-      <div
-        className="rounded-ledger border-rule bg-surface overflow-x-auto border"
-        onKeyDown={onGridKeys}
-      >
-        <table className="text-14 w-full">
-          <caption className="sr-only">
-            {service.name} by client and period. Use the arrow keys to move
-            between cells and Enter to open one.
-          </caption>
-          <thead>
-            <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
-              <th
-                scope="col"
-                className="bg-surface sticky left-0 px-3 py-2 font-medium"
-              >
-                Client
-              </th>
-              {grid.periods.map((p) => (
-                <th
-                  key={p.code}
-                  scope="col"
-                  className="px-2 py-2 text-center font-medium"
-                >
-                  {p.short}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {grid.rows.map((row, rowIndex) => (
-              <tr key={row.id} className="border-rule border-b last:border-0">
-                <th
-                  scope="row"
-                  className="bg-surface text-14 sticky left-0 px-3 py-2 text-left font-normal"
-                >
-                  <Link
-                    href={`/clients/${row.id}`}
-                    className="underline underline-offset-4"
-                  >
-                    {row.name}
-                  </Link>
-                  {row.missing > 0 && (
-                    <span className="text-12 text-redpen">
-                      {" "}
-                      · {row.missing} missing
-                    </span>
-                  )}
-                </th>
-                {row.cells.map((cell, columnIndex) => (
-                  <td key={cell.period} className="px-1 py-1 text-center">
-                    {cell.engagementId ? (
-                      <Link
-                        href={`/engagements/${cell.engagementId}`}
-                        title={`${cell.period}: ${cell.title}`}
-                        data-cell={`${rowIndex}-${columnIndex}`}
-                        // one tab stop for the whole grid: the first cell
-                        tabIndex={rowIndex === 0 && columnIndex === 0 ? 0 : -1}
-                        aria-label={`${row.name}, ${cell.period}: ${cell.title}`}
-                        className={`rounded-ledger block py-1 ${CELL_TONE[cell.state]}`}
-                      >
-                        {cell.label}
-                      </Link>
-                    ) : (
-                      <span
-                        title={`${cell.period}: ${cell.title}`}
-                        data-cell={`${rowIndex}-${columnIndex}`}
-                        tabIndex={rowIndex === 0 && columnIndex === 0 ? 0 : -1}
-                        role="gridcell"
-                        aria-label={`${row.name}, ${cell.period}: ${cell.title}`}
-                        className={`rounded-ledger block py-1 ${CELL_TONE[cell.state]}`}
-                      >
-                        {cell.label}
-                      </span>
-                    )}
-                  </td>
-                ))}
-              </tr>
-            ))}
-            {grid.rows.length === 0 && (
-              <tr>
-                <td
-                  colSpan={grid.periods.length + 1}
-                  className="text-ink-muted px-3 py-6 text-center"
-                >
-                  No client is signed up for {service.name} yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <p className="text-12 text-ink-muted flex flex-wrap gap-3">
-        <Key tone="done" mark="✓" text="completed" />
-        <Key tone="open" mark="•" text="in hand" />
-        <Key tone="late" mark="!" text="overdue" />
-        <Key tone="missing" mark="·" text="nothing was ever created" />
-        <Key tone="held" mark="‖" text="on hold" />
-        <Key tone="current" mark="–" text="this period, not yet due" />
-      </p>
+      <StatusGrid
+        periods={grid.periods}
+        rows={grid.rows}
+        caption={`${service.name} by client and period.`}
+        rowHeading="Client"
+        rowHref={(row) => `/clients/${row.id}`}
+        emptyText={`No client is signed up for ${service.name} yet.`}
+      />
     </div>
-  );
-}
-
-function Key({ tone, mark, text }) {
-  return (
-    <span className="flex items-center gap-1">
-      <span className={`rounded px-1.5 ${CELL_TONE[tone]}`}>{mark}</span>
-      {text}
-    </span>
   );
 }
 

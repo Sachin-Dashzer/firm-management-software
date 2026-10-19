@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { canExecute, canReview } from "@/lib/services/catalog";
+import TierBadge from "@/components/ledger/TierBadge";
 import {
   removeClientService,
   saveClientService,
@@ -167,7 +168,21 @@ export default function ClientServices({
           <tbody>
             {subscriptions.map((s) => (
               <tr key={s.id} className="border-rule border-b last:border-0">
-                <td className="px-3 py-2">{s.name}</td>
+                <td className="px-3 py-2">
+                  {s.name}
+                  {s.stale && (
+                    <>
+                      <br />
+                      <span className="text-12 text-waiting">
+                        {s.stale} New work will be created unassigned until this
+                        is changed.
+                      </span>
+                    </>
+                  )}
+                </td>
+                <td className="px-3 py-2">
+                  <TierBadge level={s.level} />
+                </td>
                 <td className="num text-13 px-3 py-2">{s.fee}</td>
                 {mayEdit && (
                   <td className="px-3 py-2 text-right">

@@ -23,14 +23,16 @@ import Comment from "@/models/Comment";
 import User from "@/models/User";
 import { periodFor, parsePeriod } from "@/lib/engagements/period";
 import { buildEngagement } from "@/lib/engagements/create";
-import { checkAssignment } from "@/lib/engagements/assign";
+import { checkAssignment, roleName, stepFloor } from "@/lib/engagements/assign";
 import { nextEngagementCode } from "@/lib/engagements/code";
 import {
   checkStatusChange,
   canEditWork,
   isRework,
   PRIORITIES,
+  BULK_APPROVE_LIMIT,
 } from "@/lib/engagements/status";
+import { canExecute, tierOf } from "@/lib/services/catalog";
 
 /**
  * Everything that changes an engagement (spec section 5).
@@ -231,6 +233,9 @@ export async function changeStatus(id, to, reason = "") {
       status: engagement.status,
       assigneeId: String(engagement.assigneeId ?? ""),
       reviewerId: String(engagement.reviewerId ?? ""),
+      // the tier's own sign-off rule, from the snapshot the work started from
+      minReviewRole: engagement.templateSnapshot?.minReviewRole ?? "",
+      level: engagement.templateSnapshot?.level ?? "",
     },
     to,
     { reason },
@@ -446,6 +451,18 @@ export async function setTaskDone(id, taskId, done) {
   const task = engagement.tasks.id(taskId);
   if (!task) return { error: "That task is gone." };
 
+  /**
+   * A step can demand more than the engagement does. Before P2-4 anybody who
+   * could work the engagement could tick any step, so "Sign the report" on an
+   * audit was tickable by the intern who collected the data.
+   */
+  const floor = stepFloor(engagement, task);
+  if (!canExecute(actor.role, floor)) {
+    return {
+      error: `"${task.name}" needs at least ${roleName(floor)}.`,
+    };
+  }
+
   await audited(actor, async (session) => {
     task.done = Boolean(done);
     task.doneAt = done ? new Date() : null;
@@ -456,6 +473,58 @@ export async function setTaskDone(id, taskId, done) {
 
   revalidatePath(`/engagements/${id}`);
   return { ok: done ? `${task.name} done.` : `${task.name} reopened.` };
+}
+
+/**
+ * Put a name against one step (spec section 5: "sub-tasks from the template's
+ * step list, each with its own assignee").
+ *
+ * `tasks[].assigneeId` has been on the model since Step 5a and no action ever
+ * set it, so the field existed and the feature did not. The same floor
+ * applies as for ticking: a step nobody may do is a step nobody may be given.
+ *
+ * @param {string} id
+ * @param {string} taskId
+ * @param {string} userId empty to take the name off again
+ */
+export async function assignTask(id, taskId, userId) {
+  const actor = await requireUser();
+  const engagement = await loadForWork(actor, id);
+  if (!canEditWork(actor, engagement)) {
+    return { error: `Nothing can be edited while it is ${engagement.status}.` };
+  }
+
+  const task = engagement.tasks.id(taskId);
+  if (!task) return { error: "That task is gone." };
+
+  const floor = stepFloor(engagement, task);
+  let person = null;
+
+  if (userId) {
+    person = (await loadPeople([userId])).get(String(userId)) ?? null;
+    if (!person) return { error: "Unknown person." };
+    if (person.active === false) {
+      return { error: "That person's account is deactivated." };
+    }
+    if (!canExecute(person.role, floor)) {
+      return {
+        error: `${person.name} cannot do "${task.name}": it needs at least ${roleName(floor)}.`,
+      };
+    }
+  }
+
+  await audited(actor, async (session) => {
+    task.assigneeId = person?.id ?? null;
+    engagement.updatedBy = actor.id;
+    await engagement.save({ session });
+  });
+
+  revalidatePath(`/engagements/${id}`);
+  return {
+    ok: person
+      ? `${task.name} is ${person.name}'s.`
+      : `${task.name} is unassigned.`,
+  };
 }
 
 /** Move a checklist item along Pending → Requested → Received → Verified. */
@@ -823,4 +892,56 @@ export async function bulkInternalDue(ids, date) {
 export async function bulkPriority(ids, priority) {
   await requireUser();
   return runBulk(ids, (id) => setPriority(id, priority), `set to ${priority}`);
+}
+
+/**
+ * Sign off several C-tier engagements at once (owner decision D5).
+ *
+ * The owner asked whether routine work could close without a CA reading it.
+ * The answer was no — maker-checker stays — so this makes the signing light
+ * rather than making it optional: **nothing here skips a single rule.** It
+ * loops `changeStatus(id, "Completed")`, so for every engagement separately
+ * the server still refuses self-approval, refuses a reviewer who is not the
+ * named one, demands every mandatory checklist item verified, demands every
+ * review point ticked, and demands a UDIN where the service needs one. Each
+ * sign-off writes its own audit entry.
+ *
+ * What makes it faster is only that the CA presses one button instead of
+ * twelve. What comes back names every row that would not go through and why.
+ *
+ * A-tier and B-tier are not offered: those are the ones that want somebody
+ * reading the file.
+ *
+ * The cap is `BULK_APPROVE_LIMIT` in `lib/engagements/status.js`.
+ */
+export async function bulkApprove(ids) {
+  const actor = await requireUser();
+
+  const list = [...new Set((ids ?? []).map(String))];
+  if (list.length === 0) return { error: "Nothing was selected." };
+  if (list.length > BULK_APPROVE_LIMIT) {
+    return {
+      error: `${BULK_APPROVE_LIMIT} at a time. Each one is a separate sign-off with its own entry in the log, and a longer run holds the log open too long.`,
+    };
+  }
+
+  await connectDB();
+
+  // only C-tier is bulk-approvable, checked here and not only in the UI
+  const rows = await Engagement.find({ _id: { $in: list } })
+    .select("code templateSnapshot")
+    .lean();
+  const wrongTier = rows.filter(
+    (row) => tierOf(row.templateSnapshot?.level) !== "C",
+  );
+  if (wrongTier.length > 0) {
+    return {
+      error: `Only routine (C) work can be approved in a batch. ${wrongTier
+        .map((r) => r.code)
+        .slice(0, 3)
+        .join(", ")} ${wrongTier.length === 1 ? "is" : "are"} not.`,
+    };
+  }
+
+  return runBulk(list, (id) => changeStatus(id, "Completed"), "signed off");
 }

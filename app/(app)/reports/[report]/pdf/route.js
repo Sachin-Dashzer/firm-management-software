@@ -6,6 +6,7 @@ import { connectDB } from "@/lib/db";
 import { REPORTS, runReport, describeFilters } from "@/lib/reports/standard";
 import { displayRows, displayTotals } from "@/lib/reports/format";
 import { ReportPdf } from "@/lib/reports/reportPdf";
+import { firmProfile } from "@/lib/firm/settings";
 import { formatISTDateTime } from "@/lib/dates";
 import {
   withAudit,
@@ -57,6 +58,7 @@ export async function GET(request, { params }) {
       totals={displayTotals(report.totals)}
       by={actor.name}
       at={formatISTDateTime(new Date())}
+      firm={await firmProfile()}
     />,
   );
 

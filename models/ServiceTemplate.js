@@ -39,7 +39,16 @@ const checklistItemSchema = new mongoose.Schema(
 );
 
 const stepSchema = new mongoose.Schema(
-  { name: { type: String, required: true, trim: true } },
+  {
+    name: { type: String, required: true, trim: true },
+    /**
+     * The minimum role for this one step, which lets a B-tier service carry
+     * an A-tier step: an employee prepares the audit file, and "Sign the
+     * report" is a CA's. Empty means inherit the service's `minExecRole`,
+     * which is what every step did before this field existed.
+     */
+    minRole: { type: String, enum: ["", ...EXEC_ROLES], default: "" },
+  },
   { _id: true },
 );
 

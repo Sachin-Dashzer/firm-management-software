@@ -12,6 +12,7 @@ import { formatISTDate, daysUntil } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
 import { PRIORITIES, STATUSES } from "@/lib/engagements/status";
 import { engagementQuery } from "@/lib/engagements/filter";
+import { TIERS, TIER_LABELS } from "@/lib/services/catalog";
 import EngagementViews from "./EngagementViews";
 import SavedViews from "@/components/reports/SavedViews";
 import { listViews } from "../reports/views";
@@ -91,6 +92,8 @@ export default async function EngagementsPage({ searchParams }) {
       client: clientName.get(String(e.clientId)) ?? "Client",
       clientId: String(e.clientId),
       service: e.templateSnapshot?.name ?? "—",
+      // the stored level; the badge and the tier filter turn it into A/B/C
+      level: e.templateSnapshot?.level ?? "",
       period: e.periodLabel || e.period,
       status: e.status,
       priority: e.priority,
@@ -190,6 +193,12 @@ export default async function EngagementsPage({ searchParams }) {
           ]}
         />
         <Filter
+          label="Tier"
+          name="tier"
+          value={params.tier}
+          options={TIERS.map((t) => [t, TIER_LABELS[t]])}
+        />
+        <Filter
           label="Priority"
           name="priority"
           value={params.priority}
@@ -257,6 +266,8 @@ export default async function EngagementsPage({ searchParams }) {
         pageSize={PAGE_SIZE}
         showingAll={view !== "list"}
         mayManage={can(actor, "edit", "engagementsCreate")}
+        // only a checker is offered the batch sign-off (owner decision D5)
+        mayApprove={actor.role === "ca" || actor.role === "partner"}
         team={team.map((u) => ({
           id: String(u._id),
           name: u.name,

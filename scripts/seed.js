@@ -75,7 +75,7 @@ async function main() {
       const existing = await Branch.findOneAndUpdate(
         { code: branch.code },
         { $setOnInsert: { ...branch, createdBy: "seed", updatedBy: "seed" } },
-        { new: true, upsert: true, session },
+        { returnDocument: "after", upsert: true, session },
       );
       ids.push(existing._id);
       console.log(`branch ${branch.code}  ${existing.name}`);

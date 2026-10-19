@@ -27,6 +27,14 @@ const taskSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+    /**
+     * Copied from the template's step when the engagement was created, like
+     * everything else here — so editing the catalog cannot change who may
+     * tick a step on work already under way. Empty means inherit
+     * `templateSnapshot.minExecRole`, which is what every task created before
+     * P2-4 has.
+     */
+    minRole: { type: String, default: "" },
     done: { type: Boolean, default: false },
     doneAt: { type: Date, default: null },
     doneBy: { type: String, default: null },
@@ -185,6 +193,8 @@ engagementSchema.index({ clientId: 1, period: 1 });
 engagementSchema.index({ statutoryDue: 1 });
 engagementSchema.index({ branchId: 1, status: 1 });
 engagementSchema.index({ reviewerId: 1, status: 1 });
+// the tier filter on the list, and the A-tier safety report
+engagementSchema.index({ "templateSnapshot.level": 1, status: 1 });
 // one engagement per client, service and period: the duplicate guard for
 // recurring work, and what Step 7's generator relies on
 engagementSchema.index(
