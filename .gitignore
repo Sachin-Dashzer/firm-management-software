@@ -32,6 +32,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...except the template, which has no secrets in it and must be in the repo
+!.env.example
 
 # vercel
 .vercel
@@ -47,3 +49,6 @@ next-env.d.ts
 # test output
 /test-results/
 /playwright-report/
+
+# local file vault (development storage driver)
+.storage/
