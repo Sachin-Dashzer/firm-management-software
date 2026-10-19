@@ -102,7 +102,7 @@ export default function NotesPanel({ clientId, notes, mayEdit }) {
               >
                 <div className="w-28 shrink-0">
                   <p className="num text-13 text-ink-muted">{n.when}</p>
-                  <p className="text-12 text-brass">{n.kind}</p>
+                  <p className="text-12 text-brass-ink">{n.kind}</p>
                 </div>
                 <div className="min-w-0">
                   <p className="text-14 whitespace-pre-wrap">{n.body}</p>

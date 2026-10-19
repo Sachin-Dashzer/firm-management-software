@@ -7,6 +7,7 @@ import Branch from "../../models/Branch.js";
 import Client from "../../models/Client.js";
 import AuditLog from "../../models/AuditLog.js";
 import { hashPassword, decryptField } from "../../lib/crypto.js";
+import { systemAudit } from "../../lib/audit/system.js";
 
 /**
  * Onboarding a client end to end: the form, the duplicate check, the
@@ -26,18 +27,26 @@ const NAME = "Playwright Textiles Private Limited";
 
 test.beforeAll(async () => {
   await connectDB();
-  const branch = await Branch.findOneAndUpdate(
-    { code: "NOI" },
-    { $setOnInsert: { name: "Noida (head office)", invoicePrefix: "NOI" } },
-    { new: true, upsert: true },
-  );
   await User.deleteOne({ email: EMAIL });
-  await User.create({
-    name: "Playwright Partner",
-    email: EMAIL,
-    role: "partner",
-    branchIds: [branch._id],
-    passwordHash: await hashPassword(PASSWORD),
+  // audited models refuse to write outside a transaction, fixtures included
+  await systemAudit(async (session) => {
+    const branch = await Branch.findOneAndUpdate(
+      { code: "NOI" },
+      { $setOnInsert: { name: "Noida (head office)", invoicePrefix: "NOI" } },
+      { new: true, upsert: true, session },
+    );
+    await User.create(
+      [
+        {
+          name: "Playwright Partner",
+          email: EMAIL,
+          role: "partner",
+          branchIds: [branch._id],
+          passwordHash: await hashPassword(PASSWORD),
+        },
+      ],
+      { session },
+    );
   });
   await Client.deleteMany({ pan: PAN }, { withDeleted: true });
 });
@@ -65,9 +74,7 @@ async function signIn(page) {
   }).generate();
 
   await page.getByLabel("6-digit code").fill(code);
-  await page
-    .getByRole("button", { name: /Sign in|Turn on 2FA/ })
-    .click();
+  await page.getByRole("button", { name: /Sign in|Turn on 2FA/ }).click();
   await expect(page).toHaveURL(/\/today$/);
 }
 
@@ -95,7 +102,9 @@ test("onboard a client, then find it again", async ({ page }) => {
 
   // and is searchable by PAN
   await page.goto(`/clients?q=${PAN}`);
-  await expect(page.getByRole("link", { name: /Playwright Textiles/ })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /Playwright Textiles/ }),
+  ).toBeVisible();
 });
 
 test("a bad GSTIN is refused with a readable reason", async ({ page }) => {
@@ -114,7 +123,9 @@ test("a bad GSTIN is refused with a readable reason", async ({ page }) => {
   await expect(page).toHaveURL(/\/clients\/new/);
 });
 
-test("the same PAN twice is blocked until it is confirmed", async ({ page }) => {
+test("the same PAN twice is blocked until it is confirmed", async ({
+  page,
+}) => {
   await signIn(page);
   await page.goto("/clients/new");
 

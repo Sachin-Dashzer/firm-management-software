@@ -4,8 +4,7 @@ import { can, branchFilter, scopeOf } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import Client from "@/models/Client";
 import Branch from "@/models/Branch";
-import { toCSV } from "@/lib/csv";
-import { formatISTDate } from "@/lib/dates";
+import { buildWorkbook, xlsxResponse } from "@/lib/excel";
 import {
   withAudit,
   recordAudit,
@@ -92,7 +91,8 @@ export async function GET(request) {
         c.industry,
         c.turnoverBand,
         (c.tags ?? []).join(", "),
-        c.onboardedOn ? formatISTDate(new Date(c.onboardedOn)) : "",
+        // the raw date, so Excel gets a date rather than text it has to guess at
+        c.onboardedOn ?? "",
       ];
     }),
   ];
@@ -114,12 +114,16 @@ export async function GET(request) {
     },
   );
 
-  const stamp = new Date().toISOString().slice(0, 10);
-  return new Response(toCSV(rows), {
-    headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="phmg-clients-${stamp}.csv"`,
-      "Cache-Control": "no-store",
-    },
-  });
+  // the header row is the first row; the kinds say which columns Excel
+  // should treat as dates and numbers rather than as text
+  const kinds = { "Credit days": "int", Onboarded: "date" };
+  const columns = rows[0].map((header) => ({
+    header,
+    kind: kinds[header] ?? "text",
+  }));
+
+  const buffer = await buildWorkbook([
+    { name: "Clients", columns, rows: rows.slice(1) },
+  ]);
+  return xlsxResponse(buffer, "phmg-clients");
 }

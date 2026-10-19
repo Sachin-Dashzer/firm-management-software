@@ -4,6 +4,7 @@ import { requireUser } from "@/auth";
 import { can, branchFilter, scopeOf } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import Client from "@/models/Client";
+import Engagement from "@/models/Engagement";
 import Branch from "@/models/Branch";
 import { CLIENT_STATUSES, ENTITY_TYPES, RISK_RATINGS } from "@/lib/validators";
 
@@ -45,9 +46,15 @@ export default async function ClientsPage({ searchParams }) {
   }
 
   // An intern may see only clients they are assigned to (spec section 2).
-  // Assignment comes from engagements, which arrive in Step 5, so for now the
-  // honest answer is an empty list rather than their whole branch.
+  // Assignment comes from engagements, so the list is the clients of the work
+  // on their desk — nothing else in the branch.
   const assignedOnly = scopeOf(actor, "clients") === "assigned";
+  if (assignedOnly) {
+    const mine = await Engagement.distinct("clientId", {
+      $or: [{ assigneeId: actor.id }, { reviewerId: actor.id }],
+    });
+    query._id = { $in: mine };
+  }
 
   if (status) query.status = status;
   if (entityType) query.entityType = entityType;
@@ -69,20 +76,18 @@ export default async function ClientsPage({ searchParams }) {
     ];
   }
 
-  const [clients, total, branches] = assignedOnly
-    ? [[], 0, []]
-    : await Promise.all([
-        Client.find(query)
-          .select(
-            "code legalName tradeName entityType status risk pan gstins branchId contacts creditDays quotedAmountPaise",
-          )
-          .sort({ legalName: 1 })
-          .skip((pageNumber - 1) * PAGE_SIZE)
-          .limit(PAGE_SIZE)
-          .lean(),
-        Client.countDocuments(query),
-        Branch.find({}).select("code name").lean(),
-      ]);
+  const [clients, total, branches] = await Promise.all([
+    Client.find(query)
+      .select(
+        "code legalName tradeName entityType status risk pan gstins branchId contacts creditDays quotedAmountPaise",
+      )
+      .sort({ legalName: 1 })
+      .skip((pageNumber - 1) * PAGE_SIZE)
+      .limit(PAGE_SIZE)
+      .lean(),
+    Client.countDocuments(query),
+    Branch.find({}).select("code name").lean(),
+  ]);
 
   const branchCode = new Map(branches.map((b) => [String(b._id), b.code]));
   const canCreate = can(actor, "edit", "clients");
@@ -179,7 +184,7 @@ export default async function ClientsPage({ searchParams }) {
         </div>
       </form>
 
-      {assignedOnly ? (
+      {assignedOnly && total === 0 ? (
         <p className="rounded-ledger border-rule bg-surface text-14 text-ink-muted border p-6">
           You see only the clients of engagements assigned to you. Once work is
           assigned to you it will appear here.
