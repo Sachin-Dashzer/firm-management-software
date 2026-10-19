@@ -45,20 +45,26 @@ export function softDeletePlugin(schema) {
   });
 
   /**
-   * Soft delete this document.
+   * Soft delete this document. Pass the audit transaction's session, so the
+   * flag and the log entry for it stand or fall together (CLAUDE.md rule 2).
+   *
    * @param {string} userId who is deleting it
+   * @param {import("mongoose").SaveOptions} [options] `{ session }`
    */
-  schema.methods.softDelete = function softDelete(userId) {
+  schema.methods.softDelete = function softDelete(userId, options) {
     this.deletedAt = new Date();
     this.deletedBy = userId;
-    return this.save();
+    return this.save(options);
   };
 
-  /** @param {string} userId */
-  schema.methods.restore = function restore(userId) {
+  /**
+   * @param {string} userId
+   * @param {import("mongoose").SaveOptions} [options] `{ session }`
+   */
+  schema.methods.restore = function restore(userId, options) {
     this.deletedAt = null;
     this.deletedBy = null;
     this.updatedBy = userId;
-    return this.save();
+    return this.save(options);
   };
 }

@@ -1,6 +1,5 @@
 "use server";
 
-import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireUser } from "@/auth";
@@ -8,6 +7,7 @@ import { assertCan, ROLES } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
 import { hashPassword } from "@/lib/crypto";
+import { temporaryPassword } from "@/lib/security/password";
 import { audited } from "@/lib/audit/request";
 import { recordAudit, ACTIONS } from "@/lib/audit";
 
@@ -37,14 +37,6 @@ const userInput = z.object({
   articleshipStart: z.string().optional(),
   articleshipEnd: z.string().optional(),
 });
-
-/** A readable one-time password: 4 groups of 4, no lookalike characters. */
-function temporaryPassword() {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes = randomBytes(16);
-  const chars = [...bytes].map((b) => alphabet[b % alphabet.length]);
-  return [0, 4, 8, 12].map((i) => chars.slice(i, i + 4).join("")).join("-");
-}
 
 /** Pull the plain object out of a form, including multi-select branches. */
 function readForm(formData) {

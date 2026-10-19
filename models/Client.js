@@ -104,6 +104,15 @@ const clientSchema = new mongoose.Schema(
     /** For display: "XXXXXXXX9012" needs only the last four (spec section 16). */
     aadhaarLast4: { type: String, default: "" },
 
+    /**
+     * Set when a DPDP deletion request has been actioned (spec section 16).
+     * The record stays so the statutory history still has something to
+     * point at; what identified a person is gone. See lib/dpdp.
+     */
+    redactedAt: { type: Date, default: null },
+    redactedBy: { type: String, default: null },
+    redactionReason: { type: String, default: "", trim: true },
+
     gstins: { type: [gstinSchema], default: [] },
     contacts: { type: [contactSchema], default: [] },
     addresses: { type: [addressSchema], default: [] },

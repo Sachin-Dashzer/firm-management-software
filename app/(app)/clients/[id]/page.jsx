@@ -17,6 +17,19 @@ import { StatusChip } from "../page";
 import CredentialsVault from "./CredentialsVault";
 import NotesPanel from "./NotesPanel";
 import StatusControl from "./StatusControl";
+import Engagement from "@/models/Engagement";
+import ClientService from "@/models/ClientService";
+import ServiceTemplate from "@/models/ServiceTemplate";
+import ClientServices from "./ClientServices";
+import DocumentModel from "@/models/Document";
+import DocumentsPanel from "./DocumentsPanel";
+import Invoice from "@/models/Invoice";
+import Payment from "@/models/Payment";
+import LedgerPanel from "./LedgerPanel";
+import { buildLedger, outstandingOf } from "@/lib/billing/allocation";
+import { StatusChip as EngagementStatusChip } from "../../engagements/chips";
+import FolderTabs from "@/components/clients/FolderTabs";
+import DataRights from "./DataRights";
 
 export const dynamic = "force-dynamic";
 
@@ -137,29 +150,13 @@ export default async function ClientPage({ params, searchParams }) {
         )}
       </header>
 
-      {/* --- folder-style tab dividers --- */}
-      <nav
-        className="border-rule flex flex-wrap gap-1 border-b"
-        aria-label="Client sections"
-      >
-        {TABS.map((t) => {
-          const active = t.key === tab;
-          return (
-            <Link
-              key={t.key}
-              href={`/clients/${id}?tab=${t.key}`}
-              aria-current={active ? "page" : undefined}
-              className={`rounded-t-ledger text-14 -mb-px border border-b-0 px-3 py-2 ${
-                active
-                  ? "border-rule bg-surface text-ink font-medium"
-                  : "text-ink-muted hover:text-ink border-transparent"
-              }`}
-            >
-              {t.label}
-            </Link>
-          );
-        })}
-      </nav>
+      {/* --- folder-style tab dividers, with the divider that slides --- */}
+      <FolderTabs
+        tabs={TABS}
+        active={tab}
+        hrefFor={(key) => `/clients/${id}?tab=${key}`}
+        label="Client sections"
+      />
 
       {tab === "overview" && (
         <Overview
@@ -176,11 +173,34 @@ export default async function ClientPage({ params, searchParams }) {
       )}
 
       {tab === "notes" && <NotesTab clientId={id} mayEdit={mayEdit} />}
-      {tab === "activity" && <ActivityTab clientId={id} actor={actor} />}
-
-      {["engagements", "documents", "invoices", "compliance"].includes(tab) && (
-        <Placeholder tab={tab} />
+      {tab === "activity" && (
+        <div className="flex flex-col gap-4">
+          <ActivityTab clientId={id} actor={actor} />
+          {/* the DPDP rights sit with the history, because that is where a
+              partner looks when a client asks what is held on them */}
+          {can(actor, "view", "clientSensitive") && (
+            <DataRights
+              clientId={id}
+              clientName={client.tradeName || client.legalName}
+              redactedAt={
+                client.redactedAt ? formatISTDate(client.redactedAt) : null
+              }
+            />
+          )}
+        </div>
       )}
+      {tab === "engagements" && (
+        <EngagementsTab clientId={id} actor={actor} mayEdit={mayEdit} />
+      )}
+      {tab === "documents" && (
+        <DocumentsTab clientId={id} actor={actor} client={client} />
+      )}
+
+      {tab === "invoices" && (
+        <InvoicesTab clientId={id} actor={actor} client={client} />
+      )}
+
+      {tab === "compliance" && <Placeholder tab={tab} />}
     </div>
   );
 }
@@ -274,7 +294,7 @@ async function Overview({
                 <span className="font-medium">
                   {c.name}
                   {c.primary && (
-                    <span className="text-12 text-brass ml-2">primary</span>
+                    <span className="text-12 text-brass-ink ml-2">primary</span>
                   )}
                 </span>
                 {c.designation && (
@@ -393,13 +413,218 @@ async function ActivityTab({ clientId, actor }) {
   );
 }
 
+/** The client's work: what is running now, and what they are signed up for. */
+async function EngagementsTab({ clientId, actor, mayEdit }) {
+  const [engagements, subscriptions, templates, team] = await Promise.all([
+    Engagement.find({ clientId }).sort({ createdAt: -1 }).limit(200).lean(),
+    ClientService.find({ clientId, active: true }).lean(),
+    ServiceTemplate.find({ active: true })
+      .select("name code recurrence minExecRole minReviewRole defaultFeePaise")
+      .sort({ name: 1 })
+      .lean(),
+    User.find({ active: true }).select("name role").sort({ name: 1 }).lean(),
+  ]);
+
+  const templateName = new Map(templates.map((t) => [String(t._id), t.name]));
+
+  return (
+    <div className="flex flex-col gap-6">
+      <section className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-display text-20">Engagements</h2>
+          {can(actor, "edit", "engagementsCreate") && (
+            <Link
+              href={`/engagements/new?client=${clientId}`}
+              className="text-13 underline underline-offset-4"
+            >
+              New engagement
+            </Link>
+          )}
+        </div>
+        <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+          <table className="text-14 w-full">
+            <tbody>
+              {engagements.map((e) => (
+                <tr
+                  key={String(e._id)}
+                  className="border-rule border-b last:border-0"
+                >
+                  <td className="px-3 py-2">
+                    <Link
+                      href={`/engagements/${e._id}`}
+                      className="underline underline-offset-4"
+                    >
+                      {e.templateSnapshot?.name ?? "Engagement"}
+                    </Link>
+                    <br />
+                    <span className="text-13 text-ink-muted font-mono">
+                      {e.code}
+                    </span>
+                  </td>
+                  <td className="text-13 px-3 py-2">
+                    {e.periodLabel || e.period}
+                  </td>
+                  <td className="px-3 py-2">
+                    <EngagementStatusChip status={e.status} />
+                  </td>
+                  <td className="num text-13 px-3 py-2">
+                    {e.internalDue ? formatISTDate(e.internalDue) : "—"}
+                  </td>
+                </tr>
+              ))}
+              {engagements.length === 0 && (
+                <tr>
+                  <td className="text-ink-muted px-3 py-6 text-center">
+                    No work has been created for this client yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <ClientServices
+        clientId={clientId}
+        mayEdit={mayEdit}
+        subscriptions={subscriptions.map((s) => ({
+          id: String(s._id),
+          serviceTemplateId: String(s.serviceTemplateId),
+          name: templateName.get(String(s.serviceTemplateId)) ?? "Service",
+          fee: formatPaise(s.feePaise ?? 0),
+        }))}
+        templates={templates.map((t) => ({
+          id: String(t._id),
+          name: t.name,
+          code: t.code,
+          defaultFee: String((t.defaultFeePaise ?? 0) / 100),
+          minExecRole: t.minExecRole,
+          minReviewRole: t.minReviewRole,
+        }))}
+        team={team.map((u) => ({
+          id: String(u._id),
+          name: u.name,
+          role: u.role,
+        }))}
+      />
+    </div>
+  );
+}
+
+/** The client's files: the permanent file first, then work by engagement. */
+async function DocumentsTab({ clientId, actor, client }) {
+  const mayEdit = can(actor, "edit", "documents", {
+    branchId: String(client.branchId),
+  });
+
+  const documents = await DocumentModel.find({ clientId })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const engagementIds = [
+    ...new Set(
+      documents
+        .filter((d) => d.engagementId)
+        .map((d) => String(d.engagementId)),
+    ),
+  ];
+  const engagements = await Engagement.find({ _id: { $in: engagementIds } })
+    .select("code templateSnapshot periodLabel period")
+    .lean();
+
+  const shape = (d) => ({
+    id: String(d._id),
+    name: d.name,
+    size: d.size,
+    mime: d.mime,
+    versions: (d.versions ?? []).length,
+    uploadedByName: d.uploadedByName,
+    isPermanent: Boolean(d.isPermanent),
+  });
+
+  return (
+    <DocumentsPanel
+      clientId={clientId}
+      mayEdit={mayEdit}
+      permanent={documents.filter((d) => d.isPermanent).map(shape)}
+      byEngagement={engagements.map((e) => ({
+        id: String(e._id),
+        title: `${e.templateSnapshot?.name ?? "Engagement"} · ${e.periodLabel || e.period}`,
+        code: e.code,
+        documents: documents
+          .filter(
+            (d) => !d.isPermanent && String(d.engagementId) === String(e._id),
+          )
+          .map(shape),
+      }))}
+    />
+  );
+}
+
+/** The client's account: what they owe, and everything behind it. */
+async function InvoicesTab({ clientId, actor, client }) {
+  if (!can(actor, "view", "invoices", { branchId: String(client.branchId) })) {
+    return (
+      <p className="text-14 text-ink-muted">
+        Billing is not visible to your role.
+      </p>
+    );
+  }
+
+  const [invoices, payments] = await Promise.all([
+    Invoice.find({ clientId }).sort({ date: 1 }).limit(500).lean(),
+    Payment.find({ clientId }).sort({ date: 1 }).limit(500).lean(),
+  ]);
+
+  const { entries, closingPaise } = buildLedger(invoices, payments);
+
+  const open = invoices
+    .filter(
+      (i) =>
+        ["Sent", "Partially paid", "Disputed"].includes(i.status) &&
+        i.type !== "Credit note" &&
+        outstandingOf(i) > 0,
+    )
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  return (
+    <LedgerPanel
+      clientId={clientId}
+      mayEdit={can(actor, "edit", "invoices", {
+        branchId: String(client.branchId),
+      })}
+      closing={formatPaise(closingPaise)}
+      entries={entries.map((entry) => ({
+        id: entry.id,
+        date: formatISTDate(new Date(entry.date)),
+        kind: entry.kind,
+        reference: entry.reference ?? "",
+        debit: entry.debitPaise ? formatPaise(entry.debitPaise) : "—",
+        credit: entry.creditPaise ? formatPaise(entry.creditPaise) : "—",
+        balance: formatPaise(entry.balancePaise),
+      }))}
+      openInvoices={open.map((i) => ({
+        id: String(i._id),
+        number: i.number ?? "draft",
+        outstanding: formatPaise(outstandingOf(i)),
+      }))}
+      invoices={invoices
+        .slice()
+        .reverse()
+        .map((i) => ({
+          id: String(i._id),
+          number: i.number,
+          date: formatISTDate(new Date(i.date)),
+          status: i.status,
+          total: formatPaise(i.totalPaise ?? 0),
+          outstanding: formatPaise(outstandingOf(i)),
+        }))}
+    />
+  );
+}
+
 function Placeholder({ tab }) {
-  const step = {
-    engagements: "Step 5",
-    documents: "Step 6",
-    invoices: "Step 8",
-    compliance: "Step 7",
-  }[tab];
+  const step = { compliance: "Step 7c" }[tab];
   return (
     <p className="rounded-ledger border-rule bg-surface text-14 text-ink-muted border p-6">
       This tab fills in at {step}.

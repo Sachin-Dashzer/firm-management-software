@@ -1,5 +1,6 @@
 // @ts-check
 
+import { cache } from "react";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { connectDB } from "@/lib/db";
@@ -143,12 +144,53 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 });
 
 /**
+ * The user record behind the session, read once per request.
+ *
+ * `cache()` is React's per-request memo, so twenty server components and
+ * five server actions in one request share a single lookup. One indexed
+ * `findById` against Atlas Mumbai from a function in the same region is a
+ * couple of milliseconds; the alternative is the bug below.
+ */
+const liveUser = cache(async (id) => {
+  await connectDB();
+  return User.findById(id)
+    .select("name email role branchIds isIntern active mustChangePassword")
+    .lean();
+});
+
+/**
  * The signed-in user as lib/permissions.js wants it, or null.
  * Server actions call `requireUser()` instead, which throws.
+ *
+ * **The session is not trusted for anything but identity.** A JWT is a
+ * frozen copy of whatever was true when it was issued, so a token says
+ * someone is still a Partner for up to thirty minutes after they were
+ * demoted, and still says they work here for thirty minutes after they
+ * left. Spec section 16 requires the opposite — "force logout of a user
+ * instantly when they leave the firm" — so the role, the branches and the
+ * right to be here all come from the database on every request, and only
+ * the user id comes from the cookie.
  */
 export async function currentUser() {
   const session = await auth();
-  return session?.user ?? null;
+  const id = session?.user?.id;
+  if (!id) return null;
+
+  const live = await liveUser(String(id));
+  // deactivated, or deleted outright: the session stops working now, not
+  // when its thirty minutes happen to run out
+  if (!live || live.active === false) return null;
+
+  return {
+    id: String(live._id),
+    name: live.name,
+    email: live.email,
+    role: live.role,
+    branchIds: (live.branchIds ?? []).map(String),
+    isIntern: Boolean(live.isIntern),
+    mustChangePassword: Boolean(live.mustChangePassword),
+    active: true,
+  };
 }
 
 /**

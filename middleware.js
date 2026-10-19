@@ -25,8 +25,18 @@ export function middleware(request) {
 }
 
 export const config = {
-  // everything except the login pages, the auth endpoints and static assets
+  /*
+   * Everything except the login pages, the auth endpoints, static assets —
+   * and `/upload/<token>`, the client document-request page (spec section 6),
+   * which is reached by people who have no account and never will.
+   *
+   * That page is public on purpose, so its own guard is the token: the
+   * actions behind it accept a long random token, check it against a stored
+   * hash, and will only ever write one file against one requested item.
+   * Nothing under /upload can read a document, list anything, or reach the
+   * rest of the app.
+   */
   matcher: [
-    "/((?!login|api/auth|_next/static|_next/image|favicon.ico|.*\.png$).*)",
+    "/((?!login|upload/|api/auth|_next/static|_next/image|favicon.ico|.*\.png$).*)",
   ],
 };
