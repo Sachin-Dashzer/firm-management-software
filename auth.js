@@ -6,7 +6,7 @@ import Credentials from "next-auth/providers/credentials";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
 import { decryptField } from "@/lib/crypto";
-import { readChallenge, verifyTotp } from "@/lib/twoFactor";
+import { readChallenge, verifyTotp, skip2fa } from "@/lib/twoFactor";
 import { audited } from "@/lib/audit/request";
 import { recordAudit, ACTIONS } from "@/lib/audit";
 
@@ -42,14 +42,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const user = await User.findById(userId).select(
           "+totpSecret +lastTotpCounter",
         );
-        if (!user || !user.active || !user.totpSecret) return null;
+        if (!user || !user.active) return null;
 
-        const result = verifyTotp({
-          secret: decryptField(user.totpSecret),
-          email: user.email,
-          code: String(code ?? ""),
-          lastCounter: user.lastTotpCounter,
-        });
+        const result = skip2fa()
+          ? { ok: true, counter: user.lastTotpCounter }
+          : user.totpSecret
+            ? verifyTotp({
+                secret: decryptField(user.totpSecret),
+                email: user.email,
+                code: String(code ?? ""),
+                lastCounter: user.lastTotpCounter,
+              })
+            : { ok: false };
         if (!result.ok) return null;
 
         const actor = {

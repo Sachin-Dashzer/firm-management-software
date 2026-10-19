@@ -10,6 +10,7 @@ import {
   totpQrDataUrl,
   readChallenge,
   verifyTotp,
+  skip2fa,
 } from "@/lib/twoFactor";
 import { audited } from "@/lib/audit/request";
 import { recordAudit, ACTIONS } from "@/lib/audit";
@@ -111,6 +112,8 @@ export async function startSignIn(input) {
   }
 
   const challenge = signChallenge(String(user._id));
+
+  if (skip2fa()) return { challenge, needsSetup: false, skip2fa: true };
 
   // First sign-in: 2FA is mandatory, so set it up now rather than letting the
   // account work without it. The secret is stored encrypted but not yet

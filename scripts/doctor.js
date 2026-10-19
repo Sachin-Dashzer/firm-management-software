@@ -114,6 +114,11 @@ export function checkEnv(env) {
       "Client email is ON and nothing is redirected: messages will reach real clients.",
     );
   }
+  if (env.AUTH_SKIP_2FA === "true") {
+    problems.push(
+      "AUTH_SKIP_2FA is on: the password alone signs anybody in. Remove it before go-live.",
+    );
+  }
   if (!env.JOBS_SECRET) {
     warnings.push(
       "JOBS_SECRET is not set, so the runner cannot be started over the web (DEPLOY.md §2 Option 2).",
@@ -166,9 +171,8 @@ async function checkVault() {
   const body = Buffer.from(`doctor ${new Date().toISOString()}`);
 
   if (driver === "local") {
-    const { putLocal, getLocal, removeLocal, vaultDir } = await import(
-      "../lib/storage/local.js"
-    );
+    const { putLocal, getLocal, removeLocal, vaultDir } =
+      await import("../lib/storage/local.js");
     try {
       await putLocal(key, body);
       const back = await getLocal(key);
@@ -177,7 +181,9 @@ async function checkVault() {
         fail("the local vault gave back different bytes than it was given");
         return 1;
       }
-      pass(`local driver: wrote, read and erased a probe file in ${vaultDir()}`);
+      pass(
+        `local driver: wrote, read and erased a probe file in ${vaultDir()}`,
+      );
       warn(
         "this is the development driver. Production uses the BigRock gateway.",
       );
@@ -206,9 +212,8 @@ async function checkVault() {
     return 1;
   }
 
-  const { getUploadTicket, getDownloadLink, remove } = await import(
-    "../lib/storage/index.js"
-  );
+  const { getUploadTicket, getDownloadLink, remove } =
+    await import("../lib/storage/index.js");
   try {
     const ticket = getUploadTicket({
       key,
@@ -252,9 +257,8 @@ async function checkVault() {
 async function readiness() {
   const { default: Branch } = await import("../models/Branch.js");
   const { default: DueDateRule } = await import("../models/DueDateRule.js");
-  const { default: ServiceTemplate } = await import(
-    "../models/ServiceTemplate.js"
-  );
+  const { default: ServiceTemplate } =
+    await import("../models/ServiceTemplate.js");
   const { default: Counter } = await import("../models/Counter.js");
   const { HEARTBEAT_ID } = await import("../lib/jobs/queue.js");
 
@@ -391,7 +395,10 @@ async function main() {
   process.exit(failures ? 1 : 0);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   main().catch((err) => {
     console.error(`\n${err?.stack ?? err}\n`);
     process.exit(1);

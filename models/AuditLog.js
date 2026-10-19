@@ -72,14 +72,13 @@ const FORBIDDEN = [
 ];
 
 for (const op of FORBIDDEN) {
-  auditLogSchema.pre(op, function refuse(next) {
-    next(new Error(`auditLogs is append-only: ${op} is not allowed`));
+  auditLogSchema.pre(op, function refuse() {
+    throw new Error(`auditLogs is append-only: ${op} is not allowed`);
   });
 }
 
-auditLogSchema.pre("save", function refuseEdit(next) {
-  if (!this.isNew) return next(new Error("auditLogs entries cannot be edited"));
-  next();
+auditLogSchema.pre("save", function refuseEdit() {
+  if (!this.isNew) throw new Error("auditLogs entries cannot be edited");
 });
 
 export default mongoose.models.AuditLog ??

@@ -34,6 +34,8 @@ export default function LoginForm() {
 
     if ("error" in result) return setError(result.error);
     setChallenge(result.challenge);
+    // AUTH_SKIP_2FA: the password was the whole of it
+    if (result.skip2fa) return finish(result.challenge, "");
     if (result.needsSetup) {
       setQr(result.qr ?? "");
       setSecret(result.secret ?? "");
@@ -56,8 +58,14 @@ export default function LoginForm() {
       }
     }
 
+    await finish(challenge, code);
+  }
+
+  /** The last stretch: swap the challenge for a session, then leave. */
+  async function finish(signedChallenge, code) {
+    setBusy(true);
     const result = await signIn("credentials", {
-      challenge,
+      challenge: signedChallenge,
       code,
       redirect: false,
     });

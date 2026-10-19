@@ -31,7 +31,7 @@ export function auditPlugin(schema, { entityType, clientIdField } = {}) {
 
   // --- create and edit through document.save() -----------------------------
 
-  schema.pre("save", function captureBefore(next) {
+  schema.pre("save", function captureBefore() {
     // modifiedPaths() is empty after save, so remember what changed now
     this.$locals.auditWasNew = this.isNew;
     this.$locals.auditBefore = this.isNew
@@ -40,7 +40,6 @@ export function auditPlugin(schema, { entityType, clientIdField } = {}) {
           this.modifiedPaths().map((path) => [path, this.get(path)]),
         );
     this.$locals.auditChangedPaths = this.modifiedPaths();
-    next();
   });
 
   schema.post("save", async function writeEntry(doc) {

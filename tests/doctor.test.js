@@ -25,6 +25,11 @@ describe("the pre-flight environment check", () => {
     expect(checkEnv(good())).toEqual({ problems: [], warnings: [] });
   });
 
+  it("refuses to pass go-live while 2FA is switched off", () => {
+    const { problems } = checkEnv(good({ AUTH_SKIP_2FA: "true" }));
+    expect(problems.join(" ")).toMatch(/AUTH_SKIP_2FA/);
+  });
+
   it("catches the connection string mistakes people actually make", () => {
     const missingDb = good({
       MONGODB_URI: "mongodb+srv://phmg-app:s3cret@phmg-crm.ab12c.mongodb.net",

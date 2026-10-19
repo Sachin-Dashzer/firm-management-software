@@ -201,7 +201,7 @@ clientSchema.virtual("displayName").get(function displayName() {
 });
 
 /** Exactly one contact is the primary one. */
-clientSchema.pre("validate", function onePrimaryContact(next) {
+clientSchema.pre("validate", function onePrimaryContact() {
   if (this.contacts?.length) {
     const primaries = this.contacts.filter((c) => c.primary);
     if (primaries.length === 0) this.contacts[0].primary = true;
@@ -211,11 +211,10 @@ clientSchema.pre("validate", function onePrimaryContact(next) {
       });
     }
   }
-  next();
 });
 
 /** On hold and Closed need a reason recorded (spec section 5 does the same). */
-clientSchema.pre("validate", function reasonRequired(next) {
+clientSchema.pre("validate", function reasonRequired() {
   if (
     ["On hold", "Closed"].includes(this.status) &&
     !String(this.statusReason ?? "").trim()
@@ -225,7 +224,6 @@ clientSchema.pre("validate", function reasonRequired(next) {
       `A client set to ${this.status} needs a reason`,
     );
   }
-  next();
 });
 
 export default mongoose.models.Client ?? mongoose.model("Client", clientSchema);

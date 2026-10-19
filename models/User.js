@@ -103,12 +103,11 @@ userSchema.virtual("twoFactorReady").get(function twoFactorReady() {
 });
 
 /** Interns always carry an articleship record (spec section 9). */
-userSchema.pre("validate", function requireArticleship(next) {
+userSchema.pre("validate", function requireArticleship() {
   if (this.role === "intern") this.isIntern = true;
   if (this.isIntern && !this.articleship) {
     this.invalidate("articleship", "An intern needs articleship details");
   }
-  next();
 });
 
 export default mongoose.models.User ?? mongoose.model("User", userSchema);
