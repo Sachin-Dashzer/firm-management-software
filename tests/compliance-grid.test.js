@@ -1,0 +1,164 @@
+import { describe, it, expect } from "vitest";
+import { periodsInYear, cellFor, buildGrid } from "../lib/compliance/grid.js";
+import { istDate } from "../lib/dates.js";
+
+/**
+ * The grid exists to answer one question at a glance: what did we not file?
+ * So the test that matters most is the difference between a period nobody
+ * created work for and a period where the work is simply not finished.
+ */
+
+const NOW = new Date("2026-10-17T06:00:00Z"); // 17 Oct 2026, IST afternoon
+
+describe("the columns of a financial year", () => {
+  it("gives twelve months, April first", () => {
+    const months = periodsInYear("monthly", 2026);
+    expect(months).toHaveLength(12);
+    expect(months[0].code).toBe("2026-04");
+    expect(months[0].short).toBe("Apr");
+    expect(months[11].code).toBe("2027-03");
+    expect(months[11].short).toBe("Mar");
+  });
+
+  it("gives four quarters on the Indian year", () => {
+    const quarters = periodsInYear("quarterly", 2026);
+    expect(quarters.map((q) => q.code)).toEqual([
+      "2026-Q1",
+      "2026-Q2",
+      "2026-Q3",
+      "2026-Q4",
+    ]);
+    expect(quarters[0].short).toBe("Q1");
+  });
+
+  it("gives two halves", () => {
+    expect(periodsInYear("half-yearly", 2026).map((h) => h.short)).toEqual([
+      "H1",
+      "H2",
+    ]);
+  });
+
+  it("gives one column for an annual service", () => {
+    const years = periodsInYear("annual", 2026);
+    expect(years).toHaveLength(1);
+    expect(years[0].code).toBe("FY2026-27");
+  });
+});
+
+describe("what a cell means", () => {
+  const past = { start: istDate(2026, 5, 1), end: istDate(2026, 6, 1) };
+  const future = { start: istDate(2027, 2, 1), end: istDate(2027, 3, 1) };
+
+  it("marks a period nobody created work for", () => {
+    const cell = cellFor(null, NOW, past);
+    expect(cell.state).toBe("missing");
+    expect(cell.title).toMatch(/ever created/);
+  });
+
+  it("does not mark a period that has not arrived yet", () => {
+    expect(cellFor(null, NOW, future).state).toBe("future");
+  });
+
+  it("does not call the period we are in a missing filing", () => {
+    // October's return is not a hole on 17 October: it is not due yet, and
+    // the generator only creates it a fortnight before it falls
+    const current = { start: istDate(2026, 10, 1), end: istDate(2026, 11, 1) };
+    expect(cellFor(null, NOW, current).state).toBe("current");
+  });
+
+  it("separates finished from filed-but-unsigned", () => {
+    expect(cellFor({ status: "Completed" }, NOW, past).state).toBe("done");
+    expect(cellFor({ status: "Filed / delivered" }, NOW, past).state).toBe(
+      "filed",
+    );
+  });
+
+  it("marks open work past its date as late, and before it as open", () => {
+    const overdue = {
+      status: "In progress",
+      statutoryDue: istDate(2026, 6, 20),
+    };
+    const ahead = {
+      status: "In progress",
+      statutoryDue: istDate(2026, 12, 20),
+    };
+    expect(cellFor(overdue, NOW, past).state).toBe("late");
+    expect(cellFor(ahead, NOW, past).state).toBe("open");
+  });
+
+  it("does not call work late when no date is known", () => {
+    // an unverified due-date rule leaves the date blank; that is not lateness
+    const undated = { status: "In progress", statutoryDue: null };
+    expect(cellFor(undated, NOW, past).state).toBe("open");
+  });
+
+  it("shows held and cancelled work as neither late nor done", () => {
+    expect(cellFor({ status: "On hold" }, NOW, past).state).toBe("held");
+    expect(cellFor({ status: "Cancelled" }, NOW, past).state).toBe("cancelled");
+  });
+});
+
+describe("the grid", () => {
+  const periods = periodsInYear("monthly", 2026);
+  const clients = [
+    { id: "c1", name: "Aggarwal Traders" },
+    { id: "c2", name: "Bhatia Textiles" },
+  ];
+
+  it("lines engagements up with their client and period", () => {
+    const grid = buildGrid({
+      clients,
+      periods,
+      now: NOW,
+      engagements: [
+        { _id: "e1", clientId: "c1", period: "2026-04", status: "Completed" },
+        { _id: "e2", clientId: "c1", period: "2026-05", status: "Completed" },
+        {
+          _id: "e3",
+          clientId: "c2",
+          period: "2026-04",
+          status: "In progress",
+          statutoryDue: istDate(2026, 5, 20),
+        },
+      ],
+    });
+
+    expect(grid.rows[0].cells[0].state).toBe("done");
+    expect(grid.rows[0].cells[0].engagementId).toBe("e1");
+    expect(grid.rows[1].cells[0].state).toBe("late");
+  });
+
+  it("counts the holes, which is the number worth seeing", () => {
+    const grid = buildGrid({
+      clients,
+      periods,
+      now: NOW,
+      engagements: [
+        { _id: "e1", clientId: "c1", period: "2026-04", status: "Completed" },
+      ],
+    });
+
+    // Apr to Sep have ended: c1 is missing five of them, c2 all six.
+    // October is in progress and counts against nobody.
+    expect(grid.rows[0].missing).toBe(5);
+    expect(grid.rows[1].missing).toBe(6);
+    expect(grid.totalMissing).toBe(11);
+    expect(grid.rows[0].cells.filter((c) => c.state === "future")).toHaveLength(
+      5,
+    );
+    expect(
+      grid.rows[0].cells.filter((c) => c.state === "current"),
+    ).toHaveLength(1);
+  });
+
+  it("leaves a client with nothing at all fully marked", () => {
+    const grid = buildGrid({
+      clients: [{ id: "c9", name: "Never Filed Ltd" }],
+      periods,
+      now: NOW,
+      engagements: [],
+    });
+    expect(grid.totalMissing).toBe(6);
+    expect(grid.totalLate).toBe(0);
+  });
+});
