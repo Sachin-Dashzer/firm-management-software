@@ -104,12 +104,26 @@ export async function startSignIn(input) {
   // First sign-in: 2FA is mandatory, so set it up now rather than letting the
   // account work without it. The secret is stored encrypted but not yet
   // enabled; it only counts once a code from it has been accepted.
-  if (!user.totpSecret) {
-    const secret = newTotpSecret();
-    await User.updateOne(
-      { _id: user._id },
-      { $set: { totpSecret: encryptField(secret), totpEnabledAt: null } },
-    );
+  //
+  // A secret that exists but was never enabled means an abandoned setup, so
+  // show that same secret again — regenerating would orphan the entry they
+  // may already have scanned, and showing no QR leaves them with nothing.
+  // A secret we can no longer decrypt — the encryption key changed — is dead
+  // weight, not a lockout: it was never enabled, so replace it.
+  if (!user.totpEnabledAt) {
+    let secret;
+    try {
+      secret = user.totpSecret ? decryptField(user.totpSecret) : null;
+    } catch {
+      secret = null;
+    }
+    if (!secret) {
+      secret = newTotpSecret();
+      await User.updateOne(
+        { _id: user._id },
+        { $set: { totpSecret: encryptField(secret), totpEnabledAt: null } },
+      );
+    }
     return {
       challenge,
       needsSetup: true,
@@ -118,7 +132,7 @@ export async function startSignIn(input) {
     };
   }
 
-  return { challenge, needsSetup: !user.totpEnabledAt };
+  return { challenge, needsSetup: false };
 }
 
 /**
