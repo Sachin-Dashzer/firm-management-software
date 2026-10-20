@@ -31,6 +31,8 @@ import ClientService from "../models/ClientService.js";
 import ClientAccess from "../models/ClientAccess.js";
 import Engagement from "../models/Engagement.js";
 import ServiceTemplate from "../models/ServiceTemplate.js";
+import Dsc from "../models/Dsc.js";
+import Udin from "../models/Udin.js";
 import { hashPassword } from "../lib/crypto.js";
 import { systemAudit } from "../lib/audit/system.js";
 import { gstinCheckDigit } from "../lib/validators.js";
@@ -72,6 +74,15 @@ export const SAMPLE_PEOPLE = [
     reportsTo: null, // a partner, filled in from the live partner account
     joiningDate: "2019-06-17",
     skills: ["Statutory audit", "Tax audit", "Direct tax"],
+    // a member record (P2-6), so the UDIN register has a membership number
+    // to snapshot and the ICAI screen has something to show
+    icai: {
+      membershipNo: "412345",
+      grade: "FCA",
+      admittedOn: "2014-09-12",
+      copHeld: true,
+      copFrom: "2015-04-01",
+    },
   },
   {
     key: "ca-ludhiana",
@@ -83,6 +94,13 @@ export const SAMPLE_PEOPLE = [
     reportsTo: null,
     joiningDate: "2021-02-01",
     skills: ["GST", "Company law", "Registrations"],
+    icai: {
+      membershipNo: "536712",
+      grade: "ACA",
+      admittedOn: "2020-01-23",
+      copHeld: true,
+      copFrom: "2020-03-15",
+    },
   },
   {
     key: "emp-noida",
@@ -388,6 +406,55 @@ export const SAMPLE_GRANTS = [
 ];
 
 /**
+ * Digital signature certificates, deferred here from P2-2b because the
+ * register did not exist then (P2-7).
+ *
+ * One expiring inside the month, so the dashboard tile and the dscExpiring
+ * reminder both have something real to act on, and one comfortably valid so
+ * the register is not all red.
+ */
+export const SAMPLE_DSCS = [
+  {
+    client: "jaiswal",
+    holderName: "Rohit Jaiswal",
+    holderRole: "Managing Director",
+    certClass: "Class 3",
+    issuer: "eMudhra",
+    inDays: 24,
+    forYears: 2,
+    heldBy: "client",
+    note: "Used for MCA and GST filings",
+  },
+  {
+    client: "tandon",
+    holderName: "Sunita Tandon",
+    holderRole: "Designated Partner",
+    certClass: "Class 3",
+    issuer: "Capricorn",
+    inDays: 420,
+    forYears: 2,
+    heldBy: "client",
+    note: "",
+  },
+];
+
+/**
+ * UDINs against the sample work. Eighteen characters each, in the ICAI's
+ * shape — invented, like every other identifier here, but correctly formed
+ * so the register and its duplicate check behave as they will in earnest.
+ */
+export const SAMPLE_UDINS = [
+  {
+    // the completed engagement, which is the one that would carry a UDIN
+    engagement: 1,
+    udin: "26412345ABCDEF7890",
+    documentType: "Net worth certificate",
+    member: "ca-noida",
+    backDays: 20,
+  },
+];
+
+/**
  * Write the lot. Idempotent: people are matched on email and clients on PAN,
  * so running it twice adds nothing.
  *
@@ -460,6 +527,15 @@ export async function seedSample(options = {}) {
             ),
             mustChangePassword: true,
             isIntern: person.role === "intern",
+            icai: person.icai
+              ? {
+                  membershipNo: person.icai.membershipNo,
+                  grade: person.icai.grade,
+                  admittedOn: new Date(person.icai.admittedOn),
+                  copHeld: person.icai.copHeld,
+                  copFrom: new Date(person.icai.copFrom),
+                }
+              : undefined,
             articleship: person.articleship
               ? {
                   icaiRegNo: person.articleship.icaiRegNo,
@@ -736,11 +812,100 @@ export async function seedSample(options = {}) {
     log(`grant   ${row.user} → ${row.client} (${row.sections.length})`);
   }
 
+  // --- digital signature certificates (P2-7) ------------------------------
+  for (const row of SAMPLE_DSCS) {
+    const client = await Client.findById(clientId.get(row.client)).lean();
+    if (!client) continue;
+
+    const validTill = new Date(now.getTime() + row.inDays * 86_400_000);
+    const exists = await Dsc.findOne({
+      clientId: client._id,
+      holderName: row.holderName,
+    })
+      .select("_id")
+      .lean();
+    if (exists) continue;
+
+    await systemAudit(async (session) => {
+      await Dsc.create(
+        [
+          {
+            clientId: client._id,
+            branchId: client.branchId,
+            holderName: row.holderName,
+            holderRole: row.holderRole,
+            certClass: row.certClass,
+            issuer: row.issuer,
+            validFrom: new Date(
+              validTill.getTime() - row.forYears * 365 * 86_400_000,
+            ),
+            validTill,
+            heldBy: row.heldBy,
+            note: row.note,
+            createdBy: "sample",
+            updatedBy: "sample",
+          },
+        ],
+        { session },
+      );
+    });
+    log(`dsc     ${row.holderName} — expires in ${row.inDays} days`);
+  }
+
+  // --- the UDIN register (P2-7) -------------------------------------------
+  for (const row of SAMPLE_UDINS) {
+    const plan = SAMPLE_ENGAGEMENTS[row.engagement];
+    const subscription = plan && subscriptions[plan.subscription];
+    if (!subscription) continue;
+
+    const engagement = await Engagement.findOne({
+      clientId: subscription.clientId,
+      serviceTemplateId: subscription.template._id,
+    })
+      .sort({ createdAt: 1 })
+      .session(null);
+    if (!engagement) continue;
+
+    const exists = await Udin.findOne({ udin: row.udin }).select("_id").lean();
+    if (exists) continue;
+
+    const member = await User.findById(personId.get(row.member))
+      .select("icai")
+      .lean();
+
+    await systemAudit(async (session) => {
+      await Udin.create(
+        [
+          {
+            udin: row.udin,
+            clientId: engagement.clientId,
+            engagementId: engagement._id,
+            branchId: engagement.branchId,
+            memberId: personId.get(row.member),
+            membershipNo: member?.icai?.membershipNo ?? "",
+            documentType: row.documentType,
+            generatedOn: new Date(now.getTime() - row.backDays * 86_400_000),
+            createdBy: "sample",
+            updatedBy: "sample",
+          },
+        ],
+        { session },
+      );
+
+      // the engagement's own field is a copy of the register (P2-7)
+      engagement.udin = row.udin;
+      await engagement.save({ session });
+    });
+    log(`udin    ${row.udin} — ${row.documentType}`);
+  }
+
   return {
     people: SAMPLE_PEOPLE.length,
     clients: SAMPLE_CLIENTS.length,
     services: subscriptions.filter(Boolean).length,
     grants: SAMPLE_GRANTS.length,
+    dscs: SAMPLE_DSCS.length,
+    udins: SAMPLE_UDINS.length,
   };
 }
 
@@ -769,6 +934,15 @@ export async function dropSample() {
     }
     for (const sub of await ClientService.find({ clientId: client._id })) {
       await systemAudit((session) => sub.softDelete("sample", { session }));
+      removed += 1;
+    }
+    // the registers (P2-7)
+    for (const row of await Dsc.find({ clientId: client._id })) {
+      await systemAudit((session) => row.softDelete("sample", { session }));
+      removed += 1;
+    }
+    for (const row of await Udin.find({ clientId: client._id })) {
+      await systemAudit((session) => row.softDelete("sample", { session }));
       removed += 1;
     }
     await systemAudit((session) => client.softDelete("sample", { session }));

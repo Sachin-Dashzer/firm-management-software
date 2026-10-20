@@ -4,14 +4,17 @@ import Engagement from "../models/Engagement.js";
 import Client from "../models/Client.js";
 import Invoice from "../models/Invoice.js";
 import DocRequest from "../models/DocRequest.js";
+import Dsc from "../models/Dsc.js";
 import MessageLog from "../models/MessageLog.js";
 import { connectDB } from "../lib/db.js";
 import { loadRules } from "../lib/mailer/rules.js";
 import { notify, peopleFor } from "../lib/mailer/notify.js";
 import { mailSettings } from "../lib/mailer/guard.js";
 import { TEMPLATES } from "../lib/mailer/templates.js";
+import { startOfISTDay } from "../lib/dates.js";
 import {
   documentReminders,
+  dscReminders,
   engagementReminders,
   invoiceReminders,
   perRecipient,
@@ -145,6 +148,57 @@ export async function reminders(options = {}) {
         now,
       ),
     );
+  }
+
+  // --- digital signature certificates about to lapse (P2-7) --------------
+  /**
+   * Only the ones inside the widest notice period the firm has set, so a
+   * register of hundreds costs one small query. Expired certificates are not
+   * fetched at all: `dscReminders` would refuse them anyway, and the register
+   * is where somebody looks at what has already lapsed.
+   */
+  const dscRule = rules.dscExpiring;
+  const dscNotice = Math.max(0, ...(dscRule?.daysBefore ?? [0]));
+  const certificates =
+    dscRule?.enabled && dscNotice > 0
+      ? await Dsc.find({
+          deletedAt: null,
+          validTill: {
+            $gte: startOfISTDay(now),
+            $lte: new Date(
+              startOfISTDay(now).getTime() + (dscNotice + 1) * 86_400_000,
+            ),
+          },
+        })
+          .sort({ validTill: 1 })
+          .limit(limit)
+          .lean()
+      : [];
+
+  if (certificates.length > 0) {
+    const dscClients = await Client.find({
+      _id: { $in: certificates.map((row) => row.clientId) },
+    })
+      .select("legalName tradeName clientPartnerId relationshipManagerId")
+      .lean();
+    const dscClientById = new Map(dscClients.map((c) => [String(c._id), c]));
+
+    for (const dsc of certificates) {
+      const client = dscClientById.get(String(dsc.clientId));
+      planned.push(
+        ...dscReminders(
+          {
+            dsc,
+            clientName: client?.tradeName || client?.legalName,
+            // the client's partner and their own CA: the two people who
+            // would make the call
+            userIds: [client?.clientPartnerId, client?.relationshipManagerId],
+          },
+          rules,
+          now,
+        ),
+      );
+    }
   }
 
   /**

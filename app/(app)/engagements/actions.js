@@ -33,6 +33,11 @@ import {
   BULK_APPROVE_LIMIT,
 } from "@/lib/engagements/status";
 import { canExecute, tierOf } from "@/lib/services/catalog";
+import {
+  checkUdinShape,
+  linkUdinToEngagement,
+  unlinkUdinFromEngagement,
+} from "@/lib/practice/udin";
 
 /**
  * Everything that changes an engagement (spec section 5).
@@ -591,19 +596,62 @@ export async function saveFiling(id, formData) {
     .trim()
     .toUpperCase();
   // UDIN is 18 characters: the ICAI format, checked for shape only
-  if (udin && !/^[0-9A-Z]{18}$/.test(udin)) {
+  if (udin && !checkUdinShape(udin).ok) {
     return { error: "A UDIN is 18 letters and digits." };
   }
 
-  await audited(actor, async (session) => {
-    engagement.ackNo = ackNo;
-    engagement.udin = udin;
-    engagement.updatedBy = actor.id;
-    await engagement.save({ session });
-  });
+  const before = engagement.udin ?? "";
+
+  /**
+   * The register is the record and this field is a copy of it (P2-7), so the
+   * two are written together or not at all. A number already recorded
+   * against other work is refused by name, which is what a register is for.
+   */
+  const member = udin ? await signingMember(actor) : null;
+
+  try {
+    await audited(actor, async (session) => {
+      if (udin && udin !== before) {
+        const linked = await linkUdinToEngagement(
+          { udin, engagement, actor, member },
+          session,
+        );
+        // throwing is what takes the audit entry back with it
+        if (!linked.ok) throw new Error(linked.error);
+      }
+      if (!udin && before) {
+        await unlinkUdinFromEngagement(engagement, actor, session);
+      }
+
+      engagement.ackNo = ackNo;
+      engagement.udin = udin;
+      engagement.updatedBy = actor.id;
+      await engagement.save({ session });
+    });
+  } catch (err) {
+    return { error: err.message };
+  }
 
   revalidatePath(`/engagements/${id}`);
+  revalidatePath("/practice/udin");
   return { ok: "Filing details saved." };
+}
+
+/**
+ * The member a UDIN is recorded against.
+ *
+ * A UDIN is generated on the ICAI portal against a member's own membership,
+ * so the person saving it is recorded when they are one. Somebody who is not
+ * a member — an employee typing in what the partner generated — leaves it
+ * blank rather than claiming it, and the register screen can set it.
+ */
+async function signingMember(actor) {
+  if (!["ca", "partner"].includes(actor.role)) return null;
+  const person = await User.findById(actor.id).select("icai").lean();
+  return {
+    id: actor.id,
+    membershipNo: person?.icai?.membershipNo ?? "",
+  };
 }
 
 /** Priority and tags: small edits that do not move the pipeline. */

@@ -48,7 +48,7 @@ reason, including the security fixes in P2-1.
 | P2-4 | A/B/C labels and `TierBadge` everywhere · per-step `minRole` and `assignTask` · the four enforcement gaps · C-tier bulk approve | 🟡 | Built 19-10-2026. **An A-tier job could be signed off by a CA, and any step was tickable by anybody on the engagement.** Also: tier counts per person, brought over from P2-3. Needs Atlas to run; 8 Playwright tests waiting |
 | P2-5 | Client 360: the new tab set, tab counts, outstanding balance in the header, Compliance tab filled | 🟡 | Built 19-10-2026. Tab set kept at the eight that exist (owner, D10), with counts. The firm grid and the client grid are now one component. Includes "who works on this client", deferred from P2-2. Needs Atlas to run; 8 Playwright tests waiting |
 | P2-6 | `FirmSettings` · ICAI page · `User.icai` · CPE log · ICAI notes | 🟡 | Built 19-10-2026. **The firm had no record of itself: its name was a literal in fifteen files and its FRN nowhere.** Now one document, wired into invoices, reports, exports, emails and the client upload page. No ICAI requirement is assumed (owner, D11). Needs Atlas to run; 6 Playwright tests waiting |
-| P2-7 | UDIN register (and engagement sync) · DSC register (and `dsc_expiring` rule, dashboard tile) | ⬜ | |
+| P2-7 | UDIN register (and engagement sync) · DSC register (and `dscExpiring` rule, dashboard tile) | 🟡 | Built 19-10-2026. **A UDIN was a free-text field: the same number could sit on two jobs.** The register is now the record and the engagement field a copy of it, written in one transaction. DSC is expiry-only (owner, D12). Includes the sample UDIN and DSC rows deferred from P2-2b. Needs Atlas to run; 8 Playwright tests waiting |
 | P2-8a | Audits · Statutory · Tax page, plus the `assurance` fields and `filedOn` | ⬜ | |
 | P2-8b | Based Docs: `DocTemplate`, `lib/docs/resolve.js`, `templatePdf.jsx`, draft/final tier rules, 8 draft templates, template admin | ⬜ | |
 | P2-8c | DOCX output | ⬜ | Needs the `docx` dependency — owner approval first |
@@ -224,6 +224,14 @@ Not started (spec §17).
 | 19-10-2026 | The CPE log is a **subdocument on the user**, not a collection: a couple of dozen entries a year, always read with the person, and spec §13 fixes the collection list | Agent |
 | 19-10-2026 | A CPE year runs on the basis the firm picks (January–December or April–March). The rest of the app is April–March, but a CPE block is the ICAI's year and not ours to assume | Agent, owner to confirm |
 | 19-10-2026 | Everybody may **read** the firm record (it is the letterhead, and somebody filling in a form needs the FRN); only a Partner changes it. The new `firmProfile` area is the one P2-1 said would arrive with this model | Agent |
+| 19-10-2026 | **D12: the DSC register is expiry only.** The firm does not hold clients' tokens, so there is no custody and no movements log — and P2-1's note about an employee recording movements is obsolete | Owner |
+| 19-10-2026 | **The UDIN register is the record and the engagement field is a copy of it**, both written in one transaction. A number already against other work is refused by name, behind a unique index so a race cannot produce two | Agent |
+| 19-10-2026 | Clearing a UDIN on an engagement **unlinks** its register row; revoking marks it. Neither deletes: a number generated on the portal exists whether or not we still think it belongs there | Agent |
+| 19-10-2026 | A UDIN records **the member it was generated against**, with their membership number snapshotted, because a UDIN belongs to a member's membership and the row must survive them leaving | Agent |
+| 19-10-2026 | **No DSC PIN is stored anywhere.** It is a credential (CLAUDE.md rule 7) and belongs in the client's encrypted vault, not on a register half the firm can read | Agent |
+| 19-10-2026 | `dscExpiring` is **internal**: the firm cannot renew a client's certificate for them, so the reminder goes to the client partner and their CA. It fires on the notice periods and once on the day, then stops | Agent, owner to confirm |
+| 19-10-2026 | The DSC dashboard tile is **absent when nothing is expiring**, rather than showing a zero. A figure that never moves stops being read | Agent |
+| 19-10-2026 | The ICAI's own document-type categories are **not modelled** on the UDIN register: what was signed is the firm's own words, since inventing the list would be a guess (CLAUDE.md rule 8) | Agent, owner to confirm |
 
 ## What P2-0 found
 
@@ -503,6 +511,86 @@ person's password for good.
   screen, offboarding blocked by open work, and offboarding going through with
   the account dead, the grants revoked, the email reusable and the engagement
   still carrying their name.
+
+## What P2-7 built
+
+Two registers the firm is expected to be able to produce, and neither existed.
+
+**The UDIN register.** Spec section 16 requires a UDIN against every
+certificate, audit report and attestation. Until now there was **one
+free-text field on an engagement**: the same number could be typed against
+two jobs with nothing noticing, a certificate issued outside any engagement
+had nowhere to live, and "what have we signed this year" had no answer at all.
+
+- `models/Udin.js`, one row per number, with the client, the engagement where
+  there is one, what was signed, the date — and **the member it was generated
+  against**, because a UDIN belongs to a member's own membership and not to a
+  firm. The membership number is snapshotted, so the row stays readable after
+  somebody leaves.
+- **The register is the record; the engagement's field is a copy of it.** Both
+  are written in the same transaction as the audit entry (CLAUDE.md rule 2),
+  through `lib/practice/udin.js`, whichever door the number came in by — the
+  filing panel on an engagement or the register screen.
+- **A number already recorded against other work is refused, by name.** A
+  unique partial index backs the check, so two people saving the same number
+  at the same moment cannot both win: the second loses at the database rather
+  than both appearing to succeed.
+- Clearing a UDIN on an engagement **unlinks the row rather than deleting
+  it**, with a note saying so. A number generated on the portal exists
+  whether or not we still think it belongs there, and deleting the row would
+  destroy the firm's only record of having signed something.
+- Revoking is a state, not a deletion: the row stays, struck through, with
+  the reason and the date. Somebody reading an old file needs to see both the
+  number and that it was withdrawn.
+- **Nothing here generates a UDIN.** The portal does; this records what it
+  gave. The 18-character shape is checked and nothing more.
+
+**The DSC register** — **expiry only** (owner decision D12). The firm does not
+hold clients' tokens, so there is no custody and no movements log, and P2-1's
+permission note about an employee recording movements is now obsolete. One
+question answered: whose certificate is about to run out.
+
+- `models/Dsc.js` — the holder (a person, not the company: a company's filings
+  are signed by a director's certificate), their role, the class, the
+  certifying authority, the dates, and one `heldBy` fact. Sorted by what
+  expires first, which is the only order anybody wants it in.
+- **No PIN, ever.** A PIN is a credential and CLAUDE.md rule 7 puts those in
+  the encrypted vault, not on a register half the firm can read. The screen
+  says so, so nobody adds one to the note field.
+- The same person's certificate with the same expiry twice is refused: that is
+  somebody entering it again, and a register with two of everything is read by
+  nobody.
+- **A `dscExpiring` rule** in the same shape as every other reminder — the
+  firm sets the notice periods (30 and 7 days to start), and it goes to the
+  client partner and the client's own CA. **Internal, by design**: the firm
+  cannot renew a client's certificate for them, but being the one who noticed
+  is the service. It fires on each notice period and once on the day itself,
+  then stops — a daily email about a certificate that has already lapsed is
+  noise, and the register shows it in red for as long as it sits there.
+- **A dashboard tile** for a partner and a CA, counted within their own
+  branches and linking to the filter it counted. It is **absent when nothing
+  is expiring**: a tile reading zero that never moves is furniture.
+- The register filters to one client, and the client's own case file carries a
+  line into it — a count and the next expiry, not a second copy of the list.
+
+**Sample data**, the piece P2-2b deferred here: two certificates (one inside
+the month, so the tile and the reminder both have something real to act on),
+one UDIN against the completed engagement, and **membership numbers for the
+two sample CAs**, which the ICAI screen from P2-6 had nothing to show without.
+
+- Tests: 22 new Vitest tests (702 total) — the UDIN shape accepted and four
+  ways refused; the expiry boundary (the thirtieth day out is "soon", the
+  thirty-first is not, and a certificate is never called expired while it is
+  still good); a reminder on each notice period, silence on every other day,
+  once on the day itself, and **silence for ever after it lapses**; the rule
+  switched off planning nothing; the composed message being `team` audience so
+  it is never held back with client email; and the sample rows' own
+  consistency, including that the seeded UDIN sits on work that is finished.
+  8 new Playwright tests waiting on Atlas (4 × 2 projects): a UDIN typed on an
+  engagement appearing in the register with the member's number snapshotted,
+  **the same number refused on a second engagement with nothing half-written**,
+  a revocation keeping the row, and a certificate added, refused as a
+  duplicate, then counted on the dashboard and opened from it.
 
 ## What P2-6 built
 
@@ -1005,6 +1093,41 @@ From spec §18 — none answered yet. These block later steps, not Step 0:
 - [ ] `notices@` mailbox + SPF/DKIM/DMARC (Step 9)
 
 ## Left over / known gaps
+
+**From P2-7**
+
+- **Nothing here has run against a database**, like every step since Step 1.
+  The UDIN shape, the expiry arithmetic and the reminder's timing are
+  unit-tested; the 8 Playwright tests — including the one that matters, the
+  same UDIN refused on a second engagement — wait on Atlas.
+- **P2-1's permission comment for `dsc` is now wrong**: it says an employee
+  may record a token's movements, and there are no movements (owner decision
+  D12). The row itself still reads sensibly — an employee may add and correct
+  a certificate in their own scope — but the comment should be corrected when
+  P2-10b builds the permissions screen that quotes it.
+- **A UDIN is recorded against the member who saved it**, if they are a member
+  at all. An employee entering what a partner generated leaves it blank rather
+  than claiming it, and the register screen is where it gets set — so a number
+  entered by an employee and never revisited has no member against it.
+- **The UDIN register has no export.** Spec §17 wants Excel on every list and
+  this one is a list the ICAI might ask about; it was left out because the
+  report set is P2-10c, where it belongs beside the others.
+- Recording a UDIN from the register screen takes an **engagement id typed in
+  by hand**, because the usual way round is the engagement's own filing panel.
+  A picker would need the client's engagements loaded as the client changes —
+  worth doing if anybody actually works that way round.
+- **A renewed DSC is a new row.** Nothing links the replacement to the
+  certificate it replaced, so the register shows both until the old one is
+  taken off. Say if a renewal chain matters.
+- **No reminder about the firm's own certificates** — the register is for
+  clients' DSCs. If the firm holds its own, it is a client-less row the model
+  does not allow.
+- The `dscExpiring` rule has **never fired**, like every other reminder: the
+  sweep has not run against a database.
+- The dashboard tile counts certificates **expiring within 30 days**, a fixed
+  window, while the reminder uses the firm's own notice periods. Deliberate —
+  a tile that moved with the settings would be harder to read than one that
+  always means the same thing — but they can disagree about what "soon" is.
 
 **From P2-6**
 

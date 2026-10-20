@@ -42,6 +42,8 @@ import { StatusChip as EngagementStatusChip } from "../../engagements/chips";
 import FolderTabs from "@/components/clients/FolderTabs";
 import DataRights from "./DataRights";
 import ClientAccess from "@/models/ClientAccess";
+import Dsc from "@/models/Dsc";
+import { dscState } from "@/lib/practice/dsc";
 import TeamAccess from "./TeamAccess";
 
 export const dynamic = "force-dynamic";
@@ -280,6 +282,7 @@ export default async function ClientPage({ params, searchParams }) {
           seeIdentifiers={seeIdentifiers}
           seeVault={seeVault}
           mayEditVault={can(actor, "edit", "clientCredentials", scope)}
+          seeDsc={can(actor, "view", "dsc", scope)}
           clientId={id}
         />
       )}
@@ -347,7 +350,14 @@ async function Overview({
   seeVault,
   mayEditVault,
   clientId,
+  seeDsc,
 }) {
+  /**
+   * Their digital signature certificates (P2-7). A line and a link rather
+   * than a panel: the register is one list for the whole firm, and a second
+   * copy of it here would be a second thing to keep right.
+   */
+  const dsc = seeDsc ? await dscSummary(clientId) : null;
   const credentials = seeVault
     ? await ClientCredential.find({ clientId })
         .select("portal label username lastRevealedAt")
@@ -414,6 +424,29 @@ async function Overview({
         />
         {client.tags?.length > 0 && (
           <Row label="Tags" value={client.tags.join(", ")} />
+        )}
+        {dsc && (
+          <div className="border-rule flex items-baseline justify-between gap-3 border-t py-1.5">
+            <span className="text-13 text-ink-muted">Signature certs</span>
+            <Link
+              href={`/practice/dsc?client=${clientId}`}
+              className="text-14 underline underline-offset-4"
+            >
+              {dsc.count === 0 ? (
+                "none on the register"
+              ) : (
+                <>
+                  {dsc.count} on the register
+                  {dsc.nextLabel && (
+                    <span className={dsc.soon ? "text-waiting" : ""}>
+                      {" · "}
+                      {dsc.nextLabel}
+                    </span>
+                  )}
+                </>
+              )}
+            </Link>
+          </div>
         )}
       </Panel>
 
@@ -1041,6 +1074,29 @@ async function ComplianceTab({ clientId, fy, only }) {
       totalMissing={sections.reduce((sum, s) => sum + s.grid.totalMissing, 0)}
     />
   );
+}
+
+/**
+ * How many certificates this client has on the register, and when the next
+ * one runs out. Two numbers, not a list: the register is the list.
+ *
+ * @param {string} clientId
+ */
+async function dscSummary(clientId) {
+  const [count, next] = await Promise.all([
+    Dsc.countDocuments({ clientId }),
+    Dsc.findOne({ clientId, validTill: { $gte: new Date() } })
+      .sort({ validTill: 1 })
+      .select("validTill")
+      .lean(),
+  ]);
+
+  const state = next ? dscState(next.validTill) : null;
+  return {
+    count,
+    nextLabel: state ? `next expires ${formatISTDate(next.validTill)}` : "",
+    soon: state ? ["soon", "today"].includes(state.state) : false,
+  };
 }
 
 /**

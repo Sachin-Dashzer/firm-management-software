@@ -37,6 +37,10 @@ export function TileRow({ tiles }) {
                   : ""
             }`}
           />
+          {/* a tile that needs a word of explanation may have one */}
+          {tile.note && (
+            <span className="text-12 text-ink-muted">{tile.note}</span>
+          )}
         </Link>
       ))}
     </div>

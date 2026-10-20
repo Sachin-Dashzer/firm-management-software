@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   SAMPLE_PEOPLE,
+  SAMPLE_DSCS,
+  SAMPLE_UDINS,
   SAMPLE_CLIENTS,
   SAMPLE_SERVICES,
   SAMPLE_GRANTS,
+  SAMPLE_ENGAGEMENTS,
   SAMPLE_DOMAIN,
   makeGstin,
 } from "@/scripts/sample.js";
+import { checkUdinShape } from "@/lib/practice/udin";
 import {
   checkPAN,
   checkGSTIN,
@@ -250,5 +254,57 @@ describe("the sample grants", () => {
       (p) => SAMPLE_CLIENTS.map((c) => `${p.key}:${c.key}`),
     );
     expect(pairs.some((pair) => !granted.has(pair))).toBe(true);
+  });
+});
+
+describe("the registers in the sample data (P2-7)", () => {
+  it("gives every member a membership number to snapshot", () => {
+    const members = SAMPLE_PEOPLE.filter((p) =>
+      ["ca", "partner"].includes(p.role),
+    );
+    for (const member of members.filter((m) => m.icai)) {
+      expect(member.icai.membershipNo).toMatch(/^\d{5,6}$/);
+      expect(["ACA", "FCA"]).toContain(member.icai.grade);
+      // a Certificate of Practice cannot predate admission
+      expect(
+        new Date(member.icai.copFrom) >= new Date(member.icai.admittedOn),
+      ).toBe(true);
+    }
+  });
+
+  it("has one certificate expiring soon and one that is not", () => {
+    const soon = SAMPLE_DSCS.filter((row) => row.inDays <= 30);
+    const later = SAMPLE_DSCS.filter((row) => row.inDays > 30);
+    // the dashboard tile and the dscExpiring rule both need something real
+    expect(soon).toHaveLength(1);
+    expect(later.length).toBeGreaterThan(0);
+  });
+
+  it("names a real client and a real holder on every certificate", () => {
+    const clients = new Set(SAMPLE_CLIENTS.map((c) => c.key));
+    for (const row of SAMPLE_DSCS) {
+      expect(clients).toContain(row.client);
+      expect(row.holderName.length).toBeGreaterThan(3);
+      expect(row.inDays).toBeGreaterThan(0);
+    }
+  });
+
+  it("seeds UDINs in the ICAI's shape, against work that exists", () => {
+    for (const row of SAMPLE_UDINS) {
+      expect(checkUdinShape(row.udin).ok).toBe(true);
+      expect(SAMPLE_ENGAGEMENTS[row.engagement]).toBeTruthy();
+      // a UDIN belongs to a member, and the one named has to be one
+      const member = byKey.get(row.member);
+      expect(["ca", "partner"]).toContain(member.role);
+      expect(member.icai?.membershipNo).toBeTruthy();
+      // and it was generated in the past
+      expect(row.backDays).toBeGreaterThan(0);
+    }
+  });
+
+  it("puts the UDIN on work that is finished, not on a job in progress", () => {
+    for (const row of SAMPLE_UDINS) {
+      expect(SAMPLE_ENGAGEMENTS[row.engagement].status).toBe("Completed");
+    }
   });
 });

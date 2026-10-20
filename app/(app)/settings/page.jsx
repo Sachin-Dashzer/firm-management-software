@@ -29,6 +29,20 @@ const SECTIONS = [
     action: "edit",
   },
   {
+    href: "/practice/udin",
+    title: "UDIN register",
+    body: "Every number the firm has signed against, by year — and what became of it.",
+    area: "udin",
+    action: "view",
+  },
+  {
+    href: "/practice/dsc",
+    title: "DSC register",
+    body: "Whose digital signature certificate expires when, so nobody is caught out mid-filing.",
+    area: "dsc",
+    action: "view",
+  },
+  {
     href: "/settings/icai",
     title: "ICAI",
     body: "The firm's own record — name, registration number, peer review — who holds what membership, and the CPE log.",

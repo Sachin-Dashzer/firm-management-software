@@ -13,6 +13,7 @@ import {
   reworkRate,
   paymentsToday,
   tdsPending,
+  dscExpiringTile,
 } from "@/lib/reports/figures";
 import { deadlineTerrain } from "@/lib/reports/terrain";
 import FirmOverview from "./FirmOverview";
@@ -41,6 +42,16 @@ export default async function RoleDashboard({ actor, now }) {
 
   if (!wantsFirm && !wantsReview && !wantsBilling) return null;
 
+  /**
+   * A certificate about to lapse belongs on the dashboard of whoever would
+   * make the call (P2-7). It is `null` when there is nothing expiring, so
+   * the row carries no permanent zero.
+   */
+  const dsc =
+    (wantsFirm || wantsReview) && can(actor, "view", "dsc")
+      ? await dscExpiringTile(actor, now)
+      : null;
+
   const [tiles, money] = await Promise.all([
     wantsFirm
       ? workTiles(actor)
@@ -68,7 +79,7 @@ export default async function RoleDashboard({ actor, now }) {
 
     return (
       <FirmOverview
-        tiles={tiles}
+        tiles={dsc ? [...tiles, dsc] : tiles}
         branches={await byBranch(actor, branches)}
         unbilled={unbilledTotal}
         receivables={owed}
@@ -90,7 +101,7 @@ export default async function RoleDashboard({ actor, now }) {
 
     return (
       <ReviewQueue
-        tiles={tiles}
+        tiles={dsc ? [...tiles, dsc] : tiles}
         rework={rework.slice(0, 10)}
         people={Object.fromEntries(people.map((u) => [String(u._id), u.name]))}
       />
