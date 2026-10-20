@@ -12,12 +12,25 @@ import DocRequest from "@/models/DocRequest";
 import AuditLog from "@/models/AuditLog";
 import ActivityFeed from "@/components/audit/ActivityFeed";
 import TierBadge from "@/components/ledger/TierBadge";
-import { formatISTDate, formatISTDateTime, daysUntil } from "@/lib/dates";
+import {
+  formatISTDate,
+  formatISTDateTime,
+  daysUntil,
+  istParts,
+} from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
 import { nextStatuses, canEditWork } from "@/lib/engagements/status";
 import EngagementWork from "./EngagementWork";
 import RequestPanel from "./RequestPanel";
 import { DueChip, StatusChip } from "../chips";
+import { bookOf, BOOKS } from "@/lib/practice/books";
+
+/** A date as an `<input type="date">` wants it: yyyy-mm-dd, in IST. */
+function dateInput(date) {
+  if (!date) return "";
+  const { year, month, day } = istParts(new Date(date));
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -121,6 +134,21 @@ export default async function EngagementPage({ params }) {
     billingStatus: engagement.billingStatus,
     ackNo: engagement.ackNo ?? "",
     udin: engagement.udin ?? "",
+    // the filing panel's date inputs want yyyy-mm-dd; everything the firm
+    // reads is still formatted in IST
+    filedOnInput: dateInput(engagement.filedOn),
+    todayInput: dateInput(new Date()),
+    filedOn: engagement.filedOn ? formatISTDate(engagement.filedOn) : "",
+    // the assurance block is for audit work and nothing else (P2-8a)
+    isAudit: bookOf(engagement.templateSnapshot?.category ?? "") === "audits",
+    book: bookOf(engagement.templateSnapshot?.category ?? ""),
+    assurance: {
+      auditType: engagement.assurance?.auditType ?? "",
+      appointmentDate: dateInput(engagement.assurance?.appointmentDate),
+      reportDate: dateInput(engagement.assurance?.reportDate),
+      opinion: engagement.assurance?.opinion ?? "",
+      qualificationNote: engagement.assurance?.qualificationNote ?? "",
+    },
     reworkCount: engagement.reworkCount ?? 0,
     // for the completion stamp (spec section 15)
     completedOn: engagement.completedAt
@@ -202,6 +230,17 @@ export default async function EngagementPage({ params }) {
               </Link>{" "}
               · {view.periodLabel} ·{" "}
               <span className="font-mono">{view.code}</span>
+              {view.book && can(actor, "view", "practice", target) && (
+                <>
+                  {" · "}
+                  <Link
+                    href={`/practice/${view.book}`}
+                    className="underline underline-offset-4"
+                  >
+                    {BOOKS[view.book].title} register
+                  </Link>
+                </>
+              )}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">

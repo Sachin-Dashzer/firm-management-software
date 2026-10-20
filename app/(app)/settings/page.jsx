@@ -29,6 +29,27 @@ const SECTIONS = [
     action: "edit",
   },
   {
+    href: "/practice/audits",
+    title: "Audits",
+    body: "Every audit engagement, the report date, the opinion and the number it was signed with.",
+    area: "practice",
+    action: "view",
+  },
+  {
+    href: "/practice/statutory",
+    title: "Statutory",
+    body: "ROC filings: due, filed, and the SRN that came back.",
+    area: "practice",
+    action: "view",
+  },
+  {
+    href: "/practice/tax",
+    title: "Tax",
+    body: "Direct, indirect and payroll returns — filed on time, or how late.",
+    area: "practice",
+    action: "view",
+  },
+  {
     href: "/practice/udin",
     title: "UDIN register",
     body: "Every number the firm has signed against, by year — and what became of it.",

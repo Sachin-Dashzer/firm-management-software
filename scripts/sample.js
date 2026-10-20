@@ -39,6 +39,12 @@ import { gstinCheckDigit } from "../lib/validators.js";
 import { buildEngagement } from "../lib/engagements/create.js";
 import { nextEngagementCode } from "../lib/engagements/code.js";
 import { periodFor } from "../lib/engagements/period.js";
+import { startOfISTDay } from "../lib/dates.js";
+
+/** A date so many days before `now`, at the start of that IST day. */
+function daysBack(now, days) {
+  return startOfISTDay(new Date(now.getTime() - days * 86_400_000));
+}
 
 export const SAMPLE_DOMAIN = "sample.phmgindia.test";
 export const SAMPLE_TAG = "sample";
@@ -365,13 +371,42 @@ export const SAMPLE_SERVICES = [
  */
 export const SAMPLE_ENGAGEMENTS = [
   { subscription: 0, back: 0, status: "In progress" },
-  { subscription: 0, back: 1, status: "Completed" },
+  {
+    subscription: 0,
+    back: 1,
+    status: "Completed",
+    // the one late filing in the set: the Tax book needs a row where the
+    // deadline and the filing date disagree, or nothing proves the arithmetic
+    dueDaysAgo: 25,
+    filedDaysAgo: 22,
+    ackNo: "AB2610174455621",
+  },
   { subscription: 1, back: 0, status: "Awaiting documents" },
   { subscription: 2, back: 0, status: "Scheduled" },
   { subscription: 3, back: 0, status: "Under review" },
-  { subscription: 4, back: 0, status: "In progress" },
+  {
+    subscription: 4,
+    back: 0,
+    status: "In progress",
+    // the ROC annual filing: an AGM behind it and a deadline already past,
+    // which is what the Statutory book is for noticing
+    eventName: "Annual General Meeting",
+    eventDaysAgo: 80,
+    dueDaysAgo: 5,
+  },
   { subscription: 5, back: 0, status: "Awaiting documents" },
-  { subscription: 6, back: 0, status: "In progress" },
+  {
+    subscription: 6,
+    back: 0,
+    status: "In progress",
+    // an audit under way: appointed, no report yet, which is the state most
+    // of the Audits book sits in for most of the year
+    assurance: {
+      auditType: "Statutory audit",
+      appointmentDaysAgo: 60,
+      opinion: "Not yet issued",
+    },
+  },
   { subscription: 7, back: 0, status: "Scheduled" },
 ];
 
@@ -749,6 +784,36 @@ export async function seedSample(options = {}) {
             ...fields,
             code,
             status: row.status,
+            ...(row.dueDaysAgo
+              ? { statutoryDue: daysBack(now, row.dueDaysAgo) }
+              : {}),
+            ...(row.filedDaysAgo
+              ? {
+                  filedOn: daysBack(now, row.filedDaysAgo),
+                  ackNo: row.ackNo ?? "",
+                }
+              : {}),
+            ...(row.eventDaysAgo
+              ? {
+                  eventDate: daysBack(now, row.eventDaysAgo),
+                  eventName: row.eventName ?? "",
+                }
+              : {}),
+            ...(row.assurance
+              ? {
+                  assurance: {
+                    auditType: row.assurance.auditType ?? "",
+                    appointmentDate: row.assurance.appointmentDaysAgo
+                      ? daysBack(now, row.assurance.appointmentDaysAgo)
+                      : null,
+                    reportDate: row.assurance.reportDaysAgo
+                      ? daysBack(now, row.assurance.reportDaysAgo)
+                      : null,
+                    opinion: row.assurance.opinion ?? "",
+                    qualificationNote: row.assurance.qualificationNote ?? "",
+                  },
+                }
+              : {}),
             ...(row.status === "Completed"
               ? {
                   completedAt: now,

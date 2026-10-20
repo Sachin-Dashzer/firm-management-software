@@ -3,7 +3,7 @@
 Source of truth for what is done. Updated at the end of every step.
 Status: ⬜ not started · 🟡 in progress · ✅ done
 
-Last updated: 19-10-2026
+Last updated: 20-10-2026
 
 ## Phase 1 — Core MVP
 
@@ -49,7 +49,7 @@ reason, including the security fixes in P2-1.
 | P2-5 | Client 360: the new tab set, tab counts, outstanding balance in the header, Compliance tab filled | 🟡 | Built 19-10-2026. Tab set kept at the eight that exist (owner, D10), with counts. The firm grid and the client grid are now one component. Includes "who works on this client", deferred from P2-2. Needs Atlas to run; 8 Playwright tests waiting |
 | P2-6 | `FirmSettings` · ICAI page · `User.icai` · CPE log · ICAI notes | 🟡 | Built 19-10-2026. **The firm had no record of itself: its name was a literal in fifteen files and its FRN nowhere.** Now one document, wired into invoices, reports, exports, emails and the client upload page. No ICAI requirement is assumed (owner, D11). Needs Atlas to run; 6 Playwright tests waiting |
 | P2-7 | UDIN register (and engagement sync) · DSC register (and `dscExpiring` rule, dashboard tile) | 🟡 | Built 19-10-2026. **A UDIN was a free-text field: the same number could sit on two jobs.** The register is now the record and the engagement field a copy of it, written in one transaction. DSC is expiry-only (owner, D12). Includes the sample UDIN and DSC rows deferred from P2-2b. Needs Atlas to run; 8 Playwright tests waiting |
-| P2-8a | Audits · Statutory · Tax page, plus the `assurance` fields and `filedOn` | ⬜ | |
+| P2-8a | Audits · Statutory · Tax page, plus the `assurance` fields and `filedOn` | 🟡 | Built 20-10-2026. **The system could not say when anything was filed, or whether an audit opinion was clean.** Three books over the engagements that already exist, no second place to update. Needs Atlas to run; 3 Playwright tests waiting |
 | P2-8b | Based Docs: `DocTemplate`, `lib/docs/resolve.js`, `templatePdf.jsx`, draft/final tier rules, 8 draft templates, template admin | ⬜ | |
 | P2-8c | DOCX output | ⬜ | Needs the `docx` dependency — owner approval first |
 | P2-9a | `ClientUser` · client auth provider (2FA optional) · `/client/login` · middleware · portal-user admin · `sharedWithClient` | ⬜ | |
@@ -178,6 +178,10 @@ Not started (spec §17).
 | 19-10-2026 | D8: "Audit log" becomes **Portal log** in the words and the route only. The `AuditLog` model, the `auditLogs` collection, `lib/audit/*`, `ACTIONS`, the hash chain and the `auditLog` permission key all stay — the log is append-only and hash-chained, so copying it into a new collection would break `verifyAuditChain` | Owner |
 | 19-10-2026 | D9: Based Docs output is **PDF first**, through the `@react-pdf/renderer` already used for invoices. DOCX needs the `docx` package and waits for its own approval (P2-8c) | Owner |
 | 19-10-2026 | D10: the client panel is `/client/*`, login at `/client/login`, separate from the staff `/clients` list | Owner |
+| 20-10-2026 | D13: **Statutory is the Registrar's book** — Company Law / ROC only. PF, ESI and PT are returns with a deadline, so Payroll and Labour sits in Tax. Accounting, Advisory, Registrations and Certification belong to no book: they are work, not filings | Owner default, applied |
+| 20-10-2026 | D14: audit opinions are the four of SA 700 / SA 705 — Unmodified, Qualified, Adverse, Disclaimer — plus "Not yet issued" for the state every audit starts in. Anything but unmodified has to record what it is modified for | Owner default, applied |
+| 20-10-2026 | **Late is computed, never stored**: `filedOn` against `statutoryDue`, in whole IST days, so correcting a due date corrects every answer with it. Filed *on* the due date is on time | Agent |
+| 20-10-2026 | The three books are **one route with a three-entry definition**, not three pages. Three near-identical page files would have drifted within a month | Agent |
 | 19-10-2026 | **Plain forms, not React Hook Form.** Spec §15 and the Phase 2 brief both name it; it is not installed, and neither are Radix, Motion, TanStack, date-fns, Sonner or visx. Every form in the app is a `<form>` and a server action, and Based Docs will be too | Owner, approved |
 | 19-10-2026 | **An `identifiers` grant widens `clientSensitive` for an employee**, so the grant UI cannot offer a section the server then refuses. Never for an intern, and `credentials` is never reachable by any grant | Owner, approved |
 | 19-10-2026 | **Storybook stays unbuilt.** Deferred from Step 0 and now declined for Phase 2. Spec §15's "every component built in Storybook against a Figma token file" is a process item the firm has chosen not to meet | Owner, approved |
@@ -511,6 +515,71 @@ person's password for good.
   screen, offboarding blocked by open work, and offboarding going through with
   the account dead, the grants revoked, the email reusable and the engagement
   still carrying their name.
+
+## What P2-8a built
+
+Three questions a practice is asked constantly, none of which the system
+could answer: what have we signed and was the opinion clean, what is going to
+the Registrar and when did it go, which returns are in and which went in late.
+
+**The system did not know when anything was filed.** It knew when work was
+*completed* — the day the firm signed it off — which is a different date, and
+the only date a return's lateness can be measured from. `filedOn` is that
+date, and **late is never stored**: it is `filedOn` against `statutoryDue`, in
+whole IST days, computed every time it is shown. Correcting a due date
+therefore corrects every answer that depended on it, and a return filed at
+11pm on the deadline is on time, which a stored flag written at midnight
+would get wrong half the time.
+
+**An audit's opinion was nowhere.** `assurance` holds the audit type, the
+appointment and report dates, the opinion and — required for anything but an
+unmodified one — what it is modified for. A report that was not clean, with
+nothing in the file saying why, is what a peer reviewer asks about first, so
+the form refuses to save it. The **signing member is deliberately not a field
+here**: a UDIN is already recorded against a member in the register (P2-7),
+and the books read it from there rather than keeping a second copy free to
+disagree.
+
+**The books are views, not records.** `/practice/audits`, `/practice/statutory`
+and `/practice/tax` are one route over `lib/practice/books.js`, which says
+which service categories each book reads and which columns it shows. They run
+the engagement list's own `engagementQuery()`, so the scoping is the list's
+scoping: an employee sees their own work and a CA their branches, and a
+register can never show somebody work the list would have hidden. Closed work
+stays in — an audit signed in June belongs in the book for ever — and the year
+is the Indian financial year, as everywhere else.
+
+- **One panel, one action.** The filing details are recorded where the work
+  is, on the engagement, in the panel that already took the acknowledgement
+  number and the UDIN. The assurance block appears for audit services only —
+  and the server reads those fields only for audit services too, so a hand-
+  posted form cannot write an opinion onto a GST return.
+- **A filing date in the future is refused**, on the server as well as by the
+  input's `max`. It is the one date somebody types while looking at a calendar
+  for the wrong month.
+- Both counts at the top of a book — past the deadline and filed late — are
+  links to the rows they counted, and are **absent when they are zero**.
+- The export is the same query and the same row builder as the screen, so the
+  workbook cannot disagree with the page, and it is audited like every other
+  export.
+- The engagement header carries a line into whichever book it appears in, for
+  anybody allowed to see it.
+- The sample dataset gains one genuinely late GST filing, an ROC annual
+  filing with an AGM behind it and a deadline already passed, and an audit
+  under way with no report yet — so all three books have something true to
+  show the first time they are opened.
+
+- Tests: 24 new Vitest tests (726 total). Most of them are the "late"
+  arithmetic, because it is arithmetic on two hand-typed dates that the firm
+  has to be able to trust: on the day itself and at 11pm on the day itself are
+  both on time, a missing due date answers nothing rather than accusing
+  anybody, and a cancelled engagement with a date behind it is not a missed
+  deadline. Also that no category falls into two books, that every book's
+  columns exist, and that the sample data's own opinions would pass the
+  check. 3 Playwright tests waiting on Atlas: a return filed three days late
+  reaching the Tax book and the count filtering to it, a qualified opinion
+  refused without a reason and accepted with one, and a future filing date
+  refused.
 
 ## What P2-7 built
 
@@ -1093,6 +1162,36 @@ From spec §18 — none answered yet. These block later steps, not Step 0:
 - [ ] `notices@` mailbox + SPF/DKIM/DMARC (Step 9)
 
 ## Left over / known gaps
+
+**From P2-8a**
+
+- **Nothing here has run against a database**, like every step since Step 1.
+  The late arithmetic is unit-tested hard; the 3 Playwright tests wait on
+  Atlas.
+- **Most rows will say "Filed on time" by default, and that is a half-truth.**
+  Late is measured against `statutoryDue`, which stays blank until a partner
+  verifies the rule it comes from (Step 7b, CLAUDE.md rule 8). Until those 11
+  rules are confirmed in Settings → Due dates, a filing with no deadline
+  behind it is not called late, because the system does not know. The books
+  are only as honest as that screen.
+- **Nothing reminds anybody that a filing date is missing.** A return that
+  went in last week and was never recorded sits in the book as "past the
+  deadline, not filed" until somebody types the date. A reminder for it would
+  be a reasonable P2-9 addition; say if you want one.
+- **The books do not reach outside an engagement.** A certificate issued
+  without one — which the UDIN register deliberately allows — appears in the
+  UDIN register and in no book. Rare, and the register is the record either
+  way.
+- Payroll filings sit in Tax (D13). If the firm comes to want a Payroll book
+  of its own, it is one entry in `lib/practice/books.js`.
+- The year filter offers the current financial year and two before it, like
+  the UDIN register. Older work is in the database and reachable by URL, just
+  not on a chip.
+- There is **no rail entry** for the three books yet — they are reached from
+  Settings and from the engagement header. The Practice group in the left rail
+  is P2-10d.
+- A book caps at 1,000 rows on screen (20,000 in the export) and says so.
+  Far above the firm's size.
 
 **From P2-7**
 

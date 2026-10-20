@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { PRIORITIES, NEEDS_REASON } from "@/lib/engagements/status";
 import { canExecute } from "@/lib/services/catalog";
+import { AUDIT_TYPES, OPINIONS, MODIFIED_OPINIONS } from "@/lib/practice/books";
 import { ROLE_LABELS } from "@/lib/permissions";
 import Uploader from "@/components/documents/Uploader";
 import DocumentList from "@/components/documents/DocumentList";
@@ -50,6 +51,9 @@ export default function EngagementWork({
   // true only for the moment somebody completed it, so the stamp presses
   // once rather than every time a finished engagement is opened
   const [juststamped, setJustStamped] = useState(false);
+  // the opinion decides whether the reason field is on screen, so it is held
+  // here rather than read off the form
+  const [opinion, setOpinion] = useState(engagement.assurance?.opinion ?? "");
 
   const router = useRouter();
 
@@ -426,6 +430,108 @@ export default function EngagementWork({
                 className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2 font-mono uppercase"
               />
             </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-13 text-ink-muted font-medium">
+                Filed on
+              </span>
+              <input
+                type="date"
+                name="filedOn"
+                defaultValue={engagement.filedOnInput}
+                max={engagement.todayInput}
+                className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+              />
+              <span className="text-12 text-ink-muted">
+                The day the return or form actually went in — not the day we
+                signed it off. Late is measured from here.
+              </span>
+            </label>
+
+            {engagement.isAudit && (
+              <fieldset className="border-rule flex flex-col gap-3 border-t pt-3">
+                <legend className="text-13 text-ink-muted font-medium">
+                  The audit report
+                </legend>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-13 text-ink-muted font-medium">
+                      Audit type
+                    </span>
+                    <select
+                      name="auditType"
+                      defaultValue={engagement.assurance?.auditType ?? ""}
+                      className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+                    >
+                      <option value="">Not said</option>
+                      {AUDIT_TYPES.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-13 text-ink-muted font-medium">
+                      Opinion
+                    </span>
+                    <select
+                      name="opinion"
+                      value={opinion}
+                      onChange={(event) => setOpinion(event.target.value)}
+                      className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+                    >
+                      <option value="">Not said</option>
+                      {OPINIONS.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-13 text-ink-muted font-medium">
+                      Appointed on
+                    </span>
+                    <input
+                      type="date"
+                      name="appointmentDate"
+                      defaultValue={engagement.assurance?.appointmentDate ?? ""}
+                      className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-13 text-ink-muted font-medium">
+                      Report dated
+                    </span>
+                    <input
+                      type="date"
+                      name="reportDate"
+                      defaultValue={engagement.assurance?.reportDate ?? ""}
+                      className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+                    />
+                  </label>
+                </div>
+                {MODIFIED_OPINIONS.includes(opinion) && (
+                  <label className="flex flex-col gap-1">
+                    <span className="text-13 text-ink-muted font-medium">
+                      What the opinion is modified for
+                    </span>
+                    <textarea
+                      name="qualificationNote"
+                      rows={3}
+                      defaultValue={
+                        engagement.assurance?.qualificationNote ?? ""
+                      }
+                      className="rounded-ledger border-rule bg-paper text-14 border px-2 py-2"
+                    />
+                    <span className="text-12 text-ink-muted">
+                      Required. A report that was not clean has to say why, in
+                      the file, at the time.
+                    </span>
+                  </label>
+                )}
+              </fieldset>
+            )}
             <div>
               <button
                 type="submit"

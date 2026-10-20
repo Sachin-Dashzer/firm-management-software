@@ -38,6 +38,7 @@ import {
   linkUdinToEngagement,
   unlinkUdinFromEngagement,
 } from "@/lib/practice/udin";
+import { bookOf, checkAssurance } from "@/lib/practice/books";
 
 /**
  * Everything that changes an engagement (spec section 5).
@@ -583,7 +584,12 @@ export async function setReviewItem(id, itemId, checked) {
   return { ok: "Noted." };
 }
 
-/** Acknowledgement number and UDIN, captured when the work is filed. */
+/**
+ * Acknowledgement number, UDIN, the date it was filed, and — for audit work
+ * — the report and its opinion (P2-8a). One panel and one action, so the
+ * three practice books read what the engagement already says rather than
+ * asking anybody to update a register by hand.
+ */
 export async function saveFiling(id, formData) {
   const actor = await requireUser();
   const engagement = await loadForWork(actor, id);
@@ -598,6 +604,38 @@ export async function saveFiling(id, formData) {
   // UDIN is 18 characters: the ICAI format, checked for shape only
   if (udin && !checkUdinShape(udin).ok) {
     return { error: "A UDIN is 18 letters and digits." };
+  }
+
+  const filedOn = readDate(formData.get("filedOn"));
+  if (filedOn === undefined)
+    return { error: "That filing date is not a date." };
+  if (filedOn && filedOn.getTime() > Date.now()) {
+    return { error: "A filing date cannot be in the future." };
+  }
+
+  /**
+   * Assurance fields are read only for audit work. A form that posts them
+   * against a GST return — by hand, or by a field left in the markup — must
+   * not write an opinion onto something that has no audit report.
+   */
+  const category = engagement.templateSnapshot?.category ?? "";
+  const isAudit = bookOf(category) === "audits";
+  let assurance = null;
+  if (isAudit) {
+    const appointmentDate = readDate(formData.get("appointmentDate"));
+    const reportDate = readDate(formData.get("reportDate"));
+    if (appointmentDate === undefined || reportDate === undefined) {
+      return { error: "That audit date is not a date." };
+    }
+    assurance = {
+      auditType: String(formData.get("auditType") ?? "").trim(),
+      appointmentDate,
+      reportDate,
+      opinion: String(formData.get("opinion") ?? "").trim(),
+      qualificationNote: String(formData.get("qualificationNote") ?? "").trim(),
+    };
+    const checked = checkAssurance(assurance);
+    if (!checked.ok) return { error: checked.error };
   }
 
   const before = engagement.udin ?? "";
@@ -625,6 +663,8 @@ export async function saveFiling(id, formData) {
 
       engagement.ackNo = ackNo;
       engagement.udin = udin;
+      engagement.filedOn = filedOn;
+      if (assurance) engagement.assurance = assurance;
       engagement.updatedBy = actor.id;
       await engagement.save({ session });
     });
@@ -634,7 +674,24 @@ export async function saveFiling(id, formData) {
 
   revalidatePath(`/engagements/${id}`);
   revalidatePath("/practice/udin");
+  const book = bookOf(category);
+  if (book) revalidatePath(`/practice/${book}`);
   return { ok: "Filing details saved." };
+}
+
+/**
+ * A date from a `<input type="date">`: null for empty, `undefined` for
+ * something that is not a date, so a caller can tell the two apart. Stored
+ * at the start of the IST day, like every other date the firm types.
+ *
+ * @param {FormDataEntryValue|null} value
+ * @returns {Date|null|undefined}
+ */
+function readDate(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  const date = new Date(`${text}T00:00:00+05:30`);
+  return Number.isNaN(date.valueOf()) ? undefined : date;
 }
 
 /**

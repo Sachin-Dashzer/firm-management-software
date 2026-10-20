@@ -74,6 +74,27 @@ const reviewItemSchema = new mongoose.Schema(
   { _id: true },
 );
 
+/**
+ * What an audit engagement is, beyond the work of doing it (P2-8a).
+ *
+ * Only audit and assurance services carry this; the filing panel shows it
+ * for those and nothing else. The signing member is **not** here: a UDIN is
+ * recorded against a member in the register (P2-7), and a second copy of
+ * that fact would be free to disagree with the first.
+ */
+const assuranceSchema = new mongoose.Schema(
+  {
+    auditType: { type: String, default: "", trim: true },
+    appointmentDate: { type: Date, default: null },
+    reportDate: { type: Date, default: null },
+    /** SA 700 / SA 705: Unmodified, Qualified, Adverse or Disclaimer. */
+    opinion: { type: String, default: "", trim: true },
+    /** Required by `checkAssurance()` for anything but an unmodified one. */
+    qualificationNote: { type: String, default: "", trim: true },
+  },
+  { _id: false },
+);
+
 const statusEventSchema = new mongoose.Schema(
   {
     from: { type: String, default: "" },
@@ -151,6 +172,19 @@ const engagementSchema = new mongoose.Schema(
     ackNo: { type: String, default: "", trim: true },
     udin: { type: String, default: "", trim: true },
 
+    /**
+     * When the return or form actually went in (P2-8a).
+     *
+     * Not the same as `completedAt`, which is when the firm signed the work
+     * off, and the only field that can answer whether something was late:
+     * late is `filedOn` against `statutoryDue`, computed and never stored,
+     * so correcting a due date corrects the answer with it.
+     */
+    filedOn: { type: Date, default: null },
+
+    /** Audit and assurance work only; empty on everything else. */
+    assurance: { type: assuranceSchema, default: () => ({}) },
+
     feePaise: { type: Number, default: 0, min: 0 },
     billingStatus: {
       type: String,
@@ -195,6 +229,8 @@ engagementSchema.index({ branchId: 1, status: 1 });
 engagementSchema.index({ reviewerId: 1, status: 1 });
 // the tier filter on the list, and the A-tier safety report
 engagementSchema.index({ "templateSnapshot.level": 1, status: 1 });
+// the three practice books, which read one category at a time (P2-8a)
+engagementSchema.index({ "templateSnapshot.category": 1, statutoryDue: 1 });
 // one engagement per client, service and period: the duplicate guard for
 // recurring work, and what Step 7's generator relies on
 engagementSchema.index(
