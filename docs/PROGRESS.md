@@ -51,7 +51,7 @@ reason, including the security fixes in P2-1.
 | P2-7 | UDIN register (and engagement sync) · DSC register (and `dscExpiring` rule, dashboard tile) | 🟡 | Built 19-10-2026. **A UDIN was a free-text field: the same number could sit on two jobs.** The register is now the record and the engagement field a copy of it, written in one transaction. DSC is expiry-only (owner, D12). Includes the sample UDIN and DSC rows deferred from P2-2b. Needs Atlas to run; 8 Playwright tests waiting |
 | P2-8a | Audits · Statutory · Tax page, plus the `assurance` fields and `filedOn` | 🟡 | Built 20-10-2026. **The system could not say when anything was filed, or whether an audit opinion was clean.** Three books over the engagements that already exist, no second place to update. Needs Atlas to run; 3 Playwright tests waiting |
 | P2-8b | Based Docs: `DocTemplate`, `lib/docs/resolve.js`, `templatePdf.jsx`, draft/final tier rules, 8 draft templates, template admin | 🟡 | Built 20-10-2026. **The eight starter templates ship unapproved and make watermarked drafts only** — a partner has to read each wording before anything can be issued. No file is stored: a final holds its own words and the PDF renders from them. Needs Atlas to run; 4 Playwright tests waiting |
-| P2-8c | DOCX output | ⬜ | Needs the `docx` dependency — owner approval first |
+| P2-8c | DOCX output | 🟡 | Built 20-10-2026. **`docx` approved as a dependency** (owner, D16). Word and PDF now come off one `prepareRender()`, so the two formats cannot print different words or answer the permission question differently. Needs Atlas to run; 1 more Playwright test waiting |
 | P2-9a | `ClientUser` · client auth provider (2FA optional) · `/client/login` · middleware · portal-user admin · `sharedWithClient` | ⬜ | |
 | P2-9b | The `/client/*` pages: overview, work, documents, invoices and PDF, ledger, profile and change request | ⬜ | |
 | P2-10a | Portal Log: rename, redirects, redesign | ⬜ | |
@@ -180,6 +180,7 @@ Not started (spec §17).
 | 19-10-2026 | D10: the client panel is `/client/*`, login at `/client/login`, separate from the staff `/clients` list | Owner |
 | 20-10-2026 | D13: **Statutory is the Registrar's book** — Company Law / ROC only. PF, ESI and PT are returns with a deadline, so Payroll and Labour sits in Tax. Accounting, Advisory, Registrations and Certification belong to no book: they are work, not filings | Owner default, applied |
 | 20-10-2026 | D14: audit opinions are the four of SA 700 / SA 705 — Unmodified, Qualified, Adverse, Disclaimer — plus "Not yet issued" for the state every audit starts in. Anything but unmodified has to record what it is modified for | Owner default, applied |
+| 20-10-2026 | D16: **`docx` approved as a dependency** for P2-8c, over hand-building the zip with `fflate` (already present) or skipping Word output. The deciding argument: whether Word opens the file is the one thing that cannot be tested here, and a library's output is known-good | Owner, approved |
 | 20-10-2026 | D15: the eight starter document templates are the agent's proposal, **all unapproved**, their wording drafted plainly and explicitly not an ICAI pro forma. A partner approves each one before it can be issued; the list itself is the owner's to change | Owner default, applied |
 | 20-10-2026 | **A generated document is not stored as a file.** A final holds its own words and the PDF renders from them, like an invoice. Storing one would need a server-side write to the file gateway, which only takes browser uploads with a signed ticket | Agent, owner to confirm |
 | 20-10-2026 | Editing an approved template **un-approves it** and bumps its version. An approval is of a wording, not of a name on a list | Agent |
@@ -519,6 +520,43 @@ person's password for good.
   screen, offboarding blocked by open work, and offboarding going through with
   the account dead, the grants revoked, the email reusable and the engagement
   still carrying their name.
+
+## What P2-8c built
+
+The Word button, and the reason it had to exist: a letter is nearly always
+edited before it is sent — a paragraph for this client, a figure typed into
+a certificate's blank — and a PDF cannot be. Without this the firm would
+retype the letter it just generated.
+
+- **`docx` is the second dependency Phase 2 has added** (owner decision
+  D16). The alternative was about 120 lines of hand-built WordprocessingML
+  over `fflate`, which is already in `node_modules`. The deciding argument
+  was not size: whether Word opens the file is the one thing that cannot be
+  tested on this machine, and a library's output is known-good.
+- **Both formats now come off one `prepareRender()`** in
+  `lib/docs/render.js`. The PDF route had its own copy of the loading, the
+  permission check and the footer; a second copy in the Word route would
+  eventually have answered the permission question differently, which is the
+  copy that matters. The PDF route is now 40 lines.
+- A final prints its stored words in Word exactly as in the PDF; a draft
+  resolves live, says DRAFT on the page, and lists its blanks at the foot.
+  Both downloads are audited, and the audit note says which format.
+- **Downloading an issued letter as Word hands somebody an editable copy of
+  a signed document.** That is what was asked for; what the file does about
+  it is carry its issue date and UDIN in the footer, so an edited copy is
+  visibly a copy. Flagged rather than solved.
+
+- Tests: 3 new Vitest tests (752 total) — every starter template rendered to
+  Word without throwing, and the first one unzipped to prove it is a real
+  zip with `word/document.xml` where Word looks for it, carrying the
+  client's own name and no draft marking; a draft checked the other way,
+  for its DRAFT text and its blanks. 1 new Playwright test: the issued
+  letter downloaded, with the Word content type and a zip on the end of it.
+- **Two sample files were generated and are worth opening**, because no test
+  here can prove Word itself is happy:
+  `C:\Users\sachi\AppData\Local\Temp\claude\C--code-crm\dde93875-98e6-4992-aa20-aca7d7657c96\scratchpad\ENG-LETTER.docx`
+  and
+  `C:\Users\sachi\AppData\Local\Temp\claude\C--code-crm\dde93875-98e6-4992-aa20-aca7d7657c96\scratchpad\NETWORTH-CERT.docx`.
 
 ## What P2-8b built
 
@@ -1232,6 +1270,23 @@ From spec §18 — none answered yet. These block later steps, not Step 0:
 - [ ] `notices@` mailbox + SPF/DKIM/DMARC (Step 9)
 
 ## Left over / known gaps
+
+**From P2-8c**
+
+- **No Word file has been opened in Word.** The zip structure is verified in
+  a test and two samples are in the scratchpad (paths above), but the first
+  real check is the owner double-clicking one. If anything is wrong it will
+  be the letterhead spacing, not the text.
+- The test that unzips a `.docx` uses **`fflate`, which is a transitive
+  dependency**, not one we declared. It is only used in a test, and if a
+  future install drops it that test fails loudly rather than anything
+  shipping broken — but it is worth knowing.
+- **An edited Word copy of an issued letter comes back to nobody.** The
+  system's record is the words it issued; what somebody does to the
+  downloaded file afterwards is outside it. The footer carries the issue
+  date and the UDIN so a changed copy is visibly a copy.
+- No page break control, no tables, no images: these are letters. A
+  template that needs a table wants a different renderer.
 
 **From P2-8b**
 

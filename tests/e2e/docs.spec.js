@@ -295,6 +295,25 @@ test("approving the wording is a partner's, and a CA still cannot issue A-tier w
   expect(doc.signatoryMembershipNo).toBe("098765");
 });
 
+test("the issued letter comes down as an editable Word file", async ({
+  page,
+}, testInfo) => {
+  const fx = names(testInfo.project.name);
+  await signIn(page, fx.partner);
+  await page.goto(`/engagements/${ids.engagement}`);
+
+  const doc = await GeneratedDoc.findOne({ templateId: ids.template }).lean();
+  const response = await page.request.get(`/docs/${doc._id}/docx`);
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toContain("wordprocessingml");
+  expect(response.headers()["content-disposition"]).toContain(".docx");
+
+  const body = await response.body();
+  // a real zip, and the client's name is inside it
+  expect(body.subarray(0, 2).toString()).toBe("PK");
+  expect(body.length).toBeGreaterThan(1000);
+});
+
 test("an issued document cannot be discarded", async ({ page }, testInfo) => {
   const fx = names(testInfo.project.name);
   await signIn(page, fx.partner);

@@ -142,6 +142,14 @@ export default function DocsPanel({ templates, docs, mayGenerate, mayIssue }) {
                   >
                     PDF
                   </a>
+                  {/* the editable copy: a letter is usually tweaked before
+                      it is sent, and a PDF cannot be */}
+                  <a
+                    href={`/docs/${doc.id}/docx`}
+                    className="rounded-ledger border-rule text-13 flex h-8 items-center border px-2"
+                  >
+                    Word
+                  </a>
                   {!doc.final && mayIssue && (
                     <button
                       type="button"

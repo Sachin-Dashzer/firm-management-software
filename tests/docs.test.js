@@ -252,6 +252,70 @@ describe("the eight starter templates", () => {
     }
   }, 60_000);
 
+  it("renders to a Word file whose text is really in it", async () => {
+    // the one thing that cannot be checked here is whether Word opens it, so
+    // what is checked is the next best: a real zip, with the document part
+    // where Word looks for it, carrying the letter's own words
+    const { renderDocx } = await import("../lib/docs/templateDocx.js");
+    const { unzipSync, strFromU8 } = await import("fflate");
+
+    const template = STARTER_DOC_TEMPLATES[0];
+    const { text } = resolveTemplate(template.body, context);
+    const buffer = await renderDocx({
+      title: template.title,
+      body: text,
+      state: "final",
+      firm: context.firm,
+      reference: "ENG-LETTER",
+    });
+
+    // "PK": it is a zip at all
+    expect(buffer.subarray(0, 2).toString()).toBe("PK");
+
+    const files = unzipSync(new Uint8Array(buffer));
+    expect(Object.keys(files)).toContain("word/document.xml");
+    expect(Object.keys(files)).toContain("[Content_Types].xml");
+
+    const xml = strFromU8(files["word/document.xml"]);
+    expect(xml).toContain("Jaiswal Textiles Private Limited");
+    expect(xml).toContain("PHMG &amp; Associates");
+    // a final carries no draft marking
+    expect(xml).not.toContain("DRAFT");
+  }, 30_000);
+
+  it("marks a draft as a draft inside the Word file too", async () => {
+    const { renderDocx } = await import("../lib/docs/templateDocx.js");
+    const { unzipSync, strFromU8 } = await import("fflate");
+
+    const buffer = await renderDocx({
+      title: "Engagement letter",
+      body: "Dear Sir,",
+      state: "draft",
+      firm: context.firm,
+      gaps: [{ label: "Client GSTIN" }],
+    });
+    const xml = strFromU8(
+      unzipSync(new Uint8Array(buffer))["word/document.xml"],
+    );
+    expect(xml).toContain("DRAFT");
+    expect(xml).toContain("Client GSTIN");
+  }, 30_000);
+
+  it("renders every starter template to Word without throwing", async () => {
+    const { renderDocx } = await import("../lib/docs/templateDocx.js");
+    for (const template of STARTER_DOC_TEMPLATES) {
+      const { text, gaps } = resolveTemplate(template.body, context);
+      const buffer = await renderDocx({
+        title: template.title,
+        body: text,
+        state: "draft",
+        firm: context.firm,
+        gaps,
+      });
+      expect(buffer.length).toBeGreaterThan(1000);
+    }
+  }, 60_000);
+
   it("quotes no section number or statutory date", () => {
     // CLAUDE.md rule 8: nothing statutory is invented, not even in a letter
     for (const template of STARTER_DOC_TEMPLATES) {
