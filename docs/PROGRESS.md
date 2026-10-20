@@ -50,7 +50,7 @@ reason, including the security fixes in P2-1.
 | P2-6 | `FirmSettings` · ICAI page · `User.icai` · CPE log · ICAI notes | 🟡 | Built 19-10-2026. **The firm had no record of itself: its name was a literal in fifteen files and its FRN nowhere.** Now one document, wired into invoices, reports, exports, emails and the client upload page. No ICAI requirement is assumed (owner, D11). Needs Atlas to run; 6 Playwright tests waiting |
 | P2-7 | UDIN register (and engagement sync) · DSC register (and `dscExpiring` rule, dashboard tile) | 🟡 | Built 19-10-2026. **A UDIN was a free-text field: the same number could sit on two jobs.** The register is now the record and the engagement field a copy of it, written in one transaction. DSC is expiry-only (owner, D12). Includes the sample UDIN and DSC rows deferred from P2-2b. Needs Atlas to run; 8 Playwright tests waiting |
 | P2-8a | Audits · Statutory · Tax page, plus the `assurance` fields and `filedOn` | 🟡 | Built 20-10-2026. **The system could not say when anything was filed, or whether an audit opinion was clean.** Three books over the engagements that already exist, no second place to update. Needs Atlas to run; 3 Playwright tests waiting |
-| P2-8b | Based Docs: `DocTemplate`, `lib/docs/resolve.js`, `templatePdf.jsx`, draft/final tier rules, 8 draft templates, template admin | ⬜ | |
+| P2-8b | Based Docs: `DocTemplate`, `lib/docs/resolve.js`, `templatePdf.jsx`, draft/final tier rules, 8 draft templates, template admin | 🟡 | Built 20-10-2026. **The eight starter templates ship unapproved and make watermarked drafts only** — a partner has to read each wording before anything can be issued. No file is stored: a final holds its own words and the PDF renders from them. Needs Atlas to run; 4 Playwright tests waiting |
 | P2-8c | DOCX output | ⬜ | Needs the `docx` dependency — owner approval first |
 | P2-9a | `ClientUser` · client auth provider (2FA optional) · `/client/login` · middleware · portal-user admin · `sharedWithClient` | ⬜ | |
 | P2-9b | The `/client/*` pages: overview, work, documents, invoices and PDF, ledger, profile and change request | ⬜ | |
@@ -180,6 +180,10 @@ Not started (spec §17).
 | 19-10-2026 | D10: the client panel is `/client/*`, login at `/client/login`, separate from the staff `/clients` list | Owner |
 | 20-10-2026 | D13: **Statutory is the Registrar's book** — Company Law / ROC only. PF, ESI and PT are returns with a deadline, so Payroll and Labour sits in Tax. Accounting, Advisory, Registrations and Certification belong to no book: they are work, not filings | Owner default, applied |
 | 20-10-2026 | D14: audit opinions are the four of SA 700 / SA 705 — Unmodified, Qualified, Adverse, Disclaimer — plus "Not yet issued" for the state every audit starts in. Anything but unmodified has to record what it is modified for | Owner default, applied |
+| 20-10-2026 | D15: the eight starter document templates are the agent's proposal, **all unapproved**, their wording drafted plainly and explicitly not an ICAI pro forma. A partner approves each one before it can be issued; the list itself is the owner's to change | Owner default, applied |
+| 20-10-2026 | **A generated document is not stored as a file.** A final holds its own words and the PDF renders from them, like an invoice. Storing one would need a server-side write to the file gateway, which only takes browser uploads with a signed ticket | Agent, owner to confirm |
+| 20-10-2026 | Editing an approved template **un-approves it** and bumps its version. An approval is of a wording, not of a name on a list | Agent |
+| 20-10-2026 | Issuing follows P2-4's sign-off ladder rather than a second one: a partner for A-tier work, a CA otherwise, and a document with no engagement behind it counts as A-tier | Agent |
 | 20-10-2026 | **Late is computed, never stored**: `filedOn` against `statutoryDue`, in whole IST days, so correcting a due date corrects every answer with it. Filed *on* the due date is on time | Agent |
 | 20-10-2026 | The three books are **one route with a three-entry definition**, not three pages. Three near-identical page files would have drifted within a month | Agent |
 | 19-10-2026 | **Plain forms, not React Hook Form.** Spec §15 and the Phase 2 brief both name it; it is not installed, and neither are Radix, Motion, TanStack, date-fns, Sonner or visx. Every form in the app is a `<form>` and a server action, and Based Docs will be too | Owner, approved |
@@ -515,6 +519,72 @@ person's password for good.
   screen, offboarding blocked by open work, and offboarding going through with
   the account dead, the grants revoked, the email reusable and the engagement
   still carrying their name.
+
+## What P2-8b built
+
+The letters a firm writes a hundred times a year, written once.
+
+**No file is stored anywhere.** A final document holds its own words and the
+PDF is rendered from them on demand — the way an invoice's PDF is rendered
+from the stored figures rather than kept on a disk. That makes a signed
+letter reproducible byte for byte with no second copy to keep in step, and it
+avoids inventing a server-side write to the file gateway, which only ever
+takes uploads from a browser with a signed ticket. A **draft holds no words
+at all**: it re-resolves from live data every time it is opened, because a
+draft that had quietly gone stale is the one thing worse than no draft.
+
+**A template nobody has approved cannot sign anything.** The eight that ship
+produce watermarked drafts and nothing else until a partner reads the wording
+and approves it, and **editing an approved template takes the approval away
+again** — the approval is of a wording, not of a name on a list. This is the
+stance the due-date master takes toward an unconfirmed rule (CLAUDE.md rule
+8), applied to words instead of dates.
+
+**Nothing sensitive can reach a letter.** `lib/docs/resolve.js` holds a closed
+list of the fields a template may use, built field by field. A PAN, an
+Aadhaar or a portal password is not among them, so no template — however it
+is written, whoever writes it — can print one (CLAUDE.md rule 7). The field
+list is printed under the editor so nobody has to guess.
+
+- **A blank is never silent.** A field the record does not have renders as
+  `[Client GSTIN — not recorded]`, is reported above the draft, is boxed in
+  red on the draft PDF, and **stops the document being issued** until it is
+  filled in on the record. A letter that went out with an invisible hole in
+  it would not be noticed until the client noticed.
+- **An unknown placeholder stays on the page** exactly as typed, so a typo in
+  a template is obvious to the first person who reads a draft rather than
+  vanishing. Issuing refuses outright while one is there.
+- **Issuing follows P2-4's ladder, not a new one**: a partner issues an
+  A-tier job's letters, a CA the rest, and a document with no engagement
+  behind it is treated as A-tier because nothing said it was routine. Three
+  templates — the two letters to another member and the consent — are a
+  partner's whatever the work is tiered at, and the net worth certificate
+  additionally refuses to issue without a UDIN on the engagement.
+- **An issued document cannot be discarded.** A draft can; a final was sent,
+  and the record of having sent it is the point.
+- Downloads are audited like any other document, and the PDF carries the
+  template code, the issue date and the UDIN in its footer.
+
+**About the eight templates.** They are drafted plainly and **every one is
+unapproved**. The wording is not an ICAI pro forma and does not pretend to
+be: the communication with a previous auditor, the NOC and the consent to act
+carry professional obligations whose form is the firm's to settle, and each
+row carries a `sourceNote` saying so that the approval screen prints. Nothing
+in any of them quotes a section number or a statutory date, which a test
+enforces.
+
+- Tests: 23 new Vitest tests (749 total) — the resolver (a blank marked and
+  reported, the same blank reported once, an unknown placeholder surviving
+  untouched, spaces inside the braces), that no field on the closed list is
+  sensitive and a PAN cannot come through a context, the tier and UDIN rules
+  for issuing, and the eight templates themselves: eight codes, none
+  approved, no placeholder that does not exist, no section numbers — and
+  **all eight rendered to a real PDF**, because a layout mistake in the
+  renderer is a crash at the moment somebody prints. 4 Playwright tests
+  waiting on Atlas: a draft filling itself in from the record, an unapproved
+  template refusing a partner, a CA seeing no approve button and still unable
+  to issue A-tier work after approval, and an issued document that cannot be
+  discarded.
 
 ## What P2-8a built
 
@@ -1162,6 +1232,42 @@ From spec §18 — none answered yet. These block later steps, not Step 0:
 - [ ] `notices@` mailbox + SPF/DKIM/DMARC (Step 9)
 
 ## Left over / known gaps
+
+**From P2-8b**
+
+- **Nothing here has run against a database**, like every step since Step 1.
+  The resolver, the rules and the renderer are unit-tested; the 4 Playwright
+  tests wait on Atlas.
+- **The eight templates are unapproved and should stay that way until read.**
+  Approving one is a minute's work per letter and it is the firm's
+  professional judgement, not the system's. Until then every document is
+  watermarked DRAFT, which is the honest state.
+- **A generated document is not in the client's document file.** It lives on
+  the engagement, and it is not a `Document` row, because storing one would
+  need a server-side write to the file gateway that does not exist (the
+  gateway takes uploads from a browser with a signed ticket). If a signed
+  letter should sit alongside the client's uploads, that is the piece of
+  plumbing to add, and it is not small.
+- **A final cannot be emailed yet.** The renderer produces a buffer the
+  mailer could attach the day it is asked to, exactly as the invoice PDF
+  does, but no template is wired to an email.
+- **Nothing numbers the documents.** An invoice series has to be gapless; a
+  letter does not, so a generated document is identified by its template,
+  its client and its date. Say if the firm wants a reference on its
+  correspondence.
+- **A draft is not editable.** It is the template's words filled in, and the
+  way to change them is to change the record or the template. Per-document
+  editing — for the blanks a certificate leaves to be typed in by hand, like
+  the figure on a net worth certificate — is the obvious next thing, and
+  those templates currently print `______` for a person to complete by hand
+  after printing.
+- The sample dataset seeds no documents; the starter templates come from
+  `scripts/seed.js`, which every environment runs.
+- `signatory.designation` is "Partner" or "Chartered Accountant" from the
+  role. A firm with a designated partner or a different signing style edits
+  the letter's template.
+- DOCX output is **P2-8c** and needs the `docx` dependency, which has not
+  been approved.
 
 **From P2-8a**
 

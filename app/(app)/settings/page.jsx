@@ -29,6 +29,13 @@ const SECTIONS = [
     action: "edit",
   },
   {
+    href: "/settings/doc-templates",
+    title: "Document templates",
+    body: "The firm's letters and certificates — and which of them a partner has approved.",
+    area: "docTemplates",
+    action: "view",
+  },
+  {
     href: "/practice/audits",
     title: "Audits",
     body: "Every audit engagement, the report date, the opinion and the number it was signed with.",

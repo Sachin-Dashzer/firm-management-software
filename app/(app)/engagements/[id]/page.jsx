@@ -20,8 +20,12 @@ import {
 } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
 import { nextStatuses, canEditWork } from "@/lib/engagements/status";
+import DocTemplate from "@/models/DocTemplate";
+import GeneratedDoc from "@/models/GeneratedDoc";
 import EngagementWork from "./EngagementWork";
 import RequestPanel from "./RequestPanel";
+import DocsPanel from "./DocsPanel";
+import { issuerFor } from "@/lib/docs/rules";
 import { DueChip, StatusChip } from "../chips";
 import { bookOf, BOOKS } from "@/lib/practice/books";
 
@@ -109,6 +113,23 @@ export default async function EngagementPage({ params }) {
       .sort({ createdAt: -1 })
       .limit(20)
       .lean(),
+  ]);
+
+  // documents generated from the firm's templates (P2-8b)
+  const mayGenerate = can(actor, "edit", "docGenerate", target);
+  const [docTemplates, generated] = await Promise.all([
+    mayGenerate
+      ? DocTemplate.find({ active: true })
+          .select("name kind verifiedAt")
+          .sort({ kind: 1, name: 1 })
+          .lean()
+      : [],
+    can(actor, "view", "docGenerate", target)
+      ? GeneratedDoc.find({ engagementId: engagement._id })
+          .sort({ createdAt: -1 })
+          .limit(50)
+          .lean()
+      : [],
   ]);
 
   const mayWork = can(actor, "edit", "engagementsWork", target);
@@ -324,6 +345,35 @@ export default async function EngagementPage({ params }) {
           open: !r.revokedAt && new Date(r.expiresAt) > new Date(),
           revoked: Boolean(r.revokedAt),
         }))}
+      />
+
+      <DocsPanel
+        templates={docTemplates.map((t) => ({
+          id: String(t._id),
+          name: t.name,
+          verified: Boolean(t.verifiedAt),
+        }))}
+        mayGenerate={mayGenerate}
+        // the tier rule: a partner issues an A-tier job's letters, a CA the
+        // rest — the same ladder that signs the work off (P2-4)
+        mayIssue={
+          can(actor, "approve", "docGenerate", target) &&
+          (issuerFor(engagement.templateSnapshot?.level ?? "") !== "partner" ||
+            actor.role === "partner")
+        }
+        docs={{
+          engagementId: view.id,
+          rows: generated.map((d) => ({
+            id: String(d._id),
+            name: d.templateName,
+            final: d.state === "final",
+            version: d.templateVersion,
+            udin: d.udin,
+            byName: d.createdBy === actor.id ? "you" : "a colleague",
+            issuedByName: d.issuedByName,
+            issuedOn: d.issuedAt ? formatISTDate(d.issuedAt) : "",
+          })),
+        }}
       />
 
       <section className="flex flex-col gap-2">

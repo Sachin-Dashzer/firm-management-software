@@ -22,6 +22,8 @@ import { systemAudit } from "../lib/audit/system.js";
 import { STARTER_CATALOG } from "../lib/services/starter.js";
 import DueDateRule from "../models/DueDateRule.js";
 import { STARTER_DUE_RULES } from "../lib/compliance/starterRules.js";
+import DocTemplate from "../models/DocTemplate.js";
+import { STARTER_DOC_TEMPLATES } from "../lib/docs/starter.js";
 import { randomBytes } from "node:crypto";
 
 /** The offices named in spec section 1. Addresses and GSTINs: firm to fill in. */
@@ -121,6 +123,26 @@ async function main() {
   if (rulesAdded > 0) {
     console.log(
       "NONE of them is confirmed, and none will put a date on any engagement until a partner confirms it in Settings -> Due dates.",
+    );
+  }
+
+  let docsAdded = 0;
+  for (const template of STARTER_DOC_TEMPLATES) {
+    if (await DocTemplate.findOne({ code: template.code })) continue;
+    await systemAudit(async (session) => {
+      await DocTemplate.create(
+        [{ ...template, createdBy: "seed", updatedBy: "seed" }],
+        { session },
+      );
+    });
+    docsAdded += 1;
+  }
+  console.log(
+    `document templates: ${docsAdded} added, ${STARTER_DOC_TEMPLATES.length - docsAdded} already there`,
+  );
+  if (docsAdded > 0) {
+    console.log(
+      "NONE of them is approved. Each one makes watermarked drafts only until a partner reads the wording and approves it in Settings -> Document templates.",
     );
   }
 
