@@ -317,7 +317,7 @@ in both themes, with the keyboard alone.
 ### The shape of the screen
 
 - **Left rail** — Today, Clients, Work, Calendar, Documents, Billing,
-  Reports, Audit log, Settings. You only see what your role may open.
+  Reports, Practice, Portal log, Settings. You only see what your role may open.
 - **Top bar** — the branch you are looking at, search, quick-add, the
   notification bell, your profile, and the light/dark and density toggles.
 - **Ctrl + K** (⌘K on a Mac) anywhere opens the command bar: type a client
@@ -339,7 +339,7 @@ in both themes, with the keyboard alone.
 | chase money | **Billing → Receivables**, worst debt at the top |
 | see where the firm is | **Today** as a Partner, or **Reports** |
 | find anything | **Ctrl + K**, or the search box on any list |
-| prove what happened | the **Activity** tab on the record, or **Audit log** for the firm |
+| prove what happened | the **Activity** tab on the record, or **Portal log** for the firm |
 
 ### The rules that will surprise you
 

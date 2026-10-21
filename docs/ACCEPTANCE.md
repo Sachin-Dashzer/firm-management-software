@@ -190,6 +190,120 @@ Spec §16 says to treat it as acceptance criteria too.
 
 ---
 
+# Phase 2 acceptance
+
+The eleven Phase 2 checks, each with **exactly how to check it** and an
+honest mark, in the same shape as the Phase 1 list above.
+
+Last gone through: 21-10-2026, by the agent. **Nothing below is ✅, and
+nothing can be until the database exists** — Phase 2 was built on the same
+terms as Phase 1 and has run against a database exactly as often: never.
+
+---
+
+## P2-1. A role can do only what §2 allows, and a client portal account can do nothing at all
+
+🟡 Built. 35 unit tests, including every area iterated against a client actor.
+
+**How to check it.** Sign in as an employee. Take the URL of a client in
+another branch and paste it in: you should be sent away, and the browser
+tab should read "Client · PHMG" rather than the client's name. Then open
+`/clients/export` directly — a spreadsheet of the whole branch must not
+download.
+
+## P2-2. An employee sees a client only through their own work or a written grant
+
+🟡 Built. 6 Playwright tests waiting.
+
+**How to check it.** As a CA, give an employee a grant on a client they do
+not work on, with a reason. As that employee: the client appears, and only
+the sections the grant named. Revoke it; they lose the client on the next
+page load. Then — the one that matters — have them open that client's DPDP
+dossier link directly. It must refuse.
+
+## P2-3. Everybody has their own page, and a one-time password is not a password
+
+🟡 Built. 6 Playwright tests waiting.
+
+**How to check it.** Create a user. Sign in as them: you should land on the
+change-password screen and be unable to leave it. Change it, and `/me`
+opens with their work, their senior CA and their own details.
+
+## P2-4. A-tier work waits for a partner, and a step reserved for a CA is not an employee's to tick
+
+🟡 Built. 8 Playwright tests waiting.
+
+**How to check it.** Open an A-tier (L3) engagement as a CA with everything
+ticked. "Completed" must be refused, with a reason given. As a partner it
+goes through. Then give a task a minimum role of CA and try to tick it as
+an employee.
+
+## P2-5. A client's whole file is on one screen, and what is counted is what you can open
+
+🟡 Built. 8 Playwright tests waiting.
+
+**How to check it.** Open any client. Each tab carries a count; each count
+matches the rows behind it. The outstanding balance in the header matches
+the Invoices tab. As an employee on one engagement, the Compliance tab says
+why it is empty rather than showing a grid full of false gaps.
+
+## P2-6. The firm's own record prints everywhere its name appears
+
+🟡 Built. 6 Playwright tests waiting.
+
+**How to check it.** Settings → ICAI, change the firm's name. Then download
+an invoice PDF, a report PDF and a spreadsheet: all three carry the new
+name, and the invoice carries the FRN.
+
+## P2-7. A UDIN can be used once, and a certificate about to lapse is noticed
+
+🟡 Built. 8 Playwright tests waiting.
+
+**How to check it.** Record a UDIN on an engagement; it appears in the
+register. Type the same number on a second engagement — refused, by name.
+Add a DSC expiring in ten days: it shows on the register in amber and on
+the dashboard tile.
+
+## P2-8. The firm can say what it filed, when, and what it signed
+
+🟡 Built. 7 Playwright tests waiting (3 for the books, 4 for the documents).
+
+**How to check it.** Record a filing date earlier than the statutory one —
+Practice → Tax shows it filed on time. Make it later: "3 days late". Then
+set a Qualified opinion on an audit without a reason — refused. Add the
+reason, issue an engagement letter as a partner, and download it as Word.
+
+## P2-9. A client sees their own file and nothing else
+
+🟡 Built. 11 Playwright tests waiting — **run these first.**
+
+**How to check it.** Invite a portal user and sign in as them in a private
+window. They land on their own company. Then type `/clients`,
+`/engagements` and `/settings` into the address bar: each must bounce to a
+login screen. Share one document from the staff side and confirm it is the
+only one they see. Finally, close their account while they are signed in —
+their next click must send them to the login screen.
+
+## P2-10. The firm can see what it is not doing
+
+🟡 Built. 5 Playwright tests waiting.
+
+**How to check it.** Open Settings: the "needs attention" strip names the
+unconfirmed due-date rules. Confirm them and the item disappears. Open
+Reports: the figures link to the reports behind them, and Filing
+punctuality shows on time against late.
+
+## P2-11. Nothing a client does is invisible, and nothing the firm does is unlogged
+
+🟡 Built throughout, on Step 2's foundation.
+
+**How to check it.** As a client, download a document. As a partner, open
+Portal log and filter Who to that portal account: the download is there,
+with the time and the file. Then press "Check for tampering" — the chain
+must verify, including the entries the client's own actions wrote.
+
+---
+
 ## What has to happen before the firm relies on this
 
 In order:
@@ -197,8 +311,10 @@ In order:
 1. **Atlas cluster.** Everything below needs it. Then `npm run doctor`,
    which proves the connection, the transactions every audit entry depends
    on, the indexes and the vault in one command.
-2. **Run the 56 Playwright tests** against it. They are the real check on
-   criteria 1–10.
+2. **Run the 186 Playwright tests** against it (93 cases across two
+   viewports). They are the real check on both lists above. Start with
+   `portal.spec.js` and `portal-pages.spec.js`: they are the ones that
+   prove somebody outside the firm cannot reach anything of the firm's.
 3. **Walk this document** with a partner, screen by screen, and mark each
    criterion ✅ or raise what is wrong.
 4. **The migration rehearsal** (`docs/DEPLOY.md` §7) — the imports run into

@@ -230,3 +230,36 @@ test("the reports index carries its figures and the new reports", async ({
   const sheet = await page.request.get("/reports/punctuality/export");
   expect(sheet.status()).toBe(200);
 });
+
+test("the Practice group in the rail opens the registers", async ({
+  page,
+}, testInfo) => {
+  const fx = names(testInfo.project.name);
+  await signIn(page, fx.partner);
+
+  const rail = page.getByRole("navigation", { name: "Main" });
+  await rail.getByRole("button", { name: "Practice" }).click();
+
+  for (const [label, path] of [
+    ["Audits", "/practice/audits"],
+    ["UDIN", "/practice/udin"],
+    ["DSC", "/practice/dsc"],
+  ]) {
+    await rail.getByRole("link", { name: label }).click();
+    await expect(page).toHaveURL(new RegExp(path.replace("/", "\/")));
+    // the group stays open while you are inside it
+    await expect(rail.getByRole("link", { name: "Audits" })).toBeVisible();
+  }
+});
+
+test("an employee gets the group without the registers they cannot open", async ({
+  page,
+}, testInfo) => {
+  const fx = names(testInfo.project.name);
+  await signIn(page, fx.employee);
+
+  const rail = page.getByRole("navigation", { name: "Main" });
+  await rail.getByRole("button", { name: "Practice" }).click();
+  // they may read the books and the DSC register; the group is there
+  await expect(rail.getByRole("link", { name: "Audits" })).toBeVisible();
+});

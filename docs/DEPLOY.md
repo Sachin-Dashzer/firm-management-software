@@ -409,7 +409,7 @@ already refuses; this stops anything else.
    only.
 3. Grant `readWrite` on `phmg` *except* `auditLogs`, plus the custom role.
 4. Edit the `phmg-app` user to use it, then press **Check the chain** on the
-   `/audit` screen to confirm the app still works.
+   `/portal-log` screen to confirm the app still works.
 
 ---
 
@@ -520,7 +520,7 @@ What a rollback does **not** undo is a database change — if a release added
 a field, rolling the code back leaves the field there, harmlessly. The one
 thing to be careful of is the audit chain: it is append-only, so never
 restore an older database over a newer one without telling me, because the
-chain would then have a gap and the check on `/audit` would report it.
+chain would then have a gap and the check on `/portal-log` would report it.
 
 ---
 

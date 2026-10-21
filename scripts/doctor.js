@@ -255,39 +255,31 @@ async function checkVault() {
 
 /** The go-live blockers that are data, not code. */
 async function readiness() {
-  const { default: Branch } = await import("../models/Branch.js");
-  const { default: DueDateRule } = await import("../models/DueDateRule.js");
-  const { default: ServiceTemplate } =
-    await import("../models/ServiceTemplate.js");
   const { default: Counter } = await import("../models/Counter.js");
   const { HEARTBEAT_ID } = await import("../lib/jobs/queue.js");
 
-  const noGstin = await Branch.countDocuments({
-    $or: [{ gstin: { $in: [null, ""] } }, { gstin: { $exists: false } }],
-  });
-  if (noGstin) {
-    warn(
-      `${noGstin} branch(es) have no GSTIN: invoices can be drafted but not issued.`,
-    );
-  } else {
-    pass("every branch has a GSTIN");
-  }
+  /**
+   * The same list the Settings screen shows (P2-10b), read here rather than
+   * written out again (P2-10d).
+   *
+   * This function used to keep its own copy of the branch-GSTIN, due-date
+   * and zero-fee checks, which is two places to add the next one and two
+   * places to forget. A partner is used as the reader because the doctor
+   * runs from a terminal with nobody signed in, and the point of it is to
+   * see everything.
+   */
+  const { needsAttention } = await import("../lib/settings/attention.js");
+  const { firmProfile } = await import("../lib/firm/settings.js");
+  const items = await needsAttention(
+    { id: "doctor", role: "partner", branchIds: [], active: true },
+    { firm: await firmProfile() },
+  );
 
-  const rules = await DueDateRule.countDocuments({});
-  const unconfirmed = await DueDateRule.countDocuments({ verifiedAt: null });
-  if (unconfirmed) {
-    warn(
-      `${unconfirmed} of ${rules} due-date rules are not confirmed: work is still created on time, with no statutory date on it (Settings → Due dates).`,
-    );
-  } else if (rules) {
-    pass(`all ${rules} due-date rules confirmed by a partner`);
+  if (items.length === 0) {
+    pass("nothing on the Settings 'needs attention' list");
   }
-
-  const freeServices = await ServiceTemplate.countDocuments({ feePaise: 0 });
-  if (freeServices) {
-    warn(
-      `${freeServices} services still have a fee of ₹0 (Settings → Services).`,
-    );
+  for (const item of items) {
+    warn(`${item.count} ${item.title} — ${item.detail} (${item.href})`);
   }
 
   /**
@@ -318,34 +310,26 @@ async function readiness() {
    */
   const { default: FirmSettings } = await import("../models/FirmSettings.js");
   const firm = await FirmSettings.findOne({ key: "firm" }).lean();
-  if (!firm) {
-    warn(
-      "the firm's own record has never been saved (Settings → ICAI): invoices use the built-in name and carry no FRN.",
-    );
-  } else {
-    if (!firm.frn) warn("no firm registration number is recorded (ICAI).");
-    if (!firm.cpeTargetStructured && !firm.cpeTargetUnstructured) {
-      warn(
-        "no CPE target is set, so hours are totalled but not judged (ICAI).",
-      );
-    }
-    if (firm.frn && firm.cpeTargetStructured) {
-      pass("the firm's ICAI record is filled in");
-    }
+  // the name, FRN and address are on the shared list above; the CPE target
+  // is not, because no screen is wrong without it
+  if (firm && !firm.cpeTargetStructured && !firm.cpeTargetUnstructured) {
+    warn("no CPE target is set, so hours are totalled but not judged (ICAI).");
   }
 
+  /**
+   * The shared list says when the runner has stopped. This says how long it
+   * has been alive, which a warning cannot: a terminal is where somebody
+   * checks that cron is working, and "last finished 3 minutes ago" is the
+   * answer they came for.
+   */
   const beat = await Counter.findById(HEARTBEAT_ID).lean();
-  if (!beat) {
-    warn("the job runner has never run (DEPLOY.md §2).");
-    return;
-  }
-  const minutes = Math.round(
-    (Date.now() - new Date(beat.updatedAt).valueOf()) / 60000,
-  );
-  if (minutes > 30) {
-    warn(`the job runner last finished ${minutes} minutes ago: cron stopped.`);
-  } else {
-    pass(`job runner alive, last finished ${minutes} minute(s) ago`);
+  if (beat) {
+    const minutes = Math.round(
+      (Date.now() - new Date(beat.updatedAt).valueOf()) / 60000,
+    );
+    if (minutes <= 30) {
+      pass(`job runner alive, last finished ${minutes} minute(s) ago`);
+    }
   }
 }
 

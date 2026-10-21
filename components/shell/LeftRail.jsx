@@ -15,6 +15,8 @@ import {
   ChartBar,
   ClipboardText,
   Gear,
+  Stamp,
+  CaretDown,
   CaretLeft,
   DotsThree,
 } from "@phosphor-icons/react";
@@ -58,6 +60,25 @@ const LINKS = [
   { href: "/invoices", label: "Billing", icon: Receipt, area: "invoices" },
   { href: "/team", label: "Team", icon: UsersThree, area: "team" },
   { href: "/reports", label: "Reports", icon: ChartBar, area: "dashboards" },
+  /**
+   * The practice registers (P2-10d). They were reachable only through
+   * Settings, where they never belonged: an audit book and a UDIN register
+   * are daily work, not configuration. One rail entry that opens into the
+   * five, so the rail gains a line rather than five.
+   */
+  {
+    href: "/practice",
+    label: "Practice",
+    icon: Stamp,
+    area: "practice",
+    children: [
+      { href: "/practice/audits", label: "Audits", area: "practice" },
+      { href: "/practice/statutory", label: "Statutory", area: "practice" },
+      { href: "/practice/tax", label: "Tax", area: "practice" },
+      { href: "/practice/udin", label: "UDIN", area: "udin" },
+      { href: "/practice/dsc", label: "DSC", area: "dsc" },
+    ],
+  },
   {
     href: "/portal-log",
     label: "Portal log",
@@ -85,8 +106,23 @@ function linksFor(role) {
   return LINKS.filter((link) => {
     if (link.area === null) return true;
     if (link.href === "/team" && scopeOf(actor, "team") === "own") return false;
+    /**
+     * A group is worth showing when any one of its registers is: an intern
+     * may open none of the five, so for them the Practice entry is absent
+     * rather than present and empty.
+     */
+    if (link.children) {
+      return link.children.some((child) => can(actor, "view", child.area));
+    }
     return can(actor, "view", link.area);
   }).map((link) => ({
+    ...(link.children
+      ? {
+          children: link.children.filter((child) =>
+            can(actor, "view", child.area),
+          ),
+        }
+      : {}),
     ...link,
     label:
       link.narrowLabel && seesOnlyOwnRecords(actor, link.area)
@@ -98,6 +134,8 @@ function linksFor(role) {
 export default function LeftRail({ role = "partner" }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  // the Practice group's own state; it also opens itself when you are inside
+  const [practiceOpen, setPracticeOpen] = useState(false);
   const links = linksFor(role);
 
   useEffect(() => {
@@ -139,8 +177,67 @@ export default function LeftRail({ role = "partner" }) {
         )}
       </div>
 
-      {links.map(({ href, label, icon: Icon }) => {
+      {links.map(({ href, label, icon: Icon, children }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
+
+        /**
+         * A group opens in place rather than navigating: `/practice` is not
+         * a page of its own, and sending somebody to an index that only
+         * lists five links they can already see would be a click for
+         * nothing. It opens itself when they are inside it.
+         */
+        if (children) {
+          const open = practiceOpen || active;
+          return (
+            <div key={href} className="flex flex-col">
+              <button
+                type="button"
+                onClick={() => setPracticeOpen((v) => !v)}
+                aria-expanded={open}
+                title={collapsed ? label : undefined}
+                className={`rounded-ledger text-14 flex h-9 items-center gap-3 px-2 ${
+                  active
+                    ? "bg-carbon-wash text-carbon font-medium"
+                    : "text-ink-muted hover:bg-carbon-wash hover:text-ink"
+                }`}
+              >
+                <Icon size={20} weight={active ? "duotone" : "regular"} />
+                {!collapsed && (
+                  <>
+                    <span className="truncate">{label}</span>
+                    <CaretDown
+                      size={14}
+                      className={`ml-auto transition-transform ${open ? "" : "-rotate-90"}`}
+                    />
+                  </>
+                )}
+              </button>
+              {open && !collapsed && (
+                <ul className="border-rule ml-5 flex flex-col border-l pl-2">
+                  {children.map((child) => {
+                    const here = pathname === child.href;
+                    return (
+                      <li key={child.href}>
+                        <Link
+                          href={child.href}
+                          aria-current={here ? "page" : undefined}
+                          className={`rounded-ledger text-13 flex h-8 items-center px-2 ${
+                            here
+                              ? "text-carbon font-medium"
+                              : "text-ink-muted hover:bg-carbon-wash hover:text-ink"
+                          }`}
+                        >
+                          {child.label}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          );
+        }
+
         return (
           <Link
             key={href}
@@ -193,7 +290,16 @@ const MOBILE_SHOWN = 4;
 export function MobileNav({ role = "partner" }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
-  const links = linksFor(role);
+  /**
+   * A group has no page of its own, so on a phone it is flattened into its
+   * registers and they fall into the More sheet like everything else. An
+   * expandable tree inside a bottom sheet is two taps where one will do.
+   */
+  const links = linksFor(role).flatMap((link) =>
+    link.children
+      ? link.children.map((child) => ({ ...child, icon: link.icon }))
+      : [link],
+  );
 
   const isActive = (href) =>
     pathname === href || pathname.startsWith(`${href}/`);

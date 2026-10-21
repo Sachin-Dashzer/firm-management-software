@@ -57,7 +57,7 @@ reason, including the security fixes in P2-1.
 | P2-10a | Portal Log: rename, redirects, redesign | 🟡 | Built 21-10-2026. **The record-type filter had been stale since Step 2** — eight kinds of entry, `ClientUser` among them, could not be filtered for at all. Now derived from the log itself. `/audit` redirects with its filters intact. Needs Atlas to run |
 | P2-10b | Settings: section layout and "Needs attention" | 🟡 | Built 21-10-2026. Ten checks for the conditions that make the system quietly wrong — unconfirmed due dates first among them — plus five groups instead of sixteen links in a column, and the read-only permissions table `describeMatrix()` was written for in P2-1. Needs Atlas to run; 4 Playwright tests waiting |
 | P2-10c | Reports: KPI strip, category nav, 8 new report definitions | 🟡 | Built 21-10-2026. Eight reports from data the Phase 2 modules had already collected but nothing read — `filedOn`, `assurance`, the two registers, the grants, the portal accounts and `reworkCount`. Needs Atlas to run; 1 more Playwright test waiting |
-| P2-10d | Final rail and Practice group · `scripts/doctor.js` additions · full Phase 2 acceptance pass | ⬜ | |
+| P2-10d | Final rail and Practice group · `scripts/doctor.js` additions · full Phase 2 acceptance pass | 🟡 | Built 21-10-2026. **Phase 2's step list is complete.** The doctor now reads the same check list the Settings strip does instead of keeping its own copy; `docs/ACCEPTANCE.md` has a Phase 2 half. Needs Atlas to run; 2 more Playwright tests waiting |
 
 ## Phase 3
 
@@ -529,6 +529,56 @@ person's password for good.
   screen, offboarding blocked by open work, and offboarding going through with
   the account dead, the grants revoked, the email reusable and the engagement
   still carrying their name.
+
+## What P2-10d built
+
+The last step of Phase 2. Three pieces, none of them large, and one of
+them is deleting something.
+
+**The rail, finished.** The five practice registers were reachable only
+through Settings, where they never belonged — an audit book and a UDIN
+register are daily work, not configuration. They are now a **Practice
+group**: one rail entry that opens into Audits, Statutory, Tax, UDIN and
+DSC, so the rail gains a line rather than five. The group opens itself
+when you are inside it, and it is **absent for a role that may open none
+of its registers** rather than present and empty. On a phone it is
+flattened into the More sheet P2-3 added — an expandable tree inside a
+bottom sheet is two taps where one will do. The Settings links stay: a
+second way to reach something is not a bug.
+
+**The doctor stopped keeping its own list.** `scripts/doctor.js` had its
+own copies of the branch-GSTIN, due-date and zero-fee checks, written in
+Step 12 — and P2-10b then wrote the same three again for the Settings
+strip. The doctor now **reads `needsAttention()`**, so there is one list
+and two readers, and a check added later appears in both. It keeps only
+what has no screen: the vault probe, the transaction probe, the chain, the
+reporting-CA warning, the CPE target, and how long the runner has been
+alive, which a warning cannot say.
+
+Three checks were added to the shared list while doing it, all Phase 2
+conditions nothing was watching: **portal accounts that have never signed
+in**, **open grants with no end date** (a grant nobody ends is a grant
+nobody revokes), and **a client with a login but nothing shared** — a
+portal that opens onto an empty room.
+
+**The Phase 2 acceptance pass.** `docs/ACCEPTANCE.md` gains eleven rows in
+the same shape as the Phase 1 ones: what the check is, exactly how to
+perform it in a browser, and an honest mark. Every mark is 🟡. The
+"before the firm relies on this" list now says 186 Playwright tests rather
+than 56, and names the two portal suites as the ones to run first.
+
+**And a sweep for leftovers**: `docs/DEPLOY.md` and `docs/REPORT.md` still
+sent people to `/audit`, and `lib/permissions.js` still carried the note
+about an employee recording DSC movements that owner decision D12 made
+obsolete a step after it was written.
+
+- Tests: 7 new Vitest tests (815 total) — the group's rule reproduced
+  against the same permission helper the component calls: five registers
+  for a partner and a CA, the readable ones for an employee, absent
+  entirely for the accounts person, and never a register the role cannot
+  open. Plus the shared check list covering both phases. 2 new Playwright
+  tests: the group opening each register and staying open inside them, and
+  an employee's narrower version of it.
 
 ## What P2-10c built
 
@@ -1567,6 +1617,31 @@ From spec §18 — none answered yet. These block later steps, not Step 0:
 - [ ] `notices@` mailbox + SPF/DKIM/DMARC (Step 9)
 
 ## Left over / known gaps
+
+**From P2-10d — and the honest state of Phase 2**
+
+- **Everything is built. Nothing has run.** Every one of the eleven Phase 2
+  steps ends the same way Phase 1 did: the code is complete, 815 unit tests
+  pass, and no row has ever been written to a database. **190 Playwright
+  tests are waiting on Atlas**, and they are the only thing that will turn
+  any of this from "built" into "works".
+- **The two portal suites should be run first.** They are what prove
+  somebody outside the firm cannot reach anything of the firm's, and that
+  is the one new risk Phase 2 introduced.
+- The rail's group is tested through the rule, not the rendering: the test
+  reproduces what `LeftRail.jsx` does rather than rendering it, because
+  there is no component test setup (no Storybook either, by owner
+  decision). If the two drift, the test will not notice.
+- **The rail is now eleven entries plus a group of five.** That is close to
+  the ceiling for a left rail; the next thing added should probably join a
+  group rather than start a twelfth row.
+- `scripts/doctor.js` reads the attention list as a **partner**, since it
+  runs from a terminal with nobody signed in. That is deliberate — the
+  point of the doctor is to see everything — but it means the doctor shows
+  items a given person's Settings screen would not.
+- The Phase 2 acceptance rows are the agent's reading of what each step
+  should prove. **A partner should disagree with at least one of them**,
+  and that disagreement is worth more than the list.
 
 **From P2-10c**
 
