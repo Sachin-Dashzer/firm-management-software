@@ -21,10 +21,16 @@ const commentSchema = new mongoose.Schema(
       ref: "Client",
       default: null,
     },
-    /** "Note" is a plain note; the rest are communication log entries. */
+    /**
+     * "Note" is a plain note, the contact channels are communication log
+     * entries, and "Change request" is the one kind written from **outside**
+     * the firm (P2-9b): a client asking for something on their record to be
+     * corrected. It is never internal, and it is the only thing a portal
+     * account can create anywhere in the system.
+     */
     kind: {
       type: String,
-      enum: ["Note", ...CONTACT_CHANNELS],
+      enum: ["Note", "Change request", ...CONTACT_CHANNELS],
       default: "Note",
     },
     body: { type: String, required: true, trim: true },

@@ -53,7 +53,7 @@ reason, including the security fixes in P2-1.
 | P2-8b | Based Docs: `DocTemplate`, `lib/docs/resolve.js`, `templatePdf.jsx`, draft/final tier rules, 8 draft templates, template admin | 🟡 | Built 20-10-2026. **The eight starter templates ship unapproved and make watermarked drafts only** — a partner has to read each wording before anything can be issued. No file is stored: a final holds its own words and the PDF renders from them. Needs Atlas to run; 4 Playwright tests waiting |
 | P2-8c | DOCX output | 🟡 | Built 20-10-2026. **`docx` approved as a dependency** (owner, D16). Word and PDF now come off one `prepareRender()`, so the two formats cannot print different words or answer the permission question differently. Needs Atlas to run; 1 more Playwright test waiting |
 | P2-9a | `ClientUser` · client auth provider (2FA optional) · `/client/login` · middleware · portal-user admin · `sharedWithClient` | 🟡 | Built 20-10-2026. **The first login in the system for somebody outside the firm.** Four independent locks between a portal token and a staff screen; nothing is shared with a client until a CA ticks it. Needs Atlas to run; 7 Playwright tests waiting |
-| P2-9b | The `/client/*` pages: overview, work, documents, invoices and PDF, ledger, profile and change request | ⬜ | |
+| P2-9b | The `/client/*` pages: overview, work, documents, invoices and PDF, ledger, profile and change request | 🟡 | Built 21-10-2026. Six pages, every query through one `lib/access/clientScope.js` — six pages each writing their own filter is six chances to show the wrong company's invoice. Needs Atlas to run; 4 Playwright tests waiting |
 | P2-10a | Portal Log: rename, redirects, redesign | ⬜ | |
 | P2-10b | Settings: section layout and "Needs attention" | ⬜ | |
 | P2-10c | Reports: KPI strip, category nav, 8 new report definitions | ⬜ | |
@@ -180,6 +180,10 @@ Not started (spec §17).
 | 19-10-2026 | D10: the client panel is `/client/*`, login at `/client/login`, separate from the staff `/clients` list | Owner |
 | 20-10-2026 | D13: **Statutory is the Registrar's book** — Company Law / ROC only. PF, ESI and PT are returns with a deadline, so Payroll and Labour sits in Tax. Accounting, Advisory, Registrations and Certification belong to no book: they are work, not filings | Owner default, applied |
 | 20-10-2026 | D14: audit opinions are the four of SA 700 / SA 705 — Unmodified, Qualified, Adverse, Disclaimer — plus "Not yet issued" for the state every audit starts in. Anything but unmodified has to record what it is modified for | Owner default, applied |
+| 21-10-2026 | **A client cannot edit their own record.** `/client/profile` is read-only and the box beneath it writes a change request to the firm: a GSTIN retyped by a client and checked by nobody goes onto invoices and into returns | Agent, owner to confirm |
+| 21-10-2026 | Written-off and disputed invoices **are** shown in the portal. They were issued, and a client statement that disagreed with the firm's ledger would be worse than a blunt one | Agent, owner to confirm |
+| 21-10-2026 | **No upload and no payment from the portal.** The document-request link already uploads with its own token and narrow scope; a second door into the vault is a second thing to get wrong, and there is no payment gateway | Agent |
+| 21-10-2026 | A client sees the engagement's own status words, "On hold" and "Sent back" included. Honest, and possibly more than the firm wants read — flagged | Agent, owner to confirm |
 | 20-10-2026 | **One portal account sees one client.** A person who runs two companies gets two logins, and one email can hold only one account across the whole portal — an ambiguous sign-in is refused rather than guessed at | Agent, owner to confirm |
 | 20-10-2026 | **Portal 2FA is optional and off by default**, turned on by the firm per account (the brief's position). Staff 2FA stays mandatory | Agent, owner to confirm |
 | 20-10-2026 | **Only a CA or a partner may share a document with a client**, although an employee may edit documents on their own work. Sharing is the only edit on that screen that sends the firm's material outside the firm | Agent, owner to confirm |
@@ -525,6 +529,70 @@ person's password for good.
   screen, offboarding blocked by open work, and offboarding going through with
   the account dead, the grants revoked, the email reusable and the engagement
   still carrying their name.
+
+## What P2-9b built
+
+Six pages behind the door P2-9a built: overview, your work, documents,
+invoices, account, your details.
+
+**One helper, not six queries.** `lib/access/clientScope.js` turns the
+portal session into the filter for every page. Six pages each writing
+`{ clientId: person.clientId }` is six chances to forget, and the one that
+forgets shows somebody another company's invoice. The id comes from the
+session **record**, never from a URL or a form — a portal page does not get
+to choose which client it is looking at — and the rules that are more than
+the id live beside it:
+
+- **documents**: `sharedWithClient: true`, and nothing else reaches the page.
+- **invoices**: issued only. A draft is the firm thinking aloud about a
+  number; a cancelled one is a mistake being corrected. Neither is a bill.
+  Written off and disputed **are** shown: they were issued, and hiding them
+  would make the client's statement disagree with the firm's.
+- **engagements**: a projection, not a filter applied afterwards. The
+  reviewer, the internal deadline, the rework count and the review notes are
+  never read, so a page that forgets to drop one cannot leak it.
+
+**The id in a URL is a guess until proved otherwise.** The document download
+and the invoice PDF each check that the record is theirs *and* that it is
+shareable, and answer **404 to all three failures** — not yours, not shared,
+not there. A client learning that a document exists but is withheld is
+itself a leak.
+
+- **The invoice PDF is the firm's own**, through a new
+  `lib/billing/invoiceView.js` lifted out of the staff route. Two renderers
+  would be two chances for the client's copy to disagree with the firm's,
+  and the client's copy is the one that ends up in somebody else's accounts.
+  The ledger likewise runs the firm's own `buildLedger()`, so the balance
+  agrees to the paisa.
+- **The change request changes nothing.** A GSTIN the client retyped and
+  nobody checked goes onto invoices and into returns, so `/client/profile`
+  is read-only and the box beneath it writes a `Comment` of the new kind
+  "Change request" with `internal: false` — the one place in the system
+  that sets that by hand — and notifies the client partner and the
+  relationship manager. It is the only write a portal account can make
+  anywhere.
+- **No upload from the portal**, deliberately: the document-request link
+  from Step 6b already does that with its own token and its own narrow
+  scope, and a second way into the same vault is a second thing to get
+  wrong. No payment either — there is no gateway.
+- Downloads by a client are audited against the portal account, so "who
+  took a copy of this" has one answer whether it was staff or the client.
+- The overview answers the three questions in the order a client asks them:
+  what are you doing for me, what are you waiting for from me, what do I
+  owe. The waiting list shows **only the client's own side** of a checklist
+  — an item the firm owes itself read as a demand on the wrong person.
+
+- Tests: 14 new Vitest tests (776 total) — the scope helper refusing a
+  staff session, an empty one and a forged kind; every scope anchored to
+  the session id; drafts and cancelled invoices out and the awkward ones
+  (written off, disputed) in; another client's record refused by
+  `belongsToClient`; and the engagement projection proved twice over, once
+  on the shape it returns and once on the field list it never reads. 4
+  Playwright tests waiting on Atlas: the unshared document absent from the
+  page and 404 by id, a draft invoice and another client's invoice both 404
+  while their own returns a PDF, the ledger balancing to the issued invoice
+  alone, and a change request landing on the staff side with the client
+  record untouched.
 
 ## What P2-9a built
 
@@ -1344,6 +1412,30 @@ From spec §18 — none answered yet. These block later steps, not Step 0:
 - [ ] `notices@` mailbox + SPF/DKIM/DMARC (Step 9)
 
 ## Left over / known gaps
+
+**From P2-9b**
+
+- **Nothing here has run against a database.** The scope helper is
+  unit-tested hard, but the 4 Playwright tests that try to open another
+  client's invoice have never run. With P2-9a's seven, that is **11 portal
+  tests waiting**, and they are the first ones to run when Atlas exists.
+- **A client cannot upload anything.** The document-request link covers it,
+  but it is emailed per request rather than living in the portal, so a
+  client who wants to send something unprompted has no button. Worth
+  revisiting once the firm has watched people use it.
+- **A change request has no reply.** The firm reads it on the Notes tab and
+  rings or emails; the portal does not show "we have dealt with this".
+  Closing that loop needs a status on the comment, which is a small job
+  nobody has asked for yet.
+- **Nothing tells the client their invoice is overdue** from the portal.
+  The chasing emails (P2-9 / Step 9b) do that, when client email is on.
+- The pages cap at 500 rows each with no paging. Far above any client's own
+  file.
+- **The portal has no empty-state illustrations and no print styles.** A
+  client printing their own ledger gets the screen.
+- `/client/work` shows the engagement's own status words — "On hold" and
+  "Sent back" among them. That is honest, and it may be more than the firm
+  wants a client reading. Say if those should be softened to a smaller set.
 
 **From P2-9a**
 

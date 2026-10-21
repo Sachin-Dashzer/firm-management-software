@@ -62,7 +62,36 @@ export default async function ClientLayout({ children }) {
         </div>
       </header>
 
-      <main id="content" className="mx-auto w-full max-w-[1000px] flex-1 p-4 md:p-6">
+      {/* six places to be, named in the client's words rather than ours */}
+      <nav
+        aria-label="Your file"
+        className="border-rule bg-surface overflow-x-auto border-b"
+      >
+        <ul className="text-14 mx-auto flex max-w-[1000px] gap-1 px-4 py-1">
+          {[
+            ["/client", "Overview"],
+            ["/client/work", "Your work"],
+            ["/client/documents", "Documents"],
+            ["/client/invoices", "Invoices"],
+            ["/client/ledger", "Account"],
+            ["/client/profile", "Your details"],
+          ].map(([href, label]) => (
+            <li key={href}>
+              <Link
+                href={href}
+                className="rounded-ledger hover:bg-paper block px-3 py-1.5 whitespace-nowrap"
+              >
+                {label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
+      <main
+        id="content"
+        className="mx-auto w-full max-w-[1000px] flex-1 p-4 md:p-6"
+      >
         {children}
       </main>
 

@@ -4,12 +4,8 @@ import { requireUser } from "@/auth";
 import { can } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import Invoice from "@/models/Invoice";
-import Branch from "@/models/Branch";
-import { formatPaise } from "@/lib/money";
-import { formatISTDate } from "@/lib/dates";
-import { amountInWords } from "@/lib/billing/gst";
 import { InvoicePdf } from "@/lib/billing/invoicePdf";
-import { firmProfile } from "@/lib/firm/settings";
+import { invoiceView } from "@/lib/billing/invoiceView";
 import {
   withAudit,
   recordAudit,
@@ -44,49 +40,7 @@ export async function GET(request, { params }) {
     return new Response("Not allowed", { status: 403 });
   }
 
-  const branch = await Branch.findById(invoice.branchId).lean();
-
-  const interState = Boolean(invoice.igstPaise);
-  const view = {
-    number: invoice.number,
-    type: invoice.type,
-    date: formatISTDate(invoice.date),
-    dueDate: invoice.dueDate ? formatISTDate(invoice.dueDate) : null,
-    supplierGstin: invoice.supplierGstin || branch?.gstin || "",
-    branchAddress: branch?.address ?? "",
-    billingName: invoice.billingName,
-    billingAddress: invoice.billingAddress,
-    billingGstin: invoice.billingGstin,
-    placeOfSupply: invoice.placeOfSupply,
-    placeOfSupplyName: invoice.placeOfSupplyName,
-    interState,
-    lines: (invoice.lines ?? []).map((line) => ({
-      description: line.description,
-      sac: line.sac,
-      gstRate: line.gstRate,
-      amount: formatPaise(line.netPaise || line.amountPaise || 0),
-    })),
-    reimbursements: (invoice.reimbursements ?? []).map((item) => ({
-      description: item.description,
-      amount: formatPaise(item.amountPaise ?? 0),
-    })),
-    subtotal: formatPaise(invoice.subtotalPaise ?? 0),
-    cgst: formatPaise(invoice.cgstPaise ?? 0),
-    sgst: formatPaise(invoice.sgstPaise ?? 0),
-    igst: formatPaise(invoice.igstPaise ?? 0),
-    reimbursementTotal: formatPaise(invoice.reimbursementTotalPaise ?? 0),
-    total: formatPaise(invoice.totalPaise ?? 0),
-    totalInWords: amountInWords(invoice.totalPaise ?? 0),
-    tdsExpected: formatPaise(invoice.tdsExpectedPaise ?? 0),
-    expectedReceipt: formatPaise(
-      (invoice.totalPaise ?? 0) - (invoice.tdsExpectedPaise ?? 0),
-    ),
-    zero: formatPaise(0),
-    notes: invoice.notes ?? "",
-    bankDetails: process.env.FIRM_BANK_DETAILS ?? "",
-    // the firm as it is now, not as it was hardcoded (P2-6)
-    firm: await firmProfile(),
-  };
+  const view = await invoiceView(invoice);
 
   const pdf = await renderToBuffer(<InvoicePdf invoice={view} />);
 
