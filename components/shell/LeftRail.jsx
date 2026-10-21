@@ -58,7 +58,12 @@ const LINKS = [
   { href: "/invoices", label: "Billing", icon: Receipt, area: "invoices" },
   { href: "/team", label: "Team", icon: UsersThree, area: "team" },
   { href: "/reports", label: "Reports", icon: ChartBar, area: "dashboards" },
-  { href: "/audit", label: "Audit log", icon: ClipboardText, area: "auditLog" },
+  {
+    href: "/portal-log",
+    label: "Portal log",
+    icon: ClipboardText,
+    area: "auditLog",
+  },
   // everyone can read the service catalog, which lives under Settings;
   // the sections inside are filtered by role
   { href: "/settings", label: "Settings", icon: Gear, area: "serviceCatalog" },

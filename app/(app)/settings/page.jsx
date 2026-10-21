@@ -101,7 +101,7 @@ const SECTIONS = [
   {
     href: "/settings/security",
     title: "Security",
-    body: "What the audit log is showing, and the firm's record of anything that went wrong.",
+    body: "What the portal log is showing, and the firm's record of anything that went wrong.",
     area: "usersSettings",
     action: "edit",
   },

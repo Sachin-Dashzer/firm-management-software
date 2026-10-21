@@ -60,7 +60,7 @@ const ACTIONS = [
   },
   { title: "Reports", href: "/reports", area: null },
   { title: "Recycle bin", href: "/documents/bin", area: "documents" },
-  { title: "Audit log", href: "/audit", area: "auditLog" },
+  { title: "Portal log", href: "/portal-log", area: "auditLog" },
   {
     title: "Messages and reminders",
     href: "/settings/messages",

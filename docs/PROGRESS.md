@@ -54,7 +54,7 @@ reason, including the security fixes in P2-1.
 | P2-8c | DOCX output | 🟡 | Built 20-10-2026. **`docx` approved as a dependency** (owner, D16). Word and PDF now come off one `prepareRender()`, so the two formats cannot print different words or answer the permission question differently. Needs Atlas to run; 1 more Playwright test waiting |
 | P2-9a | `ClientUser` · client auth provider (2FA optional) · `/client/login` · middleware · portal-user admin · `sharedWithClient` | 🟡 | Built 20-10-2026. **The first login in the system for somebody outside the firm.** Four independent locks between a portal token and a staff screen; nothing is shared with a client until a CA ticks it. Needs Atlas to run; 7 Playwright tests waiting |
 | P2-9b | The `/client/*` pages: overview, work, documents, invoices and PDF, ledger, profile and change request | 🟡 | Built 21-10-2026. Six pages, every query through one `lib/access/clientScope.js` — six pages each writing their own filter is six chances to show the wrong company's invoice. Needs Atlas to run; 4 Playwright tests waiting |
-| P2-10a | Portal Log: rename, redirects, redesign | ⬜ | |
+| P2-10a | Portal Log: rename, redirects, redesign | 🟡 | Built 21-10-2026. **The record-type filter had been stale since Step 2** — eight kinds of entry, `ClientUser` among them, could not be filtered for at all. Now derived from the log itself. `/audit` redirects with its filters intact. Needs Atlas to run |
 | P2-10b | Settings: section layout and "Needs attention" | ⬜ | |
 | P2-10c | Reports: KPI strip, category nav, 8 new report definitions | ⬜ | |
 | P2-10d | Final rail and Practice group · `scripts/doctor.js` additions · full Phase 2 acceptance pass | ⬜ | |
@@ -529,6 +529,56 @@ person's password for good.
   screen, offboarding blocked by open work, and offboarding going through with
   the account dead, the grants revoked, the email reusable and the engagement
   still carrying their name.
+
+## What P2-10a built
+
+**The rename (owner decision D8).** `/audit` is now `/portal-log`, and the
+words change in the five places people read them: the rail, the command
+bar, the heading, the page title and the Security settings link — plus four
+sentences of prose elsewhere that said "audit log" to a user. **Nothing
+underneath moved.** `AuditLog`, the `auditLogs` collection, `lib/audit/*`,
+`ACTIONS`, the hash chain and the `auditLog` permission key are untouched,
+because the log is append-only and chained and copying it would break
+`verifyAuditChain()`.
+
+**The redirects.** `/audit` and `/audit/export` keep working and carry their
+query string with them, so a bookmark to "failed sign-ins last month" still
+lands on that view. They are pages rather than middleware rules: middleware
+runs on the edge and that bundle is already at 107 KB of Vercel's 1 MB.
+
+**The bug inside the redesign.** The record-type filter was a **literal list
+of seven** written in Step 2. The log had since gained entries for `Udin`,
+`Dsc`, `DocTemplate`, `GeneratedDoc`, `ClientUser`, `ClientAccess`,
+`Comment` and `FirmSettings` — **none of which could be filtered for**, so a
+partner asking "who has been into the portal accounts" could not ask it.
+The list now comes from `AuditLog.distinct("entityType")`, within the
+reader's own scope, so it cannot go stale again.
+
+- **Who** now offers portal accounts as well as staff, in two labelled
+  groups. Since P2-9 a good share of entries are clients signing in and
+  downloading their own documents, and none of them could be filtered for
+  either.
+- **Entries are grouped by Indian calendar day**, ruled off and labelled
+  Today / Yesterday / the date. An entry at 4am IST belongs to that
+  morning; grouping on the stored UTC date would file it under the day
+  before, which is the usual trap and is what the test pins.
+- **Five figures across the top** — entries, sign-ins, failed sign-ins,
+  downloads, credential reveals — each a link to the filter that produced
+  it, and the last two in red when they are not zero. They are the signals
+  the Step 12 incident watch is tuned to, shown where somebody is already
+  looking instead of waiting for a threshold.
+- **Four quick filters**: Today, Last 7 days, Just me, Failed sign-ins.
+- Deliberately untouched: the chain, the writer, the model, the permission
+  key, and log retention — archiving to Atlas Online Archive is still the
+  go-live task it always was.
+
+- Tests: 13 new Vitest tests (789 total) — the record list carrying
+  `ClientUser` and friends, still offering the familiar ones on an empty
+  database, and de-duplicated and sorted; the day grouping at the IST
+  boundary, named Today and Yesterday, newest first; the five figures and
+  which two are alarming; and the quick filters' dates. Two existing
+  Playwright tests now walk the redirect — `/audit` landing on the renamed
+  screen, and `/audit?action=login_failed` keeping its filter.
 
 ## What P2-9b built
 
@@ -1412,6 +1462,24 @@ From spec §18 — none answered yet. These block later steps, not Step 0:
 - [ ] `notices@` mailbox + SPF/DKIM/DMARC (Step 9)
 
 ## Left over / known gaps
+
+**From P2-10a**
+
+- **Nothing here has run against a database**, so the day grouping and the
+  figures have never been seen with real entries in them. The two redirect
+  assertions ride on the sign-in suite, which is among the oldest waiting
+  on Atlas.
+- **The figures strip reads up to 5,000 of today's entries** to count five
+  numbers. It is one indexed query on a day's worth of rows and nothing
+  like a load at this firm's size, but it is a count done in JavaScript
+  rather than by the database, and an aggregation is the answer if a day
+  ever gets busy. Marked `ponytail:` in `lib/audit/log.js`.
+- **A CA's record-type list is drawn from their own branches**, so a type
+  that only ever appears on another branch's records is not offered to
+  them. Correct, and it means two people can see different options.
+- The export is still CSV with a BOM, as it has been since Step 2.
+- Retention and archiving are untouched: the log grows for ever until the
+  Atlas Online Archive task on the go-live list is done.
 
 **From P2-9b**
 

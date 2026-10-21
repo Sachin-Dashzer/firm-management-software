@@ -144,8 +144,10 @@ test("the sign-in appears in the audit log, and the chain is intact", async ({
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/today$/);
 
+  // the old route still works and lands on the renamed screen (P2-10a)
   await page.goto("/audit");
-  await expect(page.getByRole("heading", { name: "Audit log" })).toBeVisible();
+  await expect(page).toHaveURL(/\/portal-log$/);
+  await expect(page.getByRole("heading", { name: "Portal log" })).toBeVisible();
   await expect(
     page.getByText("Playwright Partner signed in").first(),
   ).toBeVisible();
@@ -168,6 +170,8 @@ test("a wrong password is recorded as a failed sign-in", async ({ page }) => {
   await page.getByLabel("6-digit code").fill(await codeFor(EMAIL));
   await page.getByRole("button", { name: "Sign in" }).click();
 
+  // the filters travel with the redirect, so a bookmark still works
   await page.goto("/audit?action=login_failed");
+  await expect(page).toHaveURL(/\/portal-log\?action=login_failed/);
   await expect(page.getByText(/failed to sign in/).first()).toBeVisible();
 });

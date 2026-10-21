@@ -112,7 +112,7 @@ export async function actionRedaction(clientId, reason) {
       : "";
 
   return {
-    ok: `Personal data for ${outcome.was} has been redacted. ${outcome.erased} ${outcome.erased === 1 ? "file was" : "files were"} erased and ${outcome.credentials} portal ${outcome.credentials === 1 ? "login" : "logins"} destroyed. The invoices, the work and the audit log are kept, as the law requires.${trouble}`,
+    ok: `Personal data for ${outcome.was} has been redacted. ${outcome.erased} ${outcome.erased === 1 ? "file was" : "files were"} erased and ${outcome.credentials} portal ${outcome.credentials === 1 ? "login" : "logins"} destroyed. The invoices, the work and the portal log are kept, as the law requires.${trouble}`,
   };
 }
 

@@ -43,7 +43,7 @@ export default function CredentialsVault({ clientId, credentials, mayEdit }) {
         )}
       </div>
       <p className="text-13 text-ink-muted mb-3">
-        Stored encrypted. Every reveal is recorded in the audit log with your
+        Stored encrypted. Every reveal is recorded in the portal log with your
         name and the time.
       </p>
 

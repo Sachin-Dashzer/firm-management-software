@@ -38,9 +38,9 @@ export default async function SecurityPage() {
       <div>
         <h1 className="font-display text-28 font-semibold">Security</h1>
         <p className="text-13 text-ink-muted">
-          What the audit log is showing, and the firm&rsquo;s record of
+          What the portal log is showing, and the firm&rsquo;s record of
           anything that went wrong.{" "}
-          <Link href="/audit" className="underline underline-offset-4">
+          <Link href="/portal-log" className="underline underline-offset-4">
             The full audit log
           </Link>{" "}
           is where the detail is.
