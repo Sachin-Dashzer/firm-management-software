@@ -149,6 +149,15 @@ describe("the report catalog", () => {
       .filter(([, definition]) => definition.pdf)
       .map(([key]) => key)
       .sort();
-    expect(pdf).toEqual(["overdue", "pending-documents", "status"]);
+    // the three a partner takes into a Monday meeting, plus the two P2-10c
+    // added for the same reason: a file review and a punctuality review
+    // both happen away from a screen
+    expect(pdf).toEqual([
+      "opinions",
+      "overdue",
+      "pending-documents",
+      "punctuality",
+      "status",
+    ]);
   });
 });

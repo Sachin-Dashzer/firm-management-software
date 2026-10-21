@@ -203,3 +203,30 @@ test("the permissions table says what the server enforces", async ({
   // and it is honest about not being editable
   await expect(page.getByText(/cannot be edited here/)).toBeVisible();
 });
+
+test("the reports index carries its figures and the new reports", async ({
+  page,
+}, testInfo) => {
+  const fx = names(testInfo.project.name);
+  await signIn(page, fx.partner);
+  await page.goto("/reports");
+
+  // the headline figures, each a link to what produced them
+  await expect(page.getByText("Open work")).toBeVisible();
+  await expect(page.getByText("Filed late this year")).toBeVisible();
+  await page.getByText("Filed late this year").click();
+  // the label's own figure is the link
+  await page.goto("/reports");
+
+  // the categories
+  await expect(page.getByRole("heading", { name: "Compliance" })).toBeVisible();
+
+  // and the reports themselves open and export
+  for (const key of ["punctuality", "opinions", "rework", "tier-mix"]) {
+    await page.goto(`/reports/${key}`);
+    await expect(page.getByRole("heading").first()).toBeVisible();
+  }
+
+  const sheet = await page.request.get("/reports/punctuality/export");
+  expect(sheet.status()).toBe(200);
+});

@@ -56,7 +56,7 @@ reason, including the security fixes in P2-1.
 | P2-9b | The `/client/*` pages: overview, work, documents, invoices and PDF, ledger, profile and change request | 🟡 | Built 21-10-2026. Six pages, every query through one `lib/access/clientScope.js` — six pages each writing their own filter is six chances to show the wrong company's invoice. Needs Atlas to run; 4 Playwright tests waiting |
 | P2-10a | Portal Log: rename, redirects, redesign | 🟡 | Built 21-10-2026. **The record-type filter had been stale since Step 2** — eight kinds of entry, `ClientUser` among them, could not be filtered for at all. Now derived from the log itself. `/audit` redirects with its filters intact. Needs Atlas to run |
 | P2-10b | Settings: section layout and "Needs attention" | 🟡 | Built 21-10-2026. Ten checks for the conditions that make the system quietly wrong — unconfirmed due dates first among them — plus five groups instead of sixteen links in a column, and the read-only permissions table `describeMatrix()` was written for in P2-1. Needs Atlas to run; 4 Playwright tests waiting |
-| P2-10c | Reports: KPI strip, category nav, 8 new report definitions | ⬜ | |
+| P2-10c | Reports: KPI strip, category nav, 8 new report definitions | 🟡 | Built 21-10-2026. Eight reports from data the Phase 2 modules had already collected but nothing read — `filedOn`, `assurance`, the two registers, the grants, the portal accounts and `reworkCount`. Needs Atlas to run; 1 more Playwright test waiting |
 | P2-10d | Final rail and Practice group · `scripts/doctor.js` additions · full Phase 2 acceptance pass | ⬜ | |
 
 ## Phase 3
@@ -529,6 +529,58 @@ person's password for good.
   screen, offboarding blocked by open work, and offboarding going through with
   the account dead, the grants revoked, the email reusable and the engagement
   still carrying their name.
+
+## What P2-10c built
+
+Eight reports, all from data the system had already been collecting and
+nothing had ever read.
+
+| Report | What it answers |
+| --- | --- |
+| Filing punctuality | What went in on time, what went in late, and by how long — P2-8a's `filedOn`, finally reported |
+| Audit opinions | Every audit, its type and what the report said, modified ones counted |
+| UDINs issued | What the firm signed this year, by member |
+| Certificates expiring | DSCs soonest first, with whose they are |
+| Work sent back from review | `reworkCount`, collected since **Step 5** and read by exactly one dashboard tile until now |
+| Work by tier | A, B and C per person: who carries the senior jobs |
+| Client access grants | Who can see a client they do not work on, and why |
+| Client portal accounts | Who outside the firm can sign in, and whether they ever have |
+
+- **Punctuality does not credit the firm with its own missing data.** Work
+  filed against no recorded deadline is counted in a column of its own, not
+  as on time — the due-date master leaves dates blank until a partner
+  confirms the rule, and calling those punctual would flatter the firm with
+  a gap in its own setup. The report says how many are in that state and
+  where to fix it.
+- **An audit with no opinion recorded is not a clean audit.** "Not
+  recorded" and "Not yet issued" are counted separately from unmodified,
+  which is the mistake the report exists to prevent.
+- **Rework is shown beside the jobs each person finished**, because three
+  sent back out of a hundred and three out of four are not the same thing
+  and a bare count reads as if they were.
+- **Each report sits behind its own permission area**, not a general
+  reporting one: somebody who cannot open the UDIN register cannot read it
+  as a report instead. A test asserts that for all eight.
+- **Six headline figures** across the top of the index, each a link to what
+  produced it, drawn from `lib/reports/figures.js` wherever a figure
+  already existed so the strip cannot disagree with the dashboard. A figure
+  behind a permission the reader lacks is absent, not blank.
+- The index grows to five categories with a nav above them, and the
+  printable set grows from three to five — a file review and a punctuality
+  review both happen away from a screen.
+
+**Still not built, for the same reason as before:** timesheet, utilisation,
+realisation, client profitability and intern exposure. They need hours, and
+nothing in Phase 2 records hours. The index keeps saying so.
+
+- Tests: 8 new Vitest tests (808 total) — all eight registered and
+  reachable, each with a real permission area and a runner, none clashing
+  with a report that already existed, the registers behind their own areas,
+  and the punctuality boundary (on the due date is on time, the next day is
+  a day late, no deadline is no answer). One existing Step 10 test was
+  updated: it pins which reports print, and two more now do. 1 new
+  Playwright test: the figures, the categories, the four new screens
+  opening and the punctuality export downloading.
 
 ## What P2-10b built
 
@@ -1515,6 +1567,28 @@ From spec §18 — none answered yet. These block later steps, not Step 0:
 - [ ] `notices@` mailbox + SPF/DKIM/DMARC (Step 9)
 
 ## Left over / known gaps
+
+**From P2-10c**
+
+- **Nothing here has run against a database**, so no report has ever
+  returned a row. The shapes and the definitions are unit-tested; the
+  queries are not.
+- **Punctuality will look thin until the due-date rules are confirmed.**
+  Every filing with no deadline behind it lands in the "no deadline
+  recorded" column, so on a fresh database that column is the whole
+  report. This is the same dependency the Settings strip now warns about.
+- **The late-filings headline uses `$expr`**, which compares two fields
+  and therefore cannot use an index. One query over a financial year's
+  filings at this firm's size is nothing; it is the one figure on that
+  strip that would not scale to a much larger practice.
+- Rework counts the **assignee**, not the reviewer. "Who sends the most
+  work back" is a different and more delicate question, and nobody has
+  asked for it.
+- The eight have **no PDF except punctuality and opinions**, and no
+  charts. They are tables, like every other report here.
+- Tier mix reads the level off each engagement's own snapshot, so a
+  service re-tiered last month does not retrospectively move old work
+  between columns — correct, and worth knowing when a column looks wrong.
 
 **From P2-10b**
 

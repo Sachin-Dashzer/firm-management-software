@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { requireUser } from "@/auth";
 import { can } from "@/lib/permissions";
+import { connectDB } from "@/lib/db";
+import { reportHeadlines } from "@/lib/reports/headlines";
 
 export const metadata = { title: "Reports · PHMG" };
+export const dynamic = "force-dynamic";
 
 /**
  * The reports index (spec section 10).
@@ -50,6 +53,18 @@ const GROUPS = [
         name: "Turnaround per service",
         what: "How long work actually takes, against the standard we set.",
       },
+      {
+        href: "/reports/rework",
+        area: "dashboards",
+        name: "Work sent back from review",
+        what: "How often finished work came back, by the person who did it.",
+      },
+      {
+        href: "/reports/tier-mix",
+        area: "dashboards",
+        name: "Work by tier",
+        what: "A, B and C work per person: who is carrying the senior jobs.",
+      },
     ],
   },
   {
@@ -82,6 +97,35 @@ const GROUPS = [
     ],
   },
   {
+    title: "Compliance",
+    reports: [
+      {
+        href: "/reports/punctuality",
+        area: "engagementsWork",
+        name: "Filing punctuality",
+        what: "What went in on time, what went in late, and by how long.",
+      },
+      {
+        href: "/reports/opinions",
+        area: "practice",
+        name: "Audit opinions",
+        what: "Every audit, its type, and what the report said.",
+      },
+      {
+        href: "/reports/udin-summary",
+        area: "udin",
+        name: "UDINs issued",
+        what: "What the firm has signed this year, and who signed it.",
+      },
+      {
+        href: "/reports/certificates",
+        area: "dsc",
+        name: "Certificates expiring",
+        what: "Digital signature certificates, soonest first.",
+      },
+    ],
+  },
+  {
     title: "The practice",
     reports: [
       {
@@ -89,6 +133,18 @@ const GROUPS = [
         area: "clients",
         name: "New and lost clients",
         what: "Clients taken on and clients closed, by month.",
+      },
+      {
+        href: "/reports/grants",
+        area: "clientAccess",
+        name: "Client access grants",
+        what: "Who can see a client they do not work on, and why they were given it.",
+      },
+      {
+        href: "/reports/portal",
+        area: "clientPortalUsers",
+        name: "Client portal accounts",
+        what: "Who outside the firm can sign in, and when they last did.",
       },
     ],
   },
@@ -99,10 +155,11 @@ export default async function ReportsPage() {
 
   const groups = GROUPS.map((group) => ({
     ...group,
-    reports: group.reports.filter((report) =>
-      can(actor, "view", report.area),
-    ),
+    reports: group.reports.filter((report) => can(actor, "view", report.area)),
   })).filter((group) => group.reports.length > 0);
+
+  await connectDB();
+  const headlines = await reportHeadlines(actor);
 
   return (
     <div className="mx-auto flex max-w-[900px] flex-col gap-6 p-4 md:p-6">
@@ -114,8 +171,49 @@ export default async function ReportsPage() {
         </p>
       </div>
 
+      {/* the headline figures, each a link to the report behind it. They
+          come from the same helpers the dashboard uses, so the two cannot
+          disagree about the same number */}
+      {headlines.length > 0 && (
+        <dl className="border-rule divide-rule flex flex-wrap divide-x border-y py-3">
+          {headlines.map((tile) => (
+            <div key={tile.key} className="px-4 first:pl-0">
+              <dt className="text-12 text-ink-muted uppercase">{tile.label}</dt>
+              <dd className="text-20">
+                <Link
+                  href={tile.href}
+                  className={`num font-medium ${tile.tone === "late" ? "text-redpen" : ""}`}
+                >
+                  {tile.value}
+                </Link>
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
+      {/* the categories, so a long index can be skipped rather than read */}
+      <nav
+        aria-label="Report categories"
+        className="text-14 flex flex-wrap gap-2"
+      >
+        {groups.map((group) => (
+          <a
+            key={group.title}
+            href={`#${slug(group.title)}`}
+            className="rounded-ledger border-rule hover:bg-carbon-wash border px-3 py-1"
+          >
+            {group.title}
+          </a>
+        ))}
+      </nav>
+
       {groups.map((group) => (
-        <section key={group.title} className="flex flex-col gap-2">
+        <section
+          key={group.title}
+          id={slug(group.title)}
+          className="flex scroll-mt-4 flex-col gap-2"
+        >
           <h2 className="font-display text-20">{group.title}</h2>
           <ul className="rounded-ledger border-rule bg-surface border">
             {group.reports.map((report) => (
@@ -142,9 +240,13 @@ export default async function ReportsPage() {
 
       <p className="text-12 text-ink-muted">
         Timesheets, utilisation, realisation, client profitability and the
-        intern exposure report all need time tracking, which is Phase 2
-        (spec section 9). They are not here rather than here and empty.
+        intern exposure report all need time tracking, which is Phase 2 (spec
+        section 9). They are not here rather than here and empty.
       </p>
     </div>
   );
+}
+/** A heading as an anchor: "The practice" becomes "the-practice". */
+function slug(title) {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
