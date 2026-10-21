@@ -55,7 +55,7 @@ reason, including the security fixes in P2-1.
 | P2-9a | `ClientUser` · client auth provider (2FA optional) · `/client/login` · middleware · portal-user admin · `sharedWithClient` | 🟡 | Built 20-10-2026. **The first login in the system for somebody outside the firm.** Four independent locks between a portal token and a staff screen; nothing is shared with a client until a CA ticks it. Needs Atlas to run; 7 Playwright tests waiting |
 | P2-9b | The `/client/*` pages: overview, work, documents, invoices and PDF, ledger, profile and change request | 🟡 | Built 21-10-2026. Six pages, every query through one `lib/access/clientScope.js` — six pages each writing their own filter is six chances to show the wrong company's invoice. Needs Atlas to run; 4 Playwright tests waiting |
 | P2-10a | Portal Log: rename, redirects, redesign | 🟡 | Built 21-10-2026. **The record-type filter had been stale since Step 2** — eight kinds of entry, `ClientUser` among them, could not be filtered for at all. Now derived from the log itself. `/audit` redirects with its filters intact. Needs Atlas to run |
-| P2-10b | Settings: section layout and "Needs attention" | ⬜ | |
+| P2-10b | Settings: section layout and "Needs attention" | 🟡 | Built 21-10-2026. Ten checks for the conditions that make the system quietly wrong — unconfirmed due dates first among them — plus five groups instead of sixteen links in a column, and the read-only permissions table `describeMatrix()` was written for in P2-1. Needs Atlas to run; 4 Playwright tests waiting |
 | P2-10c | Reports: KPI strip, category nav, 8 new report definitions | ⬜ | |
 | P2-10d | Final rail and Practice group · `scripts/doctor.js` additions · full Phase 2 acceptance pass | ⬜ | |
 
@@ -529,6 +529,59 @@ person's password for good.
   screen, offboarding blocked by open work, and offboarding going through with
   the account dead, the grants revoked, the email reusable and the engagement
   still carrying their name.
+
+## What P2-10b built
+
+**"Needs attention", and why it had to exist.** Several settings screens
+hide a condition that makes the app quietly wrong rather than visibly
+broken: an unconfirmed due-date rule produces no deadline at all, a branch
+with no GSTIN cannot issue an invoice, an unapproved template produces
+nothing but drafts. Each of those is correct behaviour, and each is
+invisible until somebody goes looking. Ten checks now do the looking, at
+the top of Settings:
+
+unconfirmed due-date rules · branches with no GSTIN · unapproved document
+templates · gaps in the firm's own record · services with no fee or SAC ·
+client email switched off · the job runner not heard from · failed jobs ·
+sample data still in the database · accounts that have never signed in.
+
+- **An item that counts zero is absent**, not shown ticked. A list of ticks
+  is furniture; everything on this strip is worth doing today. When it is
+  all clear it says so in one line.
+- **Each check names the permission that lets somebody read it**, so nobody
+  is nagged about a problem their role cannot fix — the accounts person is
+  not told about audit templates, and an intern sees nothing at all. One
+  test asserts that for every check against every role, so a check added
+  later cannot quietly nag the wrong person.
+- **A check that throws loses itself, not the screen.** The settings page
+  500ing because a count failed would be worse than a missing warning.
+- `needsAttention()` does **not** open its own connection — the page does,
+  like every other page. A helper that connects cannot be tested without a
+  database, which is how the first version of this failed its own tests.
+
+**The sections.** Sixteen links in one column became five groups — the firm,
+the work, the practice, messages, data and security. The practice group is
+marked for P2-10d, which moves those registers into the rail: they are
+daily work and they are in Settings only because there was nowhere else to
+put them when they were built.
+
+**The permissions table.** `describeMatrix()` was written in P2-1 for this
+and has had nowhere to live since; it is now a read-only page under Data and
+security. `MATRIX` itself stays private — an exported object is one
+assignment away from a permission change nobody reviewed — so the page is
+handed sentences. It states plainly that it cannot be edited here, because
+spec §2 asks for configurable permissions and that screen still does not
+exist.
+
+- Tests: 11 new Vitest tests (800 total) — every check naming a real
+  permission area and explaining itself; nothing shown when nothing is
+  wrong; blocking items sorted above the rest; a throwing check skipped
+  rather than fatal; the accounts person and the intern each told only what
+  they can act on; and `describeMatrix()` covering every area for every
+  role. 4 Playwright tests waiting on Atlas: the unconfirmed rule appearing
+  on the strip and leaving it once confirmed, the five group headings, an
+  employee seeing neither the items nor the admin groups, and the
+  permissions table.
 
 ## What P2-10a built
 
@@ -1462,6 +1515,26 @@ From spec §18 — none answered yet. These block later steps, not Step 0:
 - [ ] `notices@` mailbox + SPF/DKIM/DMARC (Step 9)
 
 ## Left over / known gaps
+
+**From P2-10b**
+
+- **Nothing here has run against a database.** Ten counts are stubbed in
+  the unit tests; the 4 Playwright tests wait on Atlas like everything
+  else.
+- **The strip costs ten count queries on every Settings load.** All indexed
+  and all in parallel, so it is one round trip's wait, but it is ten more
+  than the page used to do. If Settings ever feels slow, this is why.
+- **"Services with no fee or no SAC" will read high for a long time** — the
+  starter catalog seeded every fee at zero on purpose. It is honest, and it
+  will stay on the strip until the firm prices its own work.
+- **Permissions still cannot be edited**, which spec §2 asks for. The page
+  says so. Making it editable means the matrix moves from code to the
+  database, and that is a bigger change than it looks: every check in the
+  app reads it.
+- The checks are not configurable — nobody can say "stop telling me about
+  the sample data". If one becomes a nuisance, say which.
+- `/settings/permissions` is a wide table on a phone. It scrolls
+  horizontally, which is the honest answer for a matrix of five roles.
 
 **From P2-10a**
 
