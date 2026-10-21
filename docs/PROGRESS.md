@@ -3,7 +3,7 @@
 Source of truth for what is done. Updated at the end of every step.
 Status: ⬜ not started · 🟡 in progress · ✅ done
 
-Last updated: 20-10-2026
+Last updated: 21-10-2026
 
 ## Phase 1 — Core MVP
 
@@ -52,7 +52,7 @@ reason, including the security fixes in P2-1.
 | P2-8a | Audits · Statutory · Tax page, plus the `assurance` fields and `filedOn` | 🟡 | Built 20-10-2026. **The system could not say when anything was filed, or whether an audit opinion was clean.** Three books over the engagements that already exist, no second place to update. Needs Atlas to run; 3 Playwright tests waiting |
 | P2-8b | Based Docs: `DocTemplate`, `lib/docs/resolve.js`, `templatePdf.jsx`, draft/final tier rules, 8 draft templates, template admin | 🟡 | Built 20-10-2026. **The eight starter templates ship unapproved and make watermarked drafts only** — a partner has to read each wording before anything can be issued. No file is stored: a final holds its own words and the PDF renders from them. Needs Atlas to run; 4 Playwright tests waiting |
 | P2-8c | DOCX output | 🟡 | Built 20-10-2026. **`docx` approved as a dependency** (owner, D16). Word and PDF now come off one `prepareRender()`, so the two formats cannot print different words or answer the permission question differently. Needs Atlas to run; 1 more Playwright test waiting |
-| P2-9a | `ClientUser` · client auth provider (2FA optional) · `/client/login` · middleware · portal-user admin · `sharedWithClient` | ⬜ | |
+| P2-9a | `ClientUser` · client auth provider (2FA optional) · `/client/login` · middleware · portal-user admin · `sharedWithClient` | 🟡 | Built 20-10-2026. **The first login in the system for somebody outside the firm.** Four independent locks between a portal token and a staff screen; nothing is shared with a client until a CA ticks it. Needs Atlas to run; 7 Playwright tests waiting |
 | P2-9b | The `/client/*` pages: overview, work, documents, invoices and PDF, ledger, profile and change request | ⬜ | |
 | P2-10a | Portal Log: rename, redirects, redesign | ⬜ | |
 | P2-10b | Settings: section layout and "Needs attention" | ⬜ | |
@@ -180,6 +180,11 @@ Not started (spec §17).
 | 19-10-2026 | D10: the client panel is `/client/*`, login at `/client/login`, separate from the staff `/clients` list | Owner |
 | 20-10-2026 | D13: **Statutory is the Registrar's book** — Company Law / ROC only. PF, ESI and PT are returns with a deadline, so Payroll and Labour sits in Tax. Accounting, Advisory, Registrations and Certification belong to no book: they are work, not filings | Owner default, applied |
 | 20-10-2026 | D14: audit opinions are the four of SA 700 / SA 705 — Unmodified, Qualified, Adverse, Disclaimer — plus "Not yet issued" for the state every audit starts in. Anything but unmodified has to record what it is modified for | Owner default, applied |
+| 20-10-2026 | **One portal account sees one client.** A person who runs two companies gets two logins, and one email can hold only one account across the whole portal — an ambiguous sign-in is refused rather than guessed at | Agent, owner to confirm |
+| 20-10-2026 | **Portal 2FA is optional and off by default**, turned on by the firm per account (the brief's position). Staff 2FA stays mandatory | Agent, owner to confirm |
+| 20-10-2026 | **Only a CA or a partner may share a document with a client**, although an employee may edit documents on their own work. Sharing is the only edit on that screen that sends the firm's material outside the firm | Agent, owner to confirm |
+| 20-10-2026 | Middleware stays cookie-presence-only and does **not** decide staff-or-client. Verifying the JWT at the edge means pulling the auth config and Mongoose into a bundle already at 107 KB; the two layouts decide instead, against the database, every request | Agent |
+| 20-10-2026 | Portal accounts live on the **Team & access tab**, not a ninth tab: that tab already asks who can see this client, and the client's own people are part of the answer | Agent |
 | 20-10-2026 | D16: **`docx` approved as a dependency** for P2-8c, over hand-building the zip with `fflate` (already present) or skipping Word output. The deciding argument: whether Word opens the file is the one thing that cannot be tested here, and a library's output is known-good | Owner, approved |
 | 20-10-2026 | D15: the eight starter document templates are the agent's proposal, **all unapproved**, their wording drafted plainly and explicitly not an ICAI pro forma. A partner approves each one before it can be issued; the list itself is the owner's to change | Owner default, applied |
 | 20-10-2026 | **A generated document is not stored as a file.** A final holds its own words and the PDF renders from them, like an invoice. Storing one would need a server-side write to the file gateway, which only takes browser uploads with a signed ticket | Agent, owner to confirm |
@@ -520,6 +525,75 @@ person's password for good.
   screen, offboarding blocked by open work, and offboarding going through with
   the account dead, the grants revoked, the email reusable and the engagement
   still carrying their name.
+
+## What P2-9a built
+
+The first login in this system that belongs to somebody outside the firm.
+Almost all of the work is containment.
+
+**A portal account is a separate collection, not a role.** A role is one
+careless matrix row away from reaching a staff screen; `clientUsers` cannot
+be given one at all. **One account sees one client** — somebody who runs two
+companies gets two logins, because a join table is the moment one company
+becomes visible from the other by accident.
+
+**Four independent locks sit between a portal token and a staff screen**, and
+none of them is the only one:
+
+1. `can()` refuses `kind: "client"` on its first line (P2-1), tested against
+   every area in the matrix including ones added later.
+2. `currentUser()` now refuses the kind **explicitly**. It would have failed
+   anyway — the id belongs to another collection — but a check that works by
+   accident is one refactor from not working.
+3. The `(app)` layout turns away anybody `currentUser()` will not vouch for.
+4. The `(client)` layout does the same in reverse, so a member of the firm
+   reaching `/client` lands on the portal's login screen.
+
+**Middleware still does not read the JWT.** Deciding staff-or-client at the
+edge means verifying the token there, which drags the auth config and
+Mongoose into the edge runtime; the middleware bundle is already 107 KB
+against Vercel's 1 MB. So it does one thing — sends a signed-out visitor to
+the right front door, `/client/login` under `/client` and `/login`
+everywhere else — and the layouts decide the rest against the database, on
+every request.
+
+- **A challenge cannot cross between the two flows.** Both are signed with
+  the same key, so a portal challenge is prefixed `client:` and the staff
+  provider refuses any id containing a colon. Neither can be replayed as
+  the other.
+- **2FA is optional for clients** and off by default (the firm turns it on
+  per account), which is exactly why the lockout matters more here: the
+  same five-and-fifteen as staff, through the `lib/security/lockout.js`
+  written in P2-1 for this second caller. The failure message differs —
+  staff are told to ask a partner, a client has nobody in the firm to ask
+  by name.
+- **Nothing is shared by default.** `sharedWithClient` is false on every
+  document that exists, so switching the portal on reveals nothing until
+  somebody ticks something. **Only a CA or a partner may tick it**:
+  everything else on that screen an employee may do on their own work, but
+  this one sends the firm's material outside the firm.
+- **A closed account stops at once**, not when its session expires —
+  `currentClientUser()` reads the record live on every request, the same
+  stance `currentUser()` takes.
+- The invited password is a one-time one, shown **once** on screen to be
+  read out, and the portal opens nothing until it has been changed.
+- `/client` itself is one page saying what is there and what is coming: the
+  work, documents, invoices, ledger and change request are P2-9b. An empty
+  frame of tabs that do nothing would be worse.
+- The sample dataset gains one portal login, printed by the seed.
+
+- Tests: 10 new Vitest tests (762 total) — the session shape
+  `currentClientUser()` actually returns, failing every area, and failing
+  again with a staff role and a branch bolted on; the record's defaults
+  (password must change, 2FA not required, hash and secret never selected,
+  one client, one account per email); a document unshared by default; and
+  the lockout against the portal's own collection. 7 Playwright tests
+  waiting on Atlas, and they are the point of this step: a client signing in
+  and landing in their own portal, the same client turned away from eight
+  staff screens and two exports, a staff session refused at `/client`, an
+  account closed mid-session stopping on the next request, a wrong password
+  and a missing account answering identically, and a partner creating an
+  account and seeing the password once.
 
 ## What P2-8c built
 
@@ -1270,6 +1344,38 @@ From spec §18 — none answered yet. These block later steps, not Step 0:
 - [ ] `notices@` mailbox + SPF/DKIM/DMARC (Step 9)
 
 ## Left over / known gaps
+
+**From P2-9a**
+
+- **Nothing here has run against a database**, and this is the step where
+  that matters most: the four locks are reasoned and unit-tested, but the 7
+  Playwright tests that actually walk a client into a staff screen and watch
+  the door shut have never run. **They should be the first suite run when
+  Atlas exists.**
+- **No portal account can be invited by email yet.** The one-time password
+  is read out, like a staff account's. Emailing it needs a template and the
+  client-email switch thrown, which is a P2-9b or P2-10 job.
+- **There is no "forgot password" for clients**, and no self-registration.
+  Both are deliberate; a client who is locked out rings the office, which is
+  what the lockout message says.
+- **A client cannot ask for an account.** Only a CA or a partner creates
+  one, and only for a client in their own branch scope.
+- `/client` is a single page. Work, documents, invoices, the ledger and the
+  change request are **P2-9b** and it says so on screen rather than showing
+  dead tabs.
+- **Nothing at all is shared yet**: `sharedWithClient` is false everywhere
+  and there is no bulk way to tick a year's documents. One at a time, by a
+  CA, is the safe start — say if that becomes tedious.
+- The portal session uses the **same cookie** as the staff session, so
+  signing in as a client on a machine signs the staff user out of it, and
+  the other way round. One browser profile is one identity. For a partner
+  checking what a client sees, that means a private window.
+- The 30-minute idle timeout applies to clients too. It is right for staff
+  and may be short for a client who opens a document and reads it; worth
+  revisiting once anybody has used it.
+- `currentClientUser()` adds **one indexed lookup per request** to the
+  portal, the same cost the staff side already pays, and for the same
+  reason: a closed account must stop now.
 
 **From P2-8c**
 

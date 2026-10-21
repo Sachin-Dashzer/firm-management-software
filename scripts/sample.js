@@ -33,6 +33,7 @@ import Engagement from "../models/Engagement.js";
 import ServiceTemplate from "../models/ServiceTemplate.js";
 import Dsc from "../models/Dsc.js";
 import Udin from "../models/Udin.js";
+import ClientUser from "../models/ClientUser.js";
 import { hashPassword } from "../lib/crypto.js";
 import { systemAudit } from "../lib/audit/system.js";
 import { gstinCheckDigit } from "../lib/validators.js";
@@ -486,6 +487,25 @@ export const SAMPLE_UDINS = [
     documentType: "Net worth certificate",
     member: "ca-noida",
     backDays: 20,
+  },
+];
+
+/**
+ * One portal login, for the client with the most going on (P2-9a).
+ *
+ * The password is in the open here on purpose — this dataset refuses to run
+ * with `NODE_ENV=production` and every address in it is at a `.test`
+ * domain that cannot receive mail. It is the account to sign in with when
+ * checking what a client actually sees.
+ */
+export const SAMPLE_PORTAL_USERS = [
+  {
+    client: "jaiswal",
+    name: "Vikram Jaiswal",
+    email: `vikram.jaiswal@${SAMPLE_DOMAIN}`,
+    designation: "Director",
+    password: "sample-portal-password",
+    totpRequired: false,
   },
 ];
 
@@ -964,6 +984,38 @@ export async function seedSample(options = {}) {
     log(`udin    ${row.udin} — ${row.documentType}`);
   }
 
+  // --- the client portal account (P2-9a) ----------------------------------
+  for (const row of SAMPLE_PORTAL_USERS) {
+    const client = await Client.findById(clientId.get(row.client)).lean();
+    if (!client) continue;
+    if (await ClientUser.findOne({ email: row.email }).lean()) continue;
+
+    await systemAudit(async (session) => {
+      await ClientUser.create(
+        [
+          {
+            name: row.name,
+            email: row.email,
+            designation: row.designation,
+            clientId: client._id,
+            branchId: client.branchId,
+            passwordHash: await hashPassword(row.password),
+            // the sample account is ready to sign in with: a dataset that
+            // demands a password change before it shows anything is a
+            // dataset nobody uses
+            mustChangePassword: false,
+            totpRequired: row.totpRequired,
+            invitedByName: "Sample data",
+            createdBy: "sample",
+            updatedBy: "sample",
+          },
+        ],
+        { session },
+      );
+    });
+    log(`portal  ${row.email} — ${row.password}`);
+  }
+
   return {
     people: SAMPLE_PEOPLE.length,
     clients: SAMPLE_CLIENTS.length,
@@ -971,6 +1023,7 @@ export async function seedSample(options = {}) {
     grants: SAMPLE_GRANTS.length,
     dscs: SAMPLE_DSCS.length,
     udins: SAMPLE_UDINS.length,
+    portalUsers: SAMPLE_PORTAL_USERS.length,
   };
 }
 
@@ -1007,6 +1060,11 @@ export async function dropSample() {
       removed += 1;
     }
     for (const row of await Udin.find({ clientId: client._id })) {
+      await systemAudit((session) => row.softDelete("sample", { session }));
+      removed += 1;
+    }
+    // the portal logins (P2-9a): closing the client must close the door
+    for (const row of await ClientUser.find({ clientId: client._id })) {
       await systemAudit((session) => row.softDelete("sample", { session }));
       removed += 1;
     }

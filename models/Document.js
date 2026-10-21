@@ -41,6 +41,19 @@ const documentSchema = new mongoose.Schema(
     /** Financial year label, e.g. "FY2026-27" — the vault folder too. */
     fy: { type: String, default: "", trim: true },
     isPermanent: { type: Boolean, default: false },
+
+    /**
+     * Is this one of the documents the client may see in their portal
+     * (P2-9a)?
+     *
+     * **False on everything, always, until somebody ticks it.** Switching
+     * the portal on must reveal nothing: a working paper, an internal note
+     * and a draft all live in the same list as the client's own return, and
+     * the safe default for a client-facing flag is off.
+     */
+    sharedWithClient: { type: Boolean, default: false },
+    sharedAt: { type: Date, default: null },
+    sharedBy: { type: String, default: null },
     /** What it is: PAN card, engagement letter, acknowledgement… */
     kind: { type: String, default: "", trim: true },
 

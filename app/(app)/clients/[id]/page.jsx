@@ -45,6 +45,8 @@ import ClientAccess from "@/models/ClientAccess";
 import Dsc from "@/models/Dsc";
 import { dscState } from "@/lib/practice/dsc";
 import TeamAccess from "./TeamAccess";
+import ClientUser from "@/models/ClientUser";
+import PortalAccounts from "./PortalAccounts";
 
 export const dynamic = "force-dynamic";
 
@@ -327,7 +329,14 @@ export default async function ClientPage({ params, searchParams }) {
       )}
 
       {active === "access" && (
-        <TeamAccessTab clientId={id} actor={actor} client={client} />
+        <div className="flex flex-col gap-4">
+          <TeamAccessTab clientId={id} actor={actor} client={client} />
+          {/* the client's own people, below the firm's: the tab asks who
+              can see this client, and they are part of the answer (P2-9a) */}
+          {can(actor, "view", "clientPortalUsers", scope) && (
+            <PortalAccountsTab clientId={id} actor={actor} client={client} />
+          )}
+        </div>
       )}
 
       {active === "compliance" && (
@@ -1217,5 +1226,43 @@ function Chip({ label, value, mono }) {
       </dt>
       <dd className={`${mono ? "font-mono" : ""} text-13`}>{value}</dd>
     </div>
+  );
+}
+
+/**
+ * The client's own logins (P2-9a).
+ *
+ * Read with the same branch scope as everything else on the case file, and
+ * editable only by a CA or a partner — the action checks that again, since
+ * these are accounts for people outside the firm.
+ */
+async function PortalAccountsTab({ clientId, actor, client }) {
+  const mayEdit =
+    can(actor, "edit", "clientPortalUsers", {
+      branchId: String(client.branchId),
+    }) && ["ca", "partner"].includes(actor.role);
+
+  const accounts = await ClientUser.find({ clientId })
+    .sort({ active: -1, createdAt: -1 })
+    .lean();
+
+  return (
+    <PortalAccounts
+      clientId={clientId}
+      mayEdit={mayEdit}
+      accounts={accounts.map((account) => ({
+        id: String(account._id),
+        name: account.name,
+        email: account.email,
+        designation: account.designation ?? "",
+        active: account.active !== false,
+        twoFactor: Boolean(account.totpRequired),
+        mustChangePassword: Boolean(account.mustChangePassword),
+        invitedByName: account.invitedByName ?? "",
+        lastLoginAt: account.lastLoginAt
+          ? formatISTDate(account.lastLoginAt)
+          : null,
+      }))}
+    />
   );
 }

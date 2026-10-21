@@ -5,6 +5,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
+import ClientUser from "@/models/ClientUser";
 import { decryptField } from "@/lib/crypto";
 import { readChallenge, verifyTotp, skip2fa } from "@/lib/twoFactor";
 import { audited } from "@/lib/audit/request";
@@ -36,7 +37,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       credentials: { challenge: {}, code: {} },
       async authorize({ challenge, code }) {
         const userId = readChallenge(String(challenge ?? ""));
-        if (!userId) return null;
+        // a portal challenge is prefixed `client:` and is not a staff
+        // challenge however valid its signature is (P2-9a)
+        if (!userId || userId.includes(":")) return null;
 
         await connectDB();
         const user = await User.findById(userId).select(
@@ -100,22 +103,114 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         };
       },
     }),
+
+    /**
+     * The client portal (P2-9a).
+     *
+     * A separate provider against a separate collection, issuing a token
+     * marked `kind: "client"`. It can never produce a staff session: the id
+     * in it belongs to `clientUsers`, `currentUser()` refuses the kind
+     * outright, and `can()` refuses it again on its first line.
+     *
+     * The password was checked by `startClientSignIn`; this is the second
+     * step, which is a TOTP code when the firm has turned 2FA on for the
+     * account and nothing when it has not.
+     */
+    Credentials({
+      id: "client",
+      name: "Client portal",
+      credentials: { challenge: {}, code: {} },
+      async authorize({ challenge, code }) {
+        const raw = readChallenge(String(challenge ?? ""));
+        if (!raw || !raw.startsWith("client:")) return null;
+        const id = raw.slice("client:".length);
+
+        await connectDB();
+        const person = await ClientUser.findById(id).select(
+          "+totpSecret +lastTotpCounter",
+        );
+        if (!person || !person.active) return null;
+
+        let counter = person.lastTotpCounter;
+        if (person.totpRequired) {
+          // 2FA is on for this account, so a code is not optional however
+          // the form was submitted
+          if (!person.totpSecret) return null;
+          const result = verifyTotp({
+            secret: decryptField(person.totpSecret),
+            email: person.email,
+            code: String(code ?? ""),
+            lastCounter: person.lastTotpCounter,
+          });
+          if (!result.ok) return null;
+          counter = result.counter;
+        }
+
+        const actor = {
+          id: String(person._id),
+          name: person.name,
+          role: "client",
+          kind: "client",
+        };
+
+        await audited(actor, async (session) => {
+          await ClientUser.updateOne(
+            { _id: person._id },
+            {
+              $set: {
+                lastTotpCounter: counter,
+                lastLoginAt: new Date(),
+                failedLogins: 0,
+                lockedUntil: null,
+              },
+            },
+            { session },
+          );
+          await recordAudit(
+            {
+              action: ACTIONS.login,
+              entityType: "ClientUser",
+              entityId: actor.id,
+              note: `client portal, ${person.email}`,
+            },
+            session,
+          );
+        });
+
+        return {
+          id: String(person._id),
+          name: person.name,
+          email: person.email,
+          kind: "client",
+          clientId: String(person.clientId),
+          mustChangePassword: person.mustChangePassword,
+        };
+      },
+    }),
   ],
   events: {
     /** Signing out is logged too (spec section 11). */
     async signOut(message) {
       const userId = message?.token?.sub;
       if (!userId) return;
+      // a portal sign-out is logged against `clientUsers`, so the entry
+      // names the right record rather than a staff id that does not exist
+      const isClient = message?.token?.kind === "client";
       try {
         await audited(
           {
             id: userId,
             name: message.token.name ?? "",
-            role: message.token.role,
+            role: isClient ? "client" : message.token.role,
+            ...(isClient ? { kind: "client" } : {}),
           },
           (session) =>
             recordAudit(
-              { action: ACTIONS.logout, entityType: "User", entityId: userId },
+              {
+                action: ACTIONS.logout,
+                entityType: isClient ? "ClientUser" : "User",
+                entityId: userId,
+              },
               session,
             ),
         );
@@ -127,9 +222,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     jwt({ token, user }) {
       if (user) {
+        // a portal token says so, and carries no role and no branches:
+        // there is nothing in the staff matrix for it to match (P2-9a)
+        token.kind = user.kind ?? "staff";
         token.role = user.role;
         token.branchIds = user.branchIds;
         token.isIntern = user.isIntern;
+        token.clientId = user.clientId;
         token.mustChangePassword = user.mustChangePassword;
       }
       return token;
@@ -137,9 +236,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     session({ session, token }) {
       // the shape lib/permissions.js expects as its Actor
       session.user.id = String(token.sub);
+      session.user.kind = token.kind ?? "staff";
       session.user.role = token.role;
       session.user.branchIds = token.branchIds ?? [];
       session.user.isIntern = token.isIntern ?? false;
+      session.user.clientId = token.clientId ?? null;
       session.user.mustChangePassword = token.mustChangePassword ?? false;
       session.user.active = true;
       return session;
@@ -180,6 +281,14 @@ export async function currentUser() {
   const id = session?.user?.id;
   if (!id) return null;
 
+  /**
+   * A portal token is not a weak staff token, it is not a staff token. It
+   * would fail the lookup below anyway — the id belongs to `clientUsers` —
+   * but a check that works by accident is one refactor from not working
+   * (P2-9a).
+   */
+  if (session.user.kind === "client") return null;
+
   const live = await liveUser(String(id));
   // deactivated, or deleted outright: the session stops working now, not
   // when its thirty minutes happen to run out
@@ -208,4 +317,55 @@ export async function requireUser() {
     throw err;
   }
   return user;
+}
+
+/**
+ * The signed-in portal user, read live from `clientUsers` on every request
+ * (P2-9a).
+ *
+ * The same stance as `currentUser()` and for the same reason: a JWT is a
+ * frozen copy of what was true when it was issued, and an account the firm
+ * has just closed must stop working now rather than in thirty minutes.
+ * `clientId` comes from the record, never from the cookie — a token that
+ * claimed another company would otherwise open it.
+ */
+const liveClientUser = cache(async (id) => {
+  await connectDB();
+  return ClientUser.findById(id)
+    .select(
+      "name email designation clientId branchId active mustChangePassword",
+    )
+    .lean();
+});
+
+export async function currentClientUser() {
+  const session = await auth();
+  const id = session?.user?.id;
+  if (!id || session.user.kind !== "client") return null;
+
+  const live = await liveClientUser(String(id));
+  if (!live || live.active === false) return null;
+
+  return {
+    id: String(live._id),
+    kind: "client",
+    name: live.name,
+    email: live.email,
+    designation: live.designation ?? "",
+    clientId: String(live.clientId),
+    branchId: String(live.branchId),
+    mustChangePassword: Boolean(live.mustChangePassword),
+    active: true,
+  };
+}
+
+/** The portal's `requireUser()`: throws rather than returning null. */
+export async function requireClientUser() {
+  const person = await currentClientUser();
+  if (!person) {
+    const err = new Error("Not signed in");
+    err.code = "UNAUTHENTICATED";
+    throw err;
+  }
+  return person;
 }

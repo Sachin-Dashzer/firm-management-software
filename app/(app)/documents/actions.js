@@ -470,3 +470,64 @@ export async function documentsForEngagement(engagementId) {
     uploadedByName: d.uploadedByName,
   }));
 }
+
+/**
+ * Share a document with the client's own portal, or take it back (P2-9a).
+ *
+ * Its own action rather than another field on `updateDocument`, because it
+ * is the only edit on this screen that makes something visible **outside
+ * the firm**. It carries its own audit note saying which way it went.
+ *
+ * **Only a CA or a partner may share.** Everything else in this file an
+ * employee or an intern may do on work they are on; this one sends the
+ * firm's material to somebody who is not in the firm, and that is a
+ * judgement for somebody who signs things.
+ */
+export async function shareDocument(id, shared) {
+  const actor = await requireUser();
+  await connectDB();
+
+  const document = await Document.findById(id);
+  if (!document) return { error: "That file is gone." };
+
+  const engagement = document.engagementId
+    ? await Engagement.findById(document.engagementId).lean()
+    : null;
+  assertCan(
+    actor,
+    "edit",
+    "documents",
+    await targetOf(actor, engagement, null, document.clientId),
+  );
+  if (!["ca", "partner"].includes(actor.role)) {
+    return { error: "Only a CA or a partner shares a document with a client." };
+  }
+
+  const on = Boolean(shared);
+
+  await audited(actor, async (session) => {
+    document.sharedWithClient = on;
+    document.sharedAt = on ? new Date() : null;
+    document.sharedBy = on ? actor.id : null;
+    document.updatedBy = actor.id;
+    await document.save({ session });
+
+    await recordAudit(
+      {
+        action: ACTIONS.update,
+        entityType: "Document",
+        entityId: String(document._id),
+        note: on
+          ? `shared with the client's portal: ${document.name}`
+          : `withdrawn from the client's portal: ${document.name}`,
+      },
+      session,
+    );
+  });
+
+  revalidatePath(`/clients/${document.clientId}`);
+  if (document.engagementId) {
+    revalidatePath(`/engagements/${document.engagementId}`);
+  }
+  return { ok: on ? "Shared with the client." : "No longer shared." };
+}
