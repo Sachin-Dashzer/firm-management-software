@@ -3,7 +3,7 @@
 Source of truth for what is done. Updated at the end of every step.
 Status: ⬜ not started · 🟡 in progress · ✅ done
 
-Last updated: 21-10-2026
+Last updated: 24-10-2026
 
 ## Phase 1 — Core MVP
 
@@ -58,6 +58,7 @@ reason, including the security fixes in P2-1.
 | P2-10b | Settings: section layout and "Needs attention" | 🟡 | Built 21-10-2026. Ten checks for the conditions that make the system quietly wrong — unconfirmed due dates first among them — plus five groups instead of sixteen links in a column, and the read-only permissions table `describeMatrix()` was written for in P2-1. Needs Atlas to run; 4 Playwright tests waiting |
 | P2-10c | Reports: KPI strip, category nav, 8 new report definitions | 🟡 | Built 21-10-2026. Eight reports from data the Phase 2 modules had already collected but nothing read — `filedOn`, `assurance`, the two registers, the grants, the portal accounts and `reworkCount`. Needs Atlas to run; 1 more Playwright test waiting |
 | P2-10d | Final rail and Practice group · `scripts/doctor.js` additions · full Phase 2 acceptance pass | 🟡 | Built 21-10-2026. **Phase 2's step list is complete.** The doctor now reads the same check list the Settings strip does instead of keeping its own copy; `docs/ACCEPTANCE.md` has a Phase 2 half. Needs Atlas to run; 2 more Playwright tests waiting |
+| P2-11 | Groups you can work from: `/groups`, `/groups/[id]`, the sibling band on a case file, the group filter on the engagement list and receivables | 🟡 | Added 24-10-2026 at the owner's request ("one client with two or three businesses"). **No new collection: with separate PANs each business already is a client record, and `ClientGroup` is the owner above them** (D17). One scoped rollup in `lib/groups/summary.js` feeds all four screens. Also fixed: the rail filtered a group's children and then threw the result away, so an intern was shown Practice registers they cannot open. Needs Atlas to run; 2 Playwright tests waiting |
 
 ## Phase 3
 
@@ -67,6 +68,8 @@ Not started (spec §17).
 
 | Date | Decision | By |
 | --- | --- | --- |
+| 24-10-2026 | D17: **a client's several businesses are several client records, grouped — not sub-records under one client.** The owner confirmed the businesses have separate PANs, and `Client` is already keyed on PAN with its own GSTINs, fees, engagements and invoices, so a `businesses[]` layer would have duplicated the client record one level down. `ClientGroup` becomes the owner (a person or a family) and P2-11 adds the screens that read a group together. **If a proprietor ever runs two firms on one PAN, this does not cover it** — the unique PAN index would refuse the second record, and that case needs the embedded design after all | Owner, approved |
+| 24-10-2026 | **One invoice per business**, each carrying that business's own GSTIN. Separate registrations mean separate input credit, so a combined invoice would be wrong for the client's books | Owner, approved |
 | 16-10-2026 | Tech stack fixed per CLAUDE.md (Next.js 15 App Router, JavaScript + JSDoc, MongoDB Atlas Mumbai, Vercel bom1, BigRock gateway) | Owner, pre-build |
 | 16-10-2026 | Storybook deferred from Step 0 to Step 1 — nothing to put in it until the first real components exist | Agent, owner to confirm |
 | 16-10-2026 | No Figma stage: design tokens built in code straight from spec §15. Revisit if a designer joins | Agent, owner to confirm |

@@ -16,6 +16,7 @@ import {
   contextFromRequest,
 } from "@/lib/audit";
 import { engagementQuery } from "@/lib/engagements/filter";
+import { clientIdsInGroup } from "@/lib/groups/summary";
 import { tierOf } from "@/lib/services/catalog";
 
 /**
@@ -33,7 +34,12 @@ export async function GET(request) {
   await connectDB();
   const url = new URL(request.url);
   const params = Object.fromEntries(url.searchParams.entries());
-  const query = engagementQuery(actor, params);
+  // the group filter is resolved exactly as the screen resolves it, so a
+  // filtered list downloads as that list and not as the whole firm's
+  const clientIds = params.group
+    ? await clientIdsInGroup(actor, params.group)
+    : undefined;
+  const query = engagementQuery(actor, { ...params, clientIds });
 
   const engagements = await Engagement.find(query)
     .sort({ statutoryDue: 1, internalDue: 1 })

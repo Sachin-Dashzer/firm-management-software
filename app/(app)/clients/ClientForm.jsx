@@ -338,7 +338,7 @@ export default function ClientForm({
           placeholder="— none —"
         />
         <Select
-          label="Group / family"
+          label="Group"
           name="groupId"
           defaultValue={client?.groupId}
           options={groups.map((g) => ({ value: g.id, label: g.name }))}

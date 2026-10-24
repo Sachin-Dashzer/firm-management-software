@@ -7,6 +7,7 @@ import {
   House,
   Users,
   UsersThree,
+  Buildings,
   UserCircle,
   Briefcase,
   CalendarCheck,
@@ -39,6 +40,12 @@ const LINKS = [
     icon: Users,
     area: "clients",
   },
+  /**
+   * Groups (P2-11): one owner, several businesses. Its own entry rather than
+   * a tab inside Clients, because the question it answers — what is going on
+   * across this family — is asked before any one business is chosen.
+   */
+  { href: "/groups", label: "Groups", icon: Buildings, area: "clients" },
   {
     href: "/engagements",
     label: "Engagements",
@@ -116,6 +123,10 @@ function linksFor(role) {
     }
     return can(actor, "view", link.area);
   }).map((link) => ({
+    ...link,
+    // after `...link`, not before it: spread the other way round and the
+    // unfiltered `children` from the link won the overwrite, so a register
+    // an intern may not open was still listed under Practice
     ...(link.children
       ? {
           children: link.children.filter((child) =>
@@ -123,7 +134,6 @@ function linksFor(role) {
           ),
         }
       : {}),
-    ...link,
     label:
       link.narrowLabel && seesOnlyOwnRecords(actor, link.area)
         ? link.narrowLabel

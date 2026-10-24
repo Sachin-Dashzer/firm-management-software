@@ -8,6 +8,7 @@ import Client from "@/models/Client";
 import Branch from "@/models/Branch";
 import User from "@/models/User";
 import ClientGroup from "@/models/ClientGroup";
+import { siblingsOf } from "@/lib/groups/summary";
 import ClientCredential from "@/models/ClientCredential";
 import Comment from "@/models/Comment";
 import AuditLog from "@/models/AuditLog";
@@ -162,7 +163,7 @@ export default async function ClientPage({ params, searchParams }) {
   const active = tabs.some((t) => t.key === tab) ? tab : tabs[0]?.key;
   if (!active) redirect("/clients");
 
-  const [branch, partner, manager, group] = await Promise.all([
+  const [branch, partner, manager, group, siblings] = await Promise.all([
     Branch.findById(client.branchId).select("code name").lean(),
     client.clientPartnerId
       ? User.findById(client.clientPartnerId).select("name").lean()
@@ -173,6 +174,9 @@ export default async function ClientPage({ params, searchParams }) {
     client.groupId
       ? ClientGroup.findById(client.groupId).select("name").lean()
       : null,
+    // the owner's other businesses (P2-11) — each one a client record of its
+    // own, scoped so this shows only the ones this person may open
+    siblingsOf(actor, client),
   ]);
 
   const primary =
@@ -258,11 +262,50 @@ export default async function ClientPage({ params, searchParams }) {
               </dd>
             </div>
           )}
-          {group && <Chip label="Group" value={group.name} />}
+          {group && (
+            <Chip
+              label="Group"
+              value={
+                <Link
+                  href={`/groups/${client.groupId}`}
+                  className="underline underline-offset-4"
+                >
+                  {group.name}
+                </Link>
+              }
+            />
+          )}
         </dl>
         {client.statusReason && (
           <p className="rounded-ledger border-waiting bg-waiting-wash text-13 text-waiting border px-3 py-2">
             {client.status}: {client.statusReason}
+          </p>
+        )}
+        {/*
+          The same owner's other businesses (P2-11). A separate PAN means a
+          separate client record, so this is the only place the three show up
+          as one relationship.
+        */}
+        {siblings.length > 0 && (
+          <p className="rounded-ledger border-rule bg-surface text-13 flex flex-wrap items-center gap-x-2 gap-y-1 border px-3 py-2">
+            <span className="text-ink-muted">
+              Also in {group?.name ?? "this group"}:
+            </span>
+            {siblings.map((business) => (
+              <Link
+                key={business.id}
+                href={`/clients/${business.id}`}
+                className="underline underline-offset-4"
+              >
+                {business.name}
+                {business.openWork > 0 && (
+                  <span className="text-ink-muted num">
+                    {" "}
+                    ({business.openWork} open)
+                  </span>
+                )}
+              </Link>
+            ))}
           </p>
         )}
       </header>

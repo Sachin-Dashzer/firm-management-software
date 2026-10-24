@@ -8,6 +8,8 @@ import Client from "@/models/Client";
 import Branch from "@/models/Branch";
 import User from "@/models/User";
 import ServiceTemplate from "@/models/ServiceTemplate";
+import ClientGroup from "@/models/ClientGroup";
+import { clientIdsInGroup } from "@/lib/groups/summary";
 import { formatISTDate, daysUntil } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
 import { PRIORITIES, STATUSES } from "@/lib/engagements/status";
@@ -35,7 +37,16 @@ export default async function EngagementsPage({ searchParams }) {
 
   await connectDB();
 
-  const query = engagementQuery(actor, params);
+  /**
+   * "All the work of the Sharma group" (P2-11). The group is turned into its
+   * businesses here, through the scoped helper, so the filter can only ever
+   * narrow what this person already sees.
+   */
+  const clientIds = params.group
+    ? await clientIdsInGroup(actor, params.group)
+    : undefined;
+
+  const query = engagementQuery(actor, { ...params, clientIds });
 
   if (search) {
     const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -61,17 +72,19 @@ export default async function EngagementsPage({ searchParams }) {
   const limit = view === "list" ? PAGE_SIZE : 500;
   const skip = view === "list" ? (pageNumber - 1) * PAGE_SIZE : 0;
 
-  const [engagements, total, branches, templates, team] = await Promise.all([
-    Engagement.find(query)
-      .sort({ statutoryDue: 1, internalDue: 1, createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean(),
-    Engagement.countDocuments(query),
-    Branch.find({}).select("code name").sort({ code: 1 }).lean(),
-    ServiceTemplate.find({}).select("name code").sort({ name: 1 }).lean(),
-    User.find({ active: true }).select("name role").sort({ name: 1 }).lean(),
-  ]);
+  const [engagements, total, branches, templates, team, groups] =
+    await Promise.all([
+      Engagement.find(query)
+        .sort({ statutoryDue: 1, internalDue: 1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Engagement.countDocuments(query),
+      Branch.find({}).select("code name").sort({ code: 1 }).lean(),
+      ServiceTemplate.find({}).select("name code").sort({ name: 1 }).lean(),
+      User.find({ active: true }).select("name role").sort({ name: 1 }).lean(),
+      ClientGroup.find({}).select("name").sort({ name: 1 }).lean(),
+    ]);
 
   const clients = await Client.find({
     _id: { $in: engagements.map((e) => e.clientId) },
@@ -215,6 +228,12 @@ export default async function EngagementsPage({ searchParams }) {
           name="assignee"
           value={params.assignee}
           options={team.map((u) => [String(u._id), u.name])}
+        />
+        <Filter
+          label="Group"
+          name="group"
+          value={params.group}
+          options={groups.map((g) => [String(g._id), g.name])}
         />
         <div className="flex flex-wrap items-end gap-3 lg:col-span-2">
           <label className="text-13 flex items-center gap-2">

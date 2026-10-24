@@ -9,6 +9,8 @@ import Engagement from "@/models/Engagement";
 import { formatPaise } from "@/lib/money";
 import { formatISTDate } from "@/lib/dates";
 import { ageReceivables, outstandingOf } from "@/lib/billing/allocation";
+import { clientIdsInGroup } from "@/lib/groups/summary";
+import ClientGroup from "@/models/ClientGroup";
 
 export const metadata = { title: "Receivables · PHMG" };
 export const dynamic = "force-dynamic";
@@ -29,6 +31,18 @@ export default async function ReceivablesPage({ searchParams }) {
 
   await connectDB();
   const scope = branchFilter(actor, "invoices") ?? {};
+
+  /**
+   * One group's money, reached from the group page (P2-11). The group is
+   * resolved to the businesses this person may see, so the filter narrows
+   * the branch scope above and never widens it.
+   */
+  const group = params.group
+    ? await ClientGroup.findById(params.group).select("name").lean()
+    : null;
+  if (group) {
+    scope.clientId = { $in: await clientIdsInGroup(actor, params.group) };
+  }
 
   if (tab === "unbilled") {
     const engagements = await Engagement.find({
@@ -52,7 +66,7 @@ export default async function ReceivablesPage({ searchParams }) {
     const total = engagements.reduce((sum, e) => sum + (e.feePaise ?? 0), 0);
 
     return (
-      <Shell tab={tab}>
+      <Shell tab={tab} group={group}>
         <p className="text-14">
           <strong>{engagements.length}</strong>{" "}
           {engagements.length === 1 ? "job is" : "jobs are"} finished and not
@@ -167,7 +181,7 @@ export default async function ReceivablesPage({ searchParams }) {
   const BUCKETS = ["current", "0-30", "31-60", "61-90", "90+"];
 
   return (
-    <Shell tab={tab}>
+    <Shell tab={tab} group={group}>
       <div className="grid gap-3 sm:grid-cols-5">
         {BUCKETS.map((bucket) => (
           <div
@@ -247,7 +261,13 @@ export default async function ReceivablesPage({ searchParams }) {
   );
 }
 
-function Shell({ tab, children }) {
+function Shell({ tab, group = null, children }) {
+  const query = (key) =>
+    new URLSearchParams([
+      ...(key === "ageing" ? [] : [["tab", key]]),
+      ...(group ? [["group", String(group._id)]] : []),
+    ]).toString();
+
   return (
     <div className="mx-auto flex max-w-[1400px] flex-col gap-5 p-4 md:p-6">
       <div>
@@ -262,6 +282,20 @@ function Shell({ tab, children }) {
         </h1>
       </div>
 
+      {group && (
+        <p className="text-14 flex flex-wrap items-center gap-2">
+          <span>
+            The <strong>{group.name}</strong> group only.
+          </span>
+          <Link
+            href="/invoices/receivables"
+            className="text-13 text-ink-muted underline underline-offset-4"
+          >
+            Show the whole firm
+          </Link>
+        </p>
+      )}
+
       <div className="flex gap-2">
         {[
           ["ageing", "Owed to us"],
@@ -270,9 +304,9 @@ function Shell({ tab, children }) {
           <Link
             key={key}
             href={
-              key === "ageing"
-                ? "/invoices/receivables"
-                : "/invoices/receivables?tab=unbilled"
+              query(key)
+                ? `/invoices/receivables?${query(key)}`
+                : "/invoices/receivables"
             }
             aria-current={tab === key ? "page" : undefined}
             className={`rounded-ledger text-14 h-9 border px-3 leading-9 ${
