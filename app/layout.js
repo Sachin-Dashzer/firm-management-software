@@ -41,7 +41,12 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en-IN" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: preferenceScript }} />
+        {/* The extension-injected-script case: suppressHydrationWarning on
+            <html> does not reach here, so it is repeated on the tag itself. */}
+        <script
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: preferenceScript }}
+        />
       </head>
       <body
         className={`${fraunces.variable} ${plexSans.variable} ${plexMono.variable}`}

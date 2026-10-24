@@ -17,6 +17,7 @@ import {
   formatISTDateTime,
   daysUntil,
   istParts,
+  istInputDate,
 } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
 import { nextStatuses, canEditWork } from "@/lib/engagements/status";
@@ -183,9 +184,7 @@ export default async function EngagementPage({ params }) {
     internalDue: engagement.internalDue
       ? formatISTDate(engagement.internalDue)
       : null,
-    internalDueInput: engagement.internalDue
-      ? engagement.internalDue.toISOString().slice(0, 10)
-      : "",
+    internalDueInput: istInputDate(engagement.internalDue),
     internalDueDays: engagement.internalDue
       ? daysUntil(engagement.internalDue)
       : null,

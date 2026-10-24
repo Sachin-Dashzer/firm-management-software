@@ -249,6 +249,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 });
 
 /**
+ * Both lookups below start by decrypting the session cookie, and one page
+ * render calls them from a dozen server components. Same request, same
+ * cookie, same answer: decrypt it once.
+ */
+const sessionOnce = cache(auth);
+
+/**
  * The user record behind the session, read once per request.
  *
  * `cache()` is React's per-request memo, so twenty server components and
@@ -277,7 +284,7 @@ const liveUser = cache(async (id) => {
  * the user id comes from the cookie.
  */
 export async function currentUser() {
-  const session = await auth();
+  const session = await sessionOnce();
   const id = session?.user?.id;
   if (!id) return null;
 
@@ -339,7 +346,7 @@ const liveClientUser = cache(async (id) => {
 });
 
 export async function currentClientUser() {
-  const session = await auth();
+  const session = await sessionOnce();
   const id = session?.user?.id;
   if (!id || session.user.kind !== "client") return null;
 

@@ -191,7 +191,9 @@ async function main() {
       log: (line) => console.log(`  ${line}`),
     });
     console.log(
-      `\n${counts.clients} clients, ${counts.people} colleagues, ${counts.services} services and ${counts.grants} access grants.`,
+      `\n${counts.clients} clients, ${counts.people} colleagues, ${counts.services} services and ${counts.grants} access grants.` +
+        `\n${counts.invoices} invoices, ${counts.payments} receipts, ${counts.documents} files, ` +
+        `${counts.notes} notes and ${counts.notifications} notifications.`,
     );
     console.log(
       "None of it is real. Remove it with: npm run seed -- --drop-sample",

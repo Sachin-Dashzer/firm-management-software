@@ -804,8 +804,8 @@ function CalendarView({ rows, params }) {
 
       {undated.length > 0 && (
         <p className="text-13 text-ink-muted">
-          {undated.length} with no due date yet — statutory dates arrive with
-          the due-date master in Step 7.
+          {undated.length} with no date of either kind. Select them and set an
+          internal due date from the bar above.
         </p>
       )}
       {params.closed && (

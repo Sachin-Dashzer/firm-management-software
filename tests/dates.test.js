@@ -5,6 +5,8 @@ import {
   financialYearLabel,
   financialYearRange,
   istParts,
+  istInputDate,
+  addWorkingDays,
 } from "@/lib/dates";
 
 describe("IST display", () => {
@@ -53,5 +55,34 @@ describe("financial year (April–March)", () => {
     expect(financialYearLabel(start)).toBe("2026-27");
     expect(financialYearLabel(new Date(end.getTime() - 1))).toBe("2026-27");
     expect(financialYearLabel(end)).toBe("2027-28");
+  });
+});
+
+describe("a stored date back into a date input", () => {
+  it("gives the IST calendar day, not the UTC one", () => {
+    // IST midnight is 18:30 UTC the day before: `toISOString().slice(0, 10)`
+    // on this says 15-11, which is the bug this helper exists to stop
+    const istMidnight = new Date("2026-11-16T00:00:00+05:30");
+    expect(istMidnight.toISOString().slice(0, 10)).toBe("2026-11-15");
+    expect(istInputDate(istMidnight)).toBe("2026-11-16");
+  });
+
+  it("round-trips a date input through IST and back", () => {
+    const typed = "2026-12-01";
+    expect(istInputDate(new Date(`${typed}T00:00:00+05:30`))).toBe(typed);
+  });
+
+  it("agrees with the date shown on screen", () => {
+    const due = addWorkingDays(new Date("2026-10-16T08:00:00Z"), 10);
+    expect(formatISTDate(due)).toBe("30-10-2026");
+    expect(istInputDate(due)).toBe("2026-10-30");
+  });
+
+  it("pads single digits and takes nothing at all", () => {
+    expect(istInputDate(new Date("2026-01-05T00:00:00+05:30"))).toBe(
+      "2026-01-05",
+    );
+    expect(istInputDate(null)).toBe("");
+    expect(istInputDate(undefined)).toBe("");
   });
 });

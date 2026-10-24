@@ -6,6 +6,7 @@ import Client from "@/models/Client";
 import Branch from "@/models/Branch";
 import User from "@/models/User";
 import ClientGroup from "@/models/ClientGroup";
+import { istInputDate } from "@/lib/dates";
 import ClientForm from "../../ClientForm";
 
 export const metadata = { title: "Edit client · PHMG" };
@@ -58,9 +59,7 @@ export default async function EditClientPage({ params }) {
           udyam: client.udyam,
           iec: client.iec,
           aadhaarLast4: client.aadhaarLast4,
-          establishedOn: client.establishedOn
-            ? new Date(client.establishedOn).toISOString().slice(0, 10)
-            : "",
+          establishedOn: istInputDate(client.establishedOn),
           gstins: client.gstins?.map((g) => ({ gstin: g.gstin, qrmp: g.qrmp })),
           contacts: client.contacts?.map((c) => ({
             name: c.name,

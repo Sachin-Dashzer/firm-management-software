@@ -8,6 +8,7 @@ import Client from "../../models/Client.js";
 import ServiceTemplate from "../../models/ServiceTemplate.js";
 import Engagement from "../../models/Engagement.js";
 import { hashPassword, decryptField } from "../../lib/crypto.js";
+import { formatISTDate } from "../../lib/dates.js";
 import { systemAudit } from "../../lib/audit/system.js";
 
 /**
@@ -184,6 +185,13 @@ test("an engagement goes out for review, comes back, and is completed", async ({
   await page
     .getByLabel("Reviewing")
     .selectOption({ label: "Playwright Reviewer" });
+
+  // the target date is prefilled from the service's turnaround, and the date
+  // shown is the IST day — not the UTC day before it
+  const dueBox = page.getByLabel("Internal due date");
+  await expect(dueBox).not.toHaveValue("");
+  await dueBox.fill("2027-01-29");
+
   await page.getByRole("button", { name: "Create engagement" }).click();
 
   await expect(page).toHaveURL(/\/engagements\/[a-f0-9]{24}/);
@@ -196,6 +204,9 @@ test("an engagement goes out for review, comes back, and is completed", async ({
   expect(stored.templateSnapshot.code).toBe(fx.serviceCode);
   expect(stored.tasks).toHaveLength(2);
   expect(stored.statutoryDue).toBeNull();
+  // the date typed on the form is the target, and it survives as that IST day
+  expect(formatISTDate(stored.internalDue)).toBe("29-01-2027");
+  await expect(page.getByText("Internal 29-01-2027")).toBeVisible();
   await signOut(page);
 
   // --- the maker does the work --------------------------------------------

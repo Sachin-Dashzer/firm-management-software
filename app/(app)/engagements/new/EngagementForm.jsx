@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { periodOptions } from "@/lib/engagements/period";
+import { addWorkingDays, istInputDate } from "@/lib/dates";
 import { canExecute, canReview, tierLabel } from "@/lib/services/catalog";
 import { ROLE_LABELS } from "@/lib/permissions";
 import { PRIORITIES } from "@/lib/engagements/status";
@@ -29,6 +30,7 @@ export default function EngagementForm({
   const [assigneeId, setAssigneeId] = useState("");
   const [reviewerId, setReviewerId] = useState("");
   const [fee, setFee] = useState("");
+  const [internalDue, setInternalDue] = useState("");
   const [message, setMessage] = useState(null);
   const [pending, startTransition] = useTransition();
 
@@ -44,6 +46,17 @@ export default function EngagementForm({
     if (!template) return;
     setPeriod(periodOptions(template.recurrence)[1].code);
     setFee(template.defaultFee);
+    /**
+     * Show the date the service's turnaround would give, rather than leaving
+     * the box empty and computing it out of sight on the server. A service
+     * with no turnaround leaves it blank — which is the case worth noticing,
+     * and the note under the box says so.
+     */
+    setInternalDue(
+      typeof template.turnaroundDays === "number"
+        ? istInputDate(addWorkingDays(new Date(), template.turnaroundDays))
+        : "",
+    );
   }, [template]);
 
   // a client's own fee and usual people win over the catalog defaults
@@ -151,6 +164,26 @@ export default function EngagementForm({
         </label>
 
         <label className="flex flex-col gap-1">
+          <span className="text-13 text-ink-muted font-medium">
+            Internal due date
+          </span>
+          <input
+            type="date"
+            name="internalDue"
+            value={internalDue}
+            onChange={(e) => setInternalDue(e.target.value)}
+            className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+          />
+          <span className="text-12 text-ink-muted">
+            {!template
+              ? "The firm's own target for finishing this."
+              : typeof template.turnaroundDays === "number"
+                ? `${template.turnaroundDays} working days, from this service's turnaround. Change it if this one is different.`
+                : "This service has no turnaround, so there is no target until you set one here."}
+          </span>
+        </label>
+
+        <label className="flex flex-col gap-1">
           <span className="text-13 text-ink-muted font-medium">Priority</span>
           <select
             name="priority"
@@ -235,8 +268,9 @@ export default function EngagementForm({
               : template.turnaroundNote || "not set"}
           </p>
           <p className="text-ink-muted">
-            The statutory due date is left empty until the due-date master
-            exists (Step 7).
+            The statutory due date is filled in from the due-date master, and
+            only from a rule the firm has confirmed. Until then the internal
+            date above is the only target this work has.
           </p>
           {template.udinRequired && (
             <p className="text-brass-ink">

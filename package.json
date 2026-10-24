@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -12,8 +12,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "format": "prettier --write .",
-    "seed": "node --env-file=.env.local scripts/seed.js",
-    "doctor": "node --env-file=.env.local scripts/doctor.js"
+    "seed": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/seed.js",
+    "doctor": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/doctor.js"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

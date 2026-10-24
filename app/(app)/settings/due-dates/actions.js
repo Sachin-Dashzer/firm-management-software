@@ -11,6 +11,7 @@ import DueDateRule from "@/models/DueDateRule";
 import Engagement from "@/models/Engagement";
 import { CLOSED_STATUSES } from "@/lib/engagements/status";
 import { statutoryDueFor, internalTargetFor } from "@/lib/compliance/dueDate";
+import { istInputDate } from "@/lib/dates";
 
 /**
  * The statutory due-date master (spec section 8), Partner only.
@@ -219,10 +220,7 @@ export async function extendPeriod(id, formData) {
           entityId: engagement._id,
           clientId: engagement.clientId,
           diff: {
-            statutoryDue: [
-              before ? before.toISOString().slice(0, 10) : "",
-              dueDate.toISOString().slice(0, 10),
-            ],
+            statutoryDue: [istInputDate(before), istInputDate(dueDate)],
           },
           note: `statutory date extended: ${reason}`,
         },
@@ -291,7 +289,7 @@ export async function previewDue(id, period) {
   );
   return {
     ok: true,
-    date: result.date ? result.date.toISOString().slice(0, 10) : null,
+    date: result.date ? istInputDate(result.date) : null,
     basis: result.basis,
     why: result.why ?? "",
   };

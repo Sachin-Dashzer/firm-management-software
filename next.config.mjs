@@ -1,7 +1,17 @@
 import { withSentryConfig } from "@sentry/nextjs/config";
 
 /** @type {import('next').NextConfig} */
-const nextConfig = {};
+const nextConfig = {
+  experimental: {
+    /**
+     * `import { Bell } from "@phosphor-icons/react"` pulls the whole barrel —
+     * 3,000 icon modules — into every file that touches it. Next is told to
+     * rewrite those to one deep import each; the list it does this for by
+     * default does not include Phosphor.
+     */
+    optimizePackageImports: ["@phosphor-icons/react"],
+  },
+};
 
 /**
  * Sentry's build plugin exists to upload source maps, so that a stack trace

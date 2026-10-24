@@ -13,6 +13,7 @@ import { periodFor, parsePeriod } from "../lib/engagements/period.js";
 import { buildEngagement } from "../lib/engagements/create.js";
 import { checkAssignment } from "../lib/engagements/assign.js";
 import { nextEngagementCode } from "../lib/engagements/code.js";
+import { istInputDate } from "../lib/dates.js";
 import {
   statutoryDueFor,
   internalTargetFor,
@@ -120,7 +121,11 @@ export async function generateRecurring(options = {}) {
       ]);
       const assignee = people.get(String(subscription.defaultAssigneeId ?? ""));
       const reviewer = people.get(String(subscription.defaultReviewerId ?? ""));
-      const legal = checkAssignment(template, assignee ?? null, reviewer ?? null);
+      const legal = checkAssignment(
+        template,
+        assignee ?? null,
+        reviewer ?? null,
+      );
 
       if (!legal.ok) {
         unassigned.push({
@@ -171,7 +176,7 @@ export async function generateRecurring(options = {}) {
                     byName: "System",
                     reason: [
                       due.date
-                        ? `created automatically, due ${due.date.toISOString().slice(0, 10)}`
+                        ? `created automatically, due ${istInputDate(due.date)}`
                         : `created automatically — ${due.why}`,
                       legal.ok ? null : `left unassigned — ${legal.error}`,
                     ]

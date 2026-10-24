@@ -60,6 +60,8 @@ reason, including the security fixes in P2-1.
 | P2-10d | Final rail and Practice group · `scripts/doctor.js` additions · full Phase 2 acceptance pass | 🟡 | Built 21-10-2026. **Phase 2's step list is complete.** The doctor now reads the same check list the Settings strip does instead of keeping its own copy; `docs/ACCEPTANCE.md` has a Phase 2 half. Needs Atlas to run; 2 more Playwright tests waiting |
 | P2-11 | Groups you can work from: `/groups`, `/groups/[id]`, the sibling band on a case file, the group filter on the engagement list and receivables | 🟡 | Added 24-10-2026 at the owner's request ("one client with two or three businesses"). **No new collection: with separate PANs each business already is a client record, and `ClientGroup` is the owner above them** (D17). One scoped rollup in `lib/groups/summary.js` feeds all four screens. Also fixed: the rail filtered a group's children and then threw the result away, so an intern was shown Practice registers they cannot open. Needs Atlas to run; 2 Playwright tests waiting |
 
+| P2-12 | A target completion date on every engagement: the field on the create form, and `istInputDate()` | 🟡 | Added 24-10-2026 at the owner's request. The target date already existed as `internalDue` and was editable on the engagement page and in bulk, but **not at creation** — so work on a service with no turnaround was created with no target and nothing said so. **A one-day bug found and fixed in nine places:** a date stored at IST midnight is 18:30 UTC the day before, so `toISOString().slice(0, 10)` prefilled every date input with yesterday and bucketed work into the wrong day of the month view. Needs Atlas to run; 1 more Playwright assertion waiting |
+
 ## Phase 3
 
 Not started (spec §17).
@@ -68,6 +70,7 @@ Not started (spec §17).
 
 | Date | Decision | By |
 | --- | --- | --- |
+| 24-10-2026 | **The firm's target date keeps the name "Internal due date"**, and stays one date per engagement rather than a default per client and service. The owner chose both: the label already reads that way on five screens, three reports and the exports, and it is what distinguishes the firm's own date from the statutory one | Owner, approved |
 | 24-10-2026 | D17: **a client's several businesses are several client records, grouped — not sub-records under one client.** The owner confirmed the businesses have separate PANs, and `Client` is already keyed on PAN with its own GSTINs, fees, engagements and invoices, so a `businesses[]` layer would have duplicated the client record one level down. `ClientGroup` becomes the owner (a person or a family) and P2-11 adds the screens that read a group together. **If a proprietor ever runs two firms on one PAN, this does not cover it** — the unique PAN index would refuse the second record, and that case needs the embedded design after all | Owner, approved |
 | 24-10-2026 | **One invoice per business**, each carrying that business's own GSTIN. Separate registrations mean separate input credit, so a combined invoice would be wrong for the client's books | Owner, approved |
 | 16-10-2026 | Tech stack fixed per CLAUDE.md (Next.js 15 App Router, JavaScript + JSDoc, MongoDB Atlas Mumbai, Vercel bom1, BigRock gateway) | Owner, pre-build |
@@ -532,6 +535,53 @@ person's password for good.
   screen, offboarding blocked by open work, and offboarding going through with
   the account dead, the grants revoked, the email reusable and the engagement
   still carrying their name.
+
+## Page-load speed and the sample dataset (out of band, 21-10-2026)
+
+Not a numbered step. The owner reported slow page loads and asked for sample
+data across the whole app.
+
+**Speed.** Three changes, measured on a cold `.next`: dev start 7.1s → 3.4s,
+first load of `/login` 12.0s → 5.4s, `next build` 65s → 42s.
+
+- `next dev --turbopack`. Webpack was recompiling each route on first visit.
+- `experimental.optimizePackageImports: ["@phosphor-icons/react"]`. The barrel
+  pulls 3,024 icon modules into every file that imports from it; Next does this
+  rewrite by default for lucide and heroicons but not for Phosphor.
+- `const sessionOnce = cache(auth)` in `auth.js`. `currentUser()` and
+  `currentClientUser()` are called from 177 places and each call was decrypting
+  the session cookie again. The database lookup behind them was already
+  memoised; the decrypt was not.
+
+Production bundles were never the problem (103–127 kB first load on every
+route) and the per-page queries were already batched, so neither was touched.
+
+**Sample data.** `scripts/sample.js` grew a second half:
+invoices in all four states (part paid and overdue, paid, issued, draft),
+two receipts with TDS, 6 files in the vault, 4 vault credentials, 10 notes and
+comments, a client group, 5 notifications. `--drop-sample` takes every one of
+them out again. `applyTotals` moved from the invoices server-action file to
+`lib/billing/gst.js` so the script issues an invoice through the same code the
+screen does, counter and all.
+
+**One thing to look at:** the four branches had no GSTIN, and without one an
+invoice can be drafted but not issued — so the script wrote an **invented**
+firm GSTIN onto each branch that had none, printed it with a warning, and
+`--drop-sample` removes it again if it is still untouched. Replace it with the
+firm's real registrations in Settings → Branches. The SAC codes on the sample
+invoice lines (998221 audit, 998222 accounts, 998231/998232 tax) are the
+standard 9982-group codes and need the owner's confirmation; they were written
+onto the sample invoices only, never into the service catalog.
+
+**A bug found on the way.** `models/Client.js` declared the unique PAN index
+with `pan: { $ne: "" }` in its partial filter. MongoDB accepts neither `$ne`
+nor `$not` there and refuses to build the whole index, so PAN uniqueness has
+never actually been enforced — `npm run doctor` had been reporting it. Now
+`$gt: ""`, and the index builds.
+
+Also: `npm run seed` and `npm run doctor` pointed at `.env.local`, which does
+not exist in this checkout. Both now read `.env` first and `.env.local` after
+it, if present.
 
 ## What P2-10d built
 

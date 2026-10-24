@@ -348,6 +348,31 @@ describe("building an engagement from a template", () => {
     expect(made.internalDue).toBeNull();
   });
 
+  it("takes a target date chosen on the form over the turnaround", () => {
+    const chosen = new Date("2026-11-30T00:00:00+05:30");
+    const made = buildEngagement({
+      template,
+      client,
+      period,
+      internalDue: chosen,
+      now: FRIDAY,
+    });
+    expect(formatISTDate(made.internalDue)).toBe("30-11-2026");
+  });
+
+  it("gives work on a service with no turnaround the date it was given", () => {
+    // the case that could not have a target at all before: no turnaround,
+    // no statutory rule, and now a date somebody typed
+    const made = buildEngagement({
+      template: { ...template, turnaroundDays: null },
+      client,
+      period,
+      internalDue: new Date("2026-12-15T00:00:00+05:30"),
+      now: FRIDAY,
+    });
+    expect(formatISTDate(made.internalDue)).toBe("15-12-2026");
+  });
+
   it("takes the client's fee over the catalog's when given one", () => {
     expect(
       buildEngagement({ template, client, period, feePaise: 500000 }).feePaise,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { canRun3D } from "@/components/login/capability";
@@ -27,7 +27,11 @@ const Terrain = dynamic(() => import("./DeadlineTerrain"), {
 
 export default function DeadlineHeatmap({ data }) {
   const [solid, setSolid] = useState(false);
-  const [offer] = useState(() => canRun3D().ok);
+  const [offer, setOffer] = useState(false);
+
+  // after mount only: the server has no WebGL to ask about, so deciding
+  // during render makes the first client paint disagree with the HTML
+  useEffect(() => setOffer(canRun3D().ok), []);
 
   return (
     <div className="flex flex-col gap-2">

@@ -4,7 +4,7 @@ import { can, branchFilter } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import Dsc from "@/models/Dsc";
 import Client from "@/models/Client";
-import { formatISTDate } from "@/lib/dates";
+import { formatISTDate, istInputDate } from "@/lib/dates";
 import { dscState, DSC_HOLDER_LABELS } from "@/lib/practice/dsc";
 import DscRegister from "./DscRegister";
 
@@ -110,5 +110,5 @@ export default async function DscPage({ searchParams }) {
 }
 
 function toInput(date) {
-  return date ? new Date(date).toISOString().slice(0, 10) : "";
+  return istInputDate(date);
 }

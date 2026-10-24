@@ -9,7 +9,12 @@ import Branch from "@/models/Branch";
 import User from "@/models/User";
 import ServiceTemplate from "@/models/ServiceTemplate";
 import DueDateRule from "@/models/DueDateRule";
-import { formatISTDate, daysUntil, financialYearStart } from "@/lib/dates";
+import {
+  formatISTDate,
+  daysUntil,
+  financialYearStart,
+  istInputDate,
+} from "@/lib/dates";
 import { engagementQuery } from "@/lib/engagements/filter";
 import { STATUSES } from "@/lib/engagements/status";
 import { periodsInYear, buildGrid } from "@/lib/compliance/grid";
@@ -92,7 +97,7 @@ export default async function CalendarPage({ searchParams }) {
       assignee: personName.get(String(e.assigneeId)) ?? "—",
       statutory: Boolean(e.statutoryDue),
       due: due ? formatISTDate(due) : null,
-      dueISO: due ? new Date(due).toISOString().slice(0, 10) : null,
+      dueISO: due ? istInputDate(due) : null,
       dueDays: due ? daysUntil(due) : null,
     };
   });

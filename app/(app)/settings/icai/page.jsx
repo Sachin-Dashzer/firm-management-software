@@ -7,7 +7,7 @@ import User from "@/models/User";
 import { firmProfile } from "@/lib/firm/settings";
 import { hasCpeTarget } from "@/lib/firm/profile";
 import { cpeByYear } from "@/lib/firm/cpe";
-import { formatISTDate } from "@/lib/dates";
+import { formatISTDate, istInputDate } from "@/lib/dates";
 import FirmForm from "./FirmForm";
 import Members from "./Members";
 
@@ -124,7 +124,7 @@ export default async function IcaiPage() {
 
 /** `<input type="date">` wants YYYY-MM-DD and nothing else. */
 function toInput(date) {
-  return date ? new Date(date).toISOString().slice(0, 10) : "";
+  return istInputDate(date);
 }
 
 /** Dates cross into the client component as date-input strings. */

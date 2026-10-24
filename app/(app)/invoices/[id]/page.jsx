@@ -9,7 +9,7 @@ import Branch from "@/models/Branch";
 import AuditLog from "@/models/AuditLog";
 import ActivityFeed from "@/components/audit/ActivityFeed";
 import { formatPaise } from "@/lib/money";
-import { formatISTDate } from "@/lib/dates";
+import { formatISTDate, istInputDate } from "@/lib/dates";
 import { GST_STATES } from "@/lib/validators";
 import { reasonsNotIssuable, amountInWords } from "@/lib/billing/gst";
 import InvoiceEditor from "./InvoiceEditor";
@@ -72,9 +72,7 @@ export default async function InvoicePage({ params }) {
     isDraft: invoice.status === "Draft",
     date: formatISTDate(invoice.date),
     dueDate: invoice.dueDate ? formatISTDate(invoice.dueDate) : null,
-    dueDateInput: invoice.dueDate
-      ? new Date(invoice.dueDate).toISOString().slice(0, 10)
-      : "",
+    dueDateInput: istInputDate(invoice.dueDate),
     client: client?.tradeName || client?.legalName || "Client",
     clientId: String(invoice.clientId),
     billingGstin: invoice.billingGstin,

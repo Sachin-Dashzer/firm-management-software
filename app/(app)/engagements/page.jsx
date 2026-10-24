@@ -10,7 +10,7 @@ import User from "@/models/User";
 import ServiceTemplate from "@/models/ServiceTemplate";
 import ClientGroup from "@/models/ClientGroup";
 import { clientIdsInGroup } from "@/lib/groups/summary";
-import { formatISTDate, daysUntil } from "@/lib/dates";
+import { formatISTDate, daysUntil, istInputDate } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
 import { PRIORITIES, STATUSES } from "@/lib/engagements/status";
 import { engagementQuery } from "@/lib/engagements/filter";
@@ -116,7 +116,9 @@ export default async function EngagementsPage({ searchParams }) {
       billingStatus: e.billingStatus,
       dueKind: e.statutoryDue ? "Statutory" : "Internal",
       due: due ? formatISTDate(due) : null,
-      dueISO: due ? new Date(due).toISOString().slice(0, 10) : null,
+      // the day bucket the calendar view drops this into, so a job due on
+      // the 1st is not drawn on the 30th
+      dueISO: due ? istInputDate(due) : null,
       dueDays: due ? daysUntil(due) : null,
     };
   });

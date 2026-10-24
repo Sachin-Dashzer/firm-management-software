@@ -16,7 +16,7 @@ import Link from "next/link";
  * It measures rather than guesses, because the tab labels are words of
  * different lengths in a font that may still be loading.
  */
-export default function FolderTabs({ tabs, active, hrefFor, label }) {
+export default function FolderTabs({ tabs, active, basePath, label }) {
   const nav = useRef(null);
   const [bar, setBar] = useState(null);
 
@@ -51,7 +51,7 @@ export default function FolderTabs({ tabs, active, hrefFor, label }) {
         return (
           <Link
             key={tab.key}
-            href={hrefFor(tab.key)}
+            href={`${basePath}?tab=${tab.key}`}
             aria-current={isActive ? "page" : undefined}
             className={`rounded-t-ledger text-14 -mb-px border border-b-0 px-3 py-2 ${
               isActive

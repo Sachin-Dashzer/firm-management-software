@@ -314,7 +314,7 @@ export default async function ClientPage({ params, searchParams }) {
       <FolderTabs
         tabs={tabs}
         active={active}
-        hrefFor={(key) => `/clients/${id}?tab=${key}`}
+        basePath={`/clients/${id}`}
         label="Client sections"
       />
 

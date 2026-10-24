@@ -180,7 +180,7 @@ export default async function TeamMemberPage({ params, searchParams }) {
       <FolderTabs
         tabs={tabs}
         active={active}
-        hrefFor={(key) => `/team/${id}?tab=${key}`}
+        basePath={`/team/${id}`}
         label="Team member sections"
       />
 

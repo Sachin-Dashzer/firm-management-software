@@ -41,6 +41,26 @@ import { buildEngagement } from "../lib/engagements/create.js";
 import { nextEngagementCode } from "../lib/engagements/code.js";
 import { periodFor } from "../lib/engagements/period.js";
 import { startOfISTDay } from "../lib/dates.js";
+import { createHash } from "node:crypto";
+import ClientGroup from "../models/ClientGroup.js";
+import ClientCredential from "../models/ClientCredential.js";
+import Comment from "../models/Comment.js";
+import DocumentModel from "../models/Document.js";
+import Invoice from "../models/Invoice.js";
+import Payment from "../models/Payment.js";
+import Notification from "../models/Notification.js";
+import { encryptField } from "../lib/crypto.js";
+import { financialYearLabel } from "../lib/dates.js";
+import { driverName } from "../lib/storage/index.js";
+import { putLocal, removeLocal } from "../lib/storage/local.js";
+import { buildFileKey } from "../lib/storage/paths.js";
+import {
+  applyTotals,
+  reasonsNotIssuable,
+  stateName,
+} from "../lib/billing/gst.js";
+import { nextInvoiceNumber } from "../lib/billing/number.js";
+import { statusAfterPayment } from "../lib/billing/allocation.js";
 
 /** A date so many days before `now`, at the start of that IST day. */
 function daysBack(now, days) {
@@ -515,6 +535,382 @@ export const SAMPLE_PORTAL_USERS = [
  *
  * @param {{ log?: (message: string) => void }} [options]
  */
+/**
+ * The firm's own registration, so that a sample invoice can be *issued*
+ * rather than sitting as a draft nobody can look at.
+ *
+ * It is invented, and it prints on a tax invoice — so it is written only onto
+ * a branch that has none, and `--drop-sample` takes it off again if it is
+ * still untouched. The firm's real GSTINs go in Settings → Branches
+ * (CLAUDE.md rule 8: nothing statutory is invented and left unflagged).
+ */
+export const SAMPLE_FIRM_PAN = "AAJFP7421K"; // F = partnership firm
+export const SAMPLE_BRANCH_STATE = {
+  NOI: "09", // Uttar Pradesh
+  DEL: "07", // Delhi
+  LDH: "03", // Punjab
+  MRT: "09", // Uttar Pradesh
+};
+
+/**
+ * SAC codes from the 9982 group (legal and accounting services). They go on
+ * the sample invoice lines only, never into the firm's catalog — a wrong SAC
+ * on a real GST invoice is the firm's problem, not a seed script's.
+ * **The owner confirms these before they are used on real work.**
+ */
+const SAC = {
+  audit: "998221", // financial auditing services
+  accounts: "998222", // accounting and book-keeping
+  taxCorporate: "998231", // corporate tax consulting and preparation
+  taxIndividual: "998232", // individual tax preparation and planning
+};
+
+/** One group, because a group of one client teaches nothing. */
+export const SAMPLE_GROUPS = [
+  {
+    name: "Jaiswal family group",
+    notes:
+      "Common management with Kaur Brothers Knitwear through a director holding. Billed separately.",
+    clients: ["jaiswal", "kaur-brothers"],
+  },
+];
+
+/** The vault (spec section 3). Encrypted at rest, revealed only on purpose. */
+export const SAMPLE_CREDENTIALS = [
+  {
+    client: "jaiswal",
+    portal: "GST",
+    label: "Noida registration",
+    username: "jaiswalsteels_gst",
+    password: "Sample#Gst2026",
+    notes: "Mobile OTP goes to the accounts manager, not the director.",
+  },
+  {
+    client: "jaiswal",
+    portal: "Income Tax",
+    label: "Company login",
+    username: "AADCJ4817Q",
+    password: "Sample#It2026",
+    notes: "",
+  },
+  {
+    client: "kaur-brothers",
+    portal: "GST",
+    label: "Ludhiana registration",
+    username: "kaurbrothers_gst",
+    password: "Sample#Gst2026",
+    notes: "",
+  },
+  {
+    client: "tandon",
+    portal: "MCA / V3",
+    label: "Designated partner",
+    username: "sunita.tandon@sample",
+    password: "Sample#Mca2026",
+    notes: "DSC of the designated partner is in the firm's custody.",
+  },
+];
+
+/**
+ * Notes and the communication log (spec section 3). A client record with no
+ * conversation on it reads like a spreadsheet row.
+ */
+export const SAMPLE_NOTES = [
+  {
+    client: "jaiswal",
+    kind: "Call",
+    by: "ca-noida",
+    daysAgo: 3,
+    body: "Director called about the audit timeline. Told him fieldwork starts once the stock statement for September is in. He will send it this week.",
+  },
+  {
+    client: "jaiswal",
+    kind: "Email",
+    by: "emp-noida",
+    daysAgo: 8,
+    body: "Sent the list of GST reconciliation differences for July to September. Accounts manager to confirm the three purchase invoices not in 2B.",
+  },
+  {
+    client: "jaiswal",
+    kind: "Note",
+    by: "ca-noida",
+    daysAgo: 20,
+    body: "Internal: credit period is 30 days but they habitually pay at 45. Watch the receivable before taking on more work.",
+  },
+  {
+    client: "tandon",
+    kind: "Meeting",
+    by: "ca-noida",
+    daysAgo: 12,
+    body: "Met the designated partners at Rohini. Export incentive documentation is with their CHA; return filing can proceed without it.",
+  },
+  {
+    client: "kaur-brothers",
+    kind: "WhatsApp",
+    by: "emp-ludhiana",
+    daysAgo: 2,
+    body: "Asked for the October sales register. Partner says their accountant is on leave until the 25th.",
+  },
+  {
+    client: "deshmukh",
+    kind: "Note",
+    by: "emp-rohini",
+    daysAgo: 30,
+    body: "Salaried individual, two Form 16s this year after a job change in June. Both employers' TDS to be matched against 26AS.",
+  },
+];
+
+/** Comment threads on the work itself (spec section 5). */
+export const SAMPLE_WORK_COMMENTS = [
+  {
+    client: "jaiswal",
+    service: "STAT-AUD",
+    by: "ca-noida",
+    daysAgo: 6,
+    body: "Opening balances tie to last year's signed accounts. Fixed asset register still to be reconciled against the depreciation schedule.",
+  },
+  {
+    client: "jaiswal",
+    service: "STAT-AUD",
+    by: "emp-noida",
+    daysAgo: 2,
+    body: "Bank confirmations requested from HDFC and PNB. HDFC has replied, PNB has not.",
+  },
+  {
+    client: "jaiswal",
+    service: "GSTR3B",
+    by: "emp-noida",
+    daysAgo: 1,
+    body: "2B reconciliation done. Three purchase invoices missing from the supplier side, credit of 46,200 held back this month.",
+  },
+  {
+    client: "deshmukh",
+    service: "ITR-SAL",
+    by: "ca-noida",
+    daysAgo: 1,
+    body: "Reviewed. Check the 80C figure against the PPF passbook before filing — the client's own note says 1,50,000 but the statement shows 1,38,000.",
+  },
+];
+
+/**
+ * Files in the vault (spec section 6). Plain CSV and text, with content that
+ * matches the name: a dataset full of empty PDFs does not show whether the
+ * documents screen works.
+ */
+export const SAMPLE_DOCUMENTS = [
+  {
+    client: "jaiswal",
+    service: "GSTR3B",
+    name: "sales-register-october-2026.csv",
+    kind: "Sales register",
+    mime: "text/csv",
+    body: [
+      "Invoice No,Date,Party,GSTIN,Taxable Value,CGST,SGST,Total",
+      "JS/26-27/0411,02-10-2026,Shree Balaji Traders,09AAACS1429P1ZK,284500.00,25605.00,25605.00,335710.00",
+      "JS/26-27/0412,07-10-2026,Metro Fabricators,09AAFCM3310K1Z2,118000.00,10620.00,10620.00,139240.00",
+      "JS/26-27/0413,14-10-2026,Noida Infra Works,09AABCN7721M1ZQ,642000.00,57780.00,57780.00,757560.00",
+      "JS/26-27/0414,21-10-2026,Yamuna Steel Centre,09AAGCY5508D1ZT,96400.00,8676.00,8676.00,113752.00",
+    ].join("\n"),
+  },
+  {
+    client: "jaiswal",
+    service: "STAT-AUD",
+    name: "trial-balance-provisional.csv",
+    kind: "Trial balance",
+    mime: "text/csv",
+    body: [
+      "Ledger,Group,Debit,Credit",
+      "Plant and machinery,Fixed assets,8742000.00,0.00",
+      "Accumulated depreciation,Fixed assets,0.00,3118400.00",
+      "Inventory - finished goods,Current assets,4260000.00,0.00",
+      "Trade receivables,Current assets,6184500.00,0.00",
+      "HDFC Bank 50200041,Bank,1142300.00,0.00",
+      "Trade payables,Current liabilities,0.00,5327800.00",
+      "Term loan - PNB,Loans,0.00,3900000.00",
+      "Share capital,Capital,0.00,2500000.00",
+      "Sales,Income,0.00,41822000.00",
+      "Purchases,Expenses,29104000.00,0.00",
+    ].join("\n"),
+  },
+  {
+    client: "jaiswal",
+    permanent: true,
+    name: "incorporation-certificate.txt",
+    kind: "Incorporation certificate",
+    mime: "text/plain",
+    body: [
+      "CERTIFICATE OF INCORPORATION (sample placeholder)",
+      "",
+      "Company: Jaiswal Steels Private Limited",
+      "CIN: U27100UP2014PTC063418",
+      "Date of incorporation: 11-03-2014",
+      "Registrar of Companies: Kanpur",
+      "",
+      "Sample data. The real certificate is a PDF from the MCA portal.",
+    ].join("\n"),
+  },
+  {
+    client: "kaur-brothers",
+    service: "TAX-AUD",
+    name: "stock-statement-30-09-2026.csv",
+    kind: "Stock statement",
+    mime: "text/csv",
+    body: [
+      "Item,Unit,Quantity,Rate,Value",
+      "Cotton hosiery yarn 30s,Kg,4820,268.00,1291760.00",
+      "Acrylic yarn 2/32,Kg,2140,312.00,667680.00",
+      "Knitted fabric - grey,Kg,1760,415.00,730400.00",
+      "Finished sweaters,Pcs,3940,620.00,2442800.00",
+      "Packing material,Lot,1,84200.00,84200.00",
+    ].join("\n"),
+  },
+  {
+    client: "tandon",
+    service: "ITR-BUS",
+    name: "bank-interest-certificate.txt",
+    kind: "Interest certificate",
+    mime: "text/plain",
+    body: [
+      "Interest certificate (sample placeholder)",
+      "",
+      "Account: Tandon Exports LLP, current account 0912xxxx4471",
+      "Period: 01-04-2025 to 31-03-2026",
+      "Interest credited: 48,210.00",
+      "TDS deducted: Nil (Form 15G on record)",
+    ].join("\n"),
+  },
+  {
+    client: "deshmukh",
+    permanent: true,
+    name: "pan-card.txt",
+    kind: "PAN card",
+    mime: "text/plain",
+    body: [
+      "PAN card (sample placeholder)",
+      "",
+      "Name: Anil Kumar Deshmukh",
+      "Date of birth: 14-07-1981",
+      "",
+      "The number itself is deliberately not written into this sample file.",
+    ].join("\n"),
+  },
+];
+
+/**
+ * Billing (spec section 7), in the four states the screens need to show:
+ * part paid and overdue, paid in full, issued and waiting, and a draft.
+ */
+export const SAMPLE_INVOICES = [
+  {
+    key: "jaiswal-audit",
+    client: "jaiswal",
+    issue: true,
+    daysAgo: 40,
+    lines: [
+      { service: "STAT-AUD", sac: SAC.audit },
+      { service: "ROC-ANN", sac: SAC.accounts },
+    ],
+    reimbursements: [
+      { description: "MCA filing fees (AOC-4, MGT-7)", amountPaise: 60000 },
+    ],
+    notes: "Audit fee as per engagement letter dated 12-04-2026.",
+  },
+  {
+    key: "tandon-itr",
+    client: "tandon",
+    issue: true,
+    daysAgo: 20,
+    lines: [{ service: "ITR-BUS", sac: SAC.taxCorporate }],
+  },
+  {
+    key: "kaur-taxaudit",
+    client: "kaur-brothers",
+    issue: true,
+    daysAgo: 5,
+    lines: [{ service: "TAX-AUD", sac: SAC.audit }],
+  },
+  {
+    key: "deshmukh-itr",
+    client: "deshmukh",
+    issue: false,
+    daysAgo: 1,
+    lines: [{ service: "ITR-SAL", sac: SAC.taxIndividual }],
+    notes: "Hold until the 80C figure is confirmed.",
+  },
+];
+
+/**
+ * Receipts. One settles a bill in full, one part-settles the oldest and
+ * leaves it overdue — which is the row the receivables ageing exists for.
+ * TDS is recorded as the client deducted it, not netted off the amount.
+ */
+export const SAMPLE_PAYMENTS = [
+  {
+    client: "tandon",
+    daysAgo: 6,
+    mode: "Bank transfer",
+    reference: "NEFT/HDFC/0912447118",
+    pays: "tandon-itr",
+    full: true,
+  },
+  {
+    client: "jaiswal",
+    daysAgo: 11,
+    mode: "Bank transfer",
+    reference: "RTGS/PNB/UTIB2610114402",
+    pays: "jaiswal-audit",
+    amountRupees: 60000,
+    tdsRupees: 10300, // 10% of the professional fees, section 194J
+    notes:
+      "Part payment against the audit bill. Balance promised after Diwali.",
+  },
+];
+
+/** The bell (spec section 12). An empty notification list teaches nothing. */
+export const SAMPLE_NOTIFICATIONS = [
+  {
+    to: "partner",
+    type: "review.waiting",
+    hoursAgo: 4,
+    title: "Ready for your review",
+    body: "Anil Kumar Deshmukh — ITR salaried. Submitted by Shalini Verma.",
+    href: "/engagements",
+  },
+  {
+    to: "partner",
+    type: "invoice.overdue",
+    hoursAgo: 20,
+    title: "Invoice overdue",
+    body: "Jaiswal Steels Private Limited — part paid, balance past its due date.",
+    href: "/invoices/receivables",
+  },
+  {
+    to: "partner",
+    type: "dsc.expiring",
+    hoursAgo: 30,
+    title: "A DSC expires in 24 days",
+    body: "Rohit Jaiswal — renew before the ROC filing window.",
+    href: "/practice/dsc",
+    read: true,
+  },
+  {
+    to: "ca-noida",
+    type: "engagement.assigned",
+    hoursAgo: 2,
+    title: "Assigned to you",
+    body: "Jaiswal Steels — statutory audit, FY2026-27.",
+    href: "/engagements",
+  },
+  {
+    to: "emp-noida",
+    type: "document.received",
+    hoursAgo: 9,
+    title: "A document arrived",
+    body: "Jaiswal Steels — sales register for October 2026.",
+    href: "/documents",
+  },
+];
+
 export async function seedSample(options = {}) {
   const log = options.log ?? (() => {});
 
@@ -1016,6 +1412,443 @@ export async function seedSample(options = {}) {
     log(`portal  ${row.email} — ${row.password}`);
   }
 
+  // --- the firm's own GSTIN, so a sample invoice can be issued -------------
+  // Only onto a branch that has none: a real registration is never overwritten.
+  for (const branch of await Branch.find({
+    $or: [{ gstin: "" }, { gstin: null }, { gstin: { $exists: false } }],
+  })) {
+    const stateCode = SAMPLE_BRANCH_STATE[branch.code];
+    if (!stateCode) continue;
+    const gstin = makeGstin(stateCode, SAMPLE_FIRM_PAN);
+    await systemAudit(async (session) => {
+      branch.gstin = gstin;
+      branch.updatedBy = "sample";
+      await branch.save({ session });
+    });
+    log(`gstin   ${branch.code} ${gstin}  ← invented, replace before go-live`);
+  }
+
+  // --- groups -------------------------------------------------------------
+  for (const row of SAMPLE_GROUPS) {
+    let group = await ClientGroup.findOne({ name: row.name });
+    if (!group) {
+      group = await systemAudit(async (session) => {
+        const [made] = await ClientGroup.create(
+          [
+            {
+              name: row.name,
+              notes: row.notes,
+              createdBy: "sample",
+              updatedBy: "sample",
+            },
+          ],
+          { session },
+        );
+        return made;
+      });
+      log(`group   ${row.name}`);
+    }
+    for (const key of row.clients) {
+      const client = await Client.findById(clientId.get(key));
+      if (!client || String(client.groupId ?? "") === String(group._id)) {
+        continue;
+      }
+      await systemAudit(async (session) => {
+        client.groupId = group._id;
+        client.updatedBy = "sample";
+        await client.save({ session });
+      });
+    }
+  }
+
+  // --- the credentials vault ----------------------------------------------
+  for (const row of SAMPLE_CREDENTIALS) {
+    const id = clientId.get(row.client);
+    if (!id) continue;
+    const exists = await ClientCredential.findOne({
+      clientId: id,
+      portal: row.portal,
+      username: row.username,
+    })
+      .select("_id")
+      .lean();
+    if (exists) continue;
+
+    await systemAudit(async (session) => {
+      await ClientCredential.create(
+        [
+          {
+            clientId: id,
+            portal: row.portal,
+            label: row.label,
+            username: row.username,
+            passwordEncrypted: encryptField(row.password),
+            notesEncrypted: row.notes ? encryptField(row.notes) : null,
+            createdBy: "sample",
+            updatedBy: "sample",
+          },
+        ],
+        { session },
+      );
+    });
+    log(`login   ${row.client} — ${row.portal}`);
+  }
+
+  // --- notes and the communication log ------------------------------------
+  for (const row of SAMPLE_NOTES) {
+    const id = clientId.get(row.client);
+    if (!id) continue;
+    if (await Comment.findOne({ entityId: id, body: row.body }).lean())
+      continue;
+
+    const author = personId.get(row.by);
+    const authorName =
+      SAMPLE_PEOPLE.find((p) => p.key === row.by)?.name ?? "Sample data";
+
+    await systemAudit(async (session) => {
+      await Comment.create(
+        [
+          {
+            entityType: "Client",
+            entityId: id,
+            clientId: id,
+            kind: row.kind,
+            body: row.body,
+            occurredAt: daysBack(now, row.daysAgo),
+            internal: row.kind === "Note",
+            createdBy: author ? String(author) : "sample",
+            createdByName: authorName,
+            updatedBy: "sample",
+          },
+        ],
+        { session },
+      );
+    });
+  }
+  log(`notes   ${SAMPLE_NOTES.length} on client records`);
+
+  /**
+   * The sample work, looked up by client and service code — the engagement
+   * loop above does not keep its ids, and matching on the pair is what the
+   * invoices, comments and documents below all need.
+   */
+  async function engagementFor(clientKey, serviceCode) {
+    const template = templateByCode.get(serviceCode);
+    const id = clientId.get(clientKey);
+    if (!template || !id) return null;
+    return Engagement.findOne({
+      clientId: id,
+      serviceTemplateId: template._id,
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+  }
+
+  // --- comments on the work -----------------------------------------------
+  let workComments = 0;
+  for (const row of SAMPLE_WORK_COMMENTS) {
+    const engagement = await engagementFor(row.client, row.service);
+    if (!engagement) continue;
+    if (
+      await Comment.findOne({ entityId: engagement._id, body: row.body }).lean()
+    ) {
+      continue;
+    }
+
+    const author = personId.get(row.by);
+    const authorName =
+      SAMPLE_PEOPLE.find((p) => p.key === row.by)?.name ?? "Sample data";
+
+    await systemAudit(async (session) => {
+      await Comment.create(
+        [
+          {
+            entityType: "Engagement",
+            entityId: engagement._id,
+            clientId: engagement.clientId,
+            kind: "Note",
+            body: row.body,
+            occurredAt: daysBack(now, row.daysAgo),
+            internal: true,
+            createdBy: author ? String(author) : "sample",
+            createdByName: authorName,
+            updatedBy: "sample",
+          },
+        ],
+        { session },
+      );
+    });
+    workComments += 1;
+  }
+  log(`comment ${workComments} on engagements`);
+
+  // --- documents in the vault ---------------------------------------------
+  /**
+   * Written through the local driver directly. The BigRock gateway takes
+   * uploads only from a browser with a signed ticket (spec section 14), so a
+   * script cannot put bytes there — and should not: the sample dataset is for
+   * a development database, not the firm's hosting.
+   */
+  let documents = 0;
+  if (driverName() === "local") {
+    for (const row of SAMPLE_DOCUMENTS) {
+      const client = await Client.findById(clientId.get(row.client)).lean();
+      if (!client) continue;
+      if (
+        await DocumentModel.findOne({
+          clientId: client._id,
+          name: row.name,
+        }).lean()
+      ) {
+        continue;
+      }
+
+      const engagement = row.service
+        ? await engagementFor(row.client, row.service)
+        : null;
+      const fy = `FY${financialYearLabel(
+        engagement?.periodStart ? new Date(engagement.periodStart) : now,
+      )}`;
+      const bytes = Buffer.from(row.body, "utf8");
+      const key = buildFileKey({
+        clientCode: client.code,
+        filename: row.name,
+        fy: row.permanent ? "" : fy,
+        serviceCode: engagement?.templateSnapshot?.code ?? row.service ?? "",
+        engagementCode: engagement?.code ?? "",
+        permanent: Boolean(row.permanent),
+      });
+      await putLocal(key, bytes);
+
+      await systemAudit(async (session) => {
+        await DocumentModel.create(
+          [
+            {
+              name: row.name,
+              fileKey: key,
+              size: bytes.length,
+              mime: row.mime,
+              checksum: createHash("sha256").update(bytes).digest("hex"),
+              fy: row.permanent ? "" : fy,
+              isPermanent: Boolean(row.permanent),
+              kind: row.kind,
+              clientId: client._id,
+              engagementId: engagement?._id ?? null,
+              branchId: client.branchId,
+              uploadedBy: "sample",
+              uploadedByName: "Sample data",
+              createdBy: "sample",
+              updatedBy: "sample",
+            },
+          ],
+          { session },
+        );
+      });
+      documents += 1;
+    }
+    log(`file    ${documents} in the vault`);
+  } else {
+    log(
+      `file    skipped: the ${driverName()} driver takes uploads from a browser only`,
+    );
+  }
+
+  // --- invoices -----------------------------------------------------------
+  /** @type {Map<string, any>} */
+  const invoiceByKey = new Map();
+  for (const row of SAMPLE_INVOICES) {
+    const client = await Client.findById(clientId.get(row.client)).lean();
+    if (!client) continue;
+
+    const existing = await Invoice.findOne({
+      clientId: client._id,
+      createdBy: "sample",
+      "lines.sac": row.lines[0].sac,
+    });
+    if (existing) {
+      invoiceByKey.set(row.key, existing);
+      continue;
+    }
+
+    const branch = branches.find(
+      (b) => String(b._id) === String(client.branchId),
+    );
+    const branchDoc = await Branch.findById(client.branchId).lean();
+    const date = daysBack(now, row.daysAgo);
+    const billingGstin = (client.gstins ?? [])[0]?.gstin ?? "";
+    const placeOfSupply = billingGstin
+      ? String(billingGstin).slice(0, 2)
+      : SAMPLE_BRANCH_STATE[branch?.code ?? "NOI"];
+
+    /** The lines, priced from the work they bill. */
+    const lines = [];
+    for (const line of row.lines) {
+      const engagement = await engagementFor(row.client, line.service);
+      const template = templateByCode.get(line.service);
+      if (!engagement && !template) continue;
+      lines.push({
+        engagementId: engagement?._id ?? null,
+        description: `${template?.name ?? "Professional services"} — ${
+          engagement?.periodLabel || engagement?.period || "FY2026-27"
+        }`,
+        sac: line.sac,
+        amountPaise:
+          engagement?.feePaise ||
+          (SAMPLE_SERVICES.find(
+            (s) => s.client === row.client && s.service === line.service,
+          )?.feeRupees ?? 0) * 100,
+        gstRate: 18,
+      });
+    }
+    if (lines.length === 0) continue;
+
+    const invoice = await systemAudit(async (session) => {
+      const [doc] = await Invoice.create(
+        [
+          {
+            type: "Tax invoice",
+            status: "Draft",
+            date,
+            dueDate: client.creditDays
+              ? new Date(date.getTime() + client.creditDays * 86_400_000)
+              : null,
+            clientId: client._id,
+            branchId: client.branchId,
+            supplierGstin: branchDoc?.gstin ?? "",
+            billingGstin,
+            placeOfSupply,
+            placeOfSupplyName: stateName(placeOfSupply),
+            billingName: client.legalName,
+            billingAddress: (client.addresses ?? [])[0]?.line1 ?? "",
+            lines,
+            reimbursements: row.reimbursements ?? [],
+            notes: row.notes ?? "",
+            createdBy: "sample",
+            updatedBy: "sample",
+          },
+        ],
+        { session },
+      );
+      applyTotals(doc, branchDoc, client);
+      await doc.save({ session });
+      return doc;
+    });
+
+    // Issued the same way the screen issues one: the number comes from the
+    // counter inside a transaction, so the series stays gapless (spec §7).
+    if (row.issue) {
+      const reasons = reasonsNotIssuable(invoice, branchDoc);
+      if (reasons.length > 0) {
+        log(`bill    draft only — ${reasons[0]}`);
+      } else {
+        await systemAudit(async (session) => {
+          const { number, series, seq } = await nextInvoiceNumber(
+            branchDoc.invoicePrefix || branchDoc.code,
+            invoice.date,
+            session,
+          );
+          invoice.number = number;
+          invoice.series = series;
+          invoice.seq = seq;
+          invoice.status = "Sent";
+          invoice.issuedAt = date;
+          invoice.issuedBy = String(partner._id);
+          invoice.updatedBy = "sample";
+          await invoice.save({ session });
+
+          for (const line of invoice.lines) {
+            if (!line.engagementId) continue;
+            await Engagement.updateOne(
+              { _id: line.engagementId },
+              { $set: { billingStatus: "Billed", updatedBy: "sample" } },
+              { session },
+            );
+          }
+        });
+      }
+    }
+
+    invoiceByKey.set(row.key, invoice);
+    log(
+      `bill    ${invoice.number ?? "draft"} — ${(invoice.totalPaise / 100).toFixed(2)}`,
+    );
+  }
+
+  // --- payments -----------------------------------------------------------
+  for (const row of SAMPLE_PAYMENTS) {
+    const invoice = invoiceByKey.get(row.pays);
+    const id = clientId.get(row.client);
+    if (!invoice || !invoice.number || !id) continue;
+    if (await Payment.findOne({ reference: row.reference }).lean()) continue;
+
+    const tdsPaise = row.full
+      ? (invoice.tdsExpectedPaise ?? 0)
+      : Math.round((row.tdsRupees ?? 0) * 100);
+    const amountPaise = row.full
+      ? Math.max(0, invoice.totalPaise - tdsPaise)
+      : Math.round((row.amountRupees ?? 0) * 100);
+
+    const date = daysBack(now, row.daysAgo);
+    await systemAudit(async (session) => {
+      await Payment.create(
+        [
+          {
+            clientId: id,
+            branchId: invoice.branchId,
+            date,
+            amountPaise,
+            tdsPaise,
+            mode: row.mode,
+            reference: row.reference,
+            notes: row.notes ?? "",
+            tdsSeenIn26AS: Boolean(row.full),
+            allocations: [{ invoiceId: invoice._id, amountPaise, tdsPaise }],
+            createdBy: "sample",
+            updatedBy: "sample",
+          },
+        ],
+        { session },
+      );
+
+      // the same two fields the payments screen moves, and the shared rule
+      // for what the invoice's status becomes afterwards
+      const doc = await Invoice.findById(invoice._id).session(session);
+      doc.paidPaise = (doc.paidPaise ?? 0) + amountPaise;
+      doc.tdsCreditedPaise = (doc.tdsCreditedPaise ?? 0) + tdsPaise;
+      doc.status = statusAfterPayment(doc);
+      doc.updatedBy = "sample";
+      await doc.save({ session });
+    });
+    log(
+      `paid    ${invoice.number} — ${(amountPaise / 100).toFixed(2)}${
+        tdsPaise ? ` + TDS ${(tdsPaise / 100).toFixed(2)}` : ""
+      }`,
+    );
+  }
+
+  // --- the bell -----------------------------------------------------------
+  // No audit entry and no transaction: a notification is a nudge, not a
+  // record of the firm's work. The model says so too.
+  let bells = 0;
+  for (const row of SAMPLE_NOTIFICATIONS) {
+    const userId = personId.get(row.to);
+    if (!userId) continue;
+    if (await Notification.findOne({ userId, title: row.title }).lean())
+      continue;
+    const at = new Date(now.getTime() - row.hoursAgo * 3_600_000);
+    await Notification.create({
+      userId,
+      type: row.type,
+      title: row.title,
+      body: row.body,
+      href: row.href,
+      readAt: row.read ? at : null,
+      createdAt: at,
+    });
+    bells += 1;
+  }
+  log(`bell    ${bells} notifications`);
+
   return {
     people: SAMPLE_PEOPLE.length,
     clients: SAMPLE_CLIENTS.length,
@@ -1024,6 +1857,11 @@ export async function seedSample(options = {}) {
     dscs: SAMPLE_DSCS.length,
     udins: SAMPLE_UDINS.length,
     portalUsers: SAMPLE_PORTAL_USERS.length,
+    invoices: invoiceByKey.size,
+    payments: SAMPLE_PAYMENTS.length,
+    documents,
+    notes: SAMPLE_NOTES.length + workComments,
+    notifications: bells,
   };
 }
 
@@ -1054,6 +1892,31 @@ export async function dropSample() {
       await systemAudit((session) => sub.softDelete("sample", { session }));
       removed += 1;
     }
+    // the billing, the vault and the conversation
+    for (const row of await Payment.find({ clientId: client._id })) {
+      await systemAudit((session) => row.softDelete("sample", { session }));
+      removed += 1;
+    }
+    for (const row of await Invoice.find({ clientId: client._id })) {
+      await systemAudit((session) => row.softDelete("sample", { session }));
+      removed += 1;
+    }
+    for (const row of await DocumentModel.find({ clientId: client._id })) {
+      // the row is soft-deleted; the bytes go, because they are invented
+      if (driverName() === "local") {
+        await removeLocal(row.fileKey, { purge: true }).catch(() => {});
+      }
+      await systemAudit((session) => row.softDelete("sample", { session }));
+      removed += 1;
+    }
+    for (const row of await Comment.find({ clientId: client._id })) {
+      await systemAudit((session) => row.softDelete("sample", { session }));
+      removed += 1;
+    }
+    for (const row of await ClientCredential.find({ clientId: client._id })) {
+      await systemAudit((session) => row.softDelete("sample", { session }));
+      removed += 1;
+    }
     // the registers (P2-7)
     for (const row of await Dsc.find({ clientId: client._id })) {
       await systemAudit((session) => row.softDelete("sample", { session }));
@@ -1073,6 +1936,39 @@ export async function dropSample() {
   }
   for (const person of people) {
     await systemAudit((session) => person.softDelete("sample", { session }));
+    removed += 1;
+  }
+
+  /**
+   * The bell is not audited and not soft-deleted — a nudge is not a record of
+   * the firm's work — and some of these were addressed to the firm's own
+   * partner, so they cannot be found by looking for sample people.
+   */
+  await Notification.deleteMany({
+    title: { $in: SAMPLE_NOTIFICATIONS.map((n) => n.title) },
+  });
+
+  for (const row of SAMPLE_GROUPS) {
+    const group = await ClientGroup.findOne({ name: row.name });
+    if (!group) continue;
+    await systemAudit((session) => group.softDelete("sample", { session }));
+    removed += 1;
+  }
+
+  /**
+   * The invented GSTIN comes off any branch still carrying it untouched. A
+   * branch the firm has since given its real registration keeps it: the
+   * comparison is against what this script wrote, not against "non-empty".
+   */
+  for (const branch of await Branch.find({})) {
+    const stateCode = SAMPLE_BRANCH_STATE[branch.code];
+    if (!stateCode) continue;
+    if (branch.gstin !== makeGstin(stateCode, SAMPLE_FIRM_PAN)) continue;
+    await systemAudit(async (session) => {
+      branch.gstin = "";
+      branch.updatedBy = "sample";
+      await branch.save({ session });
+    });
     removed += 1;
   }
 

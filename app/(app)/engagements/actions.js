@@ -93,6 +93,8 @@ const createInput = z.object({
   reviewerId: z.string().optional(),
   priority: z.enum(PRIORITIES).default("Normal"),
   fee: z.string().trim().default(""),
+  /** The firm's own target date; blank means the service's turnaround. */
+  internalDue: z.string().trim().default(""),
 });
 
 /** Create one engagement from a service template (spec section 5). */
@@ -108,6 +110,7 @@ export async function createEngagement(_prev, formData) {
     reviewerId: formData.get("reviewerId") || undefined,
     priority: formData.get("priority") || "Normal",
     fee: formData.get("fee") ?? "",
+    internalDue: formData.get("internalDue") ?? "",
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const data = parsed.data;
@@ -165,6 +168,15 @@ export async function createEngagement(_prev, formData) {
     return { error: "That fee is not an amount." };
   }
 
+  // the target date typed on the form, read as an IST calendar day like
+  // every other date input; blank leaves the service's turnaround to decide
+  const internalDue = data.internalDue
+    ? new Date(`${data.internalDue}T00:00:00+05:30`)
+    : null;
+  if (internalDue && Number.isNaN(internalDue.valueOf())) {
+    return { error: "That internal due date is not a date." };
+  }
+
   let created;
   try {
     created = await audited(actor, async (session) => {
@@ -180,6 +192,7 @@ export async function createEngagement(_prev, formData) {
         reviewerId: reviewer?.id ?? null,
         feePaise,
         priority: data.priority,
+        internalDue,
       });
 
       const code = await nextEngagementCode(

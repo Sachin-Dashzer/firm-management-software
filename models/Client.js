@@ -181,7 +181,11 @@ clientSchema.index(
     unique: true,
     partialFilterExpression: {
       deletedAt: null,
-      pan: { $type: "string", $ne: "" },
+      // `$gt: ""` rather than `$ne: ""`: a partial filter takes neither
+      // `$ne` nor `$not`, and MongoDB refuses to build the whole index if
+      // it sees one — so the uniqueness it is here for silently never
+      // existed. Every string except the empty one sorts above it.
+      pan: { $type: "string", $gt: "" },
     },
   },
 );

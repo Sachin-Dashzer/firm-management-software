@@ -11,11 +11,7 @@ import Invoice from "@/models/Invoice";
 import Client from "@/models/Client";
 import Branch from "@/models/Branch";
 import Engagement from "@/models/Engagement";
-import {
-  computeInvoice,
-  reasonsNotIssuable,
-  stateName,
-} from "@/lib/billing/gst";
+import { applyTotals, reasonsNotIssuable, stateName } from "@/lib/billing/gst";
 import { nextInvoiceNumber } from "@/lib/billing/number";
 import { invoicePdfAttachment } from "@/lib/billing/attachment";
 import { invoiceIssued } from "@/lib/mailer/events";
@@ -43,43 +39,6 @@ async function loadForWrite(actor, id) {
     branchId: String(invoice.branchId),
   });
   return invoice;
-}
-
-/** Recompute and store every figure from the lines as they stand. */
-function applyTotals(invoice, branch, client) {
-  const computed = computeInvoice({
-    lines: invoice.lines.map((line) => ({
-      description: line.description,
-      sac: line.sac,
-      amountPaise: line.amountPaise,
-      gstRate: line.gstRate,
-    })),
-    reimbursements: invoice.reimbursements,
-    supplierGstin: branch?.gstin ?? null,
-    placeOfSupply: invoice.placeOfSupply,
-    discountPercent: invoice.discountPercent,
-    tdsApplies: client?.tdsApplicable !== false,
-  });
-
-  invoice.lines.forEach((line, i) => {
-    const done = computed.lines[i];
-    line.discountPaise = done.discountPaise;
-    line.netPaise = done.netPaise;
-    line.cgstPaise = done.cgstPaise;
-    line.sgstPaise = done.sgstPaise;
-    line.igstPaise = done.igstPaise;
-    line.totalPaise = done.totalPaise;
-  });
-
-  invoice.subtotalPaise = computed.subtotalPaise;
-  invoice.cgstPaise = computed.cgstPaise;
-  invoice.sgstPaise = computed.sgstPaise;
-  invoice.igstPaise = computed.igstPaise;
-  invoice.reimbursementTotalPaise = computed.reimbursementTotalPaise;
-  invoice.totalPaise = computed.totalPaise;
-  invoice.tdsExpectedPaise = computed.tdsExpectedPaise;
-
-  return computed;
 }
 
 /**
