@@ -38,6 +38,9 @@ export async function recordUdin(_prev, formData) {
   const note = String(formData.get("note") ?? "").trim();
 
   if (!clientId) return { error: "Which client is it for?" };
+  // owner decision, 24-10-2026: a certificate is approved by a partner or a
+  // CA, and the register has to be able to say which one
+  if (!memberId) return { error: "Which partner or CA signed it?" };
   if (!documentType) return { error: "What was signed?" };
   if (!generatedOn) return { error: "When was it generated?" };
   if (new Date(generatedOn) > new Date()) {
@@ -68,9 +71,10 @@ export async function recordUdin(_prev, formData) {
     return { error: "That engagement belongs to a different client." };
   }
 
-  const member = memberId
-    ? await User.findById(memberId).select("icai").lean()
-    : null;
+  const member = await User.findById(memberId).select("icai role").lean();
+  if (!member || !["ca", "partner"].includes(member.role)) {
+    return { error: "A UDIN is signed by a partner or a CA." };
+  }
 
   try {
     await audited(actor, async (session) => {

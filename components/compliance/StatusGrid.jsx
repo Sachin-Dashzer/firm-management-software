@@ -136,6 +136,13 @@ export default function StatusGrid({
                         · {row.missing} missing
                       </span>
                     )}
+                    {/* who the row belongs to — the client partner on the
+                        firm's grid, nothing on a client's own case file */}
+                    {row.note && (
+                      <span className="text-12 text-ink-muted block">
+                        {row.note}
+                      </span>
+                    )}
                   </th>
                   {row.cells.map((cell, columnIndex) => (
                     <td key={cell.period} className="px-1 py-1 text-center">

@@ -356,3 +356,62 @@ test("the grid shows a month nobody filed", async ({ page }, testInfo) => {
   await Engagement.deleteMany({ clientId: client._id }, { withDeleted: true });
   await ClientService.deleteMany({ clientId: client._id });
 });
+
+test("compliance opens on the heads, grouped by category", async ({
+  page,
+}, testInfo) => {
+  const fx = names(testInfo.project.name);
+  const client = await Client.findOne({ legalName: fx.clientName });
+  const template = await ServiceTemplate.findOne({ code: fx.serviceCode });
+
+  const ClientService = (await import("../../models/ClientService.js")).default;
+  await systemAudit(async (session) => {
+    await ClientService.create(
+      [
+        {
+          clientId: client._id,
+          serviceTemplateId: template._id,
+          active: true,
+          createdBy: "test",
+          updatedBy: "test",
+        },
+      ],
+      { session },
+    );
+    await Engagement.create(
+      [
+        {
+          code: `NOI-${fx.serviceCode}-2026-04-7102`,
+          clientId: client._id,
+          serviceTemplateId: template._id,
+          branchId: client.branchId,
+          period: "2026-04",
+          periodLabel: "Apr 2026",
+          status: "Completed",
+          completedAt: new Date("2026-05-18T00:00:00+05:30"),
+          templateSnapshot: { name: template.name, code: template.code },
+          createdBy: "test",
+          updatedBy: "test",
+        },
+      ],
+      { session },
+    );
+  });
+
+  await signIn(page, fx.partner);
+  await page.goto("/calendar?fy=2026");
+
+  // the head is listed under the category the catalog gives it, with the
+  // basis the firm works to
+  const row = page.getByRole("row", { name: new RegExp(fx.serviceCode) });
+  await expect(row).toBeVisible();
+  await expect(row).toContainText("Monthly");
+
+  // and it opens the client-by-client grid for that head
+  await row.getByRole("link").first().click();
+  await expect(page).toHaveURL(/view=grid/);
+  await expect(page.getByText(fx.clientName.slice(0, 20))).toBeVisible();
+
+  await Engagement.deleteMany({ clientId: client._id }, { withDeleted: true });
+  await ClientService.deleteMany({ clientId: client._id });
+});

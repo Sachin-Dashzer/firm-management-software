@@ -1,8 +1,20 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useState,
+  useTransition,
+} from "react";
 import Link from "next/link";
 import { recordUdin, setUdinRevoked } from "./actions";
+import DocumentList from "@/components/documents/DocumentList";
+import Uploader from "@/components/documents/Uploader";
+import {
+  documentsForUdin,
+  documentsForEngagement,
+} from "../../documents/actions";
 
 /**
  * The UDIN register.
@@ -17,11 +29,14 @@ export default function UdinRegister({
   fyStart,
   years,
   mayEdit,
+  mayUpload,
   clients,
   members,
+  member,
 }) {
   const [adding, setAdding] = useState(false);
   const [revoking, setRevoking] = useState(null);
+  const [open, setOpen] = useState(null);
   const [reason, setReason] = useState("");
   const [message, setMessage] = useState(null);
   const [pending, startTransition] = useTransition();
@@ -84,8 +99,45 @@ export default function UdinRegister({
         A UDIN is generated on the ICAI&rsquo;s portal against a member&rsquo;s
         own membership. Nothing here generates one — this is the firm&rsquo;s
         record of what was generated, and the same number cannot be recorded
-        twice.
+        twice. Every entry names the CA or partner who signed it.
       </p>
+
+      <form
+        method="get"
+        className="rounded-ledger border-rule bg-surface flex flex-wrap items-end gap-3 border p-3"
+      >
+        <input type="hidden" name="fy" value={fyStart} />
+        <label className="flex min-w-60 flex-col gap-1">
+          <span className="text-13 text-ink-muted font-medium">Signed by</span>
+          <select
+            name="member"
+            defaultValue={member}
+            className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+          >
+            <option value="">Every partner and CA</option>
+            {members.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name} · {m.role}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="submit"
+          className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white"
+        >
+          Show
+        </button>
+        {member && (
+          <Link
+            href={`/practice/udin?fy=${fyStart}`}
+            className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
+          >
+            Everyone
+          </Link>
+        )}
+        {!member && <PerMember rows={rows} />}
+      </form>
 
       {message?.ok && (
         <p
@@ -138,21 +190,23 @@ export default function UdinRegister({
 
           <label className="flex flex-col gap-1">
             <span className="text-13 text-ink-muted font-medium">
-              Signed by
+              Signed by <span className="text-redpen">*</span>
             </span>
             <select
               name="memberId"
+              required
               className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
             >
-              <option value="">Not recorded</option>
-              {members.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.name}
+              <option value="">Choose the partner or CA</option>
+              {members.map((signer) => (
+                <option key={signer.id} value={signer.id}>
+                  {signer.label}
                 </option>
               ))}
             </select>
             <span className="text-12 text-ink-muted">
-              A UDIN belongs to the member who generated it.
+              A UDIN belongs to the member who generated it, and a certificate
+              is only approved once a partner or CA is named against it.
             </span>
           </label>
 
@@ -239,6 +293,9 @@ export default function UdinRegister({
               <th scope="col" className="px-3 py-2 font-medium">
                 On
               </th>
+              <th scope="col" className="px-3 py-2 font-medium">
+                Papers
+              </th>
               {mayEdit && (
                 <th scope="col" className="px-3 py-2 font-medium">
                   &nbsp;
@@ -248,87 +305,117 @@ export default function UdinRegister({
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id} className="border-rule border-b last:border-0">
-                <td className="px-3 py-2">
-                  <span
-                    className={`text-13 font-mono ${
-                      row.revoked ? "text-ink-muted line-through" : ""
-                    }`}
-                  >
-                    {row.udin}
-                  </span>
-                  {row.revoked && (
-                    <span className="text-12 text-redpen block">
-                      Revoked {row.revokedOn}
-                      {row.revokeReason ? ` · ${row.revokeReason}` : ""}
-                    </span>
-                  )}
-                </td>
-                <td className="text-13 px-3 py-2">
-                  <Link
-                    href={`/clients/${row.clientId}`}
-                    className="underline underline-offset-4"
-                  >
-                    {row.client}
-                  </Link>
-                </td>
-                <td className="text-13 px-3 py-2">
-                  {row.documentType}
-                  {row.engagement && (
-                    <Link
-                      href={`/engagements/${row.engagementId}`}
-                      className="text-ink-muted block underline underline-offset-4"
+              <Fragment key={row.id}>
+                <tr className="border-rule border-b last:border-0">
+                  <td className="px-3 py-2">
+                    <span
+                      className={`text-13 font-mono ${
+                        row.revoked ? "text-ink-muted line-through" : ""
+                      }`}
                     >
-                      {row.engagement}
-                    </Link>
-                  )}
-                  {row.note && (
-                    <span className="text-12 text-ink-muted block">
-                      {row.note}
+                      {row.udin}
                     </span>
-                  )}
-                </td>
-                <td className="text-13 px-3 py-2">
-                  {row.member || <span className="text-ink-muted">—</span>}
-                  {row.membershipNo && (
-                    <span className="text-12 text-ink-muted block font-mono">
-                      {row.membershipNo}
-                    </span>
-                  )}
-                </td>
-                <td className="num text-13 px-3 py-2 font-mono">
-                  {row.generatedOn}
-                </td>
-                {mayEdit && (
-                  <td className="text-13 px-3 py-2">
-                    {row.revoked ? (
-                      <button
-                        type="button"
-                        disabled={pending}
-                        onClick={() => run(() => setUdinRevoked(row.id, false))}
-                        className="underline underline-offset-4 disabled:opacity-50"
-                      >
-                        Lift
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setRevoking(revoking === row.id ? null : row.id)
-                        }
-                        className="text-redpen underline underline-offset-4"
-                      >
-                        Revoked?
-                      </button>
+                    {row.revoked && (
+                      <span className="text-12 text-redpen block">
+                        Revoked {row.revokedOn}
+                        {row.revokeReason ? ` · ${row.revokeReason}` : ""}
+                      </span>
                     )}
                   </td>
+                  <td className="text-13 px-3 py-2">
+                    <Link
+                      href={`/clients/${row.clientId}`}
+                      className="underline underline-offset-4"
+                    >
+                      {row.client}
+                    </Link>
+                  </td>
+                  <td className="text-13 px-3 py-2">
+                    {row.documentType}
+                    {row.engagement && (
+                      <Link
+                        href={`/engagements/${row.engagementId}`}
+                        className="text-ink-muted block underline underline-offset-4"
+                      >
+                        {row.engagement}
+                      </Link>
+                    )}
+                    {row.note && (
+                      <span className="text-12 text-ink-muted block">
+                        {row.note}
+                      </span>
+                    )}
+                  </td>
+                  <td className="text-13 px-3 py-2">
+                    {row.member || (
+                      <span className="text-ink-muted">Not recorded</span>
+                    )}
+                    {row.memberRole && (
+                      <span className="text-12 text-ink-muted block">
+                        {row.memberRole}
+                      </span>
+                    )}
+                    {row.membershipNo && (
+                      <span className="text-12 text-ink-muted block font-mono">
+                        {row.membershipNo}
+                      </span>
+                    )}
+                  </td>
+                  <td className="num text-13 px-3 py-2 font-mono">
+                    {row.generatedOn}
+                  </td>
+                  <td className="text-13 px-3 py-2">
+                    <button
+                      type="button"
+                      aria-expanded={open === row.id}
+                      onClick={() => setOpen(open === row.id ? null : row.id)}
+                      className="underline underline-offset-4"
+                    >
+                      {row.files === 0
+                        ? "None yet"
+                        : `${row.files} ${row.files === 1 ? "file" : "files"}`}
+                    </button>
+                  </td>
+                  {mayEdit && (
+                    <td className="text-13 px-3 py-2">
+                      {row.revoked ? (
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() =>
+                            run(() => setUdinRevoked(row.id, false))
+                          }
+                          className="underline underline-offset-4 disabled:opacity-50"
+                        >
+                          Lift
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setRevoking(revoking === row.id ? null : row.id)
+                          }
+                          className="text-redpen underline underline-offset-4"
+                        >
+                          Revoked?
+                        </button>
+                      )}
+                    </td>
+                  )}
+                </tr>
+                {open === row.id && (
+                  <tr className="border-rule bg-carbon-wash border-b">
+                    <td colSpan={mayEdit ? 7 : 6} className="px-3 py-3">
+                      <Papers row={row} mayUpload={mayUpload} />
+                    </td>
+                  </tr>
                 )}
-              </tr>
+              </Fragment>
             ))}
             {rows.length === 0 && (
               <tr>
                 <td
-                  colSpan={mayEdit ? 6 : 5}
+                  colSpan={mayEdit ? 7 : 6}
                   className="text-ink-muted px-3 py-6 text-center"
                 >
                   Nothing was signed in this year, or nothing has been recorded
@@ -367,6 +454,90 @@ export default function UdinRegister({
           >
             Cancel
           </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * What each partner and CA signed this year.
+ *
+ * Counted here rather than queried, because the register already holds the
+ * year's rows — and the question is only ever asked of the year on screen.
+ */
+function PerMember({ rows }) {
+  const tally = new Map();
+  for (const row of rows) {
+    if (row.revoked) continue;
+    const name = row.member || "Not recorded";
+    tally.set(name, (tally.get(name) ?? 0) + 1);
+  }
+  if (tally.size === 0) return null;
+
+  return (
+    <p className="text-13 text-ink-muted flex-1 self-center">
+      {[...tally.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, count]) => `${name} ${count}`)
+        .join(" · ")}
+    </p>
+  );
+}
+
+/**
+ * The certificate and the client papers behind it, in one place.
+ *
+ * Two lists, never merged: what was attached to this UDIN, and — when it
+ * came out of an engagement — that engagement's own working papers, read
+ * only. Merging them would hide which file is the firm's evidence for this
+ * number and which merely sits nearby.
+ */
+function Papers({ row, mayUpload }) {
+  const [own, setOwn] = useState(null);
+  const [work, setWork] = useState([]);
+
+  const load = useCallback(() => {
+    documentsForUdin(row.id).then(setOwn);
+    if (row.engagementId) {
+      documentsForEngagement(row.engagementId).then(setWork);
+    }
+  }, [row.id, row.engagementId]);
+
+  useEffect(load, [load]);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2">
+        <h3 className="text-13 font-medium">Attached to this UDIN</h3>
+        {own === null ? (
+          <p className="text-13 text-ink-muted">Reading…</p>
+        ) : (
+          <DocumentList
+            documents={own}
+            empty="Nothing attached yet — the signed certificate belongs here."
+            onChange={load}
+          />
+        )}
+        {mayUpload && (
+          <Uploader
+            udinId={row.id}
+            clientId={row.clientId}
+            label="Attach the certificate or its papers"
+            onDone={load}
+          />
+        )}
+      </div>
+
+      {row.engagementId && (
+        <div className="flex flex-col gap-2">
+          <h3 className="text-13 font-medium">
+            On the engagement it came from
+          </h3>
+          <DocumentList
+            documents={work}
+            empty="That engagement has no files."
+          />
         </div>
       )}
     </div>

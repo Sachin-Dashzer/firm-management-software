@@ -9,7 +9,12 @@ import {
   RISK_RATINGS,
   TURNOVER_BANDS,
 } from "@/lib/validators";
-import { createClient, updateClient, checkForDuplicates } from "./actions";
+import {
+  createClient,
+  updateClient,
+  checkForDuplicates,
+  createGroup,
+} from "./actions";
 
 /**
  * The onboarding and edit form (spec section 3).
@@ -337,12 +342,10 @@ export default function ClientForm({
           options={partners.map((p) => ({ value: p.id, label: p.name }))}
           placeholder="— none —"
         />
-        <Select
-          label="Group"
-          name="groupId"
+        <GroupPicker
+          groups={groups}
           defaultValue={client?.groupId}
-          options={groups.map((g) => ({ value: g.id, label: g.name }))}
-          placeholder="— none —"
+          required={!editing}
         />
         <Field
           label="Industry"
@@ -492,6 +495,86 @@ function Select({ label, options, placeholder, defaultValue, ...rest }) {
           ),
         )}
       </select>
+    </label>
+  );
+}
+
+/**
+ * The group a client belongs to.
+ *
+ * Required on a new client (owner decision, 24-10-2026): one owner, several
+ * businesses, read together on the groups screen and clustered in the client
+ * list. The group can be created from here, because being forced to choose a
+ * group and having nowhere to make one is a dead end — the first client of a
+ * new family would be unsaveable.
+ */
+function GroupPicker({ groups, defaultValue, required }) {
+  const [list, setList] = useState(groups);
+  const [value, setValue] = useState(defaultValue ? String(defaultValue) : "");
+  const [name, setName] = useState("");
+  const [error, setError] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  function add() {
+    startTransition(async () => {
+      const result = await createGroup(name);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setList(
+        [...list, { id: result.id, name: name.trim() }].sort((a, b) =>
+          a.name.localeCompare(b.name),
+        ),
+      );
+      setValue(result.id);
+      setName("");
+      setError("");
+    });
+  }
+
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-13 text-ink-muted font-medium">
+        Group{required && <span className="text-redpen"> *</span>}
+      </span>
+      <select
+        name="groupId"
+        required={required}
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+      >
+        <option value="">{required ? "— choose a group —" : "— none —"}</option>
+        {list.map((group) => (
+          <option key={group.id} value={group.id}>
+            {group.name}
+          </option>
+        ))}
+      </select>
+      <span className="flex gap-2">
+        <input
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              if (name.trim().length >= 2) add();
+            }
+          }}
+          placeholder="…or a new group: Sharma family"
+          className="rounded-ledger border-rule bg-paper text-13 h-9 min-w-0 flex-1 border px-2"
+        />
+        <button
+          type="button"
+          onClick={add}
+          disabled={pending || name.trim().length < 2}
+          className="rounded-ledger border-rule text-13 hover:bg-carbon-wash h-9 shrink-0 border px-2 disabled:opacity-50"
+        >
+          Add
+        </button>
+      </span>
+      {error && <span className="text-12 text-redpen">{error}</span>}
     </label>
   );
 }

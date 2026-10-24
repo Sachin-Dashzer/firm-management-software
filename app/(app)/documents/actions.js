@@ -10,6 +10,7 @@ import { recordAudit, ACTIONS } from "@/lib/audit";
 import Document from "@/models/Document";
 import Client from "@/models/Client";
 import Engagement from "@/models/Engagement";
+import Udin from "@/models/Udin";
 import {
   ALLOWED_TYPES,
   MAX_UPLOAD_BYTES,
@@ -166,6 +167,22 @@ export async function confirmUpload(input) {
     ? await Document.findById(input.replacesId)
     : null;
 
+  /**
+   * A file attached to a UDIN: the signed certificate, or the client paper
+   * it rests on. The register's row and the file must agree about whose
+   * client they belong to, or the certificate's evidence would be somebody
+   * else's document.
+   */
+  let udinId = null;
+  if (input.udinId) {
+    const udin = await Udin.findById(input.udinId).select("clientId").lean();
+    if (!udin) return { error: "That UDIN is no longer in the register." };
+    if (String(udin.clientId) !== String(client._id)) {
+      return { error: "That UDIN belongs to a different client." };
+    }
+    udinId = udin._id;
+  }
+
   const saved = await audited(actor, async (session) => {
     if (existing) {
       // the previous file becomes a version; nothing is overwritten
@@ -202,6 +219,7 @@ export async function confirmUpload(input) {
           clientId: client._id,
           engagementId: engagement?._id ?? null,
           checklistItemId: input.checklistItemId || null,
+          udinId,
           branchId: engagement?.branchId ?? client.branchId,
           uploadedBy: actor.id,
           uploadedByName: actor.name,
@@ -242,6 +260,7 @@ export async function confirmUpload(input) {
   });
 
   if (engagement) revalidatePath(`/engagements/${engagement._id}`);
+  if (udinId) revalidatePath("/practice/udin");
   revalidatePath(`/clients/${client._id}`);
   return { ok: `${saved.name} uploaded.`, id: String(saved._id) };
 }
@@ -466,6 +485,39 @@ export async function documentsForEngagement(engagementId) {
     size: d.size,
     mime: d.mime,
     checklistItemId: d.checklistItemId ? String(d.checklistItemId) : null,
+    versions: (d.versions ?? []).length,
+    uploadedByName: d.uploadedByName,
+  }));
+}
+
+/**
+ * The files attached to one UDIN: the signed certificate and the client
+ * papers behind it, read together with the register row.
+ *
+ * Scoped by the UDIN's own branch rather than the looser check the
+ * engagement list uses — a certificate register is read by whoever may read
+ * UDINs, and the files under it follow the same line.
+ *
+ * @param {string} udinId
+ */
+export async function documentsForUdin(udinId) {
+  const actor = await requireUser();
+  if (!can(actor, "view", "documents")) return [];
+
+  await connectDB();
+  const udin = await Udin.findById(udinId).select("branchId").lean();
+  if (!udin) return [];
+  assertCan(actor, "view", "udin", { branchId: String(udin.branchId) });
+
+  const documents = await Document.find({ udinId })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  return documents.map((d) => ({
+    id: String(d._id),
+    name: d.name,
+    size: d.size,
+    mime: d.mime,
     versions: (d.versions ?? []).length,
     uploadedByName: d.uploadedByName,
   }));

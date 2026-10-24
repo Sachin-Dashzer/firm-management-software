@@ -6,6 +6,7 @@ import Udin from "@/models/Udin";
 import Client from "@/models/Client";
 import Engagement from "@/models/Engagement";
 import User from "@/models/User";
+import Document from "@/models/Document";
 import { formatISTDate, financialYearStart, istDate } from "@/lib/dates";
 import UdinRegister from "./UdinRegister";
 
@@ -40,8 +41,12 @@ export default async function UdinPage({ searchParams }) {
   await connectDB();
 
   const scope = branchFilter(actor, "udin") ?? {};
+  /** Which partner or CA signed it — the register's main question (P2-7). */
+  const member = typeof params.member === "string" ? params.member : "";
+
   const rows = await Udin.find({
     ...scope,
+    ...(member ? { memberId: member } : {}),
     generatedOn: {
       $gte: istDate(fyStart, 4, 1),
       $lt: istDate(fyStart + 1, 4, 1),
@@ -51,7 +56,7 @@ export default async function UdinPage({ searchParams }) {
     .limit(1000)
     .lean();
 
-  const [clients, engagements, members] = await Promise.all([
+  const [clients, engagements, members, files] = await Promise.all([
     Client.find({ _id: { $in: rows.map((r) => r.clientId) } })
       .select("legalName tradeName code")
       .lean(),
@@ -61,7 +66,12 @@ export default async function UdinPage({ searchParams }) {
       .select("code periodLabel period templateSnapshot.name")
       .lean(),
     User.find({ _id: { $in: rows.map((r) => r.memberId).filter(Boolean) } })
-      .select("name")
+      .select("name role")
+      .lean(),
+    // how many papers each certificate carries, so the row says whether
+    // there is anything to open before anybody opens it
+    Document.find({ udinId: { $in: rows.map((r) => r._id) } })
+      .select("udinId")
       .lean(),
   ]);
 
@@ -69,7 +79,13 @@ export default async function UdinPage({ searchParams }) {
     clients.map((c) => [String(c._id), c.tradeName || c.legalName]),
   );
   const engagementById = new Map(engagements.map((e) => [String(e._id), e]));
-  const memberName = new Map(members.map((m) => [String(m._id), m.name]));
+  const memberById = new Map(members.map((m) => [String(m._id), m]));
+
+  const fileCount = new Map();
+  for (const file of files) {
+    const key = String(file.udinId);
+    fileCount.set(key, (fileCount.get(key) ?? 0) + 1);
+  }
 
   const view = rows.map((row) => {
     const engagement = row.engagementId
@@ -88,8 +104,14 @@ export default async function UdinPage({ searchParams }) {
         : "",
       documentType: row.documentType,
       generatedOn: formatISTDate(row.generatedOn),
-      member: row.memberId ? (memberName.get(String(row.memberId)) ?? "") : "",
+      member: row.memberId
+        ? (memberById.get(String(row.memberId))?.name ?? "")
+        : "",
+      memberRole: row.memberId
+        ? (memberById.get(String(row.memberId))?.role ?? "")
+        : "",
       membershipNo: row.membershipNo ?? "",
+      files: fileCount.get(String(row._id)) ?? 0,
       revoked: Boolean(row.revokedAt),
       revokedOn: row.revokedAt ? formatISTDate(row.revokedAt) : "",
       revokeReason: row.revokeReason ?? "",
@@ -97,13 +119,23 @@ export default async function UdinPage({ searchParams }) {
     };
   });
 
-  /** Who can be named as the signing member: the firm's own members. */
-  const signers = mayEdit
-    ? await User.find({ active: true, role: { $in: ["ca", "partner"] } })
-        .select("name icai")
-        .sort({ name: 1 })
-        .lean()
-    : [];
+  /**
+   * Who can be named as the signing member: the firm's own CAs and partners
+   * (owner decision, 24-10-2026). A UDIN is generated against a member's own
+   * ICAI membership, so only somebody who has one can be named — and from
+   * today one must be, which is what makes "which partner signed this" a
+   * question the register can always answer.
+   *
+   * The list is loaded whether or not this person may edit, because it is
+   * also the filter at the top of the register.
+   */
+  const signers = await User.find({
+    active: true,
+    role: { $in: ["ca", "partner"] },
+  })
+    .select("name role icai")
+    .sort({ role: 1, name: 1 })
+    .lean();
 
   const choices = mayEdit
     ? await Client.find({
@@ -128,10 +160,14 @@ export default async function UdinPage({ searchParams }) {
       }))}
       members={signers.map((m) => ({
         id: String(m._id),
-        name: m.icai?.membershipNo
-          ? `${m.name} · ${m.icai.membershipNo}`
-          : `${m.name} · no membership number recorded`,
+        name: m.name,
+        role: m.role === "partner" ? "Partner" : "CA",
+        label: `${m.name} · ${m.role === "partner" ? "Partner" : "CA"} · ${
+          m.icai?.membershipNo || "no membership number recorded"
+        }`,
       }))}
+      member={member}
+      mayUpload={can(actor, "edit", "documents")}
     />
   );
 }

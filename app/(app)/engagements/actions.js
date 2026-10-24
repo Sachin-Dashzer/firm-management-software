@@ -658,11 +658,26 @@ export async function saveFiling(id, formData) {
    * two are written together or not at all. A number already recorded
    * against other work is refused by name, which is what a register is for.
    */
-  const member = udin ? await signingMember(actor) : null;
+  /**
+   * A new or changed number has to name the partner or CA it was generated
+   * against (owner decision, 24-10-2026). Only then: re-saving an
+   * acknowledgement number on work whose UDIN is already in the register
+   * must not ask for the signer again.
+   */
+  const changed = udin && udin !== before;
+  const member = changed
+    ? await signingMember(actor, formData.get("udinMemberId"))
+    : null;
+  if (changed && !member) {
+    return {
+      error:
+        "Name the partner or CA whose ICAI membership the UDIN was generated against.",
+    };
+  }
 
   try {
     await audited(actor, async (session) => {
-      if (udin && udin !== before) {
+      if (changed) {
         const linked = await linkUdinToEngagement(
           { udin, engagement, actor, member },
           session,
@@ -715,13 +730,17 @@ function readDate(value) {
  * a member — an employee typing in what the partner generated — leaves it
  * blank rather than claiming it, and the register screen can set it.
  */
-async function signingMember(actor) {
-  if (!["ca", "partner"].includes(actor.role)) return null;
-  const person = await User.findById(actor.id).select("icai").lean();
-  return {
-    id: actor.id,
-    membershipNo: person?.icai?.membershipNo ?? "",
-  };
+async function signingMember(actor, memberId) {
+  // whoever the filing panel named, or the person saving it when they are a
+  // member themselves and named nobody
+  const id =
+    String(memberId ?? "") ||
+    (["ca", "partner"].includes(actor.role) ? actor.id : "");
+  if (!id) return null;
+
+  const person = await User.findById(id).select("icai role").lean();
+  if (!person || !["ca", "partner"].includes(person.role)) return null;
+  return { id, membershipNo: person.icai?.membershipNo ?? "" };
 }
 
 /** Priority and tags: small edits that do not move the pipeline. */

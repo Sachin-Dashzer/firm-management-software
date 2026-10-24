@@ -6,6 +6,7 @@ import { assertCan } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import Client from "@/models/Client";
 import Branch from "@/models/Branch";
+import ClientGroup from "@/models/ClientGroup";
 import { audited } from "@/lib/audit/request";
 import { encryptField } from "@/lib/crypto";
 import { prepareImport } from "@/lib/clients/import";
@@ -24,6 +25,35 @@ async function allowedBranches(actor) {
     .select("code")
     .lean();
   return branches.map((b) => ({ id: String(b._id), code: b.code }));
+}
+
+/**
+ * The group named in the spreadsheet, created if the firm has not used that
+ * name before.
+ *
+ * Matched without regard to case, so "Sharma family" and "Sharma Family" on
+ * two rows of the same file land in one group rather than colliding with the
+ * unique index on the second row.
+ *
+ * @param {string} name
+ * @param {{ id: string }} actor
+ * @param {import("mongoose").ClientSession} session
+ */
+async function groupIdForName(name, actor, session) {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const existing = await ClientGroup.findOne({
+    name: new RegExp(`^${escaped}$`, "i"),
+  })
+    .select("_id")
+    .session(session)
+    .lean();
+  if (existing) return existing._id;
+
+  const [created] = await ClientGroup.create(
+    [{ name, createdBy: actor.id, updatedBy: actor.id }],
+    { session },
+  );
+  return created._id;
 }
 
 /**
@@ -74,6 +104,7 @@ export async function previewImport(_prev, formData) {
     rows: prepared.rows.map((r) => ({
       line: r.line,
       name: r.name,
+      group: r.groupName,
       pan: r.value.pan ?? "",
       gstins: (r.value.gstins ?? []).map((g) => g.gstin),
       contacts: (r.value.contacts ?? []).length,
@@ -132,6 +163,7 @@ export async function commitImport(_prev, formData) {
 
     try {
       await audited(actor, async (session) => {
+        value.groupId = await groupIdForName(row.groupName, actor, session);
         const code = await nextClientCode(
           branchCodeById.get(String(value.branchId)),
           session,

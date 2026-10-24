@@ -6,6 +6,7 @@ import User from "../../models/User.js";
 import Branch from "../../models/Branch.js";
 import Client from "../../models/Client.js";
 import AuditLog from "../../models/AuditLog.js";
+import ClientGroup from "../../models/ClientGroup.js";
 import { hashPassword, decryptField } from "../../lib/crypto.js";
 import { systemAudit } from "../../lib/audit/system.js";
 
@@ -24,6 +25,7 @@ const PASSWORD = "test-password-not-real";
 const PAN = "AABCS1429P";
 const GSTIN = "09AABCS1429P1ZZ";
 const NAME = "Playwright Textiles Private Limited";
+const GROUP = "Playwright Sharma family";
 
 test.beforeAll(async () => {
   await connectDB();
@@ -49,10 +51,12 @@ test.beforeAll(async () => {
     );
   });
   await Client.deleteMany({ pan: PAN }, { withDeleted: true });
+  await ClientGroup.deleteMany({ name: GROUP }, { withDeleted: true });
 });
 
 test.afterAll(async () => {
   await Client.deleteMany({ pan: PAN }, { withDeleted: true });
+  await ClientGroup.deleteMany({ name: GROUP }, { withDeleted: true });
   await User.deleteOne({ email: EMAIL });
   await mongoose.disconnect();
 });
@@ -78,6 +82,31 @@ async function signIn(page) {
   await expect(page).toHaveURL(/\/today$/);
 }
 
+/**
+ * Every new client belongs to a group (owner decision, 24-10-2026). The
+ * group can be made from the form itself, which is the flow here: the first
+ * client of a new family has nowhere else to make one.
+ */
+async function chooseGroup(page, name = GROUP) {
+  const select = page.locator('select[name="groupId"]');
+  if (await select.locator("option", { hasText: name }).count()) {
+    await select.selectOption({ label: name });
+    return;
+  }
+  await page.getByPlaceholder("…or a new group").fill(name);
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(select).toHaveValue(/^[a-f0-9]{24}$/);
+}
+
+test("a new client cannot be saved without a group", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/clients/new");
+
+  const select = page.locator('select[name="groupId"]');
+  await expect(select).toHaveAttribute("required", "");
+  await expect(select).toHaveValue("");
+});
+
 test("onboard a client, then find it again", async ({ page }) => {
   await signIn(page);
 
@@ -87,6 +116,7 @@ test("onboard a client, then find it again", async ({ page }) => {
   await page.getByLabel("Entity type").selectOption("Private Limited");
   await page.getByLabel("Branch").selectOption({ label: /NOI/ });
   await page.getByLabel("PAN").fill(PAN);
+  await chooseGroup(page);
   await page.locator('input[name="gstins.0.gstin"]').fill(GSTIN);
   await page.locator('input[name="contacts.0.name"]').fill("Rakesh Sharma");
   await page.locator('input[name="contacts.0.mobile"]').fill("9811034567");
@@ -107,6 +137,25 @@ test("onboard a client, then find it again", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("the list names the group before the client, and filters by it", async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto("/clients");
+
+  // the group is the first column, so a family reads before its businesses
+  const headings = await page.locator("thead th").allInnerTexts();
+  expect(headings[0]).toBe("Group");
+  expect(headings[2]).toBe("Client");
+
+  await page.getByLabel("Group").selectOption({ label: GROUP });
+  await page.getByRole("button", { name: "Filter" }).click();
+  await expect(
+    page.getByRole("link", { name: /Playwright Textiles/ }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: GROUP }).first()).toBeVisible();
+});
+
 test("a bad GSTIN is refused with a readable reason", async ({ page }) => {
   await signIn(page);
   await page.goto("/clients/new");
@@ -115,6 +164,7 @@ test("a bad GSTIN is refused with a readable reason", async ({ page }) => {
   await page.getByLabel("Entity type").selectOption("Partnership Firm");
   await page.getByLabel("Branch").selectOption({ label: /NOI/ });
   await page.locator('input[name="contacts.0.name"]').fill("Someone");
+  await chooseGroup(page);
   // right shape, wrong check digit
   await page.locator('input[name="gstins.0.gstin"]').fill("09AABCS1429P1ZT");
   await page.getByRole("button", { name: "Create client" }).click();
@@ -134,6 +184,7 @@ test("the same PAN twice is blocked until it is confirmed", async ({
   await page.getByLabel("Branch").selectOption({ label: /NOI/ });
   await page.getByLabel("PAN").fill(PAN);
   await page.locator('input[name="contacts.0.name"]').fill("Someone Else");
+  await chooseGroup(page);
   await page.getByRole("button", { name: "Create client" }).click();
 
   await expect(page.getByText(/is already on/)).toBeVisible();
@@ -201,9 +252,9 @@ test("the import preview refuses a bad file without saving anything", async ({
     name: "clients.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(
-      "Legal name,Entity type,Branch code,PAN,Contact 1 name\n" +
-        "Good Traders LLP,LLP,NOI,AAAFZ1234C,Priya Singh\n" +
-        "Bad Branch Co,LLP,XYZ,AAAFZ5678C,Someone\n",
+      "Group,Legal name,Entity type,Branch code,PAN,Contact 1 name\n" +
+        `${GROUP},Good Traders LLP,LLP,NOI,AAAFZ1234C,Priya Singh\n` +
+        `${GROUP},Bad Branch Co,LLP,XYZ,AAAFZ5678C,Someone\n`,
     ),
   });
   await page.getByRole("button", { name: "Check the file" }).click();
@@ -218,6 +269,9 @@ test("the import preview refuses a bad file without saving anything", async ({
 
   const imported = await Client.findOne({ pan: "AAAFZ1234C" }).lean();
   expect(imported?.legalName).toBe("Good Traders LLP");
+  // the group named in the spreadsheet was made as the row was written
+  const group = await ClientGroup.findOne({ name: GROUP }).lean();
+  expect(String(imported?.groupId)).toBe(String(group?._id));
   await Client.deleteMany(
     { pan: { $in: ["AAAFZ1234C", "AAAFZ5678C"] } },
     { withDeleted: true },

@@ -72,6 +72,16 @@ const documentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       default: null,
     },
+    /**
+     * The UDIN this file belongs to: the signed certificate itself, and the
+     * client papers it rests on. A certificate can be issued outside any
+     * engagement, so its documents need somewhere of their own to hang.
+     */
+    udinId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Udin",
+      default: null,
+    },
     branchId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Branch",
@@ -107,6 +117,7 @@ documentSchema.plugin(auditPlugin, {
 
 documentSchema.index({ clientId: 1, isPermanent: 1, createdAt: -1 });
 documentSchema.index({ engagementId: 1, checklistItemId: 1 });
+documentSchema.index({ udinId: 1, createdAt: -1 });
 documentSchema.index({ fileKey: 1 });
 documentSchema.index({ name: "text" });
 // the recycle bin asks for recently deleted files

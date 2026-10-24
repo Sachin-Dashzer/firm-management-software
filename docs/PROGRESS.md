@@ -62,6 +62,8 @@ reason, including the security fixes in P2-1.
 
 | P2-12 | A target completion date on every engagement: the field on the create form, and `istInputDate()` | 🟡 | Added 24-10-2026 at the owner's request. The target date already existed as `internalDue` and was editable on the engagement page and in bulk, but **not at creation** — so work on a service with no turnaround was created with no target and nothing said so. **A one-day bug found and fixed in nine places:** a date stored at IST midnight is 18:30 UTC the day before, so `toISOString().slice(0, 10)` prefilled every date input with yesterday and bucketed work into the wrong day of the month view. Needs Atlas to run; 1 more Playwright assertion waiting |
 
+| P2-13 | Three screens the owner asked for: the group on the client list, partner and papers on the UDIN register, compliance read by head | 🟡 | Added 24-10-2026 at the owner's request. **A new client can no longer be saved without a group** (required on creation only; the clients already on the books stay editable), and the spreadsheet import gained a Group column that creates the group as it writes the row. **A UDIN can no longer be recorded without naming the partner or CA it was generated against** — including from the engagement filing panel, which had been quietly recording nobody whenever an employee saved one. Documents now hang off a UDIN, so the certificate and the papers behind it read together. Compliance opens on a new **By head** view: one line per service under its category, monthly / quarterly / yearly, with a client-partner filter across all three views. Needs Atlas to run; 5 Playwright tests waiting |
+
 ## Phase 3
 
 Not started (spec §17).
@@ -70,6 +72,10 @@ Not started (spec §17).
 
 | Date | Decision | By |
 | --- | --- | --- |
+| 24-10-2026 | D18: **every new client belongs to a group.** Required on creation only — the clients already on the books predate the rule and have to stay editable, so an edit that does not mention the group leaves it alone. The Excel import names the group by name and creates it as the row is written | Owner, approved |
+| 24-10-2026 | D19: **a UDIN names the CA or partner who signed it, and the field is no longer optional.** Both roles may be named, because a UDIN is generated against a member's own ICAI membership and a CA has one; what changed is that the register can now always answer "which member signed this certificate" | Owner, approved |
+| 24-10-2026 | D20: **documents attach to a UDIN.** The signed certificate and the client papers behind it hang off the register row, and when the UDIN came out of an engagement that engagement's own papers are listed under them, read-only. Two lists, never merged — merging them would hide which file is the firm's evidence for the number | Owner, approved |
+| 24-10-2026 | **Compliance is read by head using the service catalog itself**, not a new GST / TDS / ITR taxonomy. GSTR-3B *is* the GST monthly head and TDS-RET the TDS quarterly one, grouped under the categories the catalog already carries. A separate list of heads would be a second thing to maintain and a list the owner would have to verify | Agent, owner to confirm |
 | 24-10-2026 | **The firm's target date keeps the name "Internal due date"**, and stays one date per engagement rather than a default per client and service. The owner chose both: the label already reads that way on five screens, three reports and the exports, and it is what distinguishes the firm's own date from the statutory one | Owner, approved |
 | 24-10-2026 | D17: **a client's several businesses are several client records, grouped — not sub-records under one client.** The owner confirmed the businesses have separate PANs, and `Client` is already keyed on PAN with its own GSTINs, fees, engagements and invoices, so a `businesses[]` layer would have duplicated the client record one level down. `ClientGroup` becomes the owner (a person or a family) and P2-11 adds the screens that read a group together. **If a proprietor ever runs two firms on one PAN, this does not cover it** — the unique PAN index would refuse the second record, and that case needs the embedded design after all | Owner, approved |
 | 24-10-2026 | **One invoice per business**, each carrying that business's own GSTIN. Separate registrations mean separate input credit, so a combined invoice would be wrong for the client's books | Owner, approved |
@@ -582,6 +588,56 @@ never actually been enforced — `npm run doctor` had been reporting it. Now
 Also: `npm run seed` and `npm run doctor` pointed at `.env.local`, which does
 not exist in this checkout. Both now read `.env` first and `.env.local` after
 it, if present.
+
+## What P2-13 built
+
+Three screens the owner asked for, and two holes found on the way.
+
+**The group reads before the client.** The client list opens with a
+**Group** column first, a group filter beside the others, and the group on
+the Excel export. A new client cannot be saved without one — the form has
+a picker that can also make a group on the spot, because being forced to
+choose a group with nowhere to make one would leave the first client of a
+new family unsaveable. Existing clients are untouched and stay editable;
+the rule is on creation only (D18). The spreadsheet import gained a
+**Group** column that names the group in words and creates it as the row is
+written, matched without regard to case so "Sharma family" and "Sharma
+Family" on two rows land in one group.
+
+**The UDIN register says who signed, and shows the papers.** The signing
+member is now required (D19), and the register filters by member with a
+per-member tally across the year. *The hole:* the engagement filing panel
+recorded the UDIN against whoever saved it, and against **nobody at all**
+when that person was not a CA or a partner — so an employee entering a
+filing created a register row the firm could not attribute. The panel now
+has its own "Signed by" picker, and a new or changed number is refused
+without one. Re-saving an acknowledgement number on work whose UDIN is
+already recorded does not ask again.
+
+Documents now carry a `udinId` (D20). Each register row expands into two
+lists: what is attached to this UDIN — the signed certificate and the
+client papers behind it, uploaded through the same gateway and signed links
+as everywhere else — and, when the UDIN came out of an engagement, that
+engagement's own papers underneath, read-only.
+
+**Compliance opens on the heads.** A third view beside the calendar and the
+status grid, and the one the page now lands on: one line per service under
+the category the catalog gives it, tagged Monthly, Quarterly or Yearly,
+with clients, created, done, open, overdue and **not created** for the
+financial year. Every line opens the client-by-client grid behind it. A
+**client partner** filter runs across all three views, and the grid now
+names the client partner under each client.
+
+*The second hole:* the heads rollup cannot be a MongoDB aggregation as the
+code stands. The scope filters hold string ids, which `find()` casts and a
+`$match` does not — a pipeline would have matched nothing and shown a clean
+sheet to a CA with work outstanding. The year is read and counted in
+memory instead, with a `ponytail:` note on the upgrade path.
+
+"Not created" is worked out as one engagement per subscribed client per
+closed period, less what exists; it reads one short per client who joined
+mid-year. The grid behind each line is the exact answer, which is why every
+line links to it.
 
 ## What P2-10d built
 

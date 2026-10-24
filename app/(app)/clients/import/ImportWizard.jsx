@@ -159,6 +159,7 @@ export default function ImportWizard() {
               <thead>
                 <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
                   <th className="px-3 py-2 font-medium">Row</th>
+                  <th className="px-3 py-2 font-medium">Group</th>
                   <th className="px-3 py-2 font-medium">Client</th>
                   <th className="px-3 py-2 font-medium">PAN</th>
                   <th className="px-3 py-2 font-medium">GST</th>
@@ -175,6 +176,9 @@ export default function ImportWizard() {
                     }`}
                   >
                     <td className="num px-3 py-2 align-top">{row.line}</td>
+                    <td className="text-13 px-3 py-2 align-top">
+                      {row.group || "—"}
+                    </td>
                     <td className="px-3 py-2 align-top">{row.name}</td>
                     <td className="text-13 px-3 py-2 align-top font-mono">
                       {row.pan || "—"}

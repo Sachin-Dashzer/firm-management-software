@@ -160,7 +160,7 @@ export default async function TodayPage() {
                   {entry.services.join(", ")}
                 </span>
                 <Link
-                  href={`/calendar?due=week`}
+                  href={`/calendar?view=calendar&due=week`}
                   className="text-ink-muted underline underline-offset-4"
                 >
                   {entry.count} {entry.count === 1 ? "job" : "jobs"}

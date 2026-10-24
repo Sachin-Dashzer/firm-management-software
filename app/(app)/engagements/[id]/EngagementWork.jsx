@@ -432,6 +432,31 @@ export default function EngagementWork({
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-13 text-ink-muted font-medium">
+                Signed by
+              </span>
+              <select
+                name="udinMemberId"
+                defaultValue=""
+                className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+              >
+                <option value="">Choose the partner or CA</option>
+                {team
+                  .filter((person) => ["ca", "partner"].includes(person.role))
+                  .map((person) => (
+                    <option key={person.id} value={person.id}>
+                      {person.name} ·{" "}
+                      {person.role === "partner" ? "Partner" : "CA"}
+                    </option>
+                  ))}
+              </select>
+              <span className="text-12 text-ink-muted">
+                A UDIN is generated against a member&rsquo;s own ICAI
+                membership, and the register has to say whose. Needed only when
+                the number above is entered or changed.
+              </span>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-13 text-ink-muted font-medium">
                 Filed on
               </span>
               <input

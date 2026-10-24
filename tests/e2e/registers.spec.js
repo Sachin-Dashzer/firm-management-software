@@ -297,3 +297,55 @@ test("a certificate expiring soon is on the register and on the dashboard", asyn
   await expect(page).toHaveURL(/\/practice\/dsc\?soon=1/);
   await expect(page.getByText("Vikram Jaiswal")).toBeVisible();
 });
+
+test("the register names the partner who signed, and filters by them", async ({
+  page,
+}, testInfo) => {
+  const fx = names(testInfo.project.name);
+  await signIn(page, fx.partner);
+  await page.goto("/practice/udin");
+
+  // the signer is no longer optional: a certificate the register cannot
+  // attribute to a partner or a CA is the thing this rule exists to stop
+  await page.getByRole("button", { name: "Record a UDIN" }).click();
+  await expect(page.locator('select[name="memberId"]')).toHaveAttribute(
+    "required",
+    "",
+  );
+  await page.getByRole("button", { name: "Cancel" }).click();
+
+  // the one already recorded was signed by the CA who filed it
+  await expect(page.getByText("Playwright Register CA")).toBeVisible();
+
+  await page
+    .getByLabel("Signed by")
+    .selectOption({ label: /Playwright Register CA/ });
+  await page.getByRole("button", { name: "Show" }).click();
+  await expect(page.getByText(fx.udin)).toBeVisible();
+
+  // filtered to the partner, who signed nothing, the register is empty
+  await page
+    .getByLabel("Signed by")
+    .selectOption({ label: /Playwright Register Partner/ });
+  await page.getByRole("button", { name: "Show" }).click();
+  await expect(page.getByText(fx.udin)).toHaveCount(0);
+});
+
+test("a UDIN row opens the papers behind the certificate", async ({
+  page,
+}, testInfo) => {
+  const fx = names(testInfo.project.name);
+  await signIn(page, fx.partner);
+  await page.goto("/practice/udin");
+
+  await page
+    .getByRole("button", { name: /None yet|file/ })
+    .first()
+    .click();
+  await expect(page.getByText("Attached to this UDIN")).toBeVisible();
+  await expect(
+    page.getByText("the signed certificate belongs here"),
+  ).toBeVisible();
+  // it came out of an engagement, so that engagement's own papers are here
+  await expect(page.getByText("On the engagement it came from")).toBeVisible();
+});

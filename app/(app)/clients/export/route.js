@@ -5,6 +5,7 @@ import { clientListFilter } from "@/lib/access/clientAccess";
 import { connectDB } from "@/lib/db";
 import Client from "@/models/Client";
 import Branch from "@/models/Branch";
+import ClientGroup from "@/models/ClientGroup";
 import { buildWorkbook, xlsxResponse } from "@/lib/excel";
 import {
   withAudit,
@@ -45,16 +46,22 @@ export async function GET(request) {
     if (value) query[field] = value;
   }
 
-  const [clients, branches] = await Promise.all([
+  const groupParam = url.searchParams.get("group");
+  if (groupParam) query.groupId = groupParam === "none" ? null : groupParam;
+
+  const [clients, branches, groups] = await Promise.all([
     Client.find(query).sort({ legalName: 1 }).limit(20000).lean(),
     Branch.find({}).select("code").lean(),
+    ClientGroup.find({}).select("name").lean(),
   ]);
   const branchCode = new Map(branches.map((b) => [String(b._id), b.code]));
+  const groupName = new Map(groups.map((g) => [String(g._id), g.name]));
 
   const showPan = can(actor, "view", "clientIdentifiers");
 
   const rows = [
     [
+      "Group",
       "Code",
       "Legal name",
       "Trade name",
@@ -76,6 +83,7 @@ export async function GET(request) {
     ...clients.map((c) => {
       const primary = c.contacts?.find((x) => x.primary) ?? c.contacts?.[0];
       return [
+        groupName.get(String(c.groupId)) ?? "",
         c.code,
         c.legalName,
         c.tradeName,

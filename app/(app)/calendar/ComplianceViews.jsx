@@ -18,12 +18,14 @@ export default function ComplianceViews({
   view,
   rows = [],
   grid,
+  heads,
   gridService,
   fyStart,
   params,
   branches,
   services,
   team,
+  partners,
   statuses,
 }) {
   const pathname = usePathname();
@@ -44,18 +46,19 @@ export default function ComplianceViews({
       <div>
         <h1 className="font-display text-28 font-semibold">Compliance</h1>
         <p className="text-13 text-ink-muted">
-          What is due, and what was never filed.
+          Where each head stands, what is due, and what was never filed.
         </p>
       </div>
 
       <div className="flex flex-wrap gap-2">
         {[
+          ["heads", "By head"],
           ["calendar", "Calendar"],
           ["grid", "Status grid"],
         ].map(([key, label]) => (
           <Link
             key={key}
-            href={linkTo({ view: key === "calendar" ? "" : key })}
+            href={linkTo({ view: key === "heads" ? "" : key })}
             aria-current={view === key ? "page" : undefined}
             className={`rounded-ledger text-14 h-9 border px-3 leading-9 ${
               view === key
@@ -73,14 +76,22 @@ export default function ComplianceViews({
         className="rounded-ledger border-rule bg-surface grid gap-3 border p-3 sm:grid-cols-2 lg:grid-cols-5"
       >
         <input type="hidden" name="view" value={view} />
+        {view !== "heads" && (
+          <Filter
+            label="Service"
+            name="service"
+            value={params.service}
+            options={services.map((s) => [s.id, s.name])}
+            includeAny={view !== "grid"}
+          />
+        )}
         <Filter
-          label="Service"
-          name="service"
-          value={params.service}
-          options={services.map((s) => [s.id, s.name])}
-          includeAny={view !== "grid"}
+          label="Client partner"
+          name="partner"
+          value={params.partner}
+          options={partners.map((p) => [p.id, p.name])}
         />
-        {view === "grid" ? (
+        {view !== "calendar" ? (
           <Filter
             label="Financial year"
             name="fy"
@@ -124,7 +135,7 @@ export default function ComplianceViews({
             Filter
           </button>
           <Link
-            href={view === "grid" ? "/calendar?view=grid" : "/calendar"}
+            href={view === "heads" ? "/calendar" : `/calendar?view=${view}`}
             className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
           >
             Clear
@@ -132,7 +143,9 @@ export default function ComplianceViews({
         </div>
       </form>
 
-      {view === "grid" ? (
+      {view === "heads" ? (
+        <Heads heads={heads} fyStart={fyStart} linkTo={linkTo} />
+      ) : view === "grid" ? (
         <Grid grid={grid} service={gridService} />
       ) : (
         <>
@@ -165,6 +178,132 @@ export default function ComplianceViews({
         </>
       )}
     </div>
+  );
+}
+
+/** Monthly, quarterly, annual — the word the firm uses for each head. */
+const RECURRENCE = {
+  monthly: "Monthly",
+  quarterly: "Quarterly",
+  "half-yearly": "Half-yearly",
+  annual: "Yearly",
+  "one-time": "One-time",
+};
+
+/**
+ * Where each head of compliance stands: GST, TDS, ITR, audit, ROC.
+ *
+ * One line per service, grouped under the catalog's categories, because the
+ * first question of any month is not "which client" but "which head is
+ * behind". The client-by-client answer is one click away on every line.
+ */
+function Heads({ heads, fyStart, linkTo }) {
+  if (!heads || heads.categories.length === 0) {
+    return (
+      <p className="rounded-ledger border-rule bg-surface text-14 text-ink-muted border p-6">
+        Nothing is listed until the service catalog has at least one active
+        service.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap gap-3">
+        <Figure label="Open" value={heads.totals.open} />
+        <Figure
+          label="Open and overdue"
+          value={heads.totals.overdue}
+          tone={heads.totals.overdue > 0}
+        />
+        <Figure
+          label="Periods with nothing created"
+          value={heads.totals.missing}
+          tone={heads.totals.missing > 0}
+        />
+      </div>
+
+      {heads.categories.map((category) => (
+        <section key={category.name} className="flex flex-col gap-2">
+          <h2 className="font-display text-20">{category.name}</h2>
+          <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+            <table className="text-14 w-full">
+              <caption className="sr-only">
+                {category.name} in FY {fyStart}-
+                {String((fyStart + 1) % 100).padStart(2, "0")}
+              </caption>
+              <thead>
+                <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+                  <th className="px-3 py-2 font-medium">Head</th>
+                  <th className="px-3 py-2 font-medium">Basis</th>
+                  <th className="px-3 py-2 text-right font-medium">Clients</th>
+                  <th className="px-3 py-2 text-right font-medium">Created</th>
+                  <th className="px-3 py-2 text-right font-medium">Done</th>
+                  <th className="px-3 py-2 text-right font-medium">Open</th>
+                  <th className="px-3 py-2 text-right font-medium">Overdue</th>
+                  <th className="px-3 py-2 text-right font-medium">
+                    Not created
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {category.lines.map((line) => (
+                  <tr
+                    key={line.id}
+                    className="border-rule border-b last:border-0"
+                  >
+                    <td className="px-3 py-2">
+                      <Link
+                        href={linkTo({
+                          view: "grid",
+                          service: line.id,
+                          fy: String(fyStart),
+                        })}
+                        className="font-medium underline underline-offset-4"
+                      >
+                        {line.name}
+                      </Link>
+                      <span className="text-12 text-ink-muted block font-mono">
+                        {line.code}
+                      </span>
+                    </td>
+                    <td className="text-13 px-3 py-2">
+                      {RECURRENCE[line.recurrence] ?? line.recurrence}
+                    </td>
+                    <Count value={line.clients} />
+                    <Count value={line.created} />
+                    <Count value={line.done} />
+                    <Count value={line.open} />
+                    <Count value={line.overdue} bad />
+                    <Count value={line.missing} bad />
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ))}
+
+      <p className="text-13 text-ink-muted max-w-[72ch]">
+        <strong>Not created</strong> counts periods that have closed with no
+        engagement against them at all — the hole a list can never show, because
+        there is nothing in it to list. It is worked out from the clients signed
+        up for the service; open the head to see exactly which client and which
+        month.
+      </p>
+    </div>
+  );
+}
+
+function Count({ value, bad }) {
+  return (
+    <td
+      className={`num px-3 py-2 text-right ${
+        bad && value > 0 ? "text-redpen font-medium" : ""
+      }`}
+    >
+      {value || <span className="text-ink-muted">—</span>}
+    </td>
   );
 }
 

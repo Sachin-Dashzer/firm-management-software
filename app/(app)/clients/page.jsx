@@ -6,6 +6,7 @@ import { clientListFilter } from "@/lib/access/clientAccess";
 import { connectDB } from "@/lib/db";
 import Client from "@/models/Client";
 import Branch from "@/models/Branch";
+import ClientGroup from "@/models/ClientGroup";
 import { CLIENT_STATUSES, ENTITY_TYPES, RISK_RATINGS } from "@/lib/validators";
 
 export const metadata = { title: "Clients · PHMG" };
@@ -33,6 +34,7 @@ export default async function ClientsPage({ searchParams }) {
     status = "",
     entityType = "",
     risk = "",
+    group = "",
     page = "1",
   } = params;
   const pageNumber = Math.max(1, Number(page) || 1);
@@ -53,6 +55,7 @@ export default async function ClientsPage({ searchParams }) {
   if (status) query.status = status;
   if (entityType) query.entityType = entityType;
   if (risk) query.risk = risk;
+  if (group) query.groupId = group === "none" ? null : group;
 
   const search = String(q).trim();
   if (search) {
@@ -70,10 +73,10 @@ export default async function ClientsPage({ searchParams }) {
     ];
   }
 
-  const [clients, total, branches] = await Promise.all([
+  const [clients, total, branches, groups] = await Promise.all([
     Client.find(query)
       .select(
-        "code legalName tradeName entityType status risk pan gstins branchId contacts creditDays quotedAmountPaise",
+        "code legalName tradeName entityType status risk pan gstins branchId groupId contacts creditDays quotedAmountPaise",
       )
       .sort({ legalName: 1 })
       .skip((pageNumber - 1) * PAGE_SIZE)
@@ -81,9 +84,11 @@ export default async function ClientsPage({ searchParams }) {
       .lean(),
     Client.countDocuments(query),
     Branch.find({}).select("code name").lean(),
+    ClientGroup.find({}).select("name").sort({ name: 1 }).lean(),
   ]);
 
   const branchCode = new Map(branches.map((b) => [String(b._id), b.code]));
+  const groupName = new Map(groups.map((g) => [String(g._id), g.name]));
   const canCreate = can(actor, "edit", "clients");
   const pages = Math.ceil(total / PAGE_SIZE);
 
@@ -101,7 +106,7 @@ export default async function ClientsPage({ searchParams }) {
           {!assignedOnly && (
             <a
               href={`/clients/export?${new URLSearchParams(
-                Object.entries({ status, entityType, risk }).filter(
+                Object.entries({ status, entityType, risk, group }).filter(
                   ([, v]) => v,
                 ),
               )}`}
@@ -131,7 +136,7 @@ export default async function ClientsPage({ searchParams }) {
 
       <form
         method="get"
-        className="rounded-ledger border-rule bg-surface grid gap-3 border p-3 sm:grid-cols-2 lg:grid-cols-5"
+        className="rounded-ledger border-rule bg-surface grid gap-3 border p-3 sm:grid-cols-2 lg:grid-cols-6"
       >
         <label className="flex flex-col gap-1 lg:col-span-2">
           <span className="text-13 text-ink-muted font-medium">
@@ -144,6 +149,15 @@ export default async function ClientsPage({ searchParams }) {
             className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
           />
         </label>
+        <Filter
+          label="Group"
+          name="group"
+          value={group}
+          options={[
+            ...groups.map((g) => [String(g._id), g.name]),
+            ["none", "Ungrouped"],
+          ]}
+        />
         <Filter
           label="Status"
           name="status"
@@ -188,6 +202,7 @@ export default async function ClientsPage({ searchParams }) {
           <table className="text-14 w-full">
             <thead>
               <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+                <Th>Group</Th>
                 <Th>Code</Th>
                 <Th>Client</Th>
                 <Th>Type</Th>
@@ -209,6 +224,18 @@ export default async function ClientsPage({ searchParams }) {
                     key={String(client._id)}
                     className="border-rule border-b last:border-0"
                   >
+                    <Td className="text-13">
+                      {client.groupId ? (
+                        <Link
+                          href={`/groups/${client.groupId}`}
+                          className="font-medium hover:underline"
+                        >
+                          {groupName.get(String(client.groupId)) ?? "A group"}
+                        </Link>
+                      ) : (
+                        <span className="text-ink-muted">Ungrouped</span>
+                      )}
+                    </Td>
                     <Td className="text-13 font-mono">{client.code}</Td>
                     <Td>
                       <Link
@@ -263,10 +290,10 @@ export default async function ClientsPage({ searchParams }) {
               {clients.length === 0 && (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="text-ink-muted px-3 py-10 text-center"
                   >
-                    {search || status || entityType || risk
+                    {search || status || entityType || risk || group
                       ? "No clients match those filters."
                       : "No clients yet. Add one, or import your existing list from Excel."}
                   </td>
@@ -328,11 +355,14 @@ function Filter({ label, name, value, options }) {
         className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
       >
         <option value="">Any</option>
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
+        {options.map((o) => {
+          const [key, text] = Array.isArray(o) ? o : [o, o];
+          return (
+            <option key={key} value={key}>
+              {text}
+            </option>
+          );
+        })}
       </select>
     </label>
   );

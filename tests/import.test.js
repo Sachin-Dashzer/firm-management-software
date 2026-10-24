@@ -67,6 +67,7 @@ describe("the client import preview", () => {
   /** One good row, built from the published column order. */
   function row(overrides = {}) {
     const values = {
+      Group: "Sharma family",
       "Legal name": "Sharma Textiles Private Limited",
       "Trade name": "Sharma Textiles",
       "Entity type": "Private Limited",
@@ -189,12 +190,23 @@ describe("the client import preview", () => {
 
   it("works with columns in a different order and some missing", () => {
     const result = prepareImport(
-      `Branch code,Entity type,Contact 1 name,Legal name\nLDH,LLP,Priya Singh,Singh and Associates LLP`,
+      `Branch code,Entity type,Contact 1 name,Legal name,Group\nLDH,LLP,Priya Singh,Singh and Associates LLP,Singh family`,
       { branches: BRANCHES },
     );
     expect(result.readyCount).toBe(1);
     expect(result.rows[0].value.branchId).toBe("b-ldh");
     expect(result.rows[0].value.legalName).toBe("Singh and Associates LLP");
+  });
+
+  it("keeps the group name for the row, and refuses a row without one", () => {
+    const good = prepareImport(`${header}\n${row()}`, { branches: BRANCHES });
+    expect(good.rows[0].groupName).toBe("Sharma family");
+
+    const bad = prepareImport(`${header}\n${row({ Group: "" })}`, {
+      branches: BRANCHES,
+    });
+    expect(bad.readyCount).toBe(0);
+    expect(bad.rows[0].errors.join(" ")).toMatch(/Group is missing/);
   });
 
   it("returns nothing for an empty file rather than throwing", () => {
@@ -209,6 +221,19 @@ describe("client validation shared by the form and the import", () => {
     expect(errors.legalName).toBeDefined();
     expect(errors.entityType).toBeDefined();
     expect(errors.branchId).toBeDefined();
+  });
+
+  it("requires a group on a new client, but not on an edit", () => {
+    expect(validateClient({}).errors.groupId).toBeDefined();
+    // an edit that does not mention the group leaves the old client alone
+    expect(
+      validateClient({ legalName: "ABC Traders" }, { partial: true }).errors
+        .groupId,
+    ).toBeUndefined();
+    // and the import checks the group by name itself
+    expect(
+      validateClient({}, { requireGroup: false }).errors.groupId,
+    ).toBeUndefined();
   });
 
   it("takes the PAN from the GSTIN when only the GSTIN was given", () => {
