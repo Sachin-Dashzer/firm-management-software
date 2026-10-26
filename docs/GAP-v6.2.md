@@ -150,6 +150,14 @@ the client" (spec §7).
   vanish
 - Advances are then applied to a named invoice, and that application is recorded
 
+It also puts a **promise** on the invoice rather than on the client. A logged
+promise date pauses automatic reminders **for that invoice only** until the day
+after it passes; "remind anyway" stays available and is logged with the fact that
+a promise was overridden; and a bulk reminder leaves promised invoices out and
+says how many it left. Spec §12 has fixed reminder cadences and a *Disputed*
+status that drops an invoice out of chasing altogether — a promise is the softer,
+commoner case, and it expires by itself.
+
 **Why it matters.** "Collected this month" is a number a partner reads to decide
 things. If allocating an old receipt in October adds to October's collections,
 the number is wrong and nothing on screen says so. The prototype shows the
@@ -158,9 +166,10 @@ still unallocated.
 
 **Cost.** Moderate, and contained. `Payment` gains an allocation-level
 non-cash marker and an on-behalf reason; the receipt becomes the cash event and
-the allocation stops being one. Receivables ageing and the client ledger (step
-8b) are unaffected — they already read allocations. The collections figure on
-the partner dashboard changes.
+the allocation stops being one; `Invoice` gains a promise date. Receivables
+ageing and the client ledger (step 8b) are unaffected — they already read
+allocations. The collections figure on the partner dashboard changes, and the
+reminder rules built at 9b learn to skip a promised invoice.
 
 **I would do this.** It is a small change that makes one headline figure true,
 and the alternative is a number nobody can quite explain.
@@ -284,12 +293,13 @@ and you have already made it once.
 
 ---
 
-## Part B — Four steps I would build next
+## Part B — Five steps I would build next
 
-These four need no model decision and no answer to Part A. They read data that
-already exists.
+These need no model decision and no answer to Part A. They read data that
+already exists. P3-1 to P3-4 were the original four; P3-5 was added by the
+completeness check at the end of this document.
 
-**One honest warning first.** All four can be *built* but none can be *shown*
+**One honest warning first.** All of them can be *built* but none can be *shown*
 until the Atlas cluster exists. That has been true of every step since Step 1 and
 it is the only thing standing between "built" and "works" for the whole
 repository. If you do one owner task this month, do that one.
@@ -416,6 +426,49 @@ another professional", and watch the count on the dashboard drop by one.
 
 ---
 
+### P3-5 · Separate "what you may see" from "what you are looking at"
+
+**Spec sections to re-read:** §2 (permissions, branch scoping).
+
+Added after the completeness check below — this was missed on the first pass and
+it is the one item here with any structural weight.
+
+Spec §2 says a user sees only clients of the branches they are assigned to. The
+prototype splits that single idea in two, and the distinction is the useful part:
+
+- **Access** is what you may see: a per-person list of branches, enforced on the
+  server. Open a link to a client outside it and you get a page that says so and
+  names what to ask for, rather than an empty list or an error.
+- **View** is what you are looking at *inside* your access: a selector offering
+  all branches, one branch, or **my work across branches** — the jobs you prepare
+  or review wherever the client sits.
+
+The rule the prototype states plainly: **changing the view never changes a
+record, a GSTIN or an invoice series.** It is a filter on reading, nothing else.
+Screens that are firm-wide by nature say so rather than appearing filtered, and
+opening a record from outside the current view shows a line explaining why it is
+visible.
+
+**How this sits with what is built.** The access half largely exists and is
+better than the prototype's: `User.branchIds[]` plus `ClientAccess` grants with
+expiry and an `expireGrants` job (P2-1, P2-2) are more precise than a flat branch
+list. What is missing is the **view** half — the selector, the "my work across
+branches" scope, and the firm-wide labelling. So this is a query-scope and
+top-bar change on models that already exist, not a new model.
+
+**Build:** one scope helper the list queries call, a selector in the top bar
+remembered per person, and the no-access page.
+
+**Tests:** Vitest — a view never widens access; "my work" returns only jobs you
+prepare or review; a firm-wide screen ignores the selector. Playwright: a manager
+with two branches switches view and the counts move together.
+
+**How you check it:** sign in as the Ludhiana manager, switch to "my work across
+branches", and see the Noida job you review appear while the rest of Noida
+stays hidden.
+
+---
+
 ## Part C — What I would leave alone
 
 Each of these is a product in its own right, the spec does not ask for any of
@@ -433,6 +486,10 @@ before use" throughout.
 | Monthly GST cycle as one tracked lifecycle | Worth having, but it sits on Q1. Decide the milestones first |
 | Notices as matters with law clocks and adjournment counting | Needs a partner to confirm every limitation rule. Large, and the current build has nothing to conflict with it |
 | Weekly planning by effort, take-over page, leave with cover, one inbox, Notify, announcements, split job conversations, bulk client round-trip | All good, none urgent. Candidates for a Phase 3 list once Part A is settled |
+| **One next step per job**, role-aware: the card names the single next action and shows either your button, "Nudge <name>" when it is someone else's, or "Help: <action>" where your role permits helping | Worth having and purely a reading of data we hold. It belongs with P3-1, which computes the same conditions firm-wide — build Issues first and this becomes the per-job view of it |
+| **Modules on and off**, with three presets by kind of firm (compliance only / plus audit / full) | Right idea, wrong time. A five-person pilot firm does not need to hide screens from itself, and switching a module off would hide work that is already built and untested |
+| **Quick add from anywhere** (one key), "save and add another", and an unfinished onboarding kept as a per-person draft | Small and genuinely useful for whoever does data entry. Not urgent while nobody can sign in |
+| **Saying on screen what is sample and what is real**: a "sample data" marker in the top bar, every simulator behind one demo switch, the preparation workbook stamped "not a filing file", and every legal reference carrying "partner to confirm" | The discipline is right and costs nothing. Two pieces are worth adopting now rather than later: the unconfirmed-due-date warning already exists on the Settings strip (P2-10b), and nothing that leaves the building should imply it was filed by us. The rest follows whenever the features it labels get built |
 
 ---
 
@@ -499,6 +556,35 @@ cluster exists.** The answers cost you an hour and they stop the model drifting
 further; the building can wait a week. The two client-portal test suites should
 run first when it does — they are what prove somebody outside the firm cannot
 reach anything of the firm's.
+
+---
+
+## Completeness check — 26-10-2026
+
+The owner asked whether this document covers the whole of the reference. I
+checked it against the prototype instead of answering from memory, and it did
+not. Six things were read in the prototype and then dropped in the writing up.
+They are now in, and recorded here so the omission is visible rather than
+quietly patched:
+
+| Missed | Now at |
+| --- | --- |
+| Access versus view — the two halves of branch scoping | **P3-5**, new step. The one with structural weight, and it should not have been left out |
+| Payment promises per invoice, pausing reminders | Folded into **Q3**, where it belongs — it is the same question about cash |
+| One role-aware next step per job | Part C, tied to P3-1 |
+| Modules on and off, with firm presets | Part C |
+| Quick add, save-and-add-another, kept drafts | Part C |
+| Saying on screen what is sample and what is real | Part C |
+
+What the check confirms is covered: the six questions of Part A, the audit
+module, certificates, the SA 700 generator, the GST cycle, notices with law
+clocks, the data lab, the learning library, client experience, weekly planning,
+the take-over page, leave and cover, the inbox, Notify, announcements, split job
+conversations, and the bulk client round-trip.
+
+**This is a reading of one HTML file by one agent.** Another pass would probably
+find more. If something you expected to see is still absent, it was missed, not
+rejected — say so and it goes in.
 
 ---
 
