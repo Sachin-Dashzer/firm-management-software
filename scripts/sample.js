@@ -423,7 +423,44 @@ export const SAMPLE_ENGAGEMENTS = [
       { key: "GSTR3B", name: "GSTR-3B", dueDaysAgo: 4 },
     ],
   },
-  { subscription: 1, back: 0, status: "Awaiting documents" },
+  /**
+   * A job stuck on documents, with all three of the things that actually
+   * hold one up (P3-2): a file we sent back, an item the client says they
+   * cannot produce, and a question they asked and nobody has answered.
+   * Without a row like this, those states are never seen.
+   */
+  {
+    subscription: 1,
+    back: 0,
+    status: "Awaiting documents",
+    checklistStates: [
+      {
+        at: 0,
+        status: "Replacement requested",
+        submissionCount: 1,
+        rejectReason:
+          "this is the August statement; we need September for this quarter",
+      },
+      {
+        at: 1,
+        status: "Requested",
+        clientReply: {
+          kind: "cannot",
+          note: "the bank has not issued it yet",
+          byName: "Rohit Jaiswal",
+        },
+      },
+      {
+        at: 2,
+        status: "Requested",
+        clientReply: {
+          kind: "question",
+          question: "Do you need the current account only, or all of them?",
+          byName: "Rohit Jaiswal",
+        },
+      },
+    ],
+  },
   { subscription: 2, back: 0, status: "Scheduled" },
   { subscription: 3, back: 0, status: "Under review" },
   {
@@ -1274,13 +1311,35 @@ export async function seedSample(options = {}) {
                   },
                 }
               : {}),
+            /**
+             * Put particular checklist rows into particular states (P3-2),
+             * by position, so the sample set shows a replacement asked for,
+             * an item the client cannot provide, and an open question.
+             */
+            ...(row.checklistStates
+              ? {
+                  checklist: (fields.checklist ?? []).map((item, i) => {
+                    const over = row.checklistStates.find((s) => s.at === i);
+                    return over ? { ...item, ...over, at: undefined } : item;
+                  }),
+                }
+              : {}),
             ...(row.status === "Completed"
               ? {
                   completedAt: now,
                   completedBy: String(subscription.defaultReviewerId),
+                  /**
+                   * Accepted, not Verified (P3-2): the word changed because
+                   * a format check is no longer confused with a person
+                   * accepting. Seeding the old word would put the whole
+                   * sample set through the rename migration for no reason.
+                   */
                   checklist: (fields.checklist ?? []).map((item) => ({
                     ...item,
-                    status: "Verified",
+                    status: "Accepted",
+                    submissionCount: 1,
+                    acceptedSubmission: 1,
+                    acceptedByName: "Sample data",
                   })),
                   reviewChecklist: (fields.reviewChecklist ?? []).map((i) => ({
                     ...i,

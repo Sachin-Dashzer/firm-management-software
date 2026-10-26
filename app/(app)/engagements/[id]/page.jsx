@@ -245,6 +245,23 @@ export default async function EngagementPage({ params }) {
       side: c.side,
       mandatory: c.mandatory,
       status: c.status,
+      /** Which submission, why it went back, and what the client said (P3-2). */
+      submissionCount: c.submissionCount ?? 0,
+      acceptedSubmission: c.acceptedSubmission ?? null,
+      acceptedByName: c.acceptedByName ?? "",
+      rejectReason: c.rejectReason ?? "",
+      notRequiredReason: c.notRequiredReason ?? "",
+      clientReply: c.clientReply
+        ? {
+            kind: c.clientReply.kind,
+            note: c.clientReply.note ?? "",
+            delegateName: c.clientReply.delegateName ?? "",
+            delegateContact: c.clientReply.delegateContact ?? "",
+            question: c.clientReply.question ?? "",
+            answer: c.clientReply.answer ?? "",
+            byName: c.clientReply.byName ?? "",
+          }
+        : null,
     })),
     reviewChecklist: (engagement.reviewChecklist ?? []).map((r) => ({
       id: String(r._id),

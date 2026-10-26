@@ -11,6 +11,8 @@ import {
   engagementAssigned,
   engagementForReview,
   engagementReworked,
+  checklistReplacement,
+  checklistAnswer,
 } from "@/lib/mailer/events";
 import { toPaise } from "@/lib/money";
 import { istInputDate } from "@/lib/dates";
@@ -31,6 +33,14 @@ import {
   correctFiling,
   latenessDays,
 } from "@/lib/engagements/milestones";
+import {
+  request,
+  accept,
+  requestReplacement,
+  markNotRequired,
+  answerClient,
+  blockingItems,
+} from "@/lib/engagements/checklist";
 import {
   checkStatusChange,
   canEditWork,
@@ -269,12 +279,21 @@ export async function changeStatus(id, to, reason = "") {
 
   // completing locks the engagement, so the last checks happen here
   if (to === "Completed") {
-    const missing = engagement.checklist.filter(
-      (item) => item.mandatory && item.status !== "Verified",
-    );
+    /**
+     * Settled means accepted **or** deliberately waived with a reason
+     * (P3-2). The gate used to demand `Verified` and nothing else, so an
+     * item a CA had decided was not needed blocked the engagement for ever
+     * and the only way out was to tick it as received — which is a lie
+     * about a document that does not exist.
+     */
+    const missing = blockingItems(engagement);
     if (missing.length > 0) {
       return {
-        error: `${missing.length} mandatory checklist ${missing.length === 1 ? "item is" : "items are"} not verified yet.`,
+        error: `${missing.length} mandatory checklist ${missing.length === 1 ? "item is" : "items are"} not accepted yet: ${missing
+          .map((i) => i.name)
+          .join(
+            ", ",
+          )}. Accept each one, or mark it not required with a reason.`,
       };
     }
     const unticked = engagement.reviewChecklist.filter((i) => !i.checked);
@@ -552,31 +571,173 @@ export async function assignTask(id, taskId, userId) {
   };
 }
 
-/** Move a checklist item along Pending → Requested → Received → Verified. */
-export async function setChecklistStatus(id, itemId, status) {
-  const actor = await requireUser();
+/**
+ * Load an engagement and one of its checklist items, for the four actions
+ * below. The permission question is the same one every time (P3-2).
+ */
+async function loadItem(actor, id, itemId) {
   const engagement = await loadForWork(actor, id);
   if (!canEditWork(actor, engagement)) {
-    return { error: `Nothing can be edited while it is ${engagement.status}.` };
+    return {
+      error: `Nothing can be edited while it is ${engagement.status}.`,
+    };
   }
-
   const item = engagement.checklist.id(itemId);
   if (!item) return { error: "That checklist item is gone." };
-  if (!["Pending", "Requested", "Received", "Verified"].includes(status)) {
-    return { error: "Unknown checklist state." };
-  }
+  return { engagement, item };
+}
 
+/**
+ * Save the engagement and write one audit line about the item (P3-2).
+ *
+ * @param {any} actor
+ * @param {any} engagement
+ * @param {string} note
+ * @param {Record<string, [unknown, unknown]>} diff
+ */
+async function saveItem(actor, engagement, note, diff) {
   await audited(actor, async (session) => {
-    item.status = status;
-    if (status === "Requested") item.requestedAt = new Date();
-    if (status === "Received") item.receivedAt = new Date();
-    item.verifiedBy = status === "Verified" ? actor.id : null;
     engagement.updatedBy = actor.id;
     await engagement.save({ session });
+    await recordAudit(
+      {
+        action: ACTIONS.update,
+        entityType: "Engagement",
+        entityId: engagement._id,
+        clientId: engagement.clientId,
+        diff,
+        note,
+      },
+      session,
+    );
   });
+}
+
+/** Ask the client for one item. */
+export async function requestChecklistItem(id, itemId) {
+  const actor = await requireUser();
+  const loaded = await loadItem(actor, id, itemId);
+  if (loaded.error) return { error: loaded.error };
+  const { engagement, item } = loaded;
+
+  const out = request(item);
+  if (!out.ok) return { error: out.error };
+
+  await saveItem(actor, engagement, `${item.name}: requested from the client`, {
+    [item.name]: ["", "Requested"],
+  });
+  revalidatePath(`/engagements/${id}`);
+  return { ok: `Asked the client for ${item.name}.` };
+}
+
+/**
+ * A person accepts what arrived.
+ *
+ * Not the format check — a person. The automatic check can say a spreadsheet
+ * has the right columns; it cannot say it is the right client's, for the
+ * right month, complete and legible.
+ */
+export async function acceptChecklistItem(id, itemId) {
+  const actor = await requireUser();
+  const loaded = await loadItem(actor, id, itemId);
+  if (loaded.error) return { error: loaded.error };
+  const { engagement, item } = loaded;
+
+  const was = item.status;
+  const out = accept(item, { id: actor.id, name: actor.name });
+  if (!out.ok) return { error: out.error };
+
+  await saveItem(
+    actor,
+    engagement,
+    `${item.name}: accepted (submission ${item.acceptedSubmission})`,
+    { [item.name]: [was, "Accepted"] },
+  );
+  revalidatePath(`/engagements/${id}`);
+  return { ok: `${item.name} accepted.` };
+}
+
+/**
+ * Send it back with a reason the client actually receives.
+ *
+ * A client told "rejected" sends the same wrong file again. A client told
+ * "these are August challans, we need September" sends the right one.
+ */
+export async function replaceChecklistItem(id, itemId, formData) {
+  const actor = await requireUser();
+  const loaded = await loadItem(actor, id, itemId);
+  if (loaded.error) return { error: loaded.error };
+  const { engagement, item } = loaded;
+
+  const reason = String(formData.get("reason") ?? "");
+  const was = item.status;
+  const out = requestReplacement(item, reason);
+  if (!out.ok) return { error: out.error };
+
+  await saveItem(
+    actor,
+    engagement,
+    `${item.name}: replacement requested — ${item.rejectReason}`,
+    { [item.name]: [was, "Replacement requested"] },
+  );
+
+  await checklistReplacement(engagement, item).catch(() => {});
 
   revalidatePath(`/engagements/${id}`);
-  return { ok: `${item.name}: ${status.toLowerCase()}.` };
+  return {
+    ok: `Asked for a replacement. The client is told why, in your words.`,
+  };
+}
+
+/** Decide the firm does not need it after all, with a reason. */
+export async function waiveChecklistItem(id, itemId, formData) {
+  const actor = await requireUser();
+  const loaded = await loadItem(actor, id, itemId);
+  if (loaded.error) return { error: loaded.error };
+  const { engagement, item } = loaded;
+
+  const reason = String(formData.get("reason") ?? "");
+  const was = item.status;
+  const out = markNotRequired(item, reason, {
+    id: actor.id,
+    name: actor.name,
+  });
+  if (!out.ok) return { error: out.error };
+
+  await saveItem(
+    actor,
+    engagement,
+    `${item.name}: not required — ${item.notRequiredReason}`,
+    { [item.name]: [was, "Not required"] },
+  );
+  revalidatePath(`/engagements/${id}`);
+  return {
+    ok: `${item.name} marked not required. The reason is on the record.`,
+  };
+}
+
+/** Answer a question the client asked about one item. */
+export async function answerChecklistQuestion(id, itemId, formData) {
+  const actor = await requireUser();
+  const loaded = await loadItem(actor, id, itemId);
+  if (loaded.error) return { error: loaded.error };
+  const { engagement, item } = loaded;
+
+  const answer = String(formData.get("answer") ?? "");
+  const out = answerClient(item, answer, { id: actor.id, name: actor.name });
+  if (!out.ok) return { error: out.error };
+
+  await saveItem(
+    actor,
+    engagement,
+    `${item.name}: answered the client — ${item.clientReply.answer}`,
+    { [item.name]: ["question", "answered"] },
+  );
+
+  await checklistAnswer(engagement, item).catch(() => {});
+
+  revalidatePath(`/engagements/${id}`);
+  return { ok: "Answered. The client sees it on their portal." };
 }
 
 /** The reviewer's own checklist (spec section 5). */

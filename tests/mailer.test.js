@@ -170,9 +170,18 @@ describe("filling a template in", () => {
     const clientFacing = Object.values(TEMPLATES).filter(
       (t) => t.audience === "client",
     );
-    // exactly these five leave the building; everything else is internal,
-    // and the guard only holds back what is marked "client"
+    /**
+     * Exactly these seven leave the building; everything else is internal,
+     * and the guard only holds back what is marked "client".
+     *
+     * This list is an allow-list on purpose, so adding a client-facing
+     * message is a deliberate act and not a side effect. P3-2 added the two
+     * checklist ones: a document sent back with the reason, and an answer to
+     * a question the client asked.
+     */
     expect(clientFacing.map((t) => t.key).sort()).toEqual([
+      "checklistAnswer",
+      "checklistReplacement",
       "documentRequest",
       "documentsPending",
       "invoiceIssued",

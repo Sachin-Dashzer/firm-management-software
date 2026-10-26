@@ -16,6 +16,7 @@ import {
 import { buildFileKey } from "@/lib/storage/paths";
 import { hashRequestToken } from "@/lib/storage/requests";
 import { financialYearLabel } from "@/lib/dates";
+import { recordSubmission } from "@/lib/engagements/checklist";
 
 /**
  * The client's side of a document request (spec section 6).
@@ -198,12 +199,17 @@ export async function publicConfirmUpload(token, input) {
       const row = engagement?.checklist?.id(item.checklistItemId);
       if (row) {
         row.documentIds.push(document._id);
-        // the firm still has to verify it; received is as far as the client
-        // can move anything
-        if (row.status !== "Verified") {
-          row.status = "Received";
-          row.receivedAt = new Date();
-        }
+        /**
+         * A new file is a new submission, and it clears every check made on
+         * the one before it (P3-2). Carrying an acceptance over to a
+         * replacement would have the system vouching for a file nobody
+         * opened — so `recordSubmission` resets the status, the acceptance
+         * and who gave it.
+         *
+         * Received is still as far as the client can move anything: a person
+         * at the firm accepts.
+         */
+        recordSubmission(row);
         await engagement.save({ session });
       }
     }

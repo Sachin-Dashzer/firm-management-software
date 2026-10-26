@@ -17,6 +17,7 @@ import {
   REQUEST_DAYS,
 } from "@/lib/storage/requests";
 import { notify } from "@/lib/mailer/notify";
+import { isSettled, needsReview } from "@/lib/engagements/checklist";
 import { mailSettings } from "@/lib/mailer/guard";
 
 /**
@@ -54,7 +55,15 @@ export async function createDocRequest(engagementId, options = {}) {
   const outstanding = (engagement.checklist ?? []).filter(
     (item) =>
       item.side === "client" &&
-      !["Received", "Verified"].includes(item.status) &&
+      /**
+       * Outstanding means not settled and not already arrived (P3-2).
+       * `Replacement requested` is outstanding — it is the case most worth
+       * re-asking for — while `Accepted`, `Not required`, `Received` and
+       * `Format checked` are not. Before P3-2 this list named two statuses
+       * and would have re-asked for an item a CA had waived.
+       */
+      !isSettled(item) &&
+      !needsReview(item) &&
       (!options.itemIds?.length || options.itemIds.includes(String(item._id))),
   );
 

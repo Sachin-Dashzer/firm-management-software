@@ -42,20 +42,93 @@ const taskSchema = new mongoose.Schema(
   { _id: true },
 );
 
+/**
+ * What the client said back about one requested document (P3-2).
+ *
+ * The commonest delay on a job is not a client ignoring a request — it is a
+ * client who cannot produce the thing, or who sent the wrong month because
+ * nobody told them which month, or whose accountant has the file. Before
+ * this, all three were a phone call nobody recorded.
+ */
+const clientReplySchema = new mongoose.Schema(
+  {
+    /** "cannot" · "delegated" · "question" */
+    kind: { type: String, enum: ["cannot", "delegated", "question"] },
+    /** Why they cannot produce it. Optional: sometimes there is no reason. */
+    note: { type: String, default: "", trim: true },
+    /** Who they say will send it instead, and how to reach them. */
+    delegateName: { type: String, default: "", trim: true },
+    delegateContact: { type: String, default: "", trim: true },
+    /** Their question, and the firm's answer once somebody gives one. */
+    question: { type: String, default: "", trim: true },
+    answer: { type: String, default: "", trim: true },
+    answeredBy: { type: String, default: null },
+    answeredAt: { type: Date, default: null },
+    at: { type: Date, default: () => new Date() },
+    byName: { type: String, default: "", trim: true },
+  },
+  { _id: false },
+);
+
 const checklistItemSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     side: { type: String, enum: ["client", "firm"], required: true },
     mandatory: { type: Boolean, default: true },
-    /** Pending → Requested → Received → Verified (spec section 6). */
+
+    /**
+     * Requested → Received → Format checked → Accepted, or Replacement
+     * requested, or Not required (P3-2, spec section 6).
+     *
+     * `Verified` is the old name for `Accepted` and stays in the enum so
+     * rows written before P3-2 keep validating; `lib/migration/checklist.js`
+     * renames them. Nothing writes it any more.
+     *
+     * A format check passing is **not** acceptance. The automatic check can
+     * say a spreadsheet has the right columns; it cannot say the file is the
+     * right client's, for the right month, complete and legible. A person
+     * accepts, and the two states are kept apart so the system never claims
+     * the second when it only did the first.
+     */
     status: {
       type: String,
-      enum: ["Pending", "Requested", "Received", "Verified"],
+      enum: [
+        "Pending",
+        "Requested",
+        "Received",
+        "Format checked",
+        "Accepted",
+        "Replacement requested",
+        "Not required",
+        "Verified",
+      ],
       default: "Pending",
     },
+
     requestedAt: { type: Date, default: null },
     receivedAt: { type: Date, default: null },
     verifiedBy: { type: String, default: null },
+
+    /**
+     * How many times the client has sent something for this item (P3-2).
+     *
+     * A replacement is a **new submission**, and acceptance is tied to the
+     * number — so an item accepted at submission 1 and re-uploaded as
+     * submission 2 is not still accepted, and the earlier format check does
+     * not carry over to a file it never saw.
+     */
+    submissionCount: { type: Number, default: 0, min: 0 },
+    acceptedSubmission: { type: Number, default: null },
+    acceptedBy: { type: String, default: null },
+    acceptedByName: { type: String, default: "", trim: true },
+
+    /** Why the firm sent it back. The client is shown these words. */
+    rejectReason: { type: String, default: "", trim: true },
+    /** Why the firm decided it was not needed after all. */
+    notRequiredReason: { type: String, default: "", trim: true },
+
+    clientReply: { type: clientReplySchema, default: null },
+
     /** Files attach here in Step 6; the tick works without them. */
     documentIds: {
       type: [{ type: mongoose.Schema.Types.ObjectId, ref: "Document" }],

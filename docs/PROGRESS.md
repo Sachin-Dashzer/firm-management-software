@@ -84,7 +84,7 @@ prototype's; the foundation is this project's.
 | Step | What | Status |
 | --- | --- | --- |
 | P3-1 | **Filing milestones.** `Engagement.milestones[]`; the due-date engine returns a list, not one date; each milestone keeps its own acknowledgement, proof linked by document id, the version filed, and the due date as it stood on the filing day; a wrong record is superseded with a reason and stays readable | 🟡 | Built 26-10-2026. **The due-date master already said this was wrong** — a comment on the GST rule read *"GSTR-3B is the later of the pair, so it governs the engagement"*, so a month with GSTR-1 on time and GSTR-3B nine days late could only be recorded as one or the other. `statutoryDue`, `filedOn` and `ackNo` are kept as **derived** fields written in one place, which turned a 40-file rewrite into a 2-surface change. **A GST engagement's due date is now the 11th, not the 20th** — see decisions. 52 new unit tests (890 total); 2 Playwright tests waiting on Atlas. QRMP still not covered and now says so loudly |
-| P3-2 | **Document requests.** Six states (Requested → Received → Format checked → Accepted / Replacement requested / Not required); numbered submissions where a replacement clears earlier checks; a rejection carries a reason the client receives; three client replies — cannot provide, someone else will provide it (one-item link, no other access), please clarify | ⬜ |
+| P3-2 | **Document requests.** Six states (Requested → Received → Format checked → Accepted / Replacement requested / Not required); numbered submissions where a replacement clears earlier checks; a rejection carries a reason the client receives; three client replies — cannot provide, someone else will provide it (one-item link, no other access), please clarify | 🟡 | Built 26-10-2026. **The completion gate was wrong and nobody had noticed**: it demanded every mandatory item be `Verified`, so an item a CA had decided was not needed blocked the engagement for ever and the only way out was to tick it as received — a lie about a document that does not exist. **This is the second write a portal account can make**, and `profile/actions.js` said in so many words that there was only one; see D29. 30 new unit tests (920 total); 2 Playwright tests waiting on Atlas |
 | P3-3 | **Money counted once.** The bank receipt is the cash event; allocations and advance settlements are marked non-cash; one receipt pays several invoices; paying another client's invoice needs a recorded reason; leftovers stay visible until allocated or held as an advance; a promise date per invoice pauses that invoice's reminders | ⬜ |
 | P3-4 | **Scope and waivers.** Every finished job is billable, in retainer or waived; a fee must be a positive amount; free work is a waiver with a reason, requested by staff and approved by a partner, recorded with both names; not-separately-chargeable work stays listed with its reason | ⬜ |
 | P3-5 | **Gates and clocks.** Review before filing, then client confirmation of the figures for GST / GSTR-9 / ITR / TDS, naming who confirmed, when, with what evidence, against which version; a change after approval raises the version and resets both gates; preparation and review targets computed from the statutory date; the **at risk** state | ⬜ |
@@ -129,6 +129,11 @@ whose cost grows every week it waits.
 
 | Date | Decision | By |
 | --- | --- | --- |
+| 26-10-2026 | D27: **a format check is not an acceptance.** Requested → Received → Format checked → Accepted, with Replacement requested and Not required as the two ways out. An automatic check can say a spreadsheet has the right columns; it cannot say the file is the right client's, for the right month, complete and legible. A person accepts, and the two states are kept apart so the system never claims the second when it only did the first. `Verified` stays valid in the schema and reads as settled; `npm run backfill` renames it | Owner instruction, built |
+| 26-10-2026 | D28: **a replacement is a new submission and clears every earlier check.** Acceptance is tied to a submission number, so an item accepted at submission 1 and re-uploaded is no longer accepted, and a format check performed on one file never carries to another. Keeping either would have the system vouching for a file nobody opened | Agent, owner to confirm |
+| 26-10-2026 | D29: **a portal account can now write one more thing.** Until P3-2 the only write was a change request, which is a comment and alters no record — `profile/actions.js` says so. The three commonest answers to a document request (*I don't have it*, *my accountant has it*, *I'm not sure what you mean*) were a phone call nobody recorded, so the job sat in Awaiting documents with no reason attached. The write is as narrow as one can be: the engagement must be in that client's scope, the item must be on the client's own side, it must not be settled, and the **only** field written is `clientReply` — not the status, not the documents, not a date. A client still cannot upload from the portal and cannot move an item forward | Agent, **owner should confirm this one** |
+| 26-10-2026 | D30: **a delegate link is minted by the system, not the client.** The prototype lets the client create the upload link. A portal user minting a token that works without signing in is an escalation, so instead the client names the person and the system creates a one-item `DocRequest` — same hashed token, same seven days, same upload-only gateway, and the delegate sees one document name and nothing else of the engagement. If the contact is an email address it is sent; a mobile number waits for WhatsApp, and until then the firm sends the link by hand rather than the request going nowhere silently | Agent, owner to confirm |
+| 26-10-2026 | D31: **the completion gate accepts a waived item.** It demanded `Verified` and nothing else, so a mandatory document a CA had decided was not needed blocked completion for ever. Settled now means accepted **or** not required, and not-required demands a reason — a waived mandatory document is exactly what a reviewer asks about | Agent, owner to confirm |
 | 26-10-2026 | D21: **an engagement owes a list of filings, not one.** `Engagement.milestones[]` is where a filing is recorded; `statutoryDue`, `filedOn` and `ackNo` stay as a **derived view** of it, written only by `syncDerived()`. Forty files read `statutoryDue` and sixteen read `filedOn`, and all of them want what they always wanted — keeping them a view made this a two-surface change instead of a forty-file one | Owner instruction, built |
 | 26-10-2026 | D22: **a GST engagement is now due on the 11th, not the 20th.** The governing date is the earliest filing still outstanding, so the GSTR-1 deadline is visible for the first time; it moves to GSTR-3B's date once GSTR-1 is in. **The overdue count will rise on any real data**, because a month with GSTR-1 unfiled after the 11th is now overdue and used not to be. That is the honest reading, and it is also what the reminders at 5 and 1 days before will now fire against | Agent, owner to confirm |
 | 26-10-2026 | D23: **lateness is judged against the due date as it stood on the day of filing**, captured once in `dueDateAtFiling` and never recomputed. An extension announced in December must not retroactively make a late November filing punctual, and withdrawing one must not make a punctual filing late. The live `dueDate` moves with extensions; the frozen one is what the punctuality report reads | Agent, owner to confirm |
@@ -1789,6 +1794,30 @@ From spec §18 — none answered yet. These block later steps, not Step 0:
 - [ ] `notices@` mailbox + SPF/DKIM/DMARC (Step 9)
 
 ## Left over / known gaps
+
+**From P3-2**
+
+- **Nothing here has run against a database.** 30 new unit tests cover the
+  state machine without one; the two Playwright tests are skipped like every
+  other suite. The portal write in particular has never been exercised
+  against a real session, and it is the one that most wants to be.
+- **The automatic format check does not exist yet.** The `Format checked`
+  state is real and a submission can arrive in it, but nothing produces that
+  verdict — the GST template reader that would is P3-12. Until then every
+  upload lands as `Received`, which is correct, just one state short.
+- **A replacement reason reaches the client only by email**, and client email
+  is off by default (Step 9a). So today the reason is recorded, shown on the
+  job and shown on the portal, and not delivered. WhatsApp waits on the
+  provider decision still open in spec §18.
+- **A delegate with a mobile number gets nothing sent.** The link is created
+  and visible to the firm, who has to pass it on. Same reason as above.
+- **`clientReply` holds one reply at a time.** A client who says they cannot
+  provide something and then asks a question overwrites the first. Fine for
+  now; a list would be the honest shape if it turns out people do both.
+- The portal write is audited as `client:<id>` with the name suffixed
+  "(client)", which keeps it distinguishable in the log but means it is not a
+  `User` id. Anything that joins audit entries to the team table will not
+  resolve it, by design.
 
 **From P3-1**
 

@@ -11,20 +11,18 @@ import DocumentList from "@/components/documents/DocumentList";
 import AuditTick from "@/components/ledger/AuditTick";
 import CompletionStamp from "@/components/ledger/CompletionStamp";
 import FilingMilestones from "./FilingMilestones";
+import ChecklistRow from "./ChecklistRow";
 import {
   addEngagementComment,
   changeStatus,
   reassign,
   saveFiling,
-  setChecklistStatus,
   setInternalDue,
   setPriority,
   setReviewItem,
   setTaskDone,
   assignTask,
 } from "../actions";
-
-const CHECKLIST_STATES = ["Pending", "Requested", "Received", "Verified"];
 
 /**
  * The working face of an engagement: the pipeline buttons, the sub-tasks, the
@@ -741,40 +739,17 @@ function ChecklistGroup({
               key={item.id}
               className="border-rule flex flex-col gap-2 border-b py-2 last:border-0"
             >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-14 flex items-center gap-2">
-                  {/* verified is the auditor's tick; received is not yet one */}
-                  <AuditTick
-                    checked={item.status === "Verified"}
-                    label={
-                      item.status === "Verified"
-                        ? `${item.name}: verified`
-                        : `${item.name}: ${item.status.toLowerCase()}`
-                    }
-                  />
-                  {item.name}
-                  {!item.mandatory && (
-                    <span className="text-12 text-ink-muted"> · optional</span>
-                  )}
-                </span>
-                <select
-                  aria-label={`${item.name} status`}
-                  value={item.status}
-                  disabled={disabled}
-                  onChange={(e) =>
-                    run(() =>
-                      setChecklistStatus(engagementId, item.id, e.target.value),
-                    )
-                  }
-                  className="rounded-ledger border-rule bg-paper text-13 h-8 border px-2"
-                >
-                  {CHECKLIST_STATES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/*
+                Six states and three of the moves need a reason, so this is
+                buttons and inline forms rather than a dropdown (P3-2). A
+                dropdown cannot ask why.
+              */}
+              <ChecklistRow
+                engagementId={engagementId}
+                item={item}
+                disabled={disabled}
+                run={run}
+              />
 
               {attached.length > 0 && (
                 <DocumentList

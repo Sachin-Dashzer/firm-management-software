@@ -15,6 +15,7 @@ import { CLOSED_STATUSES } from "@/lib/engagements/status";
 import { outstandingSummary } from "@/lib/billing/allocation";
 import { formatPaise } from "@/lib/money";
 import { formatISTDate, daysUntil } from "@/lib/dates";
+import ClientRequest from "./ClientRequest";
 
 export const metadata = { title: "Your file" };
 export const dynamic = "force-dynamic";
@@ -50,7 +51,11 @@ export default async function ClientHome() {
       checklist: {
         $elemMatch: {
           side: "client",
-          status: { $in: ["Pending", "Requested"] },
+          // "Replacement requested" is a thing we are waiting for too, and
+          // the one most worth showing — it comes with a reason (P3-2)
+          status: {
+            $in: ["Pending", "Requested", "Replacement requested"],
+          },
         },
       },
     })
@@ -69,11 +74,30 @@ export default async function ClientHome() {
       .filter(
         (item) =>
           item.side === "client" &&
-          ["Pending", "Requested"].includes(item.status),
+          ["Pending", "Requested", "Replacement requested"].includes(
+            item.status,
+          ),
       )
       .map((item) => ({
         id: String(item._id),
+        engagementId: String(engagement._id),
         name: item.name,
+        status: item.status,
+        /** Our words, not "rejected" — the client has to act on them. */
+        rejectReason: item.rejectReason ?? "",
+        /**
+         * What they have already told us about this one, so the buttons do
+         * not invite them to say it twice.
+         */
+        reply: item.clientReply
+          ? {
+              kind: item.clientReply.kind,
+              note: item.clientReply.note ?? "",
+              delegateName: item.clientReply.delegateName ?? "",
+              question: item.clientReply.question ?? "",
+              answer: item.clientReply.answer ?? "",
+            }
+          : null,
         for: `${engagement.templateSnapshot?.name ?? "Work"} · ${
           engagement.periodLabel || engagement.period
         }`,
@@ -94,17 +118,22 @@ export default async function ClientHome() {
       {wanted.length > 0 && (
         <section className="rounded-ledger border-waiting bg-surface border p-4">
           <h2 className="font-display text-20">
-            We are waiting for {wanted.length === 1 ? "one thing" : `${wanted.length} things`} from you
+            We are waiting for{" "}
+            {wanted.length === 1 ? "one thing" : `${wanted.length} things`} from
+            you
           </h2>
-          <ul className="mt-2 flex flex-col gap-1">
+          {/*
+            Each one now takes an answer back (P3-2). The commonest reasons
+            a request sits unanswered are that the client does not have the
+            thing, that somebody else has it, or that they are not sure what
+            we mean — and all three used to be a phone call nobody recorded.
+          */}
+          <ul className="mt-2 flex flex-col gap-3">
             {wanted.slice(0, 8).map((item) => (
-              <li key={item.id} className="text-14">
-                {item.name}{" "}
-                <span className="text-ink-muted text-13">— {item.for}</span>
-              </li>
+              <ClientRequest key={item.id} item={item} />
             ))}
           </ul>
-          <p className="text-13 text-ink-muted mt-2">
+          <p className="text-13 text-ink-muted mt-3">
             Send these to the office, or use the upload link we emailed you.
           </p>
         </section>
@@ -159,7 +188,10 @@ export default async function ClientHome() {
                 Nothing has been shared yet.
               </span>
             ) : (
-              <Link href="/client/documents" className="underline underline-offset-4">
+              <Link
+                href="/client/documents"
+                className="underline underline-offset-4"
+              >
                 <span className="num text-28 font-medium">{documents}</span>{" "}
                 {documents === 1 ? "document" : "documents"}
               </Link>
@@ -171,9 +203,14 @@ export default async function ClientHome() {
           <h2 className="font-display text-18">Outstanding</h2>
           <p className="text-14 mt-1">
             {money.totalPaise === 0 ? (
-              <span className="text-ink-muted">Nothing is owing. Thank you.</span>
+              <span className="text-ink-muted">
+                Nothing is owing. Thank you.
+              </span>
             ) : (
-              <Link href="/client/ledger" className="underline underline-offset-4">
+              <Link
+                href="/client/ledger"
+                className="underline underline-offset-4"
+              >
                 <span className="num text-28 font-medium">
                   {formatPaise(money.totalPaise)}
                 </span>

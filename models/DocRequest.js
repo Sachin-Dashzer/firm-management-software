@@ -71,6 +71,27 @@ const docRequestSchema = new mongoose.Schema(
 
     message: { type: String, default: "", trim: true },
 
+    /**
+     * Set when the client asked somebody else to send the document (P3-2) —
+     * usually their own accountant, who is the person holding the file.
+     *
+     * Such a link carries **one item**, so the delegate never sees the rest
+     * of the engagement's outstanding list, and the client never holds the
+     * token: they name the person and the system mints and sends it.
+     */
+    delegate: {
+      type: new mongoose.Schema(
+        {
+          name: { type: String, default: "", trim: true },
+          contact: { type: String, default: "", trim: true },
+          /** The portal user who asked for it. */
+          askedBy: { type: String, default: "", trim: true },
+        },
+        { _id: false },
+      ),
+      default: null,
+    },
+
     createdBy: { type: String, default: null },
     createdByName: { type: String, default: "" },
     updatedBy: { type: String, default: null },
