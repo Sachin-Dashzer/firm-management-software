@@ -237,3 +237,65 @@ describe("the same grid, one client's services down the side", () => {
     expect(grid.rows[0].cells[0].engagementId).toBe("e1");
   });
 });
+
+describe("part-filed cells (P3-1)", () => {
+  const d = (s) => new Date(`${s}T00:00:00+05:30`);
+  const periods = periodsInYear("monthly", 2026);
+
+  /** October GST: GSTR-1 in, GSTR-3B still owing. */
+  const halfDone = {
+    _id: "e9",
+    clientId: "c1",
+    serviceTemplateId: "s-gst",
+    period: "2026-04",
+    status: "In progress",
+    statutoryDue: d("2026-05-20"),
+    milestones: [
+      { name: "GSTR-1", dueDate: d("2026-05-11"), filedOn: d("2026-05-10") },
+      { name: "GSTR-3B", dueDate: d("2026-05-20"), filedOn: null },
+    ],
+  };
+
+  it("is neither open nor filed, and names both returns", () => {
+    const grid = buildGrid({
+      clients: [{ id: "c1", name: "Aggarwal Traders" }],
+      periods,
+      now: d("2026-05-15"),
+      engagements: [halfDone],
+    });
+    const cell = grid.rows[0].cells[0];
+    expect(cell.state).toBe("part");
+    expect(cell.title).toMatch(/GSTR-1 filed/);
+    expect(cell.title).toMatch(/GSTR-3B still owing/);
+  });
+
+  it("goes late once the outstanding return passes its date", () => {
+    const grid = buildGrid({
+      clients: [{ id: "c1", name: "Aggarwal Traders" }],
+      periods,
+      now: d("2026-05-25"),
+      engagements: [halfDone],
+    });
+    // half a month's GST filed is not a reason to stop calling it overdue
+    expect(grid.rows[0].cells[0].state).toBe("late");
+  });
+
+  it("leaves a fully filed month alone", () => {
+    const grid = buildGrid({
+      clients: [{ id: "c1", name: "Aggarwal Traders" }],
+      periods,
+      now: d("2026-05-25"),
+      engagements: [
+        {
+          ...halfDone,
+          status: "Completed",
+          milestones: halfDone.milestones.map((m) => ({
+            ...m,
+            filedOn: d("2026-05-19"),
+          })),
+        },
+      ],
+    });
+    expect(grid.rows[0].cells[0].state).toBe("done");
+  });
+});

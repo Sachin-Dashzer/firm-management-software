@@ -21,6 +21,8 @@ const CELL_TONE = {
   done: "bg-filed-wash text-filed",
   filed: "bg-filed-wash text-filed",
   open: "bg-carbon-wash text-carbon",
+  /** One of a pair in, the other still owing — neither open nor filed (P3-1). */
+  part: "bg-waiting-wash text-waiting font-medium",
   late: "bg-redpen-wash text-redpen",
   missing: "bg-redpen-wash text-redpen font-bold",
   held: "bg-waiting-wash text-waiting",

@@ -59,10 +59,39 @@ const variantSchema = new mongoose.Schema(
   { _id: true },
 );
 
-/** A date the government actually moved, for one period (spec section 8). */
+/**
+ * One named filing the rule produces (P3-1).
+ *
+ * Most services owe one, and a rule with no milestones listed is read as
+ * exactly that — so every rule written before P3-1 keeps working untouched.
+ * Monthly GST owes two, GSTR-1 and GSTR-3B, on different days of the same
+ * month, which is the case the single `formula` below could not express.
+ */
+const milestoneRuleSchema = new mongoose.Schema(
+  {
+    /** Stable, and what an override points at. e.g. "GSTR1". */
+    key: { type: String, required: true, trim: true, uppercase: true },
+    /** Shown to people: "GSTR-1". */
+    name: { type: String, required: true, trim: true },
+    formula: { type: formulaSchema, required: true },
+    variants: { type: [variantSchema], default: [] },
+    note: { type: String, default: "", trim: true },
+  },
+  { _id: true },
+);
+
+/**
+ * A date the government actually moved, for one period (spec section 8).
+ *
+ * `milestone` names which filing moved, because extensions are usually
+ * granted for one return and not its sibling — GSTR-3B has been extended
+ * more than once while GSTR-1 stayed where it was. Empty means the whole
+ * rule moved, which is what every override recorded before P3-1 meant.
+ */
 const overrideSchema = new mongoose.Schema(
   {
     period: { type: String, required: true, trim: true },
+    milestone: { type: String, default: "", trim: true, uppercase: true },
     dueDate: { type: Date, required: true },
     reason: { type: String, required: true, trim: true },
     byId: { type: String, default: null },
@@ -85,6 +114,11 @@ const dueDateRuleSchema = new mongoose.Schema(
 
     formula: { type: formulaSchema, required: true },
     variants: { type: [variantSchema], default: [] },
+    /**
+     * Empty means this rule owes one filing and `formula` above is it (P3-1).
+     * Listed means it owes these, in order.
+     */
+    milestones: { type: [milestoneRuleSchema], default: [] },
     overrides: { type: [overrideSchema], default: [] },
 
     /**

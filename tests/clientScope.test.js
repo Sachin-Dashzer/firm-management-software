@@ -169,3 +169,60 @@ describe("the change request", () => {
     expect(RULE_DEFAULTS.clientChangeRequest.enabled).toBe(true);
   });
 });
+
+describe("what a client is told about filings (P3-1)", () => {
+  const d = (s) => new Date(`${s}T00:00:00+05:30`);
+
+  it("counts the filings in, without naming who recorded them", () => {
+    const row = engagementForClient({
+      _id: "e1",
+      templateSnapshot: { name: "GSTR-1 / GSTR-3B filing" },
+      status: "In progress",
+      statutoryDue: d("2026-11-20"),
+      filedOn: null,
+      milestones: [
+        { filedOn: d("2026-11-10"), proofDocumentId: "doc1" },
+        { filedOn: null, proofDocumentId: null },
+      ],
+    });
+
+    expect(row.filingCount).toBe(2);
+    expect(row.filedCount).toBe(1);
+    expect(row.partFiled).toBe(true);
+    // the projection is the guard, but the shape should not invite it either
+    expect(JSON.stringify(row)).not.toMatch(/filedByName|history|correctedBy/);
+  });
+
+  it("says proof is pending when a filing has no acknowledgement attached", () => {
+    const row = engagementForClient({
+      _id: "e2",
+      templateSnapshot: { name: "TDS return" },
+      status: "Filed / delivered",
+      filedOn: d("2026-10-31"),
+      milestones: [{ filedOn: d("2026-10-31"), proofDocumentId: null }],
+    });
+    expect(row.proofPending).toBe(true);
+    expect(row.partFiled).toBe(false);
+  });
+
+  it("is quiet about all of it for work from before P3-1", () => {
+    const row = engagementForClient({
+      _id: "e3",
+      templateSnapshot: { name: "Bookkeeping" },
+      status: "Completed",
+      filedOn: d("2026-10-10"),
+    });
+    expect(row.filingCount).toBe(0);
+    expect(row.partFiled).toBe(false);
+    expect(row.proofPending).toBe(false);
+  });
+
+  it("keeps the staff-only sub-fields out of the projection entirely", () => {
+    // what the portal pages are allowed to read at all
+    expect(ENGAGEMENT_FIELDS).toMatch(/milestones\.filedOn/);
+    expect(ENGAGEMENT_FIELDS).toMatch(/milestones\.proofDocumentId/);
+    expect(ENGAGEMENT_FIELDS).not.toMatch(/milestones\.ackNo/);
+    expect(ENGAGEMENT_FIELDS).not.toMatch(/milestones\.history/);
+    expect(ENGAGEMENT_FIELDS).not.toMatch(/milestones\.filedBy/);
+  });
+});

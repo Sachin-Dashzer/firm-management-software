@@ -402,6 +402,27 @@ export const SAMPLE_ENGAGEMENTS = [
     filedDaysAgo: 22,
     ackNo: "AB2610174455621",
   },
+  /**
+   * The case the old shape could not record (P3-1): one month of GST where
+   * GSTR-1 went in on time and GSTR-3B is still owing and already overdue.
+   * Without a row like this, "part filed" is a state nobody ever sees.
+   */
+  {
+    subscription: 0,
+    back: 2,
+    status: "In progress",
+    dueDaysAgo: 4,
+    milestones: [
+      {
+        key: "GSTR1",
+        name: "GSTR-1",
+        dueDaysAgo: 13,
+        filedDaysAgo: 14,
+        ackNo: "AA0911260001111",
+      },
+      { key: "GSTR3B", name: "GSTR-3B", dueDaysAgo: 4 },
+    ],
+  },
   { subscription: 1, back: 0, status: "Awaiting documents" },
   { subscription: 2, back: 0, status: "Scheduled" },
   { subscription: 3, back: 0, status: "Under review" },
@@ -1207,6 +1228,29 @@ export async function seedSample(options = {}) {
               ? {
                   filedOn: daysBack(now, row.filedDaysAgo),
                   ackNo: row.ackNo ?? "",
+                }
+              : {}),
+            /**
+             * The filings this work owes (P3-1). Sample work is built here
+             * rather than by the generator, so the milestones are built here
+             * too — otherwise the panel would be empty on every sample row
+             * and the pair case would never be visible.
+             */
+            ...(row.milestones
+              ? {
+                  milestones: row.milestones.map((m) => ({
+                    name: m.name,
+                    ruleKey: m.key,
+                    dueDate: daysBack(now, m.dueDaysAgo),
+                    ...(m.filedDaysAgo
+                      ? {
+                          filedOn: daysBack(now, m.filedDaysAgo),
+                          dueDateAtFiling: daysBack(now, m.dueDaysAgo),
+                          ackNo: m.ackNo ?? "",
+                          filedByName: "Sample data",
+                        }
+                      : {}),
+                  })),
                 }
               : {}),
             ...(row.eventDaysAgo

@@ -11,6 +11,7 @@ import DueDateRule from "@/models/DueDateRule";
 import Engagement from "@/models/Engagement";
 import { CLOSED_STATUSES } from "@/lib/engagements/status";
 import { statutoryDueFor, internalTargetFor } from "@/lib/compliance/dueDate";
+import { applyDueDates } from "@/lib/engagements/milestones";
 import { istInputDate } from "@/lib/dates";
 
 /**
@@ -161,6 +162,16 @@ export async function extendPeriod(id, formData) {
   const period = String(formData.get("period") ?? "").trim();
   const dateText = String(formData.get("dueDate") ?? "").trim();
   const reason = String(formData.get("reason") ?? "").trim();
+  /**
+   * Which return moved (P3-1). Empty means the whole rule, which is what
+   * every extension recorded before P3-1 meant — and still the right answer
+   * for a service that owes one filing. Extensions are usually granted for
+   * one of a pair: GSTR-3B has been moved more than once while GSTR-1 stayed
+   * where it was.
+   */
+  const milestone = String(formData.get("milestone") ?? "")
+    .trim()
+    .toUpperCase();
 
   if (!period) return { error: "Which period has been extended?" };
   if (!dateText) return { error: "What is the new date?" };
@@ -177,8 +188,14 @@ export async function extendPeriod(id, formData) {
 
   let moved = 0;
 
+  if (milestone && !(rule.milestones ?? []).some((m) => m.key === milestone)) {
+    return { error: "That rule has no filing by that name." };
+  }
+
   await audited(actor, async (session) => {
-    const existing = rule.overrides.find((o) => o.period === period);
+    const existing = rule.overrides.find(
+      (o) => o.period === period && (o.milestone ?? "") === milestone,
+    );
     if (existing) {
       existing.dueDate = dueDate;
       existing.reason = reason;
@@ -188,6 +205,7 @@ export async function extendPeriod(id, formData) {
     } else {
       rule.overrides.push({
         period,
+        milestone,
         dueDate,
         reason,
         byId: actor.id,
@@ -208,8 +226,27 @@ export async function extendPeriod(id, formData) {
 
     for (const engagement of affected) {
       const before = engagement.statutoryDue;
-      engagement.statutoryDue = dueDate;
-      engagement.internalDue = internalTargetFor(dueDate);
+
+      /**
+       * Move the milestone, not the engagement (P3-1). A filing already
+       * recorded keeps its `dueDateAtFiling`, so an extension cannot
+       * retroactively make a late filing punctual — `applyDueDates` only
+       * touches the live date.
+       */
+      const targets = (engagement.milestones ?? [])
+        .filter(
+          (m) => !milestone || String(m.ruleKey).toUpperCase() === milestone,
+        )
+        .map((m) => ({ key: m.ruleKey, date: dueDate }));
+
+      if (targets.length) {
+        applyDueDates(engagement, targets);
+      } else {
+        // pre-P3-1 work, with no milestones behind it
+        engagement.statutoryDue = dueDate;
+      }
+
+      engagement.internalDue = internalTargetFor(engagement.statutoryDue);
       engagement.updatedBy = actor.id;
       await engagement.save({ session });
 
@@ -220,9 +257,12 @@ export async function extendPeriod(id, formData) {
           entityId: engagement._id,
           clientId: engagement.clientId,
           diff: {
-            statutoryDue: [istInputDate(before), istInputDate(dueDate)],
+            statutoryDue: [
+              istInputDate(before),
+              istInputDate(engagement.statutoryDue),
+            ],
           },
-          note: `statutory date extended: ${reason}`,
+          note: `${milestone || "statutory"} date extended: ${reason}`,
         },
         session,
       );

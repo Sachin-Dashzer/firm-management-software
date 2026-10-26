@@ -83,7 +83,7 @@ prototype's; the foundation is this project's.
 
 | Step | What | Status |
 | --- | --- | --- |
-| P3-1 | **Filing milestones.** `Engagement.milestones[]`; the due-date engine returns a list, not one date; each milestone keeps its own acknowledgement, proof linked by document id, the version filed, and the due date as it stood on the filing day; a wrong record is superseded with a reason and stays readable; service steps reworded so ticking the last one never implies a return went in | ⬜ |
+| P3-1 | **Filing milestones.** `Engagement.milestones[]`; the due-date engine returns a list, not one date; each milestone keeps its own acknowledgement, proof linked by document id, the version filed, and the due date as it stood on the filing day; a wrong record is superseded with a reason and stays readable | 🟡 | Built 26-10-2026. **The due-date master already said this was wrong** — a comment on the GST rule read *"GSTR-3B is the later of the pair, so it governs the engagement"*, so a month with GSTR-1 on time and GSTR-3B nine days late could only be recorded as one or the other. `statutoryDue`, `filedOn` and `ackNo` are kept as **derived** fields written in one place, which turned a 40-file rewrite into a 2-surface change. **A GST engagement's due date is now the 11th, not the 20th** — see decisions. 52 new unit tests (890 total); 2 Playwright tests waiting on Atlas. QRMP still not covered and now says so loudly |
 | P3-2 | **Document requests.** Six states (Requested → Received → Format checked → Accepted / Replacement requested / Not required); numbered submissions where a replacement clears earlier checks; a rejection carries a reason the client receives; three client replies — cannot provide, someone else will provide it (one-item link, no other access), please clarify | ⬜ |
 | P3-3 | **Money counted once.** The bank receipt is the cash event; allocations and advance settlements are marked non-cash; one receipt pays several invoices; paying another client's invoice needs a recorded reason; leftovers stay visible until allocated or held as an advance; a promise date per invoice pauses that invoice's reminders | ⬜ |
 | P3-4 | **Scope and waivers.** Every finished job is billable, in retainer or waived; a fee must be a positive amount; free work is a waiver with a reason, requested by staff and approved by a partner, recorded with both names; not-separately-chargeable work stays listed with its reason | ⬜ |
@@ -129,6 +129,12 @@ whose cost grows every week it waits.
 
 | Date | Decision | By |
 | --- | --- | --- |
+| 26-10-2026 | D21: **an engagement owes a list of filings, not one.** `Engagement.milestones[]` is where a filing is recorded; `statutoryDue`, `filedOn` and `ackNo` stay as a **derived view** of it, written only by `syncDerived()`. Forty files read `statutoryDue` and sixteen read `filedOn`, and all of them want what they always wanted — keeping them a view made this a two-surface change instead of a forty-file one | Owner instruction, built |
+| 26-10-2026 | D22: **a GST engagement is now due on the 11th, not the 20th.** The governing date is the earliest filing still outstanding, so the GSTR-1 deadline is visible for the first time; it moves to GSTR-3B's date once GSTR-1 is in. **The overdue count will rise on any real data**, because a month with GSTR-1 unfiled after the 11th is now overdue and used not to be. That is the honest reading, and it is also what the reminders at 5 and 1 days before will now fire against | Agent, owner to confirm |
+| 26-10-2026 | D23: **lateness is judged against the due date as it stood on the day of filing**, captured once in `dueDateAtFiling` and never recomputed. An extension announced in December must not retroactively make a late November filing punctual, and withdrawing one must not make a punctual filing late. The live `dueDate` moves with extensions; the frozen one is what the punctuality report reads | Agent, owner to confirm |
+| 26-10-2026 | D24: **a correction supersedes, it does not overwrite.** Replacing a filing record moves the old acknowledgement, date and reason into `history` and reopens the filing. Refused outright once the work is invoiced — an invoice that cites a filing cannot quietly start citing a different one, so a credit note comes first. `Completed` stays terminal: a correction is its own recorded event and does not reopen the engagement | Agent, owner to confirm |
+| 26-10-2026 | D25: **approval before filing was deliberately not built here.** The plan said this step would enforce it; on reading the pipeline, review still comes after filing (spec §5) and reversing the order is P3-5's whole job. Doing half of it would have left the pipeline in a state neither the spec nor the prototype describes. `canRecordFiling()` carries the note | Agent, owner to confirm |
+| 26-10-2026 | D26: **QRMP is still not covered, and the rule now says so at length.** The plan was to add it as a variant carrying the prototype's 14-state list. On reading `variantSchema`, variants match on the *period code* — QRMP is a property of the client, so the mechanism cannot express it. It needs its own rule or a scheme field on the client (P3-12). Until then a QRMP client on the GST rule gets monthly dates, which are wrong for them, and the caution says that in those words | Agent, owner to confirm |
 | 24-10-2026 | D18: **every new client belongs to a group.** Required on creation only — the clients already on the books predate the rule and have to stay editable, so an edit that does not mention the group leaves it alone. The Excel import names the group by name and creates it as the row is written | Owner, approved |
 | 24-10-2026 | D19: **a UDIN names the CA or partner who signed it, and the field is no longer optional.** Both roles may be named, because a UDIN is generated against a member's own ICAI membership and a CA has one; what changed is that the register can now always answer "which member signed this certificate" | Owner, approved |
 | 24-10-2026 | D20: **documents attach to a UDIN.** The signed certificate and the client papers behind it hang off the register row, and when the UDIN came out of an engagement that engagement's own papers are listed under them, read-only. Two lists, never merged — merging them would hide which file is the firm's evidence for the number | Owner, approved |
@@ -1783,6 +1789,34 @@ From spec §18 — none answered yet. These block later steps, not Step 0:
 - [ ] `notices@` mailbox + SPF/DKIM/DMARC (Step 9)
 
 ## Left over / known gaps
+
+**From P3-1**
+
+- **Nothing here has run against a database.** 52 new unit tests pass and the
+  2 Playwright tests are skipped like every other suite. The milestone
+  arithmetic is covered without a database; the saving, the audit entries and
+  the transaction are not.
+- **The overdue count will jump** the first time this meets real data, because
+  a GST month with GSTR-1 unfiled after the 11th is now overdue and was not
+  before (D22). That is a correction, not a regression, but it will look like
+  a regression on the dashboard.
+- **Work created before P3-1 becomes one milestone, not two.** There is
+  nothing in the old row to say which of a pair the acknowledgement belonged
+  to, so months from before the change can never show the GSTR-1 / GSTR-3B
+  split. `npm run backfill:milestones -- --dry-run` reports what it would do.
+- **Backfilled punctuality is a guess and is labelled one.** The old shape
+  never recorded the due date in force at filing, so the backfill takes
+  today's `statutoryDue`. For anything whose deadline was later extended that
+  is wrong, and the audit note on each row says so.
+- **The punctuality report still reads the derived fields**, not the
+  milestones, so it judges a part-filed month by one date. It is not wrong,
+  it is coarse; reading per-milestone is a small follow-up and was left out
+  deliberately to keep this step to the shape of the record.
+- **`saveFiling` is now two things.** It keeps UDIN and the audit report, and
+  writes the old `ackNo`/`filedOn` only for work that has no milestones. That
+  is a seam, and it should close once the backfill has run everywhere.
+- The e2e spec builds its milestones by hand rather than from a verified rule,
+  so it proves the panel and the actions, not the generator's wiring.
 
 **From P2-10d — and the honest state of Phase 2**
 

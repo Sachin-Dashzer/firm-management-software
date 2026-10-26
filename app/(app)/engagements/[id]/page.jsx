@@ -29,6 +29,12 @@ import DocsPanel from "./DocsPanel";
 import { issuerFor } from "@/lib/docs/rules";
 import { DueChip, StatusChip } from "../chips";
 import { bookOf, BOOKS } from "@/lib/practice/books";
+import {
+  latenessDays,
+  milestoneState,
+  filingProgress,
+  proofPending,
+} from "@/lib/engagements/milestones";
 
 /** A date as an `<input type="date">` wants it: yyyy-mm-dd, in IST. */
 function dateInput(date) {
@@ -198,6 +204,33 @@ export default async function EngagementPage({ params }) {
     reviewerId: target.reviewerId,
     assigneeName: assignee?.name ?? "Nobody yet",
     reviewerName: reviewer?.name ?? "Nobody yet",
+    /**
+     * The statutory filings this work owes (P3-1). Two for monthly GST, one
+     * for most things, none when the service's due-date rule has not been
+     * confirmed — and that last case is why `milestones` can be empty and
+     * the panel says so rather than showing nothing.
+     */
+    milestones: (engagement.milestones ?? []).map((m) => ({
+      id: String(m._id),
+      name: m.name,
+      dueDate: m.dueDate ? formatISTDate(m.dueDate) : null,
+      dueDateDays: m.dueDate ? daysUntil(m.dueDate) : null,
+      filedOn: m.filedOn ? formatISTDate(m.filedOn) : null,
+      ackNo: m.ackNo ?? "",
+      lateBy: latenessDays(m),
+      state: milestoneState(m),
+      hasProof: Boolean(m.proofDocumentId),
+      filedByName: m.filedByName ?? "",
+      history: (m.history ?? []).map((h) => ({
+        ackNo: h.ackNo ?? "",
+        filedOn: h.filedOn ? formatISTDate(h.filedOn) : null,
+        reason: h.reason,
+        correctedByName: h.correctedByName ?? "",
+        correctedAt: h.correctedAt ? formatISTDate(h.correctedAt) : null,
+      })),
+    })),
+    filingProgress: filingProgress(engagement),
+    proofPending: proofPending(engagement),
     tasks: (engagement.tasks ?? []).map((t) => ({
       id: String(t._id),
       name: t.name,

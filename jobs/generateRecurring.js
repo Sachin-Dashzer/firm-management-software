@@ -12,6 +12,7 @@ import { systemAudit } from "../lib/audit/system.js";
 import { periodFor, parsePeriod } from "../lib/engagements/period.js";
 import { buildEngagement } from "../lib/engagements/create.js";
 import { checkAssignment } from "../lib/engagements/assign.js";
+import { buildMilestones } from "../lib/engagements/milestones.js";
 import { nextEngagementCode } from "../lib/engagements/code.js";
 import { istInputDate } from "../lib/dates.js";
 import {
@@ -164,6 +165,9 @@ export async function generateRecurring(options = {}) {
               {
                 ...fields,
                 code,
+                // the filings this period owes: two for monthly GST, one for
+                // most things, none when the rule is unconfirmed (P3-1)
+                milestones: buildMilestones(rule, period.code),
                 statutoryDue: due.date,
                 // the statutory date governs the internal target when there
                 // is one; the template's turnaround covers the rest

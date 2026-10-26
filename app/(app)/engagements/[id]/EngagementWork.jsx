@@ -10,6 +10,7 @@ import Uploader from "@/components/documents/Uploader";
 import DocumentList from "@/components/documents/DocumentList";
 import AuditTick from "@/components/ledger/AuditTick";
 import CompletionStamp from "@/components/ledger/CompletionStamp";
+import FilingMilestones from "./FilingMilestones";
 import {
   addEngagementComment,
   changeStatus,
@@ -45,6 +46,8 @@ export default function EngagementWork({
   mayAttach = false,
 }) {
   const [message, setMessage] = useState(null);
+  /** Work from before P3-1 has none, and keeps the old single filing box. */
+  const hasMilestones = (engagement.milestones ?? []).length > 0;
   const [pending, startTransition] = useTransition();
   const [asking, setAsking] = useState(null); // status awaiting a reason
   const [reason, setReason] = useState("");
@@ -399,8 +402,16 @@ export default function EngagementWork({
 
       {/* --- filing and review -------------------------------------------- */}
       <div className="grid gap-6 lg:grid-cols-2">
+        <FilingMilestones
+          engagement={engagement}
+          locked={["Completed", "Cancelled"].includes(engagement.status)}
+          setMessage={setMessage}
+        />
+
         <section className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4">
-          <h2 className="font-display text-20">Filing</h2>
+          <h2 className="font-display text-20">
+            {hasMilestones ? "UDIN and the report" : "Filing"}
+          </h2>
           <form
             action={(formData) =>
               startTransition(async () =>
@@ -409,16 +420,24 @@ export default function EngagementWork({
             }
             className="flex flex-col gap-3"
           >
-            <label className="flex flex-col gap-1">
-              <span className="text-13 text-ink-muted font-medium">
-                Acknowledgement number
-              </span>
-              <input
-                name="ackNo"
-                defaultValue={engagement.ackNo}
-                className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2 font-mono"
-              />
-            </label>
+            {/*
+              Since P3-1 the acknowledgement belongs to a filing, and the
+              Filings panel beside this one records it. Work created before
+              P3-1 has no filings listed, so it keeps the single box rather
+              than being stranded with nowhere to put its number.
+            */}
+            {!hasMilestones && (
+              <label className="flex flex-col gap-1">
+                <span className="text-13 text-ink-muted font-medium">
+                  Acknowledgement number
+                </span>
+                <input
+                  name="ackNo"
+                  defaultValue={engagement.ackNo}
+                  className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2 font-mono"
+                />
+              </label>
+            )}
             <label className="flex flex-col gap-1">
               <span className="text-13 text-ink-muted font-medium">
                 UDIN {engagement.udinRequired && "(required for this service)"}
@@ -455,22 +474,24 @@ export default function EngagementWork({
                 the number above is entered or changed.
               </span>
             </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-13 text-ink-muted font-medium">
-                Filed on
-              </span>
-              <input
-                type="date"
-                name="filedOn"
-                defaultValue={engagement.filedOnInput}
-                max={engagement.todayInput}
-                className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
-              />
-              <span className="text-12 text-ink-muted">
-                The day the return or form actually went in — not the day we
-                signed it off. Late is measured from here.
-              </span>
-            </label>
+            {!hasMilestones && (
+              <label className="flex flex-col gap-1">
+                <span className="text-13 text-ink-muted font-medium">
+                  Filed on
+                </span>
+                <input
+                  type="date"
+                  name="filedOn"
+                  defaultValue={engagement.filedOnInput}
+                  max={engagement.todayInput}
+                  className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+                />
+                <span className="text-12 text-ink-muted">
+                  The day the return or form actually went in — not the day we
+                  signed it off. Late is measured from here.
+                </span>
+              </label>
+            )}
 
             {engagement.isAudit && (
               <fieldset className="border-rule flex flex-col gap-3 border-t pt-3">

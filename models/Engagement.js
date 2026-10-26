@@ -107,6 +107,90 @@ const statusEventSchema = new mongoose.Schema(
   { _id: false },
 );
 
+/**
+ * A filing record that was wrong and has been replaced (P3-1).
+ *
+ * Kept rather than overwritten, because the acknowledgement number the firm
+ * reported last month is a fact about what was reported, even once it turns
+ * out to have been the wrong number. A correction adds a row here; it never
+ * edits one.
+ */
+const filingHistorySchema = new mongoose.Schema(
+  {
+    filedOn: { type: Date, default: null },
+    ackNo: { type: String, default: "", trim: true },
+    dueDateAtFiling: { type: Date, default: null },
+    reason: { type: String, required: true, trim: true },
+    correctedAt: { type: Date, default: () => new Date() },
+    correctedBy: { type: String, default: null },
+    correctedByName: { type: String, default: "" },
+  },
+  { _id: false },
+);
+
+/**
+ * One statutory filing inside an engagement (P3-1).
+ *
+ * October GST is one engagement with two of these: GSTR-1 due on the 11th
+ * and GSTR-3B due on the 20th. They finish independently, which is the whole
+ * point — before this, the engagement held one `ackNo` and one `filedOn`, so
+ * a client whose GSTR-1 went in on time and whose GSTR-3B went in nine days
+ * late could only be recorded as one or the other, and whichever was stored
+ * was a false statement about the other return.
+ *
+ * `dueDateAtFiling` is the date that was in force on the day this was filed.
+ * It is captured once, at filing, and never recomputed: an extension
+ * announced in December must not retroactively make a November filing
+ * punctual, and withdrawing one must not make it late. `dueDate` stays live
+ * so the firm can see the position as it stands today; the pair of them is
+ * how the punctuality report tells the truth about both.
+ */
+const milestoneSchema = new mongoose.Schema(
+  {
+    /** "GSTR-1", "GSTR-3B", "AOC-4" — the name the law uses. */
+    name: { type: String, required: true, trim: true },
+
+    /**
+     * Which milestone of the rule this came from, so an extension recorded
+     * against GSTR-3B moves this row and leaves GSTR-1 alone.
+     */
+    ruleKey: { type: String, default: "", trim: true },
+
+    /** Live: moves if the firm records an extension. Null means not known. */
+    dueDate: { type: Date, default: null },
+
+    filedOn: { type: Date, default: null },
+    /** Frozen at filing. See the note above — this is the honest one. */
+    dueDateAtFiling: { type: Date, default: null },
+
+    /** ARN, token number, SRN. Mandatory to record a filing at all. */
+    ackNo: { type: String, default: "", trim: true },
+
+    /**
+     * The acknowledgement itself, by id rather than by name — a document can
+     * be renamed and the link has to survive it. Null is a real state the
+     * client is shown as "Filed — proof pending", not a gap to hide.
+     */
+    proofDocumentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Document",
+      default: null,
+    },
+
+    /**
+     * Which version of the work went in. A change after approval raises the
+     * engagement's version (P3-5), and this says what was actually filed.
+     */
+    versionFiled: { type: Number, default: null, min: 1 },
+
+    filedBy: { type: String, default: null },
+    filedByName: { type: String, default: "" },
+
+    history: { type: [filingHistorySchema], default: [] },
+  },
+  { _id: true },
+);
+
 const engagementSchema = new mongoose.Schema(
   {
     code: { type: String, required: true, trim: true },
@@ -152,6 +236,11 @@ const engagementSchema = new mongoose.Schema(
      * From the due-date master, and only ever from a rule the firm has
      * verified (spec section 8, CLAUDE.md rule 8). Null means "not known
      * yet", never "none".
+     *
+     * Since P3-1 this is **derived**: the governing milestone's date — the
+     * earliest one still unfiled, or the last one once everything is in. It
+     * is what every list, calendar, digest and report already reads, and it
+     * still answers the question they ask. See `milestones` below.
      */
     statutoryDue: { type: Date, default: null },
     internalDue: { type: Date, default: null },
@@ -168,19 +257,38 @@ const engagementSchema = new mongoose.Schema(
     completedAt: { type: Date, default: null },
     completedBy: { type: String, default: null },
 
-    /** Captured when the return is filed or the report issued. */
-    ackNo: { type: String, default: "", trim: true },
-    udin: { type: String, default: "", trim: true },
+    /**
+     * The statutory filings this engagement owes (P3-1).
+     *
+     * One row for most work, two for monthly GST and for ROC annual filing.
+     * This is where a filing is recorded and the only place it is recorded;
+     * `ackNo`, `filedOn` and `statutoryDue` below are derived from it.
+     */
+    milestones: { type: [milestoneSchema], default: [] },
 
     /**
-     * When the return or form actually went in (P2-8a).
+     * Derived from `milestones` and maintained by
+     * `lib/engagements/milestones.js` — never written by hand (P3-1).
      *
-     * Not the same as `completedAt`, which is when the firm signed the work
-     * off, and the only field that can answer whether something was late:
-     * late is `filedOn` against `statutoryDue`, computed and never stored,
-     * so correcting a due date corrects the answer with it.
+     * They are kept because forty files read `statutoryDue` and sixteen read
+     * `filedOn`, and every one of them wants the same thing it always wanted:
+     * when is this due, and when did it go in. Rewriting them all to walk an
+     * array would have been a large change for no gain, so the array is the
+     * truth and these three are a view of it, written in exactly one place.
+     *
+     * `filedOn` is when the *last* milestone went in, so "when was this job
+     * filed" still answers correctly. Anything that needs to know about one
+     * return rather than the job reads `milestones` directly.
      */
+    ackNo: { type: String, default: "", trim: true },
     filedOn: { type: Date, default: null },
+
+    /**
+     * Not derived, and not a filing: a UDIN belongs to a report the firm
+     * signed, is recorded against a member in the register (P2-7), and has
+     * nothing to do with which return went in on which day.
+     */
+    udin: { type: String, default: "", trim: true },
 
     /** Audit and assurance work only; empty on everything else. */
     assurance: { type: assuranceSchema, default: () => ({}) },
@@ -210,6 +318,14 @@ const engagementSchema = new mongoose.Schema(
 
     createdBy: { type: String, default: null },
     updatedBy: { type: String, default: null },
+
+    /**
+     * Spec section 13 asks every collection for this and the engagement
+     * never had one. 1 is an engagement from before P3-1, whose filing sat
+     * in `ackNo` and `filedOn` with no milestone behind it; 2 has
+     * `milestones`. `backfillMilestones()` moves a 1 to a 2.
+     */
+    schemaVersion: { type: Number, default: 2 },
   },
   { timestamps: true },
 );
@@ -231,6 +347,8 @@ engagementSchema.index({ reviewerId: 1, status: 1 });
 engagementSchema.index({ "templateSnapshot.level": 1, status: 1 });
 // the three practice books, which read one category at a time (P2-8a)
 engagementSchema.index({ "templateSnapshot.category": 1, statutoryDue: 1 });
+// the compliance grid asks "which milestones are unfiled and overdue" (P3-1)
+engagementSchema.index({ "milestones.dueDate": 1, "milestones.filedOn": 1 });
 // one engagement per client, service and period: the duplicate guard for
 // recurring work, and what Step 7's generator relies on
 engagementSchema.index(

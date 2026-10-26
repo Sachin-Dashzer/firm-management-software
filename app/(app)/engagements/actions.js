@@ -13,6 +13,7 @@ import {
   engagementReworked,
 } from "@/lib/mailer/events";
 import { toPaise } from "@/lib/money";
+import { istInputDate } from "@/lib/dates";
 import Engagement from "@/models/Engagement";
 import ServiceTemplate from "@/models/ServiceTemplate";
 import ClientService from "@/models/ClientService";
@@ -25,6 +26,11 @@ import { periodFor, parsePeriod } from "@/lib/engagements/period";
 import { buildEngagement } from "@/lib/engagements/create";
 import { checkAssignment, roleName, stepFloor } from "@/lib/engagements/assign";
 import { nextEngagementCode } from "@/lib/engagements/code";
+import {
+  recordFiling,
+  correctFiling,
+  latenessDays,
+} from "@/lib/engagements/milestones";
 import {
   checkStatusChange,
   canEditWork,
@@ -689,9 +695,18 @@ export async function saveFiling(id, formData) {
         await unlinkUdinFromEngagement(engagement, actor, session);
       }
 
-      engagement.ackNo = ackNo;
+      /**
+       * Since P3-1 the acknowledgement and the filing date belong to a
+       * milestone, and this panel no longer writes them — `recordFiling`
+       * below does, one return at a time. Work created before P3-1 has no
+       * milestones, so the old fields stay writable for it rather than
+       * stranding it.
+       */
+      if (!(engagement.milestones ?? []).length) {
+        engagement.ackNo = ackNo;
+        engagement.filedOn = filedOn;
+      }
       engagement.udin = udin;
-      engagement.filedOn = filedOn;
       if (assurance) engagement.assurance = assurance;
       engagement.updatedBy = actor.id;
       await engagement.save({ session });
@@ -705,6 +720,126 @@ export async function saveFiling(id, formData) {
   const book = bookOf(category);
   if (book) revalidatePath(`/practice/${book}`);
   return { ok: "Filing details saved." };
+}
+
+/**
+ * Record one statutory filing — GSTR-1, or GSTR-3B, or AOC-4 (P3-1).
+ *
+ * One return at a time, because they fall on different days and finish
+ * independently. The acknowledgement number is mandatory: a filing nobody
+ * can evidence is a claim and not a record.
+ */
+export async function recordMilestoneFiling(id, formData) {
+  const actor = await requireUser();
+  const engagement = await loadForWork(actor, id);
+
+  const milestoneId = String(formData.get("milestoneId") ?? "").trim();
+  const ackNo = String(formData.get("ackNo") ?? "").trim();
+
+  const filedOn = readDate(formData.get("filedOn"));
+  if (filedOn === undefined)
+    return { error: "That filing date is not a date." };
+
+  const result = recordFiling({
+    engagement,
+    milestoneId,
+    ackNo,
+    filedOn,
+    actor: { id: actor.id, name: actor.name },
+  });
+  if (!result.ok) return { error: result.error };
+
+  const name = result.milestone.name;
+  const late = latenessDays(result.milestone);
+
+  try {
+    await audited(actor, async (session) => {
+      engagement.updatedBy = actor.id;
+      await engagement.save({ session });
+
+      await recordAudit(
+        {
+          action: ACTIONS.update,
+          entityType: "Engagement",
+          entityId: engagement._id,
+          clientId: engagement.clientId,
+          diff: { [`${name} filed`]: ["", istInputDate(filedOn)] },
+          note: `${name} recorded as filed, acknowledgement ${ackNo}${
+            late ? ` — ${late} day${late === 1 ? "" : "s"} late` : ""
+          }`,
+        },
+        session,
+      );
+    });
+  } catch (err) {
+    return { error: err.message };
+  }
+
+  revalidatePath(`/engagements/${id}`);
+  revalidatePath("/engagements");
+  revalidatePath("/calendar");
+
+  const tail = result.complete
+    ? " Every filing on this work is now recorded."
+    : " The remaining filings stay open.";
+  return {
+    ok: `${name} recorded${late ? `, ${late} day${late === 1 ? "" : "s"} late` : " on time"}.${tail} Attach the acknowledgement so the client can see it.`,
+  };
+}
+
+/**
+ * Replace a filing record that was wrong (P3-1).
+ *
+ * The old record is kept with the reason, because what the firm reported is
+ * a fact about what was reported even once it turns out to be wrong.
+ */
+export async function correctMilestoneFiling(id, formData) {
+  const actor = await requireUser();
+  const engagement = await loadForWork(actor, id);
+
+  const milestoneId = String(formData.get("milestoneId") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+
+  const before = (engagement.milestones ?? []).find(
+    (m) => String(m._id) === String(milestoneId),
+  );
+  const wasAck = before?.ackNo ?? "";
+
+  const result = correctFiling({
+    engagement,
+    milestoneId,
+    reason,
+    actor: { id: actor.id, name: actor.name },
+  });
+  if (!result.ok) return { error: result.error };
+
+  const name = result.milestone.name;
+
+  try {
+    await audited(actor, async (session) => {
+      engagement.updatedBy = actor.id;
+      await engagement.save({ session });
+
+      await recordAudit(
+        {
+          action: ACTIONS.update,
+          entityType: "Engagement",
+          entityId: engagement._id,
+          clientId: engagement.clientId,
+          diff: { [`${name} filed`]: [wasAck, ""] },
+          note: `${name} filing record corrected: ${reason}`,
+        },
+        session,
+      );
+    });
+  } catch (err) {
+    return { error: err.message };
+  }
+
+  revalidatePath(`/engagements/${id}`);
+  return {
+    ok: `${name} is open again. The record it replaced is kept with your reason.`,
+  };
 }
 
 /**

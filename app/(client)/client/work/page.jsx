@@ -103,8 +103,24 @@ function WorkTable({ title, rows, empty }) {
                     )}
                   </td>
                   <td className="px-3 py-2">
+                    {/*
+                      Filed with no acknowledgement attached is its own state
+                      and the client is told so, rather than being shown a
+                      date that implies there is paperwork to download (P3-1).
+                    */}
                     {row.filedOn ? (
-                      formatISTDate(row.filedOn)
+                      <>
+                        {formatISTDate(row.filedOn)}
+                        {row.proofPending && (
+                          <span className="text-12 text-waiting block">
+                            proof pending
+                          </span>
+                        )}
+                      </>
+                    ) : row.partFiled ? (
+                      <span className="text-12 text-waiting">
+                        {row.filedCount} of {row.filingCount} filed
+                      </span>
                     ) : (
                       <span className="text-ink-muted">—</span>
                     )}

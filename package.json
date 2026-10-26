@@ -13,7 +13,8 @@
     "test:e2e": "playwright test",
     "format": "prettier --write .",
     "seed": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/seed.js",
-    "doctor": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/doctor.js"
+    "doctor": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/doctor.js",
+    "backfill:milestones": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/backfill-milestones.js"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
