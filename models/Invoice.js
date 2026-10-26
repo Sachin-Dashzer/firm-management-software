@@ -86,6 +86,33 @@ const invoiceSchema = new mongoose.Schema(
     date: { type: Date, default: () => new Date() },
     dueDate: { type: Date, default: null },
 
+    /**
+     * The client has said when they will pay (P3-3).
+     *
+     * Automatic chasing stops for **this invoice** until the day after the
+     * promised date, then starts again by itself. Spec section 12 has fixed
+     * cadences and `Disputed`, which drops an invoice out of chasing
+     * altogether — a promise is the commoner and softer case, and the point
+     * of it is that it expires without anybody having to remember to undo it.
+     *
+     * Somebody can still chase a promised invoice deliberately; that is
+     * logged as overriding a promise, because it is a thing a client will
+     * ring about.
+     */
+    promise: {
+      type: new mongoose.Schema(
+        {
+          date: { type: Date, required: true },
+          note: { type: String, default: "", trim: true },
+          byId: { type: String, default: null },
+          byName: { type: String, default: "" },
+          at: { type: Date, default: () => new Date() },
+        },
+        { _id: false },
+      ),
+      default: null,
+    },
+
     clientId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Client",

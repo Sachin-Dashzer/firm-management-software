@@ -93,9 +93,22 @@ export default function FirmOverview({
             label="Collected this month"
             paise={collections.thisMonth}
             note={
-              collections.lastMonth === 0
-                ? "nothing to compare with last month"
-                : `${change >= 0 ? "up" : "down"} ${formatPaise(Math.abs(change))} on last month`
+              /*
+                The figure is bank receipts by the date they arrived. Said
+                plainly, with whatever is still unplaced, so the total is not
+                read as reconciled (P3-3).
+              */
+              [
+                "bank receipts by date",
+                collections.lastMonth === 0
+                  ? null
+                  : `${change >= 0 ? "up" : "down"} ${formatPaise(Math.abs(change))} on last month`,
+                collections.unallocated
+                  ? `${formatPaise(collections.unallocated)} not yet allocated`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")
             }
             href={collections.href}
           />

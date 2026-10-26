@@ -8,6 +8,8 @@ import {
   issueInvoice,
   raiseCreditNote,
   setDisputed,
+  recordPromise,
+  clearPromise,
   updateDraft,
   writeOff,
 } from "../actions";
@@ -166,6 +168,16 @@ export default function InvoiceEditor({
           />
         )}
         <Pair label="Due" value={invoice.dueDate ?? "on receipt"} />
+        {invoice.promise && (
+          <Pair
+            label={
+              invoice.promise.holding ? "Promised by" : "Promised by (passed)"
+            }
+            value={`${invoice.promise.date}${
+              invoice.promise.note ? ` · ${invoice.promise.note}` : ""
+            }`}
+          />
+        )}
         <Pair
           label="Tax"
           value={invoice.interState ? "IGST (inter-state)" : "CGST + SGST"}
@@ -476,6 +488,29 @@ export default function InvoiceEditor({
                   ? "Clear the dispute"
                   : "Mark disputed"}
               </button>
+              {/*
+                A promise is the softer, commoner case than a dispute: the
+                client has given a date, so chasing stops until it passes and
+                then resumes by itself (P3-3).
+              */}
+              {invoice.promise ? (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => run(() => clearPromise(invoice.id))}
+                  className="text-13 underline underline-offset-4 disabled:opacity-60"
+                >
+                  Remove the payment promise
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAsking("promise")}
+                  className="text-13 underline underline-offset-4"
+                >
+                  Client has promised to pay
+                </button>
+              )}
               {mayWriteOff && invoice.status !== "Written off" && (
                 <button
                   type="button"
@@ -490,7 +525,63 @@ export default function InvoiceEditor({
         </div>
       )}
 
-      {asking && (
+      {/*
+        A promise asks for a date rather than a reason, so it has its own
+        form rather than being bent into the credit-note one (P3-3).
+      */}
+      {asking === "promise" && (
+        <form
+          action={(formData) => run(() => recordPromise(invoice.id, formData))}
+          className="rounded-ledger border-carbon bg-carbon-wash flex flex-col gap-2 border p-3"
+        >
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-13 font-medium">
+                When did they say they would pay?
+              </span>
+              <input
+                type="date"
+                name="date"
+                required
+                min={invoice.todayInput}
+                className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+              />
+            </label>
+            <label className="flex flex-1 flex-col gap-1">
+              <span className="text-13 font-medium">
+                Who said so, and how (optional)
+              </span>
+              <input
+                name="note"
+                placeholder="e.g. Vikas Raj on the phone, 26 Oct"
+                className="rounded-ledger border-rule bg-paper text-14 h-9 min-w-48 border px-2"
+              />
+            </label>
+          </div>
+          <p className="text-12 text-ink-muted">
+            Automatic reminders for this invoice stop until the day after that
+            date, then start again on their own. Other invoices are unaffected.
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={pending}
+              className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+            >
+              Record the promise
+            </button>
+            <button
+              type="button"
+              onClick={() => setAsking(null)}
+              className="text-14 text-ink-muted underline underline-offset-4"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
+      {asking && asking !== "promise" && (
         <div className="rounded-ledger border-waiting bg-waiting-wash flex flex-col gap-2 border p-3">
           <label className="flex flex-col gap-1">
             <span className="text-13 font-medium">

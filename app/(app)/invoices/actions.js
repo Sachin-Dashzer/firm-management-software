@@ -15,6 +15,8 @@ import { applyTotals, reasonsNotIssuable, stateName } from "@/lib/billing/gst";
 import { nextInvoiceNumber } from "@/lib/billing/number";
 import { invoicePdfAttachment } from "@/lib/billing/attachment";
 import { invoiceIssued } from "@/lib/mailer/events";
+import { checkPromise } from "@/lib/billing/promise";
+import { istInputDate } from "@/lib/dates";
 
 /**
  * Invoices (spec section 7).
@@ -454,4 +456,102 @@ export async function unbilledFor(clientId) {
     label: `${e.templateSnapshot?.name ?? "Work"} — ${e.periodLabel || e.period}`,
     feePaise: e.feePaise ?? 0,
   }));
+}
+
+/**
+ * Record the date a client has given for paying one invoice (P3-3).
+ *
+ * Automatic chasing stops for that invoice until the day after, then starts
+ * again by itself — the sweep reads the date rather than a flag anybody has
+ * to clear, so nothing has to be remembered.
+ *
+ * Per invoice on purpose: a client can be good for one bill and arguing
+ * about another, and a promise about the first should not buy silence on
+ * the second.
+ */
+export async function recordPromise(id, formData) {
+  const actor = await requireUser();
+  const invoice = await loadForWrite(actor, id);
+
+  const text = String(formData.get("date") ?? "").trim();
+  const note = String(formData.get("note") ?? "").trim();
+  const date = text ? new Date(`${text}T00:00:00+05:30`) : null;
+  if (text && Number.isNaN(date?.valueOf())) {
+    return { error: "That is not a date." };
+  }
+
+  const checked = checkPromise(date);
+  if (!checked.ok) return { error: checked.error };
+
+  const before = invoice.promise?.date ?? null;
+
+  await audited(actor, async (session) => {
+    invoice.promise = {
+      date,
+      note,
+      byId: actor.id,
+      byName: actor.name,
+      at: new Date(),
+    };
+    invoice.updatedBy = actor.id;
+    await invoice.save({ session });
+
+    await recordAudit(
+      {
+        action: ACTIONS.update,
+        entityType: "Invoice",
+        entityId: invoice._id,
+        clientId: invoice.clientId,
+        diff: {
+          promise: [istInputDate(before), istInputDate(date)],
+        },
+        note: `Client promised to pay by ${istInputDate(date)}${note ? `: ${note}` : ""}. Automatic reminders pause until the day after.`,
+      },
+      session,
+    );
+  });
+
+  revalidatePath(`/invoices/${id}`);
+  revalidatePath("/invoices/receivables");
+  return {
+    ok: `Noted. ${invoice.number} will not be chased automatically until ${istInputDate(date)} has passed.`,
+  };
+}
+
+/**
+ * Take a promise off, because the client has moved it or paid.
+ *
+ * Clearing it by hand is not usually needed — a promise expires the day
+ * after its date — but a client who rings to say "actually, next month"
+ * should not leave the old date on the record.
+ */
+export async function clearPromise(id) {
+  const actor = await requireUser();
+  const invoice = await loadForWrite(actor, id);
+  if (!invoice.promise)
+    return { error: "There is no promise on that invoice." };
+
+  const was = invoice.promise.date;
+
+  await audited(actor, async (session) => {
+    invoice.promise = null;
+    invoice.updatedBy = actor.id;
+    await invoice.save({ session });
+
+    await recordAudit(
+      {
+        action: ACTIONS.update,
+        entityType: "Invoice",
+        entityId: invoice._id,
+        clientId: invoice.clientId,
+        diff: { promise: [istInputDate(was), ""] },
+        note: "Payment promise removed; ordinary reminders resume.",
+      },
+      session,
+    );
+  });
+
+  revalidatePath(`/invoices/${id}`);
+  revalidatePath("/invoices/receivables");
+  return { ok: "Promise removed. Reminders resume on the usual cadence." };
 }

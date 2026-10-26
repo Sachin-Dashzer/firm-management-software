@@ -13,6 +13,7 @@ import { formatISTDate, istInputDate } from "@/lib/dates";
 import { GST_STATES } from "@/lib/validators";
 import { reasonsNotIssuable, amountInWords } from "@/lib/billing/gst";
 import InvoiceEditor from "./InvoiceEditor";
+import { promiseHolds, promiseBroken } from "@/lib/billing/promise";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +74,18 @@ export default async function InvoicePage({ params }) {
     date: formatISTDate(invoice.date),
     dueDate: invoice.dueDate ? formatISTDate(invoice.dueDate) : null,
     dueDateInput: istInputDate(invoice.dueDate),
+    /** Today, so the date picker cannot take a promise already in the past. */
+    todayInput: istInputDate(new Date()),
+    /** The client's promise to pay, and whether it is still holding (P3-3). */
+    promise: invoice.promise
+      ? {
+          date: formatISTDate(invoice.promise.date),
+          note: invoice.promise.note ?? "",
+          byName: invoice.promise.byName ?? "",
+          holding: promiseHolds(invoice),
+          broken: promiseBroken(invoice),
+        }
+      : null,
     client: client?.tradeName || client?.legalName || "Client",
     clientId: String(invoice.clientId),
     billingGstin: invoice.billingGstin,

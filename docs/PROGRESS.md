@@ -85,7 +85,7 @@ prototype's; the foundation is this project's.
 | --- | --- | --- |
 | P3-1 | **Filing milestones.** `Engagement.milestones[]`; the due-date engine returns a list, not one date; each milestone keeps its own acknowledgement, proof linked by document id, the version filed, and the due date as it stood on the filing day; a wrong record is superseded with a reason and stays readable | 🟡 | Built 26-10-2026. **The due-date master already said this was wrong** — a comment on the GST rule read *"GSTR-3B is the later of the pair, so it governs the engagement"*, so a month with GSTR-1 on time and GSTR-3B nine days late could only be recorded as one or the other. `statutoryDue`, `filedOn` and `ackNo` are kept as **derived** fields written in one place, which turned a 40-file rewrite into a 2-surface change. **A GST engagement's due date is now the 11th, not the 20th** — see decisions. 52 new unit tests (890 total); 2 Playwright tests waiting on Atlas. QRMP still not covered and now says so loudly |
 | P3-2 | **Document requests.** Six states (Requested → Received → Format checked → Accepted / Replacement requested / Not required); numbered submissions where a replacement clears earlier checks; a rejection carries a reason the client receives; three client replies — cannot provide, someone else will provide it (one-item link, no other access), please clarify | 🟡 | Built 26-10-2026. **The completion gate was wrong and nobody had noticed**: it demanded every mandatory item be `Verified`, so an item a CA had decided was not needed blocked the engagement for ever and the only way out was to tick it as received — a lie about a document that does not exist. **This is the second write a portal account can make**, and `profile/actions.js` said in so many words that there was only one; see D29. 30 new unit tests (920 total); 2 Playwright tests waiting on Atlas |
-| P3-3 | **Money counted once.** The bank receipt is the cash event; allocations and advance settlements are marked non-cash; one receipt pays several invoices; paying another client's invoice needs a recorded reason; leftovers stay visible until allocated or held as an advance; a promise date per invoice pauses that invoice's reminders | ⬜ |
+| P3-3 | **Payment promises, and advances given a home.** A promise date per invoice pauses that invoice's reminders and expires by itself; credit on account is listed and reachable; the collections tile says what is not yet allocated | 🟡 | Built 26-10-2026. **Most of this step turned out to be already built, correctly** — `Payment` is a client-level receipt with embedded allocations, `collections()` sums receipts by date and never reads an allocation, and cross-client allocation is impossible because `openInvoicesFor()` scopes the options. The gap report's premise was wrong about this repo; see D32. What was genuinely missing was promises, which did not exist at all. 14 new unit tests (934 total) |
 | P3-4 | **Scope and waivers.** Every finished job is billable, in retainer or waived; a fee must be a positive amount; free work is a waiver with a reason, requested by staff and approved by a partner, recorded with both names; not-separately-chargeable work stays listed with its reason | ⬜ |
 | P3-5 | **Gates and clocks.** Review before filing, then client confirmation of the figures for GST / GSTR-9 / ITR / TDS, naming who confirmed, when, with what evidence, against which version; a change after approval raises the version and resets both gates; preparation and review targets computed from the statutory date; the **at risk** state | ⬜ |
 
@@ -129,6 +129,9 @@ whose cost grows every week it waits.
 
 | Date | Decision | By |
 | --- | --- | --- |
+| 26-10-2026 | D32: **"cash counted once" was already true here, and the gap report was wrong to call it a model change.** The prototype needs that rule because its model is invoice-centric — payments are pushed into `invoice.paid[]`, so an allocation looks like a receipt. In this build `Payment` belongs to the client with allocations embedded, `collections()` sums `amountPaise` by payment date and never reads an allocation, and `openInvoicesFor(clientId)` makes a cross-client allocation impossible rather than merely requiring a reason for it. Nothing was changed; saying so is the decision | Agent, finding |
+| 26-10-2026 | D33: **a payment promise expires by itself.** The sweep reads the date rather than a flag anybody has to clear, so the day after a promise passes the ordinary cadence resumes with nobody involved. A flag that must be cleared is a flag that stays set: the client pays, nobody remembers, and the invoice is never chased again. Spec §12's `Disputed` still exists for the harder case, where chasing stops until a person puts it back | Agent, owner to confirm |
+| 26-10-2026 | D34: **a promise covers one invoice, not the client.** A client can be good for one bill and arguing about another, and a promise about the first must not buy silence on the second | Agent, owner to confirm |
 | 26-10-2026 | D27: **a format check is not an acceptance.** Requested → Received → Format checked → Accepted, with Replacement requested and Not required as the two ways out. An automatic check can say a spreadsheet has the right columns; it cannot say the file is the right client's, for the right month, complete and legible. A person accepts, and the two states are kept apart so the system never claims the second when it only did the first. `Verified` stays valid in the schema and reads as settled; `npm run backfill` renames it | Owner instruction, built |
 | 26-10-2026 | D28: **a replacement is a new submission and clears every earlier check.** Acceptance is tied to a submission number, so an item accepted at submission 1 and re-uploaded is no longer accepted, and a format check performed on one file never carries to another. Keeping either would have the system vouching for a file nobody opened | Agent, owner to confirm |
 | 26-10-2026 | D29: **a portal account can now write one more thing.** Until P3-2 the only write was a change request, which is a comment and alters no record — `profile/actions.js` says so. The three commonest answers to a document request (*I don't have it*, *my accountant has it*, *I'm not sure what you mean*) were a phone call nobody recorded, so the job sat in Awaiting documents with no reason attached. The write is as narrow as one can be: the engagement must be in that client's scope, the item must be on the client's own side, it must not be settled, and the **only** field written is `clientReply` — not the status, not the documents, not a date. A client still cannot upload from the portal and cannot move an item forward | Agent, **owner should confirm this one** |
@@ -1794,6 +1797,28 @@ From spec §18 — none answered yet. These block later steps, not Step 0:
 - [ ] `notices@` mailbox + SPF/DKIM/DMARC (Step 9)
 
 ## Left over / known gaps
+
+**From P3-3**
+
+- **Nothing here has run against a database.** 14 new unit tests cover the
+  promise logic and the sweep without one. There is no new Playwright test:
+  the behaviour worth proving in a browser is that a reminder does *not* go
+  out, and the reminder suites are themselves skipped until Atlas exists, so
+  a test of an absence on top of a skip would prove nothing.
+- **A promise is recorded by hand and nothing verifies it.** If a client
+  pays, the promise sits there until its date passes. Harmless — the invoice
+  is Paid and the sweep ignores it either way — but the promise is not
+  cleared, so the ledger shows a promise that was kept without saying so.
+- **Nothing chases a broken promise.** The receivables page lists them, which
+  is where somebody looks, but no reminder or task is raised. That belongs
+  with Issues in P3-6, where it is one more row with a button.
+- **Advances are listed, not applied from the list.** The credit block links
+  to the client's ledger, where the existing payment screen does the applying.
+  A one-click "apply to the oldest invoice" would be the prototype's version
+  and is a small follow-up.
+- The advances figure reads the last 5,000 payments rather than aggregating,
+  which is nothing at this firm's size and would not scale to a much larger
+  practice. Same shape as the `$expr` note in P2-10c.
 
 **From P3-2**
 

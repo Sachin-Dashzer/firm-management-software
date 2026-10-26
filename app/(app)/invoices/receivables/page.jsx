@@ -9,6 +9,8 @@ import Engagement from "@/models/Engagement";
 import { formatPaise } from "@/lib/money";
 import { formatISTDate } from "@/lib/dates";
 import { ageReceivables, outstandingOf } from "@/lib/billing/allocation";
+import { promiseHolds, promiseBroken } from "@/lib/billing/promise";
+import { advances } from "@/lib/reports/figures";
 import { clientIdsInGroup } from "@/lib/groups/summary";
 import ClientGroup from "@/models/ClientGroup";
 
@@ -180,8 +182,137 @@ export default async function ReceivablesPage({ searchParams }) {
 
   const BUCKETS = ["current", "0-30", "31-60", "61-90", "90+"];
 
+  /**
+   * Promises, split (P3-3).
+   *
+   * `holding` is money the firm has deliberately stopped chasing, and it
+   * belongs on screen — otherwise the ageing looks ignored. `broken` is the
+   * actionable list: a date the client gave that has passed, which is a
+   * better reason to ring somebody than "it is 47 days old".
+   */
+  const promised = withOutstanding.filter((i) => i.promise?.date);
+  const holding = promised
+    .filter((i) => promiseHolds(i))
+    .sort((a, b) => new Date(a.promise.date) - new Date(b.promise.date));
+  const broken = promised
+    .filter((i) => promiseBroken(i))
+    .sort((a, b) => new Date(a.promise.date) - new Date(b.promise.date));
+
+  /**
+   * Money received that is not against anything (P3-3). Shown here rather
+   * than on a page of its own, because the person reading receivables is the
+   * person who should be applying it.
+   */
+  const credit = await advances(actor);
+  const creditNames = await Client.find({
+    _id: { $in: credit.map((c) => c.clientId) },
+  })
+    .select("legalName tradeName")
+    .lean();
+  const creditName = new Map(
+    creditNames.map((c) => [String(c._id), c.tradeName || c.legalName]),
+  );
+
   return (
     <Shell tab={tab} group={group}>
+      {credit.length > 0 && (
+        <section className="rounded-ledger border-carbon bg-carbon-wash flex flex-col gap-2 border p-4">
+          <h2 className="font-display text-18">
+            Credit on account ·{" "}
+            <span className="num">
+              {formatPaise(credit.reduce((s, c) => s + c.paise, 0))}
+            </span>
+          </h2>
+          <p className="text-13 text-ink-muted">
+            Received and not yet put against an invoice. Apply it when recording
+            the next payment for that client, or from their ledger.
+          </p>
+          <ul className="flex flex-col gap-1">
+            {credit.map((row) => (
+              <li key={row.clientId} className="text-13">
+                <Link
+                  href={`/clients/${row.clientId}?tab=ledger`}
+                  className="underline underline-offset-4"
+                >
+                  {creditName.get(row.clientId) ?? "Client"}
+                </Link>{" "}
+                · <span className="num">{formatPaise(row.paise)}</span>{" "}
+                <span className="text-ink-muted">
+                  from {row.payments.length}{" "}
+                  {row.payments.length === 1 ? "receipt" : "receipts"}, oldest{" "}
+                  {formatISTDate(row.payments[row.payments.length - 1].date)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {(broken.length > 0 || holding.length > 0) && (
+        <section className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4">
+          <h2 className="font-display text-18">Payment promises</h2>
+
+          {broken.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <p className="text-13 text-redpen font-medium">
+                {broken.length === 1
+                  ? "One promise has passed without payment"
+                  : `${broken.length} promises have passed without payment`}
+              </p>
+              <ul className="flex flex-col gap-1">
+                {broken.map((invoice) => (
+                  <li key={String(invoice._id)} className="text-13">
+                    <Link
+                      href={`/invoices/${invoice._id}`}
+                      className="underline underline-offset-4"
+                    >
+                      {invoice.number}
+                    </Link>{" "}
+                    {clientName.get(String(invoice.clientId))} ·{" "}
+                    <span className="num">
+                      {formatPaise(invoice.outstandingPaise)}
+                    </span>{" "}
+                    <span className="text-ink-muted">
+                      promised {formatISTDate(invoice.promise.date)}
+                      {invoice.promise.note ? ` · ${invoice.promise.note}` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {holding.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <p className="text-13 text-ink-muted">
+                Not being chased: {holding.length}{" "}
+                {holding.length === 1 ? "invoice" : "invoices"} with a date
+                still to come. Reminders restart on their own the day after.
+              </p>
+              <ul className="flex flex-col gap-1">
+                {holding.map((invoice) => (
+                  <li key={String(invoice._id)} className="text-13">
+                    <Link
+                      href={`/invoices/${invoice._id}`}
+                      className="underline underline-offset-4"
+                    >
+                      {invoice.number}
+                    </Link>{" "}
+                    {clientName.get(String(invoice.clientId))} ·{" "}
+                    <span className="num">
+                      {formatPaise(invoice.outstandingPaise)}
+                    </span>{" "}
+                    <span className="text-ink-muted">
+                      by {formatISTDate(invoice.promise.date)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-5">
         {BUCKETS.map((bucket) => (
           <div

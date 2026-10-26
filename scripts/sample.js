@@ -872,6 +872,13 @@ export const SAMPLE_INVOICES = [
       { description: "MCA filing fees (AOC-4, MGT-7)", amountPaise: 60000 },
     ],
     notes: "Audit fee as per engagement letter dated 12-04-2026.",
+    /**
+     * Forty days old and promised for next week (P3-3): the state where the
+     * ageing looks neglected and is not. Without a row like this, "not being
+     * chased" is never seen.
+     */
+    promiseInDays: 7,
+    promiseNote: "Rohit Jaiswal on the phone — after the GST refund lands",
   },
   {
     key: "tandon-itr",
@@ -1826,6 +1833,16 @@ export async function seedSample(options = {}) {
             lines,
             reimbursements: row.reimbursements ?? [],
             notes: row.notes ?? "",
+            ...(row.promiseInDays
+              ? {
+                  promise: {
+                    date: new Date(Date.now() + row.promiseInDays * 86_400_000),
+                    note: row.promiseNote ?? "",
+                    byName: "Sample data",
+                    at: new Date(),
+                  },
+                }
+              : {}),
             createdBy: "sample",
             updatedBy: "sample",
           },
