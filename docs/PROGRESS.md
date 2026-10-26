@@ -64,9 +64,66 @@ reason, including the security fixes in P2-1.
 
 | P2-13 | Three screens the owner asked for: the group on the client list, partner and papers on the UDIN register, compliance read by head | 🟡 | Added 24-10-2026 at the owner's request. **A new client can no longer be saved without a group** (required on creation only; the clients already on the books stay editable), and the spreadsheet import gained a Group column that creates the group as it writes the row. **A UDIN can no longer be recorded without naming the partner or CA it was generated against** — including from the engagement filing panel, which had been quietly recording nobody whenever an employee saved one. Documents now hang off a UDIN, so the certificate and the papers behind it read together. Compliance opens on a new **By head** view: one line per service under its category, monthly / quarterly / yearly, with a client-partner filter across all three views. Needs Atlas to run; 5 Playwright tests waiting |
 
-## Phase 3
+## Phase 3 — prototype parity
 
-Not started (spec §17).
+Owner's instruction, 26-10-2026: **"keep everything exact like prototype"** —
+the product model of `CA-Firm-OS-v6.2.html` becomes the target. The gap report
+behind this list is `docs/GAP-v6.2.md`.
+
+⬜ **Proposed. Awaiting the owner's approval of the step list** (CLAUDE.md: the
+step list is approved before the phase starts). Nothing below is built.
+
+Five things are deliberately *not* copied exactly, because CLAUDE.md forbids
+them: money stays integer paise, dates stay DD-MM-YYYY, the audit log and soft
+delete and field encryption all stay, statutory dates arrive unconfirmed, and
+ICAI wording ships unapproved until a partner reads it. The behaviour is the
+prototype's; the foundation is this project's.
+
+**Group 1 — the model. Everything else reads it, so it goes first.**
+
+| Step | What | Status |
+| --- | --- | --- |
+| P3-1 | **Filing milestones.** `Engagement.milestones[]`; the due-date engine returns a list, not one date; each milestone keeps its own acknowledgement, proof linked by document id, the version filed, and the due date as it stood on the filing day; a wrong record is superseded with a reason and stays readable; service steps reworded so ticking the last one never implies a return went in | ⬜ |
+| P3-2 | **Document requests.** Six states (Requested → Received → Format checked → Accepted / Replacement requested / Not required); numbered submissions where a replacement clears earlier checks; a rejection carries a reason the client receives; three client replies — cannot provide, someone else will provide it (one-item link, no other access), please clarify | ⬜ |
+| P3-3 | **Money counted once.** The bank receipt is the cash event; allocations and advance settlements are marked non-cash; one receipt pays several invoices; paying another client's invoice needs a recorded reason; leftovers stay visible until allocated or held as an advance; a promise date per invoice pauses that invoice's reminders | ⬜ |
+| P3-4 | **Scope and waivers.** Every finished job is billable, in retainer or waived; a fee must be a positive amount; free work is a waiver with a reason, requested by staff and approved by a partner, recorded with both names; not-separately-chargeable work stays listed with its reason | ⬜ |
+| P3-5 | **Gates and clocks.** Review before filing, then client confirmation of the figures for GST / GSTR-9 / ITR / TDS, naming who confirmed, when, with what evidence, against which version; a change after approval raises the version and resets both gates; preparation and review targets computed from the statutory date; the **at risk** state | ⬜ |
+
+**Group 2 — reading what we already hold. No new collections.**
+
+| Step | What | Status |
+| --- | --- | --- |
+| P3-6 | **Issues**, the landing page for everyone: every exception computed live from the records, each row with the button that performs the real action, nothing to mark resolved. Plus the per-job version of the same thing — one next step, role-aware, with Nudge and Help | ⬜ |
+| P3-7 | **Access versus view.** Access is enforced and already largely built (`branchIds`, `ClientAccess`); this adds the view selector — all branches, one branch, my work across branches — which never changes a record, a GSTIN or an invoice series, plus the no-access page and firm-wide labelling | ⬜ |
+| P3-8 | **Disabled with the reason** on every action control, instead of offered then refused | ⬜ |
+| P3-9 | **Never-created periods carry a reason**: our miss, handled by another professional, or not engaged for that period — only the first is a firm failure | ⬜ |
+| P3-10 | **Automation gate.** Client-facing batches queue for partner approval with a preview; trusted is partner-only; quiet hours; four messages per client a month; over 25 always queues; firm-wide pause; stale batches cancel themselves; an unchecked document holds a batch; append-only run log | ⬜ |
+
+**Group 3 — the modules the spec covers in a catalog row each.**
+
+| Step | What | Status |
+| --- | --- | --- |
+| P3-11 | **Notices as matters**: several submissions each with its own date and acknowledgement, hearings with adjournments counted, limitation dates computed from the notice type with the section shown and seeded unconfirmed, one merged timeline, the plain-words paragraph for the client, paper book | ⬜ |
+| P3-12 | **The monthly GST cycle** end to end: data template out, upload, automatic validation, correction loop, staff review, indicative computation with set-off in the legal order, client confirms the tax, challan, GSTR-1, payment, GSTR-3B, proof, invoice — and the preparation workbook marked *not a filing file* | ⬜ |
+| P3-13 | **Audit studio, part 1**: seven stages, standards-referenced checklists, area programmes, the exception lifecycle through to posted and verified | ⬜ |
+| P3-14 | **Audit studio, part 2**: tests across the whole ledger rather than a sample, CARO and 3CD pre-filled from them, the three-layer opinion, a signed report as a locked snapshot, amendments needing a fresh review and a new UDIN, the closure clock | ⬜ |
+| P3-15 | **Certificates and the auditor's report**: ICAI Guidance Note structure, assurance level changing the wording, locked paragraphs, banned-phrase check, evidence checklist, UDIN checked against the signer's membership number, register; and the SA 700 generator whose switches restructure the report | ⬜ |
+| P3-16 | **Team working**: weekly planning by effort and capacity with the review queue watched as closely as preparation, the take-over page, leave with a named cover whose inbox and issues include the absentee's | ⬜ |
+| P3-17 | **Communication**: one inbox (mentions, assignments, notifications, cover, announcements) with digest and snooze; Notify as one action with a preview of every message; announcements with audience and acknowledgement; job conversations split internal and with-client | ⬜ |
+| P3-18 | **Entry and admin**: quick add from anywhere with save-and-add-another and kept drafts; the bulk client round-trip with per-row preview, partner holds and field-level undo; modules on and off with firm presets | ⬜ |
+| P3-19 | **Learning**: a procedure per screen in a side panel with a roadmap, and playbooks with calendars, roles, decision points, mistakes, a worked example and an exercise — all in the firm's own words, not the prototype's | ⬜ |
+| P3-20 | **Add-ons**: the data lab (any spreadsheet in, MIS and an analysis checklist out) and client experience (WhatsApp assistant from live data, partner-released monthly report, business pulse). Last, because client experience waits on the WhatsApp provider decision | ⬜ |
+
+**Group 4 — the interface.**
+
+| Step | What | Status |
+| --- | --- | --- |
+| P3-21 | **The prototype's interface**, if the owner confirms it replaces spec §15. The eight signature moments built at Step 11 are parked behind a theme setting rather than deleted, so the decision stays reversible | ⬜ |
+
+**Known before we start:** none of this can be *shown* until the Atlas cluster
+exists — the same blocker as every step since Step 1. P3-1 changes a field that
+two registers, eight reports and the client portal read, so it is the one step
+whose cost grows every week it waits.
 
 ## Decisions made
 
