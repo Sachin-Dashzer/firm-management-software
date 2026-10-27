@@ -9,6 +9,7 @@ import {
   RISK_RATINGS,
   TURNOVER_BANDS,
 } from "@/lib/validators";
+import { keepDraft, dropDraft } from "../drafts/actions";
 import {
   createClient,
   updateClient,
@@ -30,17 +31,29 @@ export default function ClientForm({
   partners,
   groups,
   canEditSensitive,
+  draft = null,
 }) {
   const router = useRouter();
   const editing = Boolean(client);
 
+  /**
+   * What fills the form (P3-18b): the client being edited, a draft carried
+   * on, or what was kept from the last one when adding another. The form
+   * is uncontrolled, so changing this remounts it — `formKey` below — and
+   * the defaults are read again.
+   */
+  const [restored, setRestored] = useState(null);
+  const [formKey, setFormKey] = useState(0);
+  const [draftOpen, setDraftOpen] = useState(Boolean(draft));
+  const base = restored ?? client;
+
   const [contacts, setContacts] = useState(
-    client?.contacts?.length
-      ? client.contacts
+    base?.contacts?.length
+      ? base.contacts
       : [{ name: "", designation: "", mobile: "", email: "", primary: true }],
   );
   const [gstins, setGstins] = useState(
-    client?.gstins?.length ? client.gstins : [{ gstin: "", qrmp: false }],
+    base?.gstins?.length ? base.gstins : [{ gstin: "", qrmp: false }],
   );
   const [duplicates, setDuplicates] = useState({ blocking: [], warnings: [] });
   const [message, setMessage] = useState(null);
@@ -62,25 +75,70 @@ export default function ClientForm({
   }
 
   function onSubmit(formData) {
+    /** Which button was pressed: save, or save and start the next one. */
+    const another = formData.get("then") === "another";
+
     startTransition(async () => {
       const result = editing
         ? await updateClient(client.id, formData)
         : await createClient(null, formData);
 
-      setMessage(result);
+      setMessage(
+        result?.ok && another
+          ? { ok: `${result.ok} Ready for the next one.` }
+          : result,
+      );
       if (result?.duplicates) {
         setDuplicates({
           blocking: result.duplicates.map((d) => d.message),
           warnings: (result.warnings ?? []).map((d) => d.message),
         });
       }
+
+      if (result?.ok && !editing) {
+        // a draft that has become a client is not a draft any more
+        if (draft) {
+          await dropDraft("client");
+          setDraftOpen(false);
+        }
+      }
+
+      if (result?.ok && another) {
+        /**
+         * The next one keeps where it belongs and who looks after it, and
+         * nothing else. Twenty clients in a sitting are twenty clients of
+         * one group in one office — and carrying the PAN over would be the
+         * worst possible thing to get wrong.
+         */
+        setRestored({
+          branchId: formData.get("branchId"),
+          groupId: formData.get("groupId"),
+          clientPartnerId: formData.get("clientPartnerId"),
+          relationshipManagerId: formData.get("relationshipManagerId"),
+          status: formData.get("status"),
+          billingCycle: formData.get("billingCycle"),
+          creditDays: formData.get("creditDays"),
+        });
+        setDuplicates({ blocking: [], warnings: [] });
+        setFormKey((key) => key + 1);
+        return;
+      }
+
       if (result?.ok && result.id) router.push(`/clients/${result.id}`);
       if (result?.ok && editing) router.refresh();
     });
   }
 
+  /** Keep what has been typed, for whoever has to answer the phone. */
+  function onKeep(formEl) {
+    startTransition(async () => {
+      setMessage(await keepDraft("client", new FormData(formEl)));
+    });
+  }
+
   return (
     <form
+      key={formKey}
       action={onSubmit}
       onBlur={(e) => {
         if (["pan", "legalName"].includes(e.target.name)) {
@@ -89,6 +147,46 @@ export default function ClientForm({
       }}
       className="flex flex-col gap-6"
     >
+      {draftOpen && !editing && (
+        <div className="rounded-ledger border-waiting bg-waiting-wash flex flex-col gap-2 border px-3 py-2">
+          <p className="text-14">
+            You have an unfinished client from <strong>{draft.age}</strong>.
+            {draft.dropped.length > 0 && (
+              <span className="text-13 block">
+                {draft.dropped.join(" and ")}{" "}
+                {draft.dropped.length === 1 ? "was" : "were"} not kept — type{" "}
+                {draft.dropped.length === 1 ? "it" : "them"} in again.
+              </span>
+            )}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setRestored(draft.payload);
+                setFormKey((key) => key + 1);
+                setDraftOpen(false);
+              }}
+              className="rounded-control bg-carbon text-13 text-on-carbon h-8 px-3 font-medium"
+            >
+              Carry on with it
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                startTransition(async () => {
+                  setMessage(await dropDraft("client"));
+                  setDraftOpen(false);
+                })
+              }
+              className="rounded-control border-rule bg-surface text-13 h-8 border px-3"
+            >
+              Discard it
+            </button>
+          </div>
+        </div>
+      )}
+
       {message?.error && (
         <p
           role="alert"
@@ -142,19 +240,19 @@ export default function ClientForm({
           label="Legal name"
           name="legalName"
           required
-          defaultValue={client?.legalName}
+          defaultValue={base?.legalName}
           className="sm:col-span-2"
         />
         <Field
           label="Trade name"
           name="tradeName"
-          defaultValue={client?.tradeName}
+          defaultValue={base?.tradeName}
         />
         <Select
           label="Entity type"
           name="entityType"
           required
-          defaultValue={client?.entityType}
+          defaultValue={base?.entityType}
           options={ENTITY_TYPES}
           placeholder="Choose…"
         />
@@ -162,13 +260,13 @@ export default function ClientForm({
           label="Incorporation / birth date"
           name="establishedOn"
           type="date"
-          defaultValue={client?.establishedOn}
+          defaultValue={base?.establishedOn}
         />
         <Select
           label="Branch"
           name="branchId"
           required
-          defaultValue={client?.branchId}
+          defaultValue={base?.branchId}
           options={branches.map((b) => ({
             value: b.id,
             label: `${b.code} — ${b.name}`,
@@ -188,7 +286,7 @@ export default function ClientForm({
         <Field
           label="PAN"
           name="pan"
-          defaultValue={client?.pan}
+          defaultValue={base?.pan}
           placeholder="AAAPZ1234C"
           className="font-mono uppercase"
           disabled={!canEditSensitive}
@@ -196,7 +294,7 @@ export default function ClientForm({
         <Field
           label="TAN"
           name="tan"
-          defaultValue={client?.tan}
+          defaultValue={base?.tan}
           placeholder="DELA12345B"
           className="font-mono uppercase"
           disabled={!canEditSensitive}
@@ -204,7 +302,7 @@ export default function ClientForm({
         <Field
           label="CIN / LLPIN"
           name="cin"
-          defaultValue={client?.cin}
+          defaultValue={base?.cin}
           placeholder="U74999DL2019PTC123456"
           className="font-mono uppercase"
           disabled={!canEditSensitive}
@@ -212,14 +310,14 @@ export default function ClientForm({
         <Field
           label="Udyam number"
           name="udyam"
-          defaultValue={client?.udyam}
+          defaultValue={base?.udyam}
           placeholder="UDYAM-UP-09-1234567"
           className="font-mono uppercase"
         />
         <Field
           label="IEC"
           name="iec"
-          defaultValue={client?.iec}
+          defaultValue={base?.iec}
           className="font-mono uppercase"
         />
         {canEditSensitive && (
@@ -331,49 +429,45 @@ export default function ClientForm({
         <Select
           label="Client partner (CA)"
           name="clientPartnerId"
-          defaultValue={client?.clientPartnerId}
+          defaultValue={base?.clientPartnerId}
           options={partners.map((p) => ({ value: p.id, label: p.name }))}
           placeholder="— none —"
         />
         <Select
           label="Relationship manager"
           name="relationshipManagerId"
-          defaultValue={client?.relationshipManagerId}
+          defaultValue={base?.relationshipManagerId}
           options={partners.map((p) => ({ value: p.id, label: p.name }))}
           placeholder="— none —"
         />
         <GroupPicker
           groups={groups}
-          defaultValue={client?.groupId}
+          defaultValue={base?.groupId}
           required={!editing}
         />
-        <Field
-          label="Industry"
-          name="industry"
-          defaultValue={client?.industry}
-        />
+        <Field label="Industry" name="industry" defaultValue={base?.industry} />
         <Select
           label="Turnover band"
           name="turnoverBand"
-          defaultValue={client?.turnoverBand}
+          defaultValue={base?.turnoverBand}
           options={TURNOVER_BANDS}
           placeholder="— not known —"
         />
         <Select
           label="Risk rating"
           name="risk"
-          defaultValue={client?.risk ?? "Low"}
+          defaultValue={base?.risk ?? "Low"}
           options={RISK_RATINGS}
         />
         <Field
           label="Referral source"
           name="referralSource"
-          defaultValue={client?.referralSource}
+          defaultValue={base?.referralSource}
         />
         <Field
           label="Tags"
           name="tags"
-          defaultValue={client?.tags?.join(", ")}
+          defaultValue={base?.tags?.join(", ")}
           hint="Comma separated"
         />
       </Section>
@@ -382,7 +476,7 @@ export default function ClientForm({
         <Select
           label="Billing cycle"
           name="billingCycle"
-          defaultValue={client?.billingCycle}
+          defaultValue={base?.billingCycle}
           options={BILLING_CYCLES}
         />
         <Field
@@ -391,13 +485,13 @@ export default function ClientForm({
           type="number"
           min={0}
           max={365}
-          defaultValue={client?.creditDays ?? 15}
+          defaultValue={base?.creditDays ?? 15}
         />
         <Field
           label="Invoice email"
           name="invoiceEmail"
           type="email"
-          defaultValue={client?.invoiceEmail}
+          defaultValue={base?.invoiceEmail}
         />
       </Section>
 
@@ -435,6 +529,27 @@ export default function ClientForm({
         >
           {pending ? "Saving…" : editing ? "Save changes" : "Create client"}
         </button>
+        {!editing && (
+          <>
+            <button
+              type="submit"
+              name="then"
+              value="another"
+              disabled={pending}
+              className="rounded-control border-rule text-14 hover:bg-carbon-wash h-10 border px-4 disabled:opacity-60"
+            >
+              Save and add another
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={(event) => onKeep(event.currentTarget.form)}
+              className="rounded-control border-rule text-14 hover:bg-carbon-wash h-10 border px-4 disabled:opacity-60"
+            >
+              Keep for later
+            </button>
+          </>
+        )}
         <button
           type="button"
           onClick={() => router.back()}

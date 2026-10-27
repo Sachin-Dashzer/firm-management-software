@@ -32,6 +32,8 @@ const ACTIONS = [
   { title: "New client", href: "/clients/new", area: "clients" },
   { title: "New invoice", href: "/invoices/new", area: "invoices" },
   { title: "Issues", href: "/issues", area: null },
+  { title: "How we do things", href: "/learning", area: null },
+  { title: "Data lab", href: "/lab", area: "engagementsWork" },
   { title: "Today", href: "/today", area: null },
   { title: "Notices", href: "/practice/notices", area: "practice" },
   {

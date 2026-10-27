@@ -6,6 +6,7 @@ import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { MagnifyingGlass, Plus, Bell, UserCircle } from "@phosphor-icons/react";
 import { ThemeToggle, DensityToggle, MomentsToggle } from "./Preferences";
+import HelpPanel from "./HelpPanel";
 import { ROLE_LABELS } from "@/lib/permissions";
 
 /**
@@ -117,6 +118,8 @@ export default function TopBar({
               <span className="bg-redpen absolute top-1 right-1 size-2 rounded-full" />
             )}
           </Link>
+          {/* how the firm does whatever screen you are on (P3-19) */}
+          <HelpPanel />
           <MomentsToggle />
           <DensityToggle />
           <ThemeToggle />

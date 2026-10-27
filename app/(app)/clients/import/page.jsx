@@ -29,7 +29,13 @@ export default async function ImportPage() {
         </h1>
         <p className="text-13 text-ink-muted">
           Bring your existing client list in from a spreadsheet. Nothing is
-          saved until you have seen what will happen.
+          saved until you have seen what will happen. This screen{" "}
+          <strong>adds</strong> clients — to correct ones that are already here,
+          use{" "}
+          <a href="/clients/round-trip" className="text-carbon hover:underline">
+            update from a spreadsheet
+          </a>
+          .
         </p>
       </div>
 

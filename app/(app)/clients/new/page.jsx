@@ -5,6 +5,8 @@ import { connectDB } from "@/lib/db";
 import Branch from "@/models/Branch";
 import User from "@/models/User";
 import ClientGroup from "@/models/ClientGroup";
+import FormDraft from "@/models/FormDraft";
+import { draftAge } from "@/lib/forms/draft";
 import ClientForm from "../ClientForm";
 
 export const metadata = { title: "New client · PHMG" };
@@ -15,7 +17,7 @@ export default async function NewClientPage() {
   if (!can(actor, "edit", "clients")) redirect("/clients");
 
   await connectDB();
-  const [branches, partners, groups] = await Promise.all([
+  const [branches, partners, groups, draft] = await Promise.all([
     Branch.find(
       actor.role === "partner" ? {} : { _id: { $in: actor.branchIds } },
     )
@@ -27,6 +29,8 @@ export default async function NewClientPage() {
       .sort({ name: 1 })
       .lean(),
     ClientGroup.find({}).select("name").sort({ name: 1 }).lean(),
+    /** Their own unfinished one, if the phone rang last time (P3-18b). */
+    FormDraft.findOne({ userId: actor.id, kind: "client" }).lean(),
   ]);
 
   return (
@@ -51,6 +55,15 @@ export default async function NewClientPage() {
         partners={partners.map((p) => ({ id: String(p._id), name: p.name }))}
         groups={groups.map((g) => ({ id: String(g._id), name: g.name }))}
         canEditSensitive={can(actor, "edit", "clientIdentifiers")}
+        draft={
+          draft
+            ? {
+                payload: draft.payload ?? {},
+                dropped: draft.dropped ?? [],
+                age: draftAge(draft.updatedAt),
+              }
+            : null
+        }
       />
     </div>
   );

@@ -125,6 +125,13 @@ export default async function ClientsPage({ searchParams }) {
               >
                 Import from Excel
               </Link>
+              {/* correcting what is already here is a different screen (P3-18a) */}
+              <Link
+                href="/clients/round-trip"
+                className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
+              >
+                Update from a sheet
+              </Link>
               <Link
                 href="/clients/new"
                 className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 leading-9 font-medium"

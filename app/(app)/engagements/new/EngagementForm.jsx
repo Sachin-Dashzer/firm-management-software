@@ -85,7 +85,24 @@ export default function EngagementForm({
     <form
       action={(formData) =>
         startTransition(async () => {
+          const another = formData.get("then") === "another";
           const result = await createEngagement(null, formData);
+
+          /**
+           * Twelve GST returns for twelve clients is one sitting (P3-18b).
+           * The service, the period and the people stay; **the client is
+           * cleared**, because that is the field that changes and leaving
+           * it filled is how the same client gets the job twice.
+           */
+          if (result?.id && another) {
+            setMessage({
+              ok: "Created. Ready for the next client, same service and period.",
+            });
+            setClientId("");
+            setFee("");
+            return;
+          }
+
           setMessage(result);
           if (result?.id) router.push(`/engagements/${result.id}`);
         })
@@ -291,6 +308,15 @@ export default function EngagementForm({
           className="rounded-control bg-carbon text-14 text-on-carbon h-10 px-4 font-medium disabled:opacity-60"
         >
           {pending ? "Creating…" : "Create engagement"}
+        </button>
+        <button
+          type="submit"
+          name="then"
+          value="another"
+          disabled={pending}
+          className="rounded-control border-rule text-14 hover:bg-carbon-wash h-10 border px-4 disabled:opacity-60"
+        >
+          Create and add another
         </button>
         <button
           type="button"
