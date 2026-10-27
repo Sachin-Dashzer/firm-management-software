@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import mongoose from "mongoose";
+import { alertBox } from "./alerts.js";
 import { TOTP, Secret } from "otpauth";
 import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
@@ -186,7 +186,12 @@ test.afterAll(async () => {
   for (const email of EMAILS) {
     await User.deleteOne({ email }, { withDeleted: true });
   }
-  await mongoose.disconnect();
+  /**
+   * The connection is deliberately left open. Playwright runs several spec
+   * files in one worker, one after another, and `connectDB` caches the
+   * connection per process — so a spec that closed it took the next spec in
+   * that worker down with it. The worker exiting closes it.
+   */
 });
 
 /** @param {import("@playwright/test").Page} page */
@@ -195,8 +200,17 @@ async function signIn(page, email, password = PASSWORD, land = /\/issues$/) {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("6-digit code").waitFor();
 
   const user = await User.findOne({ email }).select("+totpSecret");
+  /**
+   * An authenticator shows one code per 30 seconds, and the app refuses a
+   * code it has already accepted — replay protection, working as spec §16
+   * asks. A suite that signs in a dozen times inside one window hits it
+   * every time, so the counter is cleared to stand for time having
+   * passed. The rule itself is tested in tests/security.test.js.
+   */
+  await User.updateOne({ email }, { $set: { lastTotpCounter: 0 } });
   const code = new TOTP({
     issuer: "PHMG & Associates",
     label: email,
@@ -347,7 +361,7 @@ test("offboarding goes through once the work is handed over", async ({
   await theirPage.getByLabel("Email").fill(LEAVER);
   await theirPage.getByLabel("Password").fill(NEW_PASSWORD);
   await theirPage.getByRole("button", { name: "Continue" }).click();
-  await expect(theirPage.getByRole("alert")).toBeVisible();
+  await expect(alertBox(theirPage)).toBeVisible();
   await other.close();
 
   // the email can be used again, because the index is partial on deletedAt

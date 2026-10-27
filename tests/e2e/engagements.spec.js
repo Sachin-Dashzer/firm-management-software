@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import mongoose from "mongoose";
+import { alertBox } from "./alerts.js";
 import { TOTP, Secret } from "otpauth";
 import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
@@ -137,7 +137,12 @@ test.beforeAll(async ({}, testInfo) => {
 
 test.afterAll(async ({}, testInfo) => {
   await wipe(names(testInfo.project.name));
-  await mongoose.disconnect();
+  /**
+   * The connection is deliberately left open. Playwright runs several spec
+   * files in one worker, one after another, and `connectDB` caches the
+   * connection per process — so a spec that closed it took the next spec in
+   * that worker down with it. The worker exiting closes it.
+   */
 });
 
 async function signIn(page, email) {
@@ -145,8 +150,17 @@ async function signIn(page, email) {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("6-digit code").waitFor();
 
   const user = await User.findOne({ email }).select("+totpSecret");
+  /**
+   * An authenticator shows one code per 30 seconds, and the app refuses a
+   * code it has already accepted — replay protection, working as spec §16
+   * asks. A suite that signs in a dozen times inside one window hits it
+   * every time, so the counter is cleared to stand for time having
+   * passed. The rule itself is tested in tests/security.test.js.
+   */
+  await User.updateOne({ email }, { $set: { lastTotpCounter: 0 } });
   const code = new TOTP({
     issuer: "PHMG & Associates",
     label: email,
@@ -256,7 +270,7 @@ test("an engagement goes out for review, comes back, and is completed", async ({
 
   // completing before the review checklist is ticked is refused
   await page.getByRole("button", { name: "Completed" }).click();
-  await expect(page.getByRole("alert")).toContainText("every review point");
+  await expect(alertBox(page)).toContainText("every review point");
 
   for (const item of await page
     .getByRole("checkbox", { checked: false })

@@ -1,5 +1,4 @@
 import { test, expect } from "@playwright/test";
-import mongoose from "mongoose";
 import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
 import Branch from "../../models/Branch.js";
@@ -245,7 +244,12 @@ test.beforeAll(async ({}, testInfo) => {
 
 test.afterAll(async ({}, testInfo) => {
   await wipe(names(testInfo.project.name));
-  await mongoose.disconnect();
+  /**
+   * The connection is deliberately left open. Playwright runs several spec
+   * files in one worker, one after another, and `connectDB` caches the
+   * connection per process — so a spec that closed it took the next spec in
+   * that worker down with it. The worker exiting closes it.
+   */
 });
 
 async function signIn(page, fx) {

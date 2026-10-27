@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import mongoose from "mongoose";
+import { alertBox } from "./alerts.js";
 import { TOTP, Secret } from "otpauth";
 import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
@@ -58,7 +58,12 @@ test.afterAll(async () => {
   await Client.deleteMany({ pan: PAN }, { withDeleted: true });
   await ClientGroup.deleteMany({ name: GROUP }, { withDeleted: true });
   await User.deleteOne({ email: EMAIL });
-  await mongoose.disconnect();
+  /**
+   * The connection is deliberately left open. Playwright runs several spec
+   * files in one worker, one after another, and `connectDB` caches the
+   * connection per process — so a spec that closed it took the next spec in
+   * that worker down with it. The worker exiting closes it.
+   */
 });
 
 async function signIn(page) {
@@ -66,8 +71,17 @@ async function signIn(page) {
   await page.getByLabel("Email").fill(EMAIL);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("6-digit code").waitFor();
 
   const user = await User.findOne({ email: EMAIL }).select("+totpSecret");
+  /**
+   * An authenticator shows one code per 30 seconds, and the app refuses a
+   * code it has already accepted — replay protection, working as spec §16
+   * asks. A suite that signs in a dozen times inside one window hits it
+   * every time, so the counter is cleared to stand for time having
+   * passed. The rule itself is tested in tests/security.test.js.
+   */
+  await User.updateOne({ email }, { $set: { lastTotpCounter: 0 } });
   const code = new TOTP({
     issuer: "PHMG & Associates",
     label: EMAIL,
@@ -169,7 +183,7 @@ test("a bad GSTIN is refused with a readable reason", async ({ page }) => {
   await page.locator('input[name="gstins.0.gstin"]').fill("09AABCS1429P1ZT");
   await page.getByRole("button", { name: "Create client" }).click();
 
-  await expect(page.getByRole("alert")).toContainText("last character");
+  await expect(alertBox(page)).toContainText("last character");
   await expect(page).toHaveURL(/\/clients\/new/);
 });
 

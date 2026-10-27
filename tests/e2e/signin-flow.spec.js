@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import mongoose from "mongoose";
+import { alertBox } from "./alerts.js";
 import { TOTP, Secret } from "otpauth";
 import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
@@ -48,12 +48,25 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await User.deleteOne({ email: EMAIL });
-  await mongoose.disconnect();
+  /**
+   * The connection is deliberately left open. Playwright runs several spec
+   * files in one worker, one after another, and `connectDB` caches the
+   * connection per process — so a spec that closed it took the next spec in
+   * that worker down with it. The worker exiting closes it.
+   */
 });
 
 /** The code the user's authenticator app would be showing. */
 async function codeFor(email) {
   const user = await User.findOne({ email }).select("+totpSecret");
+  /**
+   * An authenticator shows one code per 30 seconds, and the app refuses a
+   * code it has already accepted — replay protection, working as spec §16
+   * asks. A suite that signs in a dozen times inside one window hits it
+   * every time, so the counter is cleared to stand for time having
+   * passed. The rule itself is tested in tests/security.test.js.
+   */
+  await User.updateOne({ email }, { $set: { lastTotpCounter: 0 } });
   return new TOTP({
     issuer: "PHMG & Associates",
     label: email,
@@ -72,13 +85,13 @@ test("a wrong password says nothing useful to an attacker", async ({
   await page.getByLabel("Password").fill("definitely-not-the-password");
   await page.getByRole("button", { name: "Continue" }).click();
 
-  await expect(page.getByRole("alert")).toHaveText(
+  await expect(alertBox(page)).toHaveText(
     "Email or password is not correct.",
   );
   // an unknown email gives exactly the same answer
   await page.getByLabel("Email").fill("nobody@phmgindia.test");
   await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByRole("alert")).toHaveText(
+  await expect(alertBox(page)).toHaveText(
     "Email or password is not correct.",
   );
 });
@@ -97,14 +110,15 @@ test("first sign-in sets up 2FA, then lands in the app", async ({ page }) => {
 
   await page.getByLabel("6-digit code").fill("000000");
   await page.getByRole("button", { name: /Turn on 2FA/ }).click();
-  await expect(page.getByRole("alert")).toContainText("not right");
+  await expect(alertBox(page)).toContainText("not right");
 
   await page.getByLabel("6-digit code").fill(await codeFor(EMAIL));
   await page.getByRole("button", { name: /Turn on 2FA/ }).click();
 
   await expect(page).toHaveURL(/\/issues$/);
   await expect(
-    page.getByRole("heading", { name: "Today", level: 1 }),
+    // Issues is where a sign-in lands since P3-6 (D43), not Today
+    page.getByRole("heading", { name: "Issues", level: 1 }),
   ).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
 });
@@ -114,6 +128,7 @@ test("a partner reaches the team screen and can sign out", async ({ page }) => {
   await page.getByLabel("Email").fill(EMAIL);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("6-digit code").waitFor();
   await page.getByLabel("6-digit code").fill(await codeFor(EMAIL));
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/issues$/);
@@ -140,6 +155,7 @@ test("the sign-in appears in the audit log, and the chain is intact", async ({
   await page.getByLabel("Email").fill(EMAIL);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("6-digit code").waitFor();
   await page.getByLabel("6-digit code").fill(await codeFor(EMAIL));
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/issues$/);
@@ -162,11 +178,12 @@ test("a wrong password is recorded as a failed sign-in", async ({ page }) => {
   await page.getByLabel("Email").fill(EMAIL);
   await page.getByLabel("Password").fill("wrong-on-purpose");
   await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(alertBox(page)).toBeVisible();
 
   // now sign in properly and look for the failure in the log
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("6-digit code").waitFor();
   await page.getByLabel("6-digit code").fill(await codeFor(EMAIL));
   await page.getByRole("button", { name: "Sign in" }).click();
 
