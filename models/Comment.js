@@ -22,15 +22,15 @@ const commentSchema = new mongoose.Schema(
       default: null,
     },
     /**
-     * "Note" is a plain note, the contact channels are communication log
-     * entries, and "Change request" is the one kind written from **outside**
-     * the firm (P2-9b): a client asking for something on their record to be
-     * corrected. It is never internal, and it is the only thing a portal
-     * account can create anywhere in the system.
+     * "Note" is a plain note and the contact channels are communication log
+     * entries. Two kinds are written from **outside** the firm: "Change
+     * request" (P2-9b), a client asking for something on their record to be
+     * corrected, and "Client message" (P3-17b), their half of a job's
+     * conversation. Neither is ever internal.
      */
     kind: {
       type: String,
-      enum: ["Note", "Change request", ...CONTACT_CHANNELS],
+      enum: ["Note", "Change request", "Client message", ...CONTACT_CHANNELS],
       default: "Note",
     },
     body: { type: String, required: true, trim: true },
@@ -40,7 +40,26 @@ const commentSchema = new mongoose.Schema(
       type: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
       default: [],
     },
+    /**
+     * Internal means it never leaves the firm. The default is true and
+     * stays true: a note written without a thought about it is an internal
+     * note.
+     *
+     * Until P3-17b this flag was **read by nothing** — the box had a tick
+     * and clearing it changed a boolean no query filtered on, so somebody
+     * could believe they had written to a client and be wrong. Now
+     * `threadScope` in `lib/access/clientScope.js` is the one query the
+     * portal uses, and it filters on this.
+     */
     internal: { type: Boolean, default: true },
+
+    /**
+     * When the client was actually sent it (P3-17b). A with-client message
+     * composed while client email is switched off is held by the guard, so
+     * "not internal" and "they have it" are different facts and the thread
+     * shows which.
+     */
+    sentToClientAt: { type: Date, default: null },
     createdBy: { type: String, default: null },
     createdByName: { type: String, default: "" },
     updatedBy: { type: String, default: null },

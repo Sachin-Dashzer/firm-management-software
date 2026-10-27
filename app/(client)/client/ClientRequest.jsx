@@ -37,7 +37,7 @@ export default function ClientRequest({ item }) {
 
       {/* our own words, because "rejected" tells nobody anything ---------- */}
       {item.status === "Replacement requested" && item.rejectReason && (
-        <p className="rounded-ledger border-redpen/40 bg-redpen/5 text-13 border px-2 py-1">
+        <p className="rounded-control border-redpen/40 bg-redpen/5 text-13 border px-2 py-1">
           <strong>We could not use the copy you sent.</strong>{" "}
           {item.rejectReason}
         </p>
@@ -110,13 +110,13 @@ export default function ClientRequest({ item }) {
             <input
               name="note"
               placeholder="e.g. the bank has not issued September yet"
-              className="rounded-ledger border-rule bg-paper text-13 h-8 min-w-56 border px-2"
+              className="rounded-control border-rule bg-paper text-13 h-8 min-w-56 border px-2"
             />
           </label>
           <button
             type="submit"
             disabled={pending}
-            className="rounded-ledger bg-carbon text-12 h-8 px-2 font-medium text-white disabled:opacity-50"
+            className="rounded-control bg-carbon text-12 text-on-carbon h-8 px-2 font-medium disabled:opacity-50"
           >
             Tell my CA
           </button>
@@ -141,7 +141,7 @@ export default function ClientRequest({ item }) {
                 required
                 minLength={2}
                 placeholder="e.g. Meena Gupta, our accountant"
-                className="rounded-ledger border-rule bg-paper text-13 h-8 min-w-48 border px-2"
+                className="rounded-control border-rule bg-paper text-13 h-8 min-w-48 border px-2"
               />
             </label>
             <label className="flex flex-1 flex-col gap-1">
@@ -152,7 +152,7 @@ export default function ClientRequest({ item }) {
                 name="contact"
                 required
                 minLength={5}
-                className="rounded-ledger border-rule bg-paper text-13 h-8 min-w-48 border px-2"
+                className="rounded-control border-rule bg-paper text-13 h-8 min-w-48 border px-2"
               />
             </label>
           </div>
@@ -164,7 +164,7 @@ export default function ClientRequest({ item }) {
             <button
               type="submit"
               disabled={pending}
-              className="rounded-ledger bg-carbon text-12 h-8 px-2 font-medium text-white disabled:opacity-50"
+              className="rounded-control bg-carbon text-12 text-on-carbon h-8 px-2 font-medium disabled:opacity-50"
             >
               Send them the request
             </button>
@@ -189,13 +189,13 @@ export default function ClientRequest({ item }) {
               required
               minLength={5}
               placeholder="e.g. do you need the current account or all of them?"
-              className="rounded-ledger border-rule bg-paper text-13 h-8 min-w-56 border px-2"
+              className="rounded-control border-rule bg-paper text-13 h-8 min-w-56 border px-2"
             />
           </label>
           <button
             type="submit"
             disabled={pending}
-            className="rounded-ledger bg-carbon text-12 h-8 px-2 font-medium text-white disabled:opacity-50"
+            className="rounded-control bg-carbon text-12 text-on-carbon h-8 px-2 font-medium disabled:opacity-50"
           >
             Ask
           </button>

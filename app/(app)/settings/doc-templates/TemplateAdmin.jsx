@@ -35,23 +35,20 @@ export default function TemplateAdmin({
     <div className="mx-auto flex max-w-[1100px] flex-col gap-5 p-4 md:p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="font-display text-28 font-semibold">
+          <h1 className="font-display text-24 font-bold tracking-tight">
             Document templates
           </h1>
           <p className="text-13 text-ink-muted max-w-[70ch]">
             Letters and certificates the firm writes often. A template makes
-            watermarked drafts until a partner has read the wording and
-            approved it — and editing an approved one takes the approval away
-            again.
+            watermarked drafts until a partner has read the wording and approved
+            it — and editing an approved one takes the approval away again.
           </p>
         </div>
         {mayEdit && (
           <button
             type="button"
-            onClick={() =>
-              setEditing(editing === "new" ? null : "new")
-            }
-            className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white"
+            onClick={() => setEditing(editing === "new" ? null : "new")}
+            className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium"
           >
             {editing === "new" ? "Cancel" : "Add a template"}
           </button>
@@ -72,8 +69,8 @@ export default function TemplateAdmin({
           <span className="num font-medium">{unapproved.length}</span> of these
           have never been approved. They produce drafts only. The wording that
           ships with the system is a starting point written plainly — it is not
-          an ICAI pro forma, and the letters to another member or to a
-          regulator in particular want a partner&rsquo;s own words.
+          an ICAI pro forma, and the letters to another member or to a regulator
+          in particular want a partner&rsquo;s own words.
         </p>
       )}
 
@@ -113,7 +110,7 @@ export default function TemplateAdmin({
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span
-                  className={`text-12 rounded-ledger border px-2 py-0.5 ${
+                  className={`text-12 rounded-chip border px-2 py-0.5 ${
                     row.verified
                       ? "border-rule text-ink-muted"
                       : "border-waiting text-waiting"
@@ -129,7 +126,7 @@ export default function TemplateAdmin({
                     onClick={() =>
                       setEditing(editing === row.id ? null : row.id)
                     }
-                    className="rounded-ledger border-rule text-13 h-8 border px-2"
+                    className="rounded-control border-rule text-13 h-8 border px-2"
                   >
                     {editing === row.id ? "Close" : "Edit"}
                   </button>
@@ -139,7 +136,7 @@ export default function TemplateAdmin({
                     type="button"
                     disabled={pending}
                     onClick={() => run(() => approveTemplate(row.id))}
-                    className="rounded-ledger bg-carbon text-13 h-8 px-2 font-medium text-white disabled:opacity-60"
+                    className="rounded-control bg-carbon text-13 text-on-carbon h-8 px-2 font-medium disabled:opacity-60"
                   >
                     Approve the wording
                   </button>
@@ -148,8 +145,10 @@ export default function TemplateAdmin({
                   <button
                     type="button"
                     disabled={pending}
-                    onClick={() => run(() => archiveTemplate(row.id, !row.active))}
-                    className="rounded-ledger border-rule text-13 h-8 border px-2"
+                    onClick={() =>
+                      run(() => archiveTemplate(row.id, !row.active))
+                    }
+                    className="rounded-control border-rule text-13 h-8 border px-2"
                   >
                     {row.active ? "Hide" : "Restore"}
                   </button>
@@ -190,7 +189,7 @@ function Editor({ row, kinds, fields, pending, onSave }) {
             name="code"
             defaultValue={row?.code ?? ""}
             required
-            className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2 font-mono uppercase"
+            className="rounded-control border-rule bg-paper text-14 h-10 border px-2 font-mono uppercase"
           />
         </label>
         <label className="flex flex-col gap-1 sm:col-span-2">
@@ -199,7 +198,7 @@ function Editor({ row, kinds, fields, pending, onSave }) {
             name="name"
             defaultValue={row?.name ?? ""}
             required
-            className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
           />
         </label>
         <label className="flex flex-col gap-1">
@@ -207,7 +206,7 @@ function Editor({ row, kinds, fields, pending, onSave }) {
           <select
             name="kind"
             defaultValue={row?.kind ?? kinds[kinds.length - 1]}
-            className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
           >
             {kinds.map((kind) => (
               <option key={kind} value={kind}>
@@ -223,7 +222,7 @@ function Editor({ row, kinds, fields, pending, onSave }) {
           <input
             name="description"
             defaultValue={row?.description ?? ""}
-            className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
           />
         </label>
         <label className="flex flex-col gap-1 sm:col-span-3">
@@ -233,7 +232,7 @@ function Editor({ row, kinds, fields, pending, onSave }) {
           <input
             name="title"
             defaultValue={row?.title ?? ""}
-            className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
           />
         </label>
       </div>
@@ -290,7 +289,7 @@ function Editor({ row, kinds, fields, pending, onSave }) {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+          className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
         >
           {row ? "Save the wording" : "Add the template"}
         </button>

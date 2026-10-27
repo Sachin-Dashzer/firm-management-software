@@ -145,7 +145,7 @@ export function Panel({ title, what, children, action }) {
     <section className="flex flex-col gap-2">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <h2 className="font-display text-20">{title}</h2>
+          <h2 className="font-display text-15 font-semibold">{title}</h2>
           {what && <p className="text-13 text-ink-muted">{what}</p>}
         </div>
         {action}

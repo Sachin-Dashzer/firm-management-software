@@ -89,13 +89,15 @@ function Importer({
   const [pending, startTransition] = useTransition();
 
   const templateCsv = template
-    .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    .map((row) =>
+      row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
+    )
     .join("\n");
 
   return (
     <section className="flex flex-col gap-3">
       <div>
-        <h2 className="font-display text-20">{title}</h2>
+        <h2 className="font-display text-15 font-semibold">{title}</h2>
         <p className="text-13 text-ink-muted">{what}</p>
       </div>
 
@@ -165,7 +167,7 @@ function Importer({
             setResult(null);
           }}
           rows={6}
-          className="rounded-ledger border-rule bg-paper text-13 border px-2 py-1 font-mono"
+          className="rounded-control border-rule bg-paper text-13 border px-2 py-1 font-mono"
         />
       </label>
 
@@ -191,7 +193,7 @@ function Importer({
               setResult(await onCheck(text));
             })
           }
-          className="rounded-ledger border-rule text-14 h-9 border px-3 font-medium disabled:opacity-60"
+          className="rounded-control border-rule text-14 h-9 border px-3 font-medium disabled:opacity-60"
         >
           Check it
         </button>
@@ -204,8 +206,7 @@ function Importer({
             {result.errorCount > 0 && (
               <span className="text-redpen">
                 {" "}
-                · <span className="num">{result.errorCount}</span> with
-                problems
+                · <span className="num">{result.errorCount}</span> with problems
               </span>
             )}
             {result.skippedCount > 0 && (
@@ -227,12 +228,16 @@ function Importer({
           <div className="rounded-ledger border-rule bg-surface max-h-80 overflow-auto border">
             <table className="text-14 w-full">
               <thead>
-                <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+                <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
                   <th scope="col" className="px-3 py-2 font-medium">
                     Row
                   </th>
                   {headers.map((header) => (
-                    <th key={header} scope="col" className="px-3 py-2 font-medium">
+                    <th
+                      key={header}
+                      scope="col"
+                      className="px-3 py-2 font-medium"
+                    >
                       {header}
                     </th>
                   ))}
@@ -284,7 +289,7 @@ function Importer({
                     }
                   })
                 }
-                className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+                className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
               >
                 {pending
                   ? "Importing…"

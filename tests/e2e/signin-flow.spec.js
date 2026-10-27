@@ -102,7 +102,7 @@ test("first sign-in sets up 2FA, then lands in the app", async ({ page }) => {
   await page.getByLabel("6-digit code").fill(await codeFor(EMAIL));
   await page.getByRole("button", { name: /Turn on 2FA/ }).click();
 
-  await expect(page).toHaveURL(/\/today$/);
+  await expect(page).toHaveURL(/\/issues$/);
   await expect(
     page.getByRole("heading", { name: "Today", level: 1 }),
   ).toBeVisible();
@@ -116,7 +116,7 @@ test("a partner reaches the team screen and can sign out", async ({ page }) => {
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByLabel("6-digit code").fill(await codeFor(EMAIL));
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/today$/);
+  await expect(page).toHaveURL(/\/issues$/);
 
   await page.goto("/settings/users");
   await expect(page.getByRole("heading", { name: "Team" })).toBeVisible();
@@ -142,7 +142,7 @@ test("the sign-in appears in the audit log, and the chain is intact", async ({
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByLabel("6-digit code").fill(await codeFor(EMAIL));
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/today$/);
+  await expect(page).toHaveURL(/\/issues$/);
 
   // the old route still works and lands on the renamed screen (P2-10a)
   await page.goto("/audit");

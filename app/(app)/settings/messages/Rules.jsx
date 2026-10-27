@@ -19,7 +19,9 @@ export default function Rules({ rules, mayEdit }) {
   return (
     <section className="flex flex-col gap-2">
       <div>
-        <h2 className="font-display text-20">When the system speaks</h2>
+        <h2 className="font-display text-15 font-semibold">
+          When the system speaks
+        </h2>
         <p className="text-13 text-ink-muted">
           Every message the system sends, and the switch behind it. Switching
           one off stops it for everybody.
@@ -172,7 +174,7 @@ function RuleForm({ rule, mayEdit, onSaved }) {
           name="subject"
           defaultValue={rule.subject || rule.defaultSubject}
           disabled={!mayEdit}
-          className="rounded-ledger border-rule bg-surface text-14 h-9 border px-2"
+          className="rounded-control border-rule bg-surface text-14 h-9 border px-2"
         />
       </label>
 
@@ -183,7 +185,7 @@ function RuleForm({ rule, mayEdit, onSaved }) {
           rows={10}
           defaultValue={rule.body || rule.defaultBody}
           disabled={!mayEdit}
-          className="rounded-ledger border-rule bg-surface text-14 border px-2 py-1 font-mono"
+          className="rounded-control border-rule bg-surface text-14 border px-2 py-1 font-mono"
         />
       </label>
 
@@ -200,7 +202,7 @@ function RuleForm({ rule, mayEdit, onSaved }) {
           <button
             type="submit"
             disabled={pending}
-            className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+            className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
           >
             {pending ? "Saving…" : "Save"}
           </button>
@@ -216,7 +218,7 @@ function Field({ label, hint, ...props }) {
       <span className="text-13 text-ink-muted font-medium">{label}</span>
       <input
         {...props}
-        className="rounded-ledger border-rule bg-surface text-14 h-9 w-40 border px-2"
+        className="rounded-control border-rule bg-surface text-14 h-9 w-40 border px-2"
       />
       {hint && <span className="text-12 text-ink-muted">{hint}</span>}
     </label>

@@ -21,8 +21,8 @@ export default function GlobalError({ error, reset }) {
   return (
     <html lang="en-IN">
       <body className="bg-paper text-ink">
-        <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center gap-4 px-4">
-          <h1 className="text-28 font-display">Something broke.</h1>
+        <main className="mx-auto flex min-h-dvh max-w-xl flex-col justify-center gap-4 px-4">
+          <h1 className="text-24 font-display">Something broke.</h1>
           <p className="text-14">
             Nothing you were working on has been lost — the change was either
             saved completely or not at all. Try again, and if it happens twice,
@@ -42,10 +42,10 @@ export default function GlobalError({ error, reset }) {
               Try again
             </button>
             <a
-              href="/today"
+              href="/issues"
               className="rounded-ledger border-rule text-14 border px-3 py-1.5"
             >
-              Back to Today
+              Back to Issues
             </a>
           </div>
         </main>

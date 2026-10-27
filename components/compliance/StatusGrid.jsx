@@ -25,6 +25,8 @@ const CELL_TONE = {
   part: "bg-waiting-wash text-waiting font-medium",
   late: "bg-redpen-wash text-redpen",
   missing: "bg-redpen-wash text-redpen font-bold",
+  /** Empty, but somebody has said why — not a miss (P3-9). */
+  explained: "text-ink-muted text-12",
   held: "bg-waiting-wash text-waiting",
   cancelled: "text-ink-muted",
   current: "text-ink-muted",
@@ -86,7 +88,7 @@ export default function StatusGrid({
           in, the arrows move from cell to cell, Enter opens the one you are
           on — the same way a spreadsheet behaves, which is what this is. */}
       <div
-        className="rounded-ledger border-rule bg-surface overflow-x-auto border"
+        className="rounded-table border-rule bg-surface overflow-x-auto border"
         onKeyDown={onGridKeys}
       >
         <table className="text-14 w-full">
@@ -95,7 +97,7 @@ export default function StatusGrid({
             one.
           </caption>
           <thead>
-            <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+            <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
               <th
                 scope="col"
                 className="bg-surface sticky left-0 px-3 py-2 font-medium"

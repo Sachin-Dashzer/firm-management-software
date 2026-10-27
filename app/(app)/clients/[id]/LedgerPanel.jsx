@@ -115,14 +115,14 @@ export default function LedgerPanel({
             <>
               <Link
                 href={`/invoices/new?client=${clientId}`}
-                className="rounded-ledger border-rule text-14 h-9 border px-3 leading-9"
+                className="rounded-control border-rule text-14 h-9 border px-3 leading-9"
               >
                 New invoice
               </Link>
               <button
                 type="button"
                 onClick={() => setAdding((v) => !v)}
-                className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white"
+                className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium"
               >
                 {adding ? "Cancel" : "Record a payment"}
               </button>
@@ -133,7 +133,7 @@ export default function LedgerPanel({
 
       {adding && (
         <section className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4">
-          <h2 className="font-display text-20">Money received</h2>
+          <h2 className="font-display text-15 font-semibold">Money received</h2>
 
           <div className="grid gap-3 sm:grid-cols-5">
             <Field
@@ -153,7 +153,7 @@ export default function LedgerPanel({
               <select
                 value={mode}
                 onChange={(e) => setMode(e.target.value)}
-                className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
               >
                 {PAYMENT_MODES.map((m) => (
                   <option key={m} value={m}>
@@ -175,7 +175,7 @@ export default function LedgerPanel({
               type="button"
               disabled={pending || !amount}
               onClick={suggest}
-              className="rounded-ledger border-rule text-14 h-9 border px-3 disabled:opacity-60"
+              className="rounded-control border-rule text-14 h-9 border px-3 disabled:opacity-60"
             >
               Spread it across the oldest invoices
             </button>
@@ -185,7 +185,7 @@ export default function LedgerPanel({
             <div className="overflow-x-auto">
               <table className="text-14 w-full">
                 <thead>
-                  <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+                  <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
                     <th className="px-2 py-2 font-medium">Invoice</th>
                     <th className="px-2 py-2 text-right font-medium">Owed</th>
                     <th className="px-2 py-2 text-right font-medium">
@@ -215,7 +215,7 @@ export default function LedgerPanel({
                               },
                             })
                           }
-                          className="rounded-ledger border-rule bg-paper text-14 h-9 w-28 border px-2 text-right"
+                          className="rounded-control border-rule bg-paper text-14 h-9 w-28 border px-2 text-right"
                         />
                       </td>
                       <td className="px-2 py-1 text-right">
@@ -232,7 +232,7 @@ export default function LedgerPanel({
                               },
                             })
                           }
-                          className="rounded-ledger border-rule bg-paper text-14 h-9 w-24 border px-2 text-right"
+                          className="rounded-control border-rule bg-paper text-14 h-9 w-24 border px-2 text-right"
                         />
                       </td>
                     </tr>
@@ -252,7 +252,7 @@ export default function LedgerPanel({
               type="button"
               disabled={pending || !amount}
               onClick={save}
-              className="rounded-ledger bg-carbon text-14 h-10 px-4 font-medium text-white disabled:opacity-60"
+              className="rounded-control bg-carbon text-14 text-on-carbon h-10 px-4 font-medium disabled:opacity-60"
             >
               {pending ? "Saving…" : "Record the payment"}
             </button>
@@ -261,11 +261,11 @@ export default function LedgerPanel({
       )}
 
       <section className="flex flex-col gap-2">
-        <h2 className="font-display text-20">Ledger</h2>
-        <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+        <h2 className="font-display text-15 font-semibold">Ledger</h2>
+        <div className="rounded-table border-rule bg-surface overflow-x-auto border">
           <table className="text-14 w-full">
             <thead>
-              <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+              <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
                 <th className="px-3 py-2 font-medium">Date</th>
                 <th className="px-3 py-2 font-medium">What</th>
                 <th className="px-3 py-2 font-medium">Reference</th>
@@ -306,7 +306,7 @@ export default function LedgerPanel({
       </section>
 
       <section className="flex flex-col gap-2">
-        <h2 className="font-display text-20">Invoices</h2>
+        <h2 className="font-display text-15 font-semibold">Invoices</h2>
         <div className="rounded-ledger border-rule bg-surface border">
           <table className="text-14 w-full">
             <tbody>
@@ -353,7 +353,7 @@ function Field({ label, value, onChange, ...rest }) {
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+        className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
         {...rest}
       />
     </label>

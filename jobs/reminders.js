@@ -9,6 +9,7 @@ import MessageLog from "../models/MessageLog.js";
 import { connectDB } from "../lib/db.js";
 import { loadRules } from "../lib/mailer/rules.js";
 import { notify, peopleFor } from "../lib/mailer/notify.js";
+import { gateBatch } from "../lib/mailer/batches.js";
 import { mailSettings } from "../lib/mailer/guard.js";
 import { TEMPLATES } from "../lib/mailer/templates.js";
 import { startOfISTDay } from "../lib/dates.js";
@@ -241,6 +242,16 @@ export async function reminders(options = {}) {
   const sent = [];
   const counts = {};
 
+  /**
+   * Client-facing reminders do not go straight out any more (P3-10). They
+   * are grouped by rule and handed to the gate, which decides between
+   * sending now, waiting for a partner, and waiting for business hours. A
+   * message to a colleague is not a batch and is unaffected: nobody needs
+   * approval to tell a CA their review is waiting.
+   */
+  const batched = new Map();
+  const gated = [];
+
   for (const item of expanded) {
     if (already.has(item.dedupeKey)) continue;
 
@@ -250,6 +261,13 @@ export async function reminders(options = {}) {
     // one is kept — so each reminder mints a new token for the same request
     if (item.rule === "documentsPending") {
       values.link = await refreshRequestLink(item.about.entityId);
+    }
+
+    if (TEMPLATES[item.rule]?.audience === "client") {
+      const list = batched.get(item.rule) ?? [];
+      list.push({ ...item, values });
+      batched.set(item.rule, list);
+      continue;
     }
 
     const result = await notify({
@@ -265,19 +283,34 @@ export async function reminders(options = {}) {
 
     counts[item.rule] = (counts[item.rule] ?? 0) + 1;
     sent.push(item.dedupeKey);
+  }
 
-    if (item.rule === "documentsPending") {
-      await DocRequest.updateOne(
-        { _id: item.about.entityId },
-        {
-          $inc: { reminderCount: 1 },
-          $set: { lastReminderAt: now, sentVia: "email" },
-        },
-      );
+  for (const [rule, items] of batched) {
+    const outcome = await gateBatch({ rule, items, now });
+    gated.push(outcome);
+    counts[rule] = outcome.sent;
+    /**
+     * A sent reminder still bumps the request's own counter, so the four a
+     * request is allowed is still four. A queued one does not: it has not
+     * been sent, and spending the allowance on a message waiting for a
+     * partner is how a client ends up never chased at all.
+     */
+    if (rule === "documentsPending" && outcome.sent > 0) {
+      for (const item of items.slice(0, outcome.sent)) {
+        await DocRequest.updateOne(
+          { _id: item.about.entityId },
+          {
+            $inc: { reminderCount: 1 },
+            $set: { lastReminderAt: now, sentVia: "email" },
+          },
+        );
+      }
     }
   }
 
   return {
+    gated,
+    queued: gated.reduce((sum, row) => sum + (row.queued ?? 0), 0),
     considered: {
       engagements: engagements.length,
       invoices: invoices.length,

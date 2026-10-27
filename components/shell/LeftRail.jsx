@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   House,
+  Warning,
   Users,
   UsersThree,
   Buildings,
@@ -29,6 +30,13 @@ import { can, scopeOf, seesOnlyOwnRecords } from "@/lib/permissions";
  * again, because hiding a link is not security.
  */
 const LINKS = [
+  /**
+   * Issues is the landing page (P3-6, owner decision D43): everything that
+   * needs attention, worked out live. Today stays below it — it answers a
+   * different question (what is on *today*) and nothing is gained by
+   * deleting a screen that works.
+   */
+  { href: "/issues", label: "Issues", icon: Warning, area: null },
   { href: "/today", label: "Today", icon: House, area: "dashboards" },
   {
     href: "/clients",
@@ -65,7 +73,17 @@ const LINKS = [
     area: "documents",
   },
   { href: "/invoices", label: "Billing", icon: Receipt, area: "invoices" },
-  { href: "/team", label: "Team", icon: UsersThree, area: "team" },
+  {
+    href: "/team",
+    label: "Team",
+    icon: UsersThree,
+    area: "team",
+    children: [
+      { href: "/team", label: "Everyone", area: "team" },
+      // the workload board spec section 9 asks for, by week (P3-16)
+      { href: "/team/plan", label: "The week", area: "team" },
+    ],
+  },
   { href: "/reports", label: "Reports", icon: ChartBar, area: "dashboards" },
   /**
    * The practice registers (P2-10d). They were reachable only through
@@ -82,6 +100,16 @@ const LINKS = [
       { href: "/practice/audits", label: "Audits", area: "practice" },
       { href: "/practice/statutory", label: "Statutory", area: "practice" },
       { href: "/practice/tax", label: "Tax", area: "practice" },
+      // a notice is a matter rather than a job (P3-11), so it sits beside
+      // the registers rather than inside the engagement list
+      { href: "/practice/notices", label: "Notices", area: "practice" },
+      // a certificate is a thing the firm signed, so it lives with the
+      // register of what the firm has signed rather than on an engagement (P3-15)
+      {
+        href: "/practice/certificates",
+        label: "Certificates",
+        area: "udin",
+      },
       { href: "/practice/udin", label: "UDIN", area: "udin" },
       { href: "/practice/dsc", label: "DSC", area: "dsc" },
     ],
@@ -141,7 +169,7 @@ function linksFor(role) {
   }));
 }
 
-export default function LeftRail({ role = "partner" }) {
+export default function LeftRail({ role = "partner", issueCount = 0 }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   // the Practice group's own state; it also opens itself when you are inside
@@ -171,12 +199,12 @@ export default function LeftRail({ role = "partner" }) {
       aria-label="Main"
       data-collapsed={collapsed}
       className="border-rule bg-surface relative z-10 flex shrink-0 flex-col gap-1 border-r p-2 transition-[width] duration-150 max-md:hidden"
-      style={{ width: collapsed ? 56 : 208 }}
+      style={{ width: collapsed ? 56 : 232 }}
     >
       <div className="flex h-12 items-center gap-2 px-2">
         <span
           aria-hidden
-          className="rounded-ledger bg-ink font-display text-13 text-surface grid size-7 shrink-0 place-items-center font-semibold"
+          className="bg-carbon text-on-carbon font-display text-14 grid size-[34px] shrink-0 place-items-center rounded-[9px] font-bold"
         >
           P
         </span>
@@ -205,9 +233,9 @@ export default function LeftRail({ role = "partner" }) {
                 onClick={() => setPracticeOpen((v) => !v)}
                 aria-expanded={open}
                 title={collapsed ? label : undefined}
-                className={`rounded-ledger text-14 flex h-9 items-center gap-3 px-2 ${
+                className={`rounded-control text-14 flex h-9 items-center gap-3 px-2 ${
                   active
-                    ? "bg-carbon-wash text-carbon font-medium"
+                    ? "bg-carbon-soft text-carbon-ink font-semibold"
                     : "text-ink-muted hover:bg-carbon-wash hover:text-ink"
                 }`}
               >
@@ -231,7 +259,7 @@ export default function LeftRail({ role = "partner" }) {
                         <Link
                           href={child.href}
                           aria-current={here ? "page" : undefined}
-                          className={`rounded-ledger text-13 flex h-8 items-center px-2 ${
+                          className={`rounded-control text-13 flex h-8 items-center px-2 ${
                             here
                               ? "text-carbon font-medium"
                               : "text-ink-muted hover:bg-carbon-wash hover:text-ink"
@@ -254,14 +282,22 @@ export default function LeftRail({ role = "partner" }) {
             href={href}
             title={collapsed ? label : undefined}
             aria-current={active ? "page" : undefined}
-            className={`rounded-ledger text-14 flex h-9 items-center gap-3 px-2 ${
+            className={`rounded-control text-14 flex h-9 items-center gap-3 px-2 ${
               active
-                ? "bg-carbon-wash text-carbon font-medium"
+                ? "bg-carbon-soft text-carbon-ink font-semibold"
                 : "text-ink-muted hover:bg-carbon-wash hover:text-ink"
             }`}
           >
             <Icon size={20} weight={active ? "duotone" : "regular"} />
             {!collapsed && <span className="truncate">{label}</span>}
+            {href === "/issues" && issueCount > 0 && (
+              <span
+                className="rounded-chip border-waiting bg-waiting-wash text-waiting num text-12 ml-auto border px-1.5"
+                aria-label={`${issueCount} needing attention`}
+              >
+                {issueCount}
+              </span>
+            )}
           </Link>
         );
       })}
@@ -271,7 +307,7 @@ export default function LeftRail({ role = "partner" }) {
         onClick={toggle}
         aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         aria-expanded={!collapsed}
-        className="rounded-ledger text-14 text-ink-muted hover:bg-carbon-wash hover:text-ink mt-auto flex h-9 items-center gap-3 px-2"
+        className="rounded-control text-14 text-ink-muted hover:bg-carbon-wash hover:text-ink mt-auto flex h-9 items-center gap-3 px-2"
       >
         <CaretLeft
           size={20}
@@ -345,9 +381,9 @@ export function MobileNav({ role = "partner" }) {
                     href={href}
                     onClick={() => setMoreOpen(false)}
                     aria-current={isActive(href) ? "page" : undefined}
-                    className={`rounded-ledger text-14 flex h-11 items-center gap-3 px-3 ${
+                    className={`rounded-control text-14 flex h-11 items-center gap-3 px-3 ${
                       isActive(href)
-                        ? "bg-carbon-wash text-carbon font-medium"
+                        ? "bg-carbon-soft text-carbon-ink font-semibold"
                         : "text-ink"
                     }`}
                   >
@@ -373,7 +409,7 @@ export function MobileNav({ role = "partner" }) {
               href={href}
               aria-label={label}
               aria-current={active ? "page" : undefined}
-              className={`rounded-ledger grid size-10 place-items-center ${
+              className={`rounded-control grid size-10 place-items-center ${
                 active ? "bg-carbon-wash text-carbon" : "text-ink-muted"
               }`}
             >
@@ -388,7 +424,7 @@ export function MobileNav({ role = "partner" }) {
             onClick={() => setMoreOpen((v) => !v)}
             aria-expanded={moreOpen}
             aria-label={`More — ${rest.length} more places`}
-            className={`rounded-ledger grid size-10 place-items-center ${
+            className={`rounded-control grid size-10 place-items-center ${
               moreOpen ? "bg-carbon-wash text-carbon" : "text-ink-muted"
             }`}
           >

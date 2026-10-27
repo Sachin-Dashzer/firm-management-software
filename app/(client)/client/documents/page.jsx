@@ -40,10 +40,12 @@ export default async function ClientDocumentsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-display text-28 font-semibold">Documents</h1>
+        <h1 className="font-display text-24 font-bold tracking-tight">
+          Documents
+        </h1>
         <p className="text-14 text-ink-muted max-w-[65ch]">
-          Papers the firm has shared with you. If something you expected is
-          not here, ask the office — they decide what is ready to share.
+          Papers the firm has shared with you. If something you expected is not
+          here, ask the office — they decide what is ready to share.
         </p>
       </div>
 
@@ -77,7 +79,7 @@ export default async function ClientDocumentsPage() {
                   vault is ever reachable by a plain URL (CLAUDE.md rule 11) */}
               <a
                 href={`/client/documents/${document._id}`}
-                className="rounded-ledger border-rule text-13 flex h-8 items-center border px-3"
+                className="rounded-control border-rule text-13 flex h-8 items-center border px-3"
               >
                 Download
               </a>

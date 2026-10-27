@@ -190,7 +190,7 @@ test.afterAll(async () => {
 });
 
 /** @param {import("@playwright/test").Page} page */
-async function signIn(page, email, password = PASSWORD, land = /\/today$/) {
+async function signIn(page, email, password = PASSWORD, land = /\/issues$/) {
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);

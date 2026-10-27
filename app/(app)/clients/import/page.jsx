@@ -24,7 +24,9 @@ export default async function ImportPage() {
   return (
     <div className="mx-auto flex max-w-[1100px] flex-col gap-5 p-4 md:p-6">
       <div>
-        <h1 className="font-display text-28 font-semibold">Import clients</h1>
+        <h1 className="font-display text-24 font-bold tracking-tight">
+          Import clients
+        </h1>
         <p className="text-13 text-ink-muted">
           Bring your existing client list in from a spreadsheet. Nothing is
           saved until you have seen what will happen.
@@ -32,7 +34,7 @@ export default async function ImportPage() {
       </div>
 
       <section className="rounded-ledger border-rule bg-surface border p-4">
-        <h2 className="font-display text-20">How to do it</h2>
+        <h2 className="font-display text-15 font-semibold">How to do it</h2>
         <ol className="text-14 mt-2 flex list-decimal flex-col gap-1 pl-5">
           <li>
             Download the{" "}

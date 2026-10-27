@@ -54,7 +54,7 @@ export default function NewInvoice({ clients, selectedClient, unbilled }) {
         <select
           value={selectedClient}
           onChange={(e) => chooseClient(e.target.value)}
-          className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+          className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
         >
           <option value="">— choose —</option>
           {clients.map((c) => (
@@ -68,7 +68,9 @@ export default function NewInvoice({ clients, selectedClient, unbilled }) {
       {selectedClient && (
         <section className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4">
           <div>
-            <h2 className="font-display text-20">Work not yet billed</h2>
+            <h2 className="font-display text-15 font-semibold">
+              Work not yet billed
+            </h2>
             <p className="text-13 text-ink-muted">
               Completed and filed engagements with no invoice against them.
             </p>
@@ -86,11 +88,18 @@ export default function NewInvoice({ clients, selectedClient, unbilled }) {
                   key={e.id}
                   className="border-rule flex items-center justify-between gap-3 border-b py-2 last:border-0"
                 >
-                  <label className="flex items-center gap-2">
+                  <label
+                    className={`flex items-start gap-2 ${e.blocked ? "opacity-70" : ""}`}
+                  >
                     <input
                       type="checkbox"
                       checked={picked.has(e.id)}
+                      disabled={Boolean(e.blocked)}
+                      title={
+                        e.blocked ? `Cannot be billed: ${e.blocked}` : undefined
+                      }
                       onChange={() => toggle(e.id)}
+                      className="mt-1"
                     />
                     <span className="text-14">
                       {e.label}
@@ -98,10 +107,15 @@ export default function NewInvoice({ clients, selectedClient, unbilled }) {
                         {" "}
                         {e.code}
                       </span>
+                      {e.blocked && (
+                        <span className="text-12 text-ink-muted block">
+                          Cannot be billed: {e.blocked}
+                        </span>
+                      )}
                     </span>
                   </label>
                   <span className="num text-14">
-                    {e.fee.toLocaleString("en-IN")}
+                    {e.blocked ? "—" : e.fee.toLocaleString("en-IN")}
                   </span>
                 </li>
               ))}
@@ -130,7 +144,7 @@ export default function NewInvoice({ clients, selectedClient, unbilled }) {
                   if (result?.id) router.push(`/invoices/${result.id}`);
                 })
               }
-              className="rounded-ledger bg-carbon text-14 h-10 px-4 font-medium text-white disabled:opacity-60"
+              className="rounded-control bg-carbon text-14 text-on-carbon h-10 px-4 font-medium disabled:opacity-60"
             >
               {pending
                 ? "Creating…"

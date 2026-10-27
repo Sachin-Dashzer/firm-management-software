@@ -60,16 +60,18 @@ export default async function ClientProfilePage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-display text-28 font-semibold">Your details</h1>
+        <h1 className="font-display text-24 font-bold tracking-tight">
+          Your details
+        </h1>
         <p className="text-14 text-ink-muted max-w-[65ch]">
-          What we hold on your file. If any of it is out of date, tell us
-          below — we will check it and change it ourselves rather than
-          letting the record change itself.
+          What we hold on your file. If any of it is out of date, tell us below
+          — we will check it and change it ourselves rather than letting the
+          record change itself.
         </p>
       </div>
 
       <section className="rounded-ledger border-rule bg-surface border p-4">
-        <h2 className="font-display text-20">The company</h2>
+        <h2 className="font-display text-15 font-semibold">The company</h2>
         <dl className="mt-2 grid gap-x-6 gap-y-2 sm:grid-cols-2">
           <Row label="Legal name" value={client.legalName} />
           <Row label="Trading as" value={client.tradeName} />
@@ -103,7 +105,9 @@ export default async function ClientProfilePage() {
 
       {(client.gstins ?? []).length > 0 && (
         <section className="rounded-ledger border-rule bg-surface border p-4">
-          <h2 className="font-display text-20">GST registrations</h2>
+          <h2 className="font-display text-15 font-semibold">
+            GST registrations
+          </h2>
           <ul className="mt-2 flex flex-col gap-1">
             {client.gstins.map((row, index) => (
               <li key={row.gstin || index} className="text-14">
@@ -119,7 +123,9 @@ export default async function ClientProfilePage() {
 
       {(client.contacts ?? []).length > 0 && (
         <section className="rounded-ledger border-rule bg-surface border p-4">
-          <h2 className="font-display text-20">Who we speak to</h2>
+          <h2 className="font-display text-15 font-semibold">
+            Who we speak to
+          </h2>
           <ul className="mt-2 flex flex-col gap-1">
             {client.contacts.map((contact, index) => (
               <li key={contact.email || index} className="text-14">
@@ -131,7 +137,10 @@ export default async function ClientProfilePage() {
                   </span>
                 )}
                 {contact.primary && (
-                  <span className="text-ink-muted text-13"> · main contact</span>
+                  <span className="text-ink-muted text-13">
+                    {" "}
+                    · main contact
+                  </span>
                 )}
               </li>
             ))}
@@ -143,7 +152,9 @@ export default async function ClientProfilePage() {
 
       {requests.length > 0 && (
         <section className="flex flex-col gap-2">
-          <h2 className="font-display text-20">What you have asked us</h2>
+          <h2 className="font-display text-15 font-semibold">
+            What you have asked us
+          </h2>
           <ul className="rounded-ledger border-rule divide-rule divide-y border">
             {requests.map((request) => (
               <li key={String(request._id)} className="p-3">

@@ -26,7 +26,7 @@ const PAGE_SIZE = 50;
  */
 export default async function ClientsPage({ searchParams }) {
   const actor = await requireUser();
-  if (!can(actor, "view", "clients")) redirect("/today");
+  if (!can(actor, "view", "clients")) redirect("/issues");
 
   const params = (await searchParams) ?? {};
   const {
@@ -96,7 +96,9 @@ export default async function ClientsPage({ searchParams }) {
     <div className="mx-auto flex max-w-[1600px] flex-col gap-5 p-4 md:p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="font-display text-28 font-semibold">Clients</h1>
+          <h1 className="font-display text-24 font-bold tracking-tight">
+            Clients
+          </h1>
           <p className="num text-13 text-ink-muted">
             {total.toLocaleString("en-IN")} {total === 1 ? "client" : "clients"}
             {search ? ` matching “${search}”` : ""}
@@ -110,7 +112,7 @@ export default async function ClientsPage({ searchParams }) {
                   ([, v]) => v,
                 ),
               )}`}
-              className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
+              className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
             >
               Export to Excel
             </a>
@@ -119,13 +121,13 @@ export default async function ClientsPage({ searchParams }) {
             <>
               <Link
                 href="/clients/import"
-                className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
+                className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
               >
                 Import from Excel
               </Link>
               <Link
                 href="/clients/new"
-                className="rounded-ledger bg-carbon text-14 h-9 px-3 leading-9 font-medium text-white"
+                className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 leading-9 font-medium"
               >
                 New client
               </Link>
@@ -146,7 +148,7 @@ export default async function ClientsPage({ searchParams }) {
             name="q"
             defaultValue={search}
             placeholder="ABC Traders, AAAPZ1234C, 9876543210…"
-            className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
           />
         </label>
         <Filter
@@ -179,13 +181,13 @@ export default async function ClientsPage({ searchParams }) {
           />
           <button
             type="submit"
-            className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white"
+            className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium"
           >
             Filter
           </button>
           <Link
             href="/clients"
-            className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
+            className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
           >
             Clear
           </Link>
@@ -198,10 +200,10 @@ export default async function ClientsPage({ searchParams }) {
           assigned to you it will appear here.
         </p>
       ) : (
-        <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+        <div className="rounded-table border-rule bg-surface overflow-x-auto border">
           <table className="text-14 w-full">
             <thead>
-              <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+              <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
                 <Th>Group</Th>
                 <Th>Code</Th>
                 <Th>Client</Th>
@@ -339,7 +341,7 @@ export function StatusChip({ status }) {
     Closed: "border-rule text-ink-muted",
   }[status];
   return (
-    <span className={`rounded-ledger text-13 border px-2 py-0.5 ${tone}`}>
+    <span className={`rounded-chip text-13 border px-2 py-0.5 ${tone}`}>
       {status}
     </span>
   );
@@ -352,7 +354,7 @@ function Filter({ label, name, value, options }) {
       <select
         name={name}
         defaultValue={value}
-        className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+        className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
       >
         <option value="">Any</option>
         {options.map((o) => {

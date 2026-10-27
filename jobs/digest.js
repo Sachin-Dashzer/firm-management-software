@@ -10,6 +10,7 @@ import { notify } from "../lib/mailer/notify.js";
 import { digestFor, weeklyFor } from "../lib/mailer/digest.js";
 import { daysUntil, formatISTDate, startOfISTDay } from "../lib/dates.js";
 import { SWEEP_OPEN_STATUSES } from "../lib/mailer/sweep.js";
+import { CHARGEABLE_QUERY } from "../lib/engagements/scope.js";
 
 const appUrl = () =>
   (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(
@@ -173,6 +174,9 @@ export async function weeklySummary(options = {}) {
     Engagement.countDocuments({
       status: "Completed",
       billingStatus: "Unbilled",
+      // waived and retainer work is finished and settled, not money waiting
+      // to be invoiced, and a partner's weekly figure should not imply it is
+      ...CHARGEABLE_QUERY,
     }),
     Engagement.find({
       status: { $nin: ["Filed / delivered", "Completed", "Cancelled"] },

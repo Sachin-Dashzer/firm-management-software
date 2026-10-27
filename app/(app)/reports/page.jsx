@@ -48,6 +48,12 @@ const GROUPS = [
         what: "Clients down the side, periods across the top — the fastest way to spot a month nobody filed.",
       },
       {
+        href: "/reports/at-risk",
+        area: "engagementsWork",
+        name: "At risk",
+        what: "The deadline has not passed but one of our own targets has — the list where acting still works.",
+      },
+      {
         href: "/reports/turnaround",
         area: "engagementsWork",
         name: "Turnaround per service",
@@ -164,7 +170,9 @@ export default async function ReportsPage() {
   return (
     <div className="mx-auto flex max-w-[900px] flex-col gap-6 p-4 md:p-6">
       <div>
-        <h1 className="font-display text-28 font-semibold">Reports</h1>
+        <h1 className="font-display text-24 font-bold tracking-tight">
+          Reports
+        </h1>
         <p className="text-13 text-ink-muted">
           Each one can be narrowed by date, branch, client, service or person,
           and downloaded as a spreadsheet.
@@ -182,7 +190,14 @@ export default async function ReportsPage() {
               <dd className="text-20">
                 <Link
                   href={tile.href}
-                  className={`num font-medium ${tile.tone === "late" ? "text-redpen" : ""}`}
+                  className={`num font-medium ${
+                    tile.tone === "late"
+                      ? "text-redpen"
+                      : // amber, not red: at risk is still saveable (P3-5)
+                        tile.tone === "waiting"
+                        ? "text-waiting"
+                        : ""
+                  }`}
                 >
                   {tile.value}
                 </Link>
@@ -214,7 +229,7 @@ export default async function ReportsPage() {
           id={slug(group.title)}
           className="flex scroll-mt-4 flex-col gap-2"
         >
-          <h2 className="font-display text-20">{group.title}</h2>
+          <h2 className="font-display text-15 font-semibold">{group.title}</h2>
           <ul className="rounded-ledger border-rule bg-surface border">
             {group.reports.map((report) => (
               <li

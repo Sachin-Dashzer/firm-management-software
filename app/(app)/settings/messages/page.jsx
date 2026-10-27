@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function MessagesPage({ searchParams }) {
   const actor = await requireUser();
-  if (!can(actor, "edit", "usersSettings")) redirect("/today");
+  if (!can(actor, "edit", "usersSettings")) redirect("/issues");
 
   const params = (await searchParams) ?? {};
 

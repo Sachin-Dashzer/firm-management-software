@@ -89,7 +89,9 @@ export default async function MePage() {
     <div className="mx-auto flex max-w-[1100px] flex-col gap-6 p-4 md:p-6">
       <header className="flex flex-col gap-1">
         <p className="text-13 text-ink-muted">{ROLE_LABELS[me.role]}</p>
-        <h1 className="font-display text-28 font-semibold">{me.name}</h1>
+        <h1 className="font-display text-24 font-bold tracking-tight">
+          {me.name}
+        </h1>
         <p className="text-14 text-ink-muted">
           {branches.map((b) => b.code).join(" · ") || "No branch"}
           {me.lastLoginAt
@@ -136,7 +138,7 @@ export default async function MePage() {
 
       {/* --- what is on my desk --- */}
       <section className="flex flex-col gap-2">
-        <h2 className="font-display text-20">My work</h2>
+        <h2 className="font-display text-15 font-semibold">My work</h2>
         <dl className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <Figure
             label="Open"
@@ -174,7 +176,7 @@ export default async function MePage() {
         </dl>
 
         {open.length > 0 && (
-          <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+          <div className="rounded-table border-rule bg-surface overflow-x-auto border">
             <table className="text-14 w-full">
               <caption className="sr-only">My open work</caption>
               <thead>
@@ -242,14 +244,16 @@ export default async function MePage() {
 
       {/* --- the clients somebody opened to me --- */}
       <section className="flex flex-col gap-2">
-        <h2 className="font-display text-20">Clients I have been given</h2>
+        <h2 className="font-display text-15 font-semibold">
+          Clients I have been given
+        </h2>
         {grants.length === 0 ? (
           <p className="rounded-ledger border-rule bg-surface text-14 text-ink-muted border p-6">
             None. You can see the clients of the work on your desk, which needs
             no grant.
           </p>
         ) : (
-          <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+          <div className="rounded-table border-rule bg-surface overflow-x-auto border">
             <table className="text-14 w-full">
               <caption className="sr-only">
                 Clients I have been given access to
@@ -314,7 +318,7 @@ export default async function MePage() {
       {/* --- articleship, for an intern --- */}
       {me.isIntern && me.articleship && (
         <section className="flex flex-col gap-2">
-          <h2 className="font-display text-20">My articleship</h2>
+          <h2 className="font-display text-15 font-semibold">My articleship</h2>
           <Panel title="Registration">
             <Row label="Principal" value={principal?.name ?? "—"} />
             <Row
@@ -346,7 +350,7 @@ export default async function MePage() {
 
       {/* --- password and phone --- */}
       <section className="flex flex-col gap-2">
-        <h2 className="font-display text-20">Signing in</h2>
+        <h2 className="font-display text-15 font-semibold">Signing in</h2>
         <div className="rounded-ledger border-rule bg-surface border p-4">
           <Security
             mobile={me.mobile ?? ""}
@@ -374,7 +378,7 @@ function Panel({ title, className = "", children }) {
     <section
       className={`rounded-ledger border-rule bg-surface border p-4 ${className}`}
     >
-      <h2 className="font-display text-20 mb-3">{title}</h2>
+      <h2 className="font-display text-15 mb-3 font-semibold">{title}</h2>
       <dl>{children}</dl>
     </section>
   );

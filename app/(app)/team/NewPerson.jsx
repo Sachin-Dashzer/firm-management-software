@@ -24,7 +24,7 @@ export default function NewPerson({ branches, seniors }) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="rounded-ledger bg-carbon text-surface text-14 h-9 self-start px-3 font-medium"
+        className="rounded-control bg-carbon text-surface text-14 h-9 self-start px-3 font-medium"
       >
         {open ? "Cancel" : "Add somebody"}
       </button>
@@ -74,7 +74,7 @@ export default function NewPerson({ branches, seniors }) {
                   name="role"
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
-                  className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+                  className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
                 >
                   {ROLES.map((r) => (
                     <option key={r} value={r}>
@@ -115,7 +115,7 @@ export default function NewPerson({ branches, seniors }) {
                 </span>
                 <select
                   name="reportingTo"
-                  className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+                  className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
                 >
                   <option value="">— none —</option>
                   {seniors.map((s) => (
@@ -162,7 +162,7 @@ export default function NewPerson({ branches, seniors }) {
                 <button
                   type="submit"
                   disabled={pending}
-                  className="rounded-ledger bg-carbon text-surface text-14 h-10 px-4 font-medium disabled:opacity-60"
+                  className="rounded-control bg-carbon text-surface text-14 h-10 px-4 font-medium disabled:opacity-60"
                 >
                   {pending ? "Adding…" : "Add them"}
                 </button>
@@ -180,7 +180,7 @@ function Field({ label, ...rest }) {
     <label className="flex flex-col gap-1">
       <span className="text-13 text-ink-muted font-medium">{label}</span>
       <input
-        className="rounded-ledger border-rule bg-paper text-14 text-ink h-10 border px-3"
+        className="rounded-control border-rule bg-paper text-14 text-ink h-10 border px-3"
         {...rest}
       />
     </label>

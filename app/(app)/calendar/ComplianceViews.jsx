@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { DueChip, StatusChip } from "../engagements/chips";
 import StatusGrid from "@/components/compliance/StatusGrid";
+import NeverCreated from "./NeverCreated";
 
 /**
  * The firm's deadlines, two ways (spec section 8): a calendar of what is
@@ -20,6 +21,7 @@ export default function ComplianceViews({
   grid,
   heads,
   gridService,
+  neverCreated = [],
   fyStart,
   params,
   branches,
@@ -44,7 +46,9 @@ export default function ComplianceViews({
   return (
     <div className="mx-auto flex max-w-[1600px] flex-col gap-5 p-4 md:p-6">
       <div>
-        <h1 className="font-display text-28 font-semibold">Compliance</h1>
+        <h1 className="font-display text-24 font-bold tracking-tight">
+          Compliance
+        </h1>
         <p className="text-13 text-ink-muted">
           Where each head stands, what is due, and what was never filed.
         </p>
@@ -60,7 +64,7 @@ export default function ComplianceViews({
             key={key}
             href={linkTo({ view: key === "heads" ? "" : key })}
             aria-current={view === key ? "page" : undefined}
-            className={`rounded-ledger text-14 h-9 border px-3 leading-9 ${
+            className={`rounded-control text-14 h-9 border px-3 leading-9 ${
               view === key
                 ? "border-carbon bg-carbon-wash text-carbon"
                 : "border-rule hover:bg-carbon-wash"
@@ -130,13 +134,13 @@ export default function ComplianceViews({
         <div className="flex items-end gap-2">
           <button
             type="submit"
-            className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white"
+            className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium"
           >
             Filter
           </button>
           <Link
             href={view === "heads" ? "/calendar" : `/calendar?view=${view}`}
-            className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
+            className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
           >
             Clear
           </Link>
@@ -146,7 +150,12 @@ export default function ComplianceViews({
       {view === "heads" ? (
         <Heads heads={heads} fyStart={fyStart} linkTo={linkTo} />
       ) : view === "grid" ? (
-        <Grid grid={grid} service={gridService} />
+        <Grid
+          grid={grid}
+          service={gridService}
+          neverCreated={neverCreated}
+          fyStart={fyStart}
+        />
       ) : (
         <>
           <div className="flex gap-2">
@@ -160,7 +169,7 @@ export default function ComplianceViews({
                 type="button"
                 onClick={() => setMode(key)}
                 aria-pressed={mode === key}
-                className={`rounded-ledger text-14 h-9 border px-3 ${
+                className={`rounded-control text-14 h-9 border px-3 ${
                   mode === key
                     ? "border-carbon bg-carbon-wash text-carbon"
                     : "border-rule"
@@ -225,15 +234,17 @@ function Heads({ heads, fyStart, linkTo }) {
 
       {heads.categories.map((category) => (
         <section key={category.name} className="flex flex-col gap-2">
-          <h2 className="font-display text-20">{category.name}</h2>
-          <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+          <h2 className="font-display text-15 font-semibold">
+            {category.name}
+          </h2>
+          <div className="rounded-table border-rule bg-surface overflow-x-auto border">
             <table className="text-14 w-full">
               <caption className="sr-only">
                 {category.name} in FY {fyStart}-
                 {String((fyStart + 1) % 100).padStart(2, "0")}
               </caption>
               <thead>
-                <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+                <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
                   <th className="px-3 py-2 font-medium">Head</th>
                   <th className="px-3 py-2 font-medium">Basis</th>
                   <th className="px-3 py-2 text-right font-medium">Clients</th>
@@ -307,7 +318,7 @@ function Count({ value, bad }) {
   );
 }
 
-function Grid({ grid, service }) {
+function Grid({ grid, service, neverCreated = [], fyStart }) {
   if (!service || !grid) {
     return (
       <p className="rounded-ledger border-rule bg-surface text-14 text-ink-muted border p-6">
@@ -321,16 +332,27 @@ function Grid({ grid, service }) {
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap gap-3">
         <Figure
-          label="Periods with nothing created"
+          label="Periods nobody has answered for"
           value={grid.totalMissing}
           tone={grid.totalMissing > 0}
         />
+        {grid.totalExplained > 0 && (
+          <Figure
+            label="Explained, not a miss"
+            value={grid.totalExplained}
+            tone={false}
+          />
+        )}
         <Figure
           label="Open and overdue"
           value={grid.totalLate}
           tone={grid.totalLate > 0}
         />
       </div>
+
+      {neverCreated.length > 0 && (
+        <NeverCreated rows={neverCreated} service={service} fyStart={fyStart} />
+      )}
 
       <StatusGrid
         periods={grid.periods}
@@ -363,10 +385,10 @@ function ListView({ rows }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+      <div className="rounded-table border-rule bg-surface overflow-x-auto border">
         <table className="text-14 w-full">
           <thead>
-            <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+            <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
               <th className="px-3 py-2 font-medium">Due</th>
               <th className="px-3 py-2 font-medium">Client</th>
               <th className="px-3 py-2 font-medium">Work</th>
@@ -550,15 +572,15 @@ function Stepper({ label, onBack, onForward }) {
       <button
         type="button"
         onClick={onBack}
-        className="rounded-ledger border-rule text-14 h-9 border px-3"
+        className="rounded-control border-rule text-14 h-9 border px-3"
       >
         ← Previous
       </button>
-      <h2 className="font-display text-20">{label}</h2>
+      <h2 className="font-display text-15 font-semibold">{label}</h2>
       <button
         type="button"
         onClick={onForward}
-        className="rounded-ledger border-rule text-14 h-9 border px-3"
+        className="rounded-control border-rule text-14 h-9 border px-3"
       >
         Next →
       </button>
@@ -579,7 +601,7 @@ function Filter({ label, name, value = "", options, includeAny = true }) {
       <select
         name={name}
         defaultValue={value}
-        className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+        className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
       >
         {includeAny && <option value="">Any</option>}
         {options.map(([v, text]) => (

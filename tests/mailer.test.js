@@ -171,21 +171,25 @@ describe("filling a template in", () => {
       (t) => t.audience === "client",
     );
     /**
-     * Exactly these seven leave the building; everything else is internal,
+     * Exactly these nine leave the building; everything else is internal,
      * and the guard only holds back what is marked "client".
      *
      * This list is an allow-list on purpose, so adding a client-facing
      * message is a deliberate act and not a side effect. P3-2 added the two
      * checklist ones: a document sent back with the reason, and an answer to
-     * a question the client asked.
+     * a question the client asked. P3-17a added `messageToClient`, which is
+     * the only one whose words are a person's own rather than a template -
+     * and being on this list is what puts it behind the client-email switch.
      */
     expect(clientFacing.map((t) => t.key).sort()).toEqual([
       "checklistAnswer",
       "checklistReplacement",
+      "clientThreadMessage",
       "documentRequest",
       "documentsPending",
       "invoiceIssued",
       "invoiceReminder",
+      "messageToClient",
       "paymentReceived",
     ]);
   });

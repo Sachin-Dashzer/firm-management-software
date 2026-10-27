@@ -51,7 +51,9 @@ export default function TeamAccess({
   return (
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-2">
-        <h2 className="font-display text-20">Who works on this client</h2>
+        <h2 className="font-display text-15 font-semibold">
+          Who works on this client
+        </h2>
         <p className="text-13 text-ink-muted max-w-[62ch]">
           Taken from the open engagements, so it is right by the time you read
           it: handing work over is what changes this list.
@@ -121,7 +123,9 @@ export default function TeamAccess({
 
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="font-display text-20">Access to this client</h2>
+          <h2 className="font-display text-15 font-semibold">
+            Access to this client
+          </h2>
           {mayEdit && (
             <button
               type="button"
@@ -168,7 +172,7 @@ export default function TeamAccess({
                 required
                 value={userId}
                 onChange={(e) => setUserId(e.target.value)}
-                className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
               >
                 <option value="">Choose a person</option>
                 {team.map((p) => (
@@ -227,7 +231,7 @@ export default function TeamAccess({
                 required
                 maxLength={300}
                 placeholder="Covering the GST filings while Ankit is on exam leave"
-                className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
               />
             </label>
 
@@ -238,21 +242,21 @@ export default function TeamAccess({
               <input
                 type="date"
                 name="expiresAt"
-                className="rounded-ledger border-rule bg-paper text-14 h-9 w-48 border px-2"
+                className="rounded-control border-rule bg-paper text-14 h-9 w-48 border px-2"
               />
             </label>
 
             <button
               type="submit"
               disabled={pending || !person}
-              className="rounded-ledger bg-carbon text-surface text-14 h-9 self-start px-4 disabled:opacity-50"
+              className="rounded-control bg-carbon text-surface text-14 h-9 self-start px-4 disabled:opacity-50"
             >
               {pending ? "Saving…" : "Give access"}
             </button>
           </form>
         )}
 
-        <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+        <div className="rounded-table border-rule bg-surface overflow-x-auto border">
           <table className="text-14 w-full">
             <caption className="sr-only">
               People given access to this client

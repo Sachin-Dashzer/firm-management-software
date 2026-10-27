@@ -26,7 +26,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function UdinPage({ searchParams }) {
   const actor = await requireUser();
-  if (!can(actor, "view", "udin")) redirect("/today");
+  if (!can(actor, "view", "udin")) redirect("/issues");
 
   const params = (await searchParams) ?? {};
   const thisYear = financialYearStart(new Date());

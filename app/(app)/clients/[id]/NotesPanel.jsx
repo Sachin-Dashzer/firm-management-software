@@ -33,7 +33,7 @@ export default function NotesPanel({ clientId, notes, mayEdit }) {
               <span className="text-13 text-ink-muted font-medium">Kind</span>
               <select
                 name="kind"
-                className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
               >
                 <option value="Note">Note</option>
                 {CONTACT_CHANNELS.map((c) => (
@@ -49,7 +49,7 @@ export default function NotesPanel({ clientId, notes, mayEdit }) {
                 type="date"
                 name="occurredAt"
                 defaultValue={new Date().toISOString().slice(0, 10)}
-                className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
               />
             </label>
           </div>
@@ -70,7 +70,7 @@ export default function NotesPanel({ clientId, notes, mayEdit }) {
             <button
               type="submit"
               disabled={pending}
-              className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+              className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
             >
               {pending ? "Saving…" : "Add entry"}
             </button>

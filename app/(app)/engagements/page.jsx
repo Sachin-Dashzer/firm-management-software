@@ -14,6 +14,7 @@ import { formatISTDate, daysUntil, istInputDate } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
 import { PRIORITIES, STATUSES } from "@/lib/engagements/status";
 import { engagementQuery } from "@/lib/engagements/filter";
+import { atRisk } from "@/lib/engagements/risk";
 import { TIERS, TIER_LABELS } from "@/lib/services/catalog";
 import EngagementViews from "./EngagementViews";
 import SavedViews from "@/components/reports/SavedViews";
@@ -26,7 +27,7 @@ const PAGE_SIZE = 100;
 
 export default async function EngagementsPage({ searchParams }) {
   const actor = await requireUser();
-  if (!can(actor, "view", "engagementsWork")) redirect("/today");
+  if (!can(actor, "view", "engagementsWork")) redirect("/issues");
 
   const params = (await searchParams) ?? {};
   const view = ["board", "calendar"].includes(params.view)
@@ -120,6 +121,8 @@ export default async function EngagementsPage({ searchParams }) {
       // the 1st is not drawn on the 30th
       dueISO: due ? istInputDate(due) : null,
       dueDays: due ? daysUntil(due) : null,
+      // still saveable, but only if somebody acts this week (P3-5)
+      atRisk: atRisk(e),
     };
   });
 
@@ -137,7 +140,9 @@ export default async function EngagementsPage({ searchParams }) {
     <div className="mx-auto flex max-w-[1600px] flex-col gap-5 p-4 md:p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="font-display text-28 font-semibold">Engagements</h1>
+          <h1 className="font-display text-24 font-bold tracking-tight">
+            Engagements
+          </h1>
           <p className="num text-13 text-ink-muted">
             {total.toLocaleString("en-IN")} {total === 1 ? "job" : "jobs"}
             {params.closed ? " including closed" : " open"}
@@ -147,14 +152,14 @@ export default async function EngagementsPage({ searchParams }) {
         <div className="flex flex-wrap gap-2">
           <a
             href={`/engagements/export?${exportParams}`}
-            className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
+            className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
           >
             Export to Excel
           </a>
           {can(actor, "edit", "engagementsCreate") && (
             <Link
               href="/engagements/new"
-              className="rounded-ledger bg-carbon text-14 h-9 px-3 leading-9 font-medium text-white"
+              className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 leading-9 font-medium"
             >
               New engagement
             </Link>
@@ -175,7 +180,7 @@ export default async function EngagementsPage({ searchParams }) {
             name="q"
             defaultValue={search}
             placeholder="ABC Traders, NOI-GSTR3B-…"
-            className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
           />
         </label>
         <Filter
@@ -258,13 +263,13 @@ export default async function EngagementsPage({ searchParams }) {
           </label>
           <button
             type="submit"
-            className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white"
+            className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium"
           >
             Filter
           </button>
           <Link
             href="/engagements"
-            className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
+            className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
           >
             Clear
           </Link>
@@ -309,7 +314,7 @@ function Filter({ label, name, value = "", options }) {
       <select
         name={name}
         defaultValue={value}
-        className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+        className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
       >
         <option value="">Any</option>
         {options.map(([v, text]) => (

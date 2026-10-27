@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { MagnifyingGlass, Plus, Bell, UserCircle } from "@phosphor-icons/react";
-import { ThemeToggle, DensityToggle } from "./Preferences";
+import { ThemeToggle, DensityToggle, MomentsToggle } from "./Preferences";
 import { ROLE_LABELS } from "@/lib/permissions";
 
 /**
@@ -12,22 +13,53 @@ import { ROLE_LABELS } from "@/lib/permissions";
  * @param {{ name: string, email: string, role: string }} props.user
  * @param {{ id: string, code: string, name: string }[]} props.branches the
  *   branches this user is assigned to, already filtered on the server
+ * @param {string} props.view what they are currently looking at inside that
+ *   access: "all", one branch id, or "mine" (P3-7)
  */
-export default function TopBar({ user, branches, unreadCount = 0 }) {
+export default function TopBar({
+  user,
+  branches,
+  unreadCount = 0,
+  view = "all",
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const router = useRouter();
+
+  /**
+   * Remember what this person is looking at, and re-read the page (P3-7).
+   *
+   * A cookie rather than a field on the user: it is a reading preference,
+   * not a fact about the account, and it must not be something a stale
+   * session can get wrong. The server validates it against the account on
+   * every request anyway (`readView`), so the worst a hand-edited cookie
+   * can do is show you less than you are allowed.
+   */
+  function chooseView(next) {
+    const year = 60 * 60 * 24 * 365;
+    document.cookie = `phmg-view=${encodeURIComponent(next)};path=/;max-age=${year};samesite=lax`;
+    router.refresh();
+  }
 
   return (
-    <header className="border-rule bg-surface relative z-20 shrink-0 border-b">
+    /**
+     * The bar takes the page's own ground, not the surface (P3-21b).
+     *
+     * In the prototype the rail is white, the canvas is grey and the bar is
+     * the canvas colour with a rule under it — so the bar reads as the top
+     * of the work rather than as a third surface floating above it.
+     */
+    <header className="border-rule bg-paper relative z-20 shrink-0 border-b">
       <div className="flex h-12 items-center gap-2 px-3">
         {branches.length > 1 && (
           <>
             <label className="sr-only" htmlFor="branch">
-              Branch
+              What you are looking at
             </label>
             <select
               id="branch"
-              defaultValue="all"
-              className="rounded-ledger border-rule bg-paper text-13 text-ink h-8 border px-2"
+              value={view}
+              onChange={(event) => chooseView(event.target.value)}
+              className="rounded-control border-rule bg-paper text-13 text-ink h-8 border px-2"
             >
               <option value="all">All my branches</option>
               {branches.map((b) => (
@@ -35,6 +67,13 @@ export default function TopBar({ user, branches, unreadCount = 0 }) {
                   {b.name}
                 </option>
               ))}
+              {/*
+                The view that is not a branch at all (P3-7): the jobs you
+                prepare or review, wherever the client sits. A manager
+                covering a review in another branch has no other way to see
+                it next to their own work.
+              */}
+              <option value="mine">My work across branches</option>
             </select>
           </>
         )}
@@ -46,7 +85,7 @@ export default function TopBar({ user, branches, unreadCount = 0 }) {
         <button
           type="button"
           onClick={() => window.dispatchEvent(new Event("phmg:command-bar"))}
-          className="rounded-ledger border-rule bg-paper text-13 text-ink-muted hover:border-brass hover:text-ink flex h-8 min-w-0 flex-1 items-center gap-2 border px-2 md:max-w-md"
+          className="rounded-control border-rule bg-paper text-13 text-ink-muted hover:border-brass hover:text-ink flex h-8 min-w-0 flex-1 items-center gap-2 border px-2 md:max-w-md"
         >
           <MagnifyingGlass size={16} />
           <span className="truncate">Search clients, PAN, GSTIN…</span>
@@ -67,11 +106,9 @@ export default function TopBar({ user, branches, unreadCount = 0 }) {
             <Plus size={18} />
           </button>
           <Link
-            href="/notifications"
+            href="/inbox"
             aria-label={
-              unreadCount > 0
-                ? `Notifications, ${unreadCount} unread`
-                : "Notifications"
+              unreadCount > 0 ? `Inbox, ${unreadCount} unread` : "Inbox"
             }
             className="rounded-ledger text-ink-muted hover:bg-carbon-wash hover:text-ink relative grid size-8 place-items-center"
           >
@@ -80,6 +117,7 @@ export default function TopBar({ user, branches, unreadCount = 0 }) {
               <span className="bg-redpen absolute top-1 right-1 size-2 rounded-full" />
             )}
           </Link>
+          <MomentsToggle />
           <DensityToggle />
           <ThemeToggle />
 
@@ -106,7 +144,7 @@ export default function TopBar({ user, branches, unreadCount = 0 }) {
                 <button
                   type="button"
                   onClick={() => signOut({ redirectTo: "/login" })}
-                  className="rounded-ledger border-rule hover:bg-carbon-wash w-full border px-2 py-1 text-left"
+                  className="rounded-control border-rule hover:bg-carbon-wash w-full border px-2 py-1 text-left"
                 >
                   Sign out
                 </button>
@@ -115,15 +153,14 @@ export default function TopBar({ user, branches, unreadCount = 0 }) {
           </div>
         </div>
       </div>
-      {/* the one gradient the design allows: a brass hairline under the top bar */}
-      <div
-        aria-hidden
-        className="h-px"
-        style={{
-          background:
-            "linear-gradient(to right, transparent, var(--brass), transparent)",
-        }}
-      />
+      {/*
+        The ledger language's brass hairline, which is one of the eight
+        signature moments and not chrome (P3-21b). The prototype's bar has a
+        plain rule and nothing else, so this is off unless somebody turns
+        the flourishes back on; the class is in globals.css beside the tick
+        and the stamp.
+      */}
+      <div aria-hidden className="brass-hairline h-px" />
     </header>
   );
 }

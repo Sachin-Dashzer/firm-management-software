@@ -58,7 +58,7 @@ export default function DeadlineHeatmap({ data }) {
           <Terrain data={data} />
         </div>
       ) : (
-        <div className="rounded-ledger border-rule bg-surface overflow-x-auto border p-3">
+        <div className="rounded-table border-rule bg-surface overflow-x-auto border p-3">
           <table className="text-13 w-full">
             <caption className="sr-only">
               Work due by branch and week. Each figure links to that

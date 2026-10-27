@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function RecycleBinPage() {
   const actor = await requireUser();
-  if (!can(actor, "approve", "deleteRecord")) redirect("/today");
+  if (!can(actor, "approve", "deleteRecord")) redirect("/issues");
 
   await connectDB();
   const documents = await DocumentModel.find({ deletedAt: { $ne: null } })
@@ -55,7 +55,9 @@ export default async function RecycleBinPage() {
   return (
     <div className="mx-auto flex max-w-[1200px] flex-col gap-6 p-4 md:p-6">
       <div>
-        <h1 className="font-display text-28 font-semibold">Recycle bin</h1>
+        <h1 className="font-display text-24 font-bold tracking-tight">
+          Recycle bin
+        </h1>
         <p className="text-13 text-ink-muted">
           Deleted files are kept for {RECYCLE_DAYS} days and can be restored
           until then. Erasing one cannot be undone.

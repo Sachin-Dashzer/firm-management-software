@@ -22,7 +22,7 @@ export default function FirmForm({ firm, mayEdit }) {
   if (!mayEdit) {
     return (
       <section className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4">
-        <h2 className="font-display text-20">{firm.name}</h2>
+        <h2 className="font-display text-15 font-semibold">{firm.name}</h2>
         <dl className="text-14 grid gap-x-6 gap-y-2 sm:grid-cols-2">
           <Fact label="Also known as" value={firm.tagline} />
           <Fact label="Firm registration no." value={firm.frn} mono />
@@ -81,7 +81,7 @@ export default function FirmForm({ firm, mayEdit }) {
       )}
 
       <section className="rounded-ledger border-rule bg-surface grid gap-4 border p-4 sm:grid-cols-2">
-        <h2 className="font-display text-20 sm:col-span-2">
+        <h2 className="font-display text-15 font-semibold sm:col-span-2">
           The firm, as a client sees it
         </h2>
         <p className="text-13 text-ink-muted sm:col-span-2">
@@ -119,7 +119,7 @@ export default function FirmForm({ firm, mayEdit }) {
       </section>
 
       <section className="rounded-ledger border-rule bg-surface grid gap-4 border p-4 sm:grid-cols-2">
-        <h2 className="font-display text-20 sm:col-span-2">
+        <h2 className="font-display text-15 font-semibold sm:col-span-2">
           ICAI and professional obligations
         </h2>
 
@@ -137,7 +137,7 @@ export default function FirmForm({ firm, mayEdit }) {
           <select
             name="constitution"
             defaultValue={firm.constitution}
-            className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
           >
             {FIRM_CONSTITUTIONS.map((c) => (
               <option key={c} value={c}>
@@ -180,7 +180,7 @@ export default function FirmForm({ firm, mayEdit }) {
       </section>
 
       <section className="rounded-ledger border-rule bg-surface grid gap-4 border p-4 sm:grid-cols-2">
-        <h2 className="font-display text-20 sm:col-span-2">
+        <h2 className="font-display text-15 font-semibold sm:col-span-2">
           CPE hours expected in a year
         </h2>
         <p className="text-13 text-ink-muted sm:col-span-2">
@@ -215,7 +215,7 @@ export default function FirmForm({ firm, mayEdit }) {
           <select
             name="cpeYearBasis"
             defaultValue={firm.cpeYearBasis}
-            className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
           >
             {CPE_YEAR_BASES.map((basis) => (
               <option key={basis} value={basis}>
@@ -234,7 +234,7 @@ export default function FirmForm({ firm, mayEdit }) {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-ledger bg-carbon text-14 h-10 px-4 font-medium text-white disabled:opacity-60"
+          className="rounded-control bg-carbon text-14 text-on-carbon h-10 px-4 font-medium disabled:opacity-60"
         >
           {pending ? "Saving…" : "Save the firm's record"}
         </button>
@@ -270,7 +270,7 @@ function Field({
       <input
         name={name}
         {...rest}
-        className={`rounded-ledger border-rule bg-paper text-14 h-10 border px-2 ${inputClassName}`}
+        className={`rounded-control border-rule bg-paper text-14 h-10 border px-2 ${inputClassName}`}
       />
       {hint && <span className="text-12 text-ink-muted">{hint}</span>}
     </label>

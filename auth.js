@@ -1,6 +1,7 @@
 // @ts-check
 
 import { cache } from "react";
+import { cookies } from "next/headers";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { connectDB } from "@/lib/db";
@@ -10,6 +11,7 @@ import { decryptField } from "@/lib/crypto";
 import { readChallenge, verifyTotp, skip2fa } from "@/lib/twoFactor";
 import { audited } from "@/lib/audit/request";
 import { recordAudit, ACTIONS } from "@/lib/audit";
+import { readView, VIEW_ALL, VIEW_COOKIE } from "@/lib/access/view";
 
 /**
  * Auth.js configuration.
@@ -309,8 +311,28 @@ export async function currentUser() {
     branchIds: (live.branchIds ?? []).map(String),
     isIntern: Boolean(live.isIntern),
     mustChangePassword: Boolean(live.mustChangePassword),
+    /**
+     * Which branches they are *looking at* right now (P3-7), validated
+     * against the account above. It rides on the actor so that
+     * `branchFilter` applies it in one place rather than twenty list pages
+     * each remembering to — and so that a page which forgets gets access
+     * right anyway, because access is the `branchIds` line, not this one.
+     */
+    view: readView(await viewCookie(), {
+      role: live.role,
+      branchIds: (live.branchIds ?? []).map(String),
+    }),
     active: true,
   };
+}
+
+/** The view cookie, or nothing outside a request (the job runner). */
+async function viewCookie() {
+  try {
+    return (await cookies()).get(VIEW_COOKIE)?.value ?? VIEW_ALL;
+  } catch {
+    return VIEW_ALL;
+  }
 }
 
 /**
@@ -340,7 +362,7 @@ const liveClientUser = cache(async (id) => {
   await connectDB();
   return ClientUser.findById(id)
     .select(
-      "name email designation clientId branchId active mustChangePassword",
+      "name email designation clientId branchId active mustChangePassword mayConfirmFigures",
     )
     .lean();
 });
@@ -362,6 +384,9 @@ export async function currentClientUser() {
     clientId: String(live.clientId),
     branchId: String(live.branchId),
     mustChangePassword: Boolean(live.mustChangePassword),
+    // read live like everything else here: a right the firm withdrew this
+    // morning must be gone now, not when the token expires (P3-6)
+    mayConfirmFigures: Boolean(live.mayConfirmFigures),
     active: true,
   };
 }

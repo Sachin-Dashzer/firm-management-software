@@ -16,7 +16,7 @@ export default function Members({ members, firm, ownOnly }) {
   return (
     <section className="flex flex-col gap-4">
       <div>
-        <h2 className="font-display text-20">
+        <h2 className="font-display text-15 font-semibold">
           {ownOnly ? "Your ICAI record" : "Members and their CPE"}
         </h2>
         <p className="text-13 text-ink-muted">
@@ -109,7 +109,7 @@ function Member({ member, firm }) {
             {member.name}&rsquo;s CPE hours by year
           </caption>
           <thead>
-            <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+            <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
               <th scope="col" className="py-1 font-medium">
                 Year
               </th>
@@ -177,7 +177,7 @@ function Member({ member, firm }) {
                 name="membershipNo"
                 defaultValue={member.icai.membershipNo}
                 inputMode="numeric"
-                className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2 font-mono"
+                className="rounded-control border-rule bg-paper text-14 h-9 border px-2 font-mono"
               />
             </label>
             <label className="flex flex-col gap-1">
@@ -185,7 +185,7 @@ function Member({ member, firm }) {
               <select
                 name="grade"
                 defaultValue={member.icai.grade}
-                className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
               >
                 <option value="">Not recorded</option>
                 <option value="ACA">ACA — Associate</option>
@@ -198,7 +198,7 @@ function Member({ member, firm }) {
                 type="date"
                 name="admittedOn"
                 defaultValue={member.icai.admittedOn}
-                className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
               />
             </label>
             <label className="flex flex-col gap-1">
@@ -209,7 +209,7 @@ function Member({ member, firm }) {
                 type="date"
                 name="copFrom"
                 defaultValue={member.icai.copFrom}
-                className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
               />
             </label>
             <label className="text-14 flex items-center gap-2">
@@ -224,7 +224,7 @@ function Member({ member, firm }) {
               <button
                 type="submit"
                 disabled={pending}
-                className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3 disabled:opacity-60"
+                className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 disabled:opacity-60"
               >
                 Save membership
               </button>
@@ -244,7 +244,7 @@ function Member({ member, firm }) {
                 type="date"
                 name="on"
                 required
-                className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
               />
             </label>
             <label className="flex flex-col gap-1">
@@ -256,7 +256,7 @@ function Member({ member, firm }) {
                 max={24}
                 step={0.5}
                 required
-                className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
               />
             </label>
             <label className="flex flex-col gap-1">
@@ -264,7 +264,7 @@ function Member({ member, firm }) {
               <select
                 name="kind"
                 defaultValue="structured"
-                className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
               >
                 <option value="structured">Structured</option>
                 <option value="unstructured">Unstructured</option>
@@ -275,7 +275,7 @@ function Member({ member, firm }) {
               <input
                 name="organiser"
                 placeholder="e.g. NIRC of ICAI"
-                className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
               />
             </label>
             <label className="flex flex-col gap-1 sm:col-span-2">
@@ -283,14 +283,14 @@ function Member({ member, firm }) {
               <input
                 name="programme"
                 required
-                className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
               />
             </label>
             <div className="sm:col-span-2">
               <button
                 type="submit"
                 disabled={pending}
-                className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+                className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
               >
                 Add to the log
               </button>

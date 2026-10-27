@@ -16,7 +16,7 @@ export default function ChainCheck() {
         onClick={() =>
           startTransition(async () => setResult(await checkChain()))
         }
-        className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3 disabled:opacity-60"
+        className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 disabled:opacity-60"
       >
         {pending ? "Checking…" : "Check for tampering"}
       </button>

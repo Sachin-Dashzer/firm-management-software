@@ -50,6 +50,17 @@ const clientUserSchema = new mongoose.Schema(
 
     active: { type: Boolean, default: true },
 
+    /**
+     * May this person confirm the figures on a return before it is filed
+     * (P3-5, P3-6)?
+     *
+     * Off by default and granted deliberately: the client, not the firm,
+     * owes the tax, so the confirmation has to come from somebody the client
+     * has actually put in that position — not from whoever at their office
+     * happens to have a login for uploading bank statements.
+     */
+    mayConfirmFigures: { type: Boolean, default: false },
+
     passwordHash: { type: String, select: false },
     mustChangePassword: { type: Boolean, default: true },
 

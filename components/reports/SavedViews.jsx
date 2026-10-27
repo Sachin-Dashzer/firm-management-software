@@ -39,7 +39,7 @@ export default function SavedViews({
         {views.map((view) => (
           <span
             key={view.id}
-            className="rounded-ledger border-rule bg-surface text-13 flex items-center gap-1 border px-2 py-1"
+            className="rounded-control border-rule bg-surface text-13 flex items-center gap-1 border px-2 py-1"
           >
             <Link
               href={view.search ? `${path}?${view.search}` : path}
@@ -110,7 +110,7 @@ export default function SavedViews({
               required
               maxLength={60}
               placeholder="Ludhiana GST overdue"
-              className="rounded-ledger border-rule bg-paper text-14 h-9 w-56 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-9 w-56 border px-2"
             />
           </label>
           {canShare && (
@@ -122,7 +122,7 @@ export default function SavedViews({
           <button
             type="submit"
             disabled={pending}
-            className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+            className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
           >
             {pending ? "Saving…" : "Save"}
           </button>

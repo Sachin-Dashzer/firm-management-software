@@ -32,7 +32,9 @@ export default async function NewClientPage() {
   return (
     <div className="mx-auto flex max-w-[1100px] flex-col gap-5 p-4 md:p-6">
       <div>
-        <h1 className="font-display text-28 font-semibold">New client</h1>
+        <h1 className="font-display text-24 font-bold tracking-tight">
+          New client
+        </h1>
         <p className="text-13 text-ink-muted">
           Starts as a <strong>Lead</strong>. Record the quote now; activate once
           the engagement letter is signed, and the system checks for a duplicate

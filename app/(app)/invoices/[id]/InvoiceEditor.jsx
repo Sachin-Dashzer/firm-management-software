@@ -85,7 +85,7 @@ export default function InvoiceEditor({
           href={`/invoices/${invoice.id}/pdf`}
           target="_blank"
           rel="noreferrer"
-          className="rounded-ledger border-rule text-13 h-8 border px-3 leading-8"
+          className="rounded-control border-rule text-13 h-8 border px-3 leading-8"
         >
           {invoice.isDraft ? "Preview the PDF" : "PDF"}
         </a>
@@ -147,7 +147,7 @@ export default function InvoiceEditor({
             <select
               value={placeOfSupply ?? ""}
               onChange={(e) => setPlaceOfSupply(e.target.value)}
-              className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
             >
               <option value="">— choose —</option>
               {states.map(([code, name]) => (
@@ -186,11 +186,11 @@ export default function InvoiceEditor({
 
       {/* --- the lines ---------------------------------------------------- */}
       <section className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4">
-        <h2 className="font-display text-20">Services</h2>
+        <h2 className="font-display text-15 font-semibold">Services</h2>
         <div className="overflow-x-auto">
           <table className="text-14 w-full">
             <thead>
-              <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+              <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
                 <th className="px-2 py-2 font-medium">Description</th>
                 <th className="px-2 py-2 font-medium">SAC</th>
                 <th className="px-2 py-2 text-right font-medium">Amount</th>
@@ -218,7 +218,7 @@ export default function InvoiceEditor({
                             ),
                           )
                         }
-                        className="rounded-ledger border-rule bg-paper text-14 h-9 w-full border px-2"
+                        className="rounded-control border-rule bg-paper text-14 h-9 w-full border px-2"
                       />
                     ) : (
                       line.description
@@ -236,7 +236,7 @@ export default function InvoiceEditor({
                             ),
                           )
                         }
-                        className="rounded-ledger border-rule bg-paper text-14 h-9 w-24 border px-2 font-mono"
+                        className="rounded-control border-rule bg-paper text-14 h-9 w-24 border px-2 font-mono"
                       />
                     ) : (
                       <span className="font-mono">{line.sac}</span>
@@ -257,7 +257,7 @@ export default function InvoiceEditor({
                             ),
                           )
                         }
-                        className="rounded-ledger border-rule bg-paper text-14 h-9 w-32 border px-2 text-right"
+                        className="rounded-control border-rule bg-paper text-14 h-9 w-32 border px-2 text-right"
                       />
                     ) : (
                       <span className="num">{line.amountText}</span>
@@ -303,7 +303,7 @@ export default function InvoiceEditor({
                 { description: "", sac: "", amount: "0", gstRate: 18 },
               ])
             }
-            className="rounded-ledger border-rule text-14 h-9 self-start border px-3"
+            className="rounded-control border-rule text-14 h-9 self-start border px-3"
           >
             Add a line
           </button>
@@ -314,7 +314,9 @@ export default function InvoiceEditor({
       {(invoice.hasReimbursements || (invoice.isDraft && mayEdit)) && (
         <section className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4">
           <div>
-            <h2 className="font-display text-20">Out-of-pocket costs</h2>
+            <h2 className="font-display text-15 font-semibold">
+              Out-of-pocket costs
+            </h2>
             <p className="text-13 text-ink-muted">
               Government fees, stamp duty and the like, recovered at cost. No
               GST is charged on these.
@@ -336,7 +338,7 @@ export default function InvoiceEditor({
                         ),
                       )
                     }
-                    className="rounded-ledger border-rule bg-paper text-14 h-9 min-w-0 flex-1 border px-2"
+                    className="rounded-control border-rule bg-paper text-14 h-9 min-w-0 flex-1 border px-2"
                   />
                   <input
                     aria-label={`Cost amount ${index + 1}`}
@@ -349,7 +351,7 @@ export default function InvoiceEditor({
                         ),
                       )
                     }
-                    className="rounded-ledger border-rule bg-paper text-14 h-9 w-32 border px-2 text-right"
+                    className="rounded-control border-rule bg-paper text-14 h-9 w-32 border px-2 text-right"
                   />
                   <button
                     type="button"
@@ -380,7 +382,7 @@ export default function InvoiceEditor({
                   { description: "", amount: "0" },
                 ])
               }
-              className="rounded-ledger border-rule text-14 h-9 self-start border px-3"
+              className="rounded-control border-rule text-14 h-9 self-start border px-3"
             >
               Add a cost
             </button>
@@ -399,7 +401,7 @@ export default function InvoiceEditor({
               value={discount}
               inputMode="decimal"
               onChange={(e) => setDiscount(e.target.value)}
-              className="rounded-ledger border-rule bg-paper text-14 h-9 w-20 border px-2 text-right"
+              className="rounded-control border-rule bg-paper text-14 h-9 w-20 border px-2 text-right"
             />
           </label>
         )}
@@ -446,7 +448,7 @@ export default function InvoiceEditor({
                 type="button"
                 disabled={pending}
                 onClick={save}
-                className="rounded-ledger border-rule text-14 h-9 border px-3 disabled:opacity-60"
+                className="rounded-control border-rule text-14 h-9 border px-3 disabled:opacity-60"
               >
                 Save draft
               </button>
@@ -454,7 +456,7 @@ export default function InvoiceEditor({
                 type="button"
                 disabled={pending || blockers.length > 0}
                 onClick={() => run(() => issueInvoice(invoice.id))}
-                className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+                className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
               >
                 Issue this invoice
               </button>
@@ -469,7 +471,7 @@ export default function InvoiceEditor({
                 <button
                   type="button"
                   onClick={() => setAsking("credit")}
-                  className="rounded-ledger border-rule text-14 h-9 border px-3"
+                  className="rounded-control border-rule text-14 h-9 border px-3"
                 >
                   Raise a credit note
                 </button>
@@ -544,7 +546,7 @@ export default function InvoiceEditor({
                 name="date"
                 required
                 min={invoice.todayInput}
-                className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
               />
             </label>
             <label className="flex flex-1 flex-col gap-1">
@@ -554,7 +556,7 @@ export default function InvoiceEditor({
               <input
                 name="note"
                 placeholder="e.g. Vikas Raj on the phone, 26 Oct"
-                className="rounded-ledger border-rule bg-paper text-14 h-9 min-w-48 border px-2"
+                className="rounded-control border-rule bg-paper text-14 h-9 min-w-48 border px-2"
               />
             </label>
           </div>
@@ -566,7 +568,7 @@ export default function InvoiceEditor({
             <button
               type="submit"
               disabled={pending}
-              className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+              className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
             >
               Record the promise
             </button>
@@ -593,7 +595,7 @@ export default function InvoiceEditor({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={2}
-              className="rounded-ledger border-rule bg-paper text-14 border px-2 py-1"
+              className="rounded-control border-rule bg-paper text-14 border px-2 py-1"
             />
           </label>
           <div className="flex gap-2">
@@ -607,7 +609,7 @@ export default function InvoiceEditor({
                     : writeOff(invoice.id, reason),
                 )
               }
-              className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+              className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
             >
               Confirm
             </button>

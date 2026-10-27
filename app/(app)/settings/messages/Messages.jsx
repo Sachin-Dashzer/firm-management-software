@@ -21,7 +21,9 @@ export default function Messages({
   return (
     <div className="mx-auto flex max-w-[1200px] flex-col gap-5 p-4 md:p-6">
       <div>
-        <h1 className="font-display text-28 font-semibold">Messages</h1>
+        <h1 className="font-display text-24 font-bold tracking-tight">
+          Messages
+        </h1>
         <p className="text-13 text-ink-muted">
           Everything the system has sent, and everything it has held back.
         </p>
@@ -88,7 +90,7 @@ export default function Messages({
                 : "/settings/messages"
             }
             aria-current={status === value ? "page" : undefined}
-            className={`rounded-ledger text-14 h-9 border px-3 leading-9 ${
+            className={`rounded-control text-14 h-9 border px-3 leading-9 ${
               status === value
                 ? "border-carbon bg-carbon-wash text-carbon"
                 : "border-rule hover:bg-carbon-wash"
@@ -100,10 +102,10 @@ export default function Messages({
         ))}
       </div>
 
-      <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+      <div className="rounded-table border-rule bg-surface overflow-x-auto border">
         <table className="text-14 w-full">
           <thead>
-            <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+            <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
               <th className="px-3 py-2 font-medium">When</th>
               <th className="px-3 py-2 font-medium">To</th>
               <th className="px-3 py-2 font-medium">Subject</th>
@@ -162,7 +164,7 @@ function StatusChip({ status }) {
   }[status];
 
   return (
-    <span className={`rounded-ledger text-13 border px-2 py-0.5 ${tone}`}>
+    <span className={`rounded-chip text-13 border px-2 py-0.5 ${tone}`}>
       {status}
     </span>
   );

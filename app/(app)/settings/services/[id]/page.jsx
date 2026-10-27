@@ -28,6 +28,7 @@ export default async function EditServicePage({ params }) {
     minExecRole: doc.minExecRole,
     minReviewRole: doc.minReviewRole,
     turnaroundDays: doc.turnaroundDays ?? "",
+    effortHours: doc.effortHours ?? "",
     turnaroundNote: doc.turnaroundNote ?? "",
     recurrence: doc.recurrence,
     sac: doc.sac ?? "",
@@ -56,7 +57,9 @@ export default async function EditServicePage({ params }) {
         >
           Services
         </Link>
-        <h1 className="font-display text-28 font-semibold">{service.name}</h1>
+        <h1 className="font-display text-24 font-bold tracking-tight">
+          {service.name}
+        </h1>
         <p className="text-13 text-ink-muted font-mono">{service.code}</p>
       </div>
       <ServiceForm service={service} />

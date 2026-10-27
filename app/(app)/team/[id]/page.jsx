@@ -16,7 +16,10 @@ import TierBadge from "@/components/ledger/TierBadge";
 import { SECTION_LABELS } from "@/lib/access/sections";
 import { STATUSES, CLOSED_STATUSES } from "@/lib/engagements/status";
 import { loadFor, groupByStatus, isOverdue } from "@/lib/team/workload";
+import Leave from "@/models/Leave";
+import { LEAVE_KINDS, coversDay } from "@/lib/team/leave";
 import AdminActions from "./AdminActions";
+import LeavePanel from "./LeavePanel";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +28,7 @@ const TABS = [
   { key: "profile", label: "Profile", needs: "always" },
   { key: "work", label: "Work", needs: "always" },
   { key: "reviews", label: "Reviews", needs: "always" },
+  { key: "leave", label: "Leave & cover", needs: "always" },
   { key: "access", label: "Clients & access", needs: "clientAccess" },
   { key: "activity", label: "Activity", needs: "auditLog" },
   { key: "admin", label: "Admin", needs: "usersSettings" },
@@ -137,7 +141,7 @@ export default async function TeamMemberPage({ params, searchParams }) {
             <p className="text-13 text-ink-muted">
               {ROLE_LABELS[person.role] ?? person.role}
             </p>
-            <h1 className="font-display text-28 font-semibold">
+            <h1 className="font-display text-24 font-bold tracking-tight">
               {person.name}
             </h1>
             <p className="text-14 text-ink-muted">
@@ -206,6 +210,15 @@ export default async function TeamMemberPage({ params, searchParams }) {
         <Access id={id} person={person} engagements={engagements} />
       )}
 
+      {active === "leave" && (
+        <LeaveTab
+          id={String(id)}
+          person={person}
+          actor={actor}
+          mayEdit={mayAdmin}
+        />
+      )}
+
       {active === "activity" && <Activity id={id} />}
 
       {active === "admin" && mayAdmin && (
@@ -228,6 +241,71 @@ export default async function TeamMemberPage({ params, searchParams }) {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Leave and cover (P3-16).
+ *
+ * Past leave is kept and shown: "who was covering in October" is a question
+ * somebody asks in November, when a return is late and nobody remembers.
+ */
+async function LeaveTab({ id, person, actor, mayEdit }) {
+  const now = new Date();
+  const leaves = await Leave.find({ userId: id })
+    .sort({ from: -1 })
+    .limit(50)
+    .lean();
+
+  const covers = await User.find({
+    _id: { $in: [...new Set(leaves.map((row) => String(row.coverId)))] },
+  })
+    .select("name")
+    .lean();
+  const coverName = new Map(covers.map((row) => [String(row._id), row.name]));
+
+  /**
+   * Who can be named: anybody active the reader can see, minus the person
+   * themselves. The server refuses a cover who is away anyway, so this list
+   * is a convenience and not the rule.
+   */
+  const colleagues = mayEdit
+    ? await User.find({
+        active: true,
+        _id: { $ne: id },
+        ...(actor.role === "partner"
+          ? {}
+          : { branchIds: { $in: actor.branchIds } }),
+      })
+        .select("name role")
+        .sort({ name: 1 })
+        .lean()
+    : [];
+
+  return (
+    <LeavePanel
+      id={id}
+      name={person.name}
+      mayEdit={mayEdit}
+      kinds={LEAVE_KINDS}
+      colleagues={colleagues.map((row) => ({
+        id: String(row._id),
+        name: row.name,
+        role: ROLE_LABELS[row.role] ?? row.role,
+      }))}
+      rows={leaves.map((row) => ({
+        id: String(row._id),
+        from: formatISTDate(row.from),
+        to: formatISTDate(row.to),
+        kind: row.kind,
+        note: row.note ?? "",
+        cover: coverName.get(String(row.coverId)) ?? "somebody who has left",
+        now: coversDay(row, now),
+        past: new Date(row.to).getTime() < now.getTime(),
+        approvedByName: row.approvedByName ?? "",
+        approvedOn: row.approvedAt ? formatISTDate(row.approvedAt) : "",
+      }))}
+    />
   );
 }
 
@@ -351,7 +429,7 @@ function Work({ engagements, id, clientName }) {
 
       {groups.map(([status, rows]) => (
         <section key={status} className="flex flex-col gap-2">
-          <h2 className="font-display text-20">
+          <h2 className="font-display text-15 font-semibold">
             {status}{" "}
             <span className="text-14 text-ink-muted font-sans">
               {rows.length}
@@ -363,7 +441,7 @@ function Work({ engagements, id, clientName }) {
 
       {closed.length > 0 && (
         <section className="flex flex-col gap-2">
-          <h2 className="font-display text-20">
+          <h2 className="font-display text-15 font-semibold">
             Closed{" "}
             <span className="text-14 text-ink-muted font-sans">
               {closed.length}
@@ -389,7 +467,9 @@ function Reviews({ engagements, id, person, load, clientName }) {
     <div className="flex flex-col gap-6">
       {reviews && (
         <section className="flex flex-col gap-2">
-          <h2 className="font-display text-20">Waiting for their sign-off</h2>
+          <h2 className="font-display text-15 font-semibold">
+            Waiting for their sign-off
+          </h2>
           {waiting.length === 0 ? (
             <p className="rounded-ledger border-rule bg-surface text-14 text-ink-muted border p-6">
               Their review queue is empty.
@@ -405,7 +485,9 @@ function Reviews({ engagements, id, person, load, clientName }) {
       )}
 
       <section className="flex flex-col gap-2">
-        <h2 className="font-display text-20">Work that came back</h2>
+        <h2 className="font-display text-15 font-semibold">
+          Work that came back
+        </h2>
         <p className="text-14">
           <span className="font-display text-28 tabular-nums">
             {load.reworked} of {load.total}
@@ -460,7 +542,9 @@ async function Access({ id, person, engagements }) {
   return (
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-2">
-        <h2 className="font-display text-20">Through the work on their desk</h2>
+        <h2 className="font-display text-15 font-semibold">
+          Through the work on their desk
+        </h2>
         <p className="text-13 text-ink-muted max-w-[62ch]">
           Being assignee or reviewer on open work opens that client&rsquo;s
           profile, its engagements and its documents, and nothing else. It needs
@@ -487,14 +571,14 @@ async function Access({ id, person, engagements }) {
       </section>
 
       <section className="flex flex-col gap-2">
-        <h2 className="font-display text-20">Grants they hold</h2>
+        <h2 className="font-display text-15 font-semibold">Grants they hold</h2>
         {grants.length === 0 ? (
           <p className="rounded-ledger border-rule bg-surface text-14 text-ink-muted border p-6">
             None. Grants are given from the client&rsquo;s own Team &amp; access
             tab, where the person deciding can see what they are opening.
           </p>
         ) : (
-          <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+          <div className="rounded-table border-rule bg-surface overflow-x-auto border">
             <table className="text-14 w-full">
               <caption className="sr-only">
                 Client access grants held by {person.name}
@@ -569,7 +653,9 @@ async function Activity({ id }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <h2 className="font-display text-20">What they have done</h2>
+      <h2 className="font-display text-15 font-semibold">
+        What they have done
+      </h2>
       <p className="text-13 text-ink-muted">
         The last {entries.length} entries from the portal log, newest first.
       </p>
@@ -586,7 +672,7 @@ async function Activity({ id }) {
 function EngagementTable({ rows, clientName, showRework = false }) {
   const now = new Date();
   return (
-    <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+    <div className="rounded-table border-rule bg-surface overflow-x-auto border">
       <table className="text-14 w-full">
         <thead>
           <tr className="border-rule text-13 text-ink-muted border-b text-left">
@@ -661,7 +747,7 @@ function Panel({ title, className = "", children }) {
     <section
       className={`rounded-ledger border-rule bg-surface border p-4 ${className}`}
     >
-      <h2 className="font-display text-20 mb-3">{title}</h2>
+      <h2 className="font-display text-15 mb-3 font-semibold">{title}</h2>
       <dl>{children}</dl>
     </section>
   );

@@ -142,7 +142,7 @@ async function signInAsStaff(page, email) {
 
   await page.getByLabel("6-digit code").fill(code);
   await page.getByRole("button", { name: /Sign in|Turn on 2FA/ }).click();
-  await expect(page).toHaveURL(/\/today$/);
+  await expect(page).toHaveURL(/\/issues$/);
 }
 
 test("a client signs in and lands in their own portal", async ({
@@ -162,6 +162,9 @@ test("a client cannot reach any staff screen", async ({ page }, testInfo) => {
 
   // every one of these has to end up at a login screen, not at the page
   for (const path of [
+    // the landing page since P3-6, and the one that gathers every other
+    // screen into one list, so the one most worth checking
+    "/issues",
     "/today",
     "/clients",
     "/engagements",

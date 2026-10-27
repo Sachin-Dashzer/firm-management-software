@@ -19,7 +19,9 @@ export default async function NewServicePage() {
         >
           Services
         </Link>
-        <h1 className="font-display text-28 font-semibold">Add a service</h1>
+        <h1 className="font-display text-24 font-bold tracking-tight">
+          Add a service
+        </h1>
       </div>
       <ServiceForm />
     </div>

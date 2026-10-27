@@ -151,8 +151,11 @@ describe("the report catalog", () => {
       .sort();
     // the three a partner takes into a Monday meeting, plus the two P2-10c
     // added for the same reason: a file review and a punctuality review
-    // both happen away from a screen
+    // both happen away from a screen. At risk joined them at P3-5 — it is
+    // the list that meeting is actually for, since it is the only one that
+    // can still be acted on
     expect(pdf).toEqual([
+      "at-risk",
       "opinions",
       "overdue",
       "pending-documents",

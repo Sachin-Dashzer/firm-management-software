@@ -51,13 +51,11 @@ export default async function ClientLayout({ children }) {
             <Link href="/client" className="font-display text-20">
               {client.tradeName || client.legalName}
             </Link>
-            <p className="text-12 text-ink-muted">
-              Your file with {firm.name}
-            </p>
+            <p className="text-12 text-ink-muted">Your file with {firm.name}</p>
           </div>
           <div className="text-13 flex items-center gap-3">
             <span className="text-ink-muted">{person.name}</span>
-            <SignOutButton className="rounded-ledger border-rule h-8 border px-2" />
+            <SignOutButton className="rounded-control border-rule h-8 border px-2" />
           </div>
         </div>
       </header>

@@ -122,7 +122,9 @@ export default async function ClientPage({ params, searchParams }) {
    * what the work on their desk or a CA's grant gives them.
    */
   const access = await accessFor(actor, client);
-  if (!access.visible) redirect("/clients");
+  // not the list: a redirect there says the record is missing, when the
+  // truth is that it exists and somebody can open it for you (P3-7)
+  if (!access.visible) redirect(`/no-access?client=${id}`);
 
   const scope = await targetForClient(actor, client);
   const sees = (section) => access.sections.has(section);
@@ -189,7 +191,7 @@ export default async function ClientPage({ params, searchParams }) {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-13 text-ink-muted font-mono">{client.code}</p>
-            <h1 className="font-display text-28 font-semibold">
+            <h1 className="font-display text-24 font-bold tracking-tight">
               {client.tradeName || client.legalName}
             </h1>
             {client.tradeName && (
@@ -207,7 +209,7 @@ export default async function ClientPage({ params, searchParams }) {
                 />
                 <Link
                   href={`/clients/${id}/edit`}
-                  className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
+                  className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
                 >
                   Edit
                 </Link>
@@ -697,7 +699,7 @@ async function EngagementsTab({ clientId, actor, mayEdit, only }) {
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="font-display text-20">Engagements</h2>
+          <h2 className="font-display text-15 font-semibold">Engagements</h2>
           {can(actor, "edit", "engagementsCreate") && (
             <Link
               href={`/engagements/new?client=${clientId}`}
@@ -707,7 +709,7 @@ async function EngagementsTab({ clientId, actor, mayEdit, only }) {
             </Link>
           )}
         </div>
-        <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+        <div className="rounded-table border-rule bg-surface overflow-x-auto border">
           <table className="text-14 w-full">
             <tbody>
               {engagements.map((e) => (
@@ -1245,7 +1247,7 @@ function Panel({ title, className = "", children }) {
     <section
       className={`rounded-ledger border-rule bg-surface border p-4 ${className}`}
     >
-      <h2 className="font-display text-20 mb-3">{title}</h2>
+      <h2 className="font-display text-15 mb-3 font-semibold">{title}</h2>
       {children}
     </section>
   );
@@ -1300,6 +1302,7 @@ async function PortalAccountsTab({ clientId, actor, client }) {
         designation: account.designation ?? "",
         active: account.active !== false,
         twoFactor: Boolean(account.totpRequired),
+        mayConfirmFigures: Boolean(account.mayConfirmFigures),
         mustChangePassword: Boolean(account.mustChangePassword),
         invitedByName: account.invitedByName ?? "",
         lastLoginAt: account.lastLoginAt

@@ -21,7 +21,7 @@ const STATUS_TONE = {
 export function StatusChip({ status }) {
   return (
     <span
-      className={`rounded-ledger text-13 border px-2 py-0.5 ${
+      className={`rounded-chip text-13 border px-2 py-0.5 ${
         STATUS_TONE[status] ?? "border-rule"
       }`}
     >
@@ -47,8 +47,27 @@ export function DueChip({ label, date, days }) {
         : `${days} ${days === 1 ? "day" : "days"} left`;
 
   return (
-    <span className={`rounded-ledger text-13 border px-2 py-0.5 ${tone}`}>
+    <span className={`rounded-chip text-13 border px-2 py-0.5 ${tone}`}>
       {label} {date} · {when}
+    </span>
+  );
+}
+
+/**
+ * The statutory date is still ahead, but an internal target has slipped
+ * (P3-5).
+ *
+ * Amber and never red: red is Overdue, where acting is too late. This is the
+ * list where acting still works, and the two must not look the same.
+ */
+export function AtRiskChip({ reason }) {
+  if (!reason) return null;
+  return (
+    <span
+      title={reason}
+      className="rounded-chip border-waiting bg-waiting-wash text-waiting text-12 border px-2 py-0.5"
+    >
+      At risk
     </span>
   );
 }
@@ -61,7 +80,7 @@ export function PriorityChip({ priority }) {
     Urgent: "border-redpen bg-redpen-wash text-redpen",
   }[priority];
   return (
-    <span className={`rounded-ledger text-12 border px-2 py-0.5 ${tone}`}>
+    <span className={`rounded-chip text-12 border px-2 py-0.5 ${tone}`}>
       {priority}
     </span>
   );

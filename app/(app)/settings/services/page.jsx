@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FirmWide } from "@/components/shell/ViewNote";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/auth";
 import { can } from "@/lib/permissions";
@@ -20,7 +21,7 @@ export const metadata = { title: "Services · PHMG" };
  */
 export default async function ServicesPage({ searchParams }) {
   const actor = await requireUser();
-  if (!can(actor, "view", "serviceCatalog")) redirect("/today");
+  if (!can(actor, "view", "serviceCatalog")) redirect("/issues");
   const editable = can(actor, "edit", "serviceCatalog");
 
   const params = await searchParams;
@@ -60,12 +61,15 @@ export default async function ServicesPage({ searchParams }) {
     <div className="mx-auto flex max-w-[1200px] flex-col gap-6 p-4 md:p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="font-display text-28 font-semibold">Services</h1>
+          <h1 className="font-display text-24 font-bold tracking-tight">
+            Services
+          </h1>
           <p className="text-13 text-ink-muted">
             {rows.length} {rows.length === 1 ? "service" : "services"} · every
             engagement is created from one of these
             {editable ? "" : " · only a partner can change them"}
           </p>
+          <FirmWide />
         </div>
         <div className="flex items-center gap-3">
           <Link
@@ -77,7 +81,7 @@ export default async function ServicesPage({ searchParams }) {
           {editable && (
             <Link
               href="/settings/services/new"
-              className="rounded-ledger bg-carbon text-14 flex h-9 items-center px-3 font-medium text-white"
+              className="rounded-control bg-carbon text-14 text-on-carbon flex h-9 items-center px-3 font-medium"
             >
               Add a service
             </Link>

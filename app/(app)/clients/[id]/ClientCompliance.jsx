@@ -28,7 +28,7 @@ export default function ClientCompliance({
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h2 className="font-display text-20">
+          <h2 className="font-display text-15 font-semibold">
             Compliance for {fyStart}–{String(fyStart + 1).slice(2)}
           </h2>
           <p className="text-13 text-ink-muted">
@@ -47,7 +47,7 @@ export default function ClientCompliance({
               key={year}
               href={`/clients/${clientId}?tab=compliance&fy=${year}`}
               aria-current={year === fyStart ? "page" : undefined}
-              className={`rounded-ledger text-13 h-8 border px-2 leading-8 ${
+              className={`rounded-control text-13 h-8 border px-2 leading-8 ${
                 year === fyStart
                   ? "border-carbon bg-carbon-wash text-carbon"
                   : "border-rule hover:bg-carbon-wash"

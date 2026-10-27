@@ -5,6 +5,7 @@ import { can, branchFilter } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import Client from "@/models/Client";
 import Engagement from "@/models/Engagement";
+import { blocksInvoice } from "@/lib/engagements/scope";
 import NewInvoice from "./NewInvoice";
 
 export const metadata = { title: "New invoice · PHMG" };
@@ -38,7 +39,9 @@ export default async function NewInvoicePage({ searchParams }) {
         billingStatus: "Unbilled",
         status: { $in: ["Filed / delivered", "Completed"] },
       })
-        .select("code templateSnapshot periodLabel period feePaise")
+        .select(
+          "code templateSnapshot periodLabel period feePaise scope scopeReason waiver",
+        )
         .limit(100)
         .lean()
     : [];
@@ -52,7 +55,9 @@ export default async function NewInvoicePage({ searchParams }) {
         >
           Billing
         </Link>
-        <h1 className="font-display text-28 font-semibold">New invoice</h1>
+        <h1 className="font-display text-24 font-bold tracking-tight">
+          New invoice
+        </h1>
       </div>
 
       <NewInvoice
@@ -66,6 +71,9 @@ export default async function NewInvoicePage({ searchParams }) {
           code: e.code,
           label: `${e.templateSnapshot?.name ?? "Work"} — ${e.periodLabel || e.period}`,
           fee: (e.feePaise ?? 0) / 100,
+          // waived, in a retainer or unpriced: shown with the reason rather
+          // than hidden, so nobody wonders where the job went (P3-4)
+          blocked: blocksInvoice(e),
         }))}
       />
     </div>

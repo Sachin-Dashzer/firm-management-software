@@ -83,7 +83,7 @@ async function signIn(page, email = EMAIL) {
 
   await page.getByLabel("6-digit code").fill(code);
   await page.getByRole("button", { name: /Sign in|Turn on 2FA/ }).click();
-  await expect(page).toHaveURL(/\/today$/);
+  await expect(page).toHaveURL(/\/issues$/);
 }
 
 test("add a service, edit it, and archive it", async ({ page }) => {

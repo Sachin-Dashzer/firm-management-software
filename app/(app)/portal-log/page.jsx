@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { FirmWide } from "@/components/shell/ViewNote";
 import Link from "next/link";
 import { requireUser } from "@/auth";
 import { can, branchFilter } from "@/lib/permissions";
@@ -39,7 +40,7 @@ const ACTION_OPTIONS = Object.values(ACTIONS).map((value) => ({
  */
 export default async function PortalLogPage({ searchParams }) {
   const actor = await requireUser();
-  if (!can(actor, "view", "auditLog")) redirect("/today");
+  if (!can(actor, "view", "auditLog")) redirect("/issues");
 
   const params = await searchParams;
   const { user, action, entityType, from, to, page = "1" } = params ?? {};
@@ -109,7 +110,10 @@ export default async function PortalLogPage({ searchParams }) {
     <div className="mx-auto flex max-w-[1200px] flex-col gap-5 p-4 md:p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="font-display text-28 font-semibold">Portal log</h1>
+          <h1 className="font-display text-24 font-bold tracking-tight">
+            Portal log
+          </h1>
+          <FirmWide />
           <p className="num text-13 text-ink-muted">
             {total.toLocaleString("en-IN")} {total === 1 ? "entry" : "entries"}
             {scope ? " in your branches" : " across the firm"}
@@ -119,7 +123,7 @@ export default async function PortalLogPage({ searchParams }) {
           <ChainCheck />
           <a
             href={exportHref}
-            className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
+            className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
           >
             Export to Excel
           </a>
@@ -131,9 +135,7 @@ export default async function PortalLogPage({ searchParams }) {
       <dl className="border-rule divide-rule flex flex-wrap divide-x border-y py-3">
         {figures.map((figure) => (
           <div key={figure.key} className="px-4 first:pl-0">
-            <dt className="text-12 text-ink-muted uppercase">
-              {figure.label}
-            </dt>
+            <dt className="text-12 text-ink-muted uppercase">{figure.label}</dt>
             <dd className="text-20">
               {figure.value === 0 ? (
                 <span className="num text-ink-muted">0</span>
@@ -209,13 +211,13 @@ export default async function PortalLogPage({ searchParams }) {
         <div className="flex items-end gap-2">
           <button
             type="submit"
-            className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white"
+            className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium"
           >
             Filter
           </button>
           <a
             href="/portal-log"
-            className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
+            className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
           >
             Clear
           </a>
@@ -297,7 +299,7 @@ function Select({ label, name, defaultValue, children }) {
       <select
         name={name}
         defaultValue={defaultValue ?? ""}
-        className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+        className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
       >
         {children}
       </select>
@@ -312,7 +314,7 @@ function Input({ label, name, type, defaultValue }) {
         name={name}
         type={type}
         defaultValue={defaultValue ?? ""}
-        className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+        className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
       />
     </Field>
   );

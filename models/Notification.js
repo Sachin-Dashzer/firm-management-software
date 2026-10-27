@@ -33,11 +33,21 @@ const notificationSchema = new mongoose.Schema(
     },
 
     readAt: { type: Date, default: null },
+
+    /**
+     * Put off until this moment (P3-17a). Null is the ordinary state.
+     *
+     * There is no `dismissedAt` beside it on purpose: a nudge is about
+     * something real, so the inbox offers *not now* and never *gone*.
+     */
+    snoozedUntil: { type: Date, default: null },
   },
   { timestamps: true },
 );
 
 notificationSchema.index({ userId: 1, readAt: 1, createdAt: -1 });
+// the bell's own query: this person's rows that are awake
+notificationSchema.index({ userId: 1, snoozedUntil: 1, createdAt: -1 });
 // a nudge is worthless after a month; let MongoDB clear them out
 notificationSchema.index(
   { createdAt: 1 },

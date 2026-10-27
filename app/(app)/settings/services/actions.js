@@ -54,6 +54,11 @@ const serviceInput = z.object({
     z.coerce.number().int().min(0).max(365).nullable(),
   ),
   turnaroundNote: z.string().trim().max(120).default(""),
+  // blank means "nobody has estimated it", which is not the same as zero
+  effortHours: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? null : v),
+    z.coerce.number().min(0).max(200).nullable(),
+  ),
   recurrence: z.enum(RECURRENCES),
   sac: z
     .string()
@@ -98,6 +103,7 @@ function readForm(formData) {
     minExecRole: formData.get("minExecRole") ?? "",
     minReviewRole: formData.get("minReviewRole") ?? "",
     turnaroundDays: formData.get("turnaroundDays") ?? "",
+    effortHours: formData.get("effortHours") ?? "",
     turnaroundNote: formData.get("turnaroundNote") ?? "",
     recurrence: formData.get("recurrence") ?? "",
     sac: formData.get("sac") ?? "",
@@ -140,6 +146,7 @@ export async function saveService(_prev, formData) {
     minExecRole: data.minExecRole,
     minReviewRole: data.minReviewRole,
     turnaroundDays: data.turnaroundDays,
+    effortHours: data.effortHours,
     turnaroundNote: data.turnaroundNote,
     recurrence: data.recurrence,
     sac: data.sac,

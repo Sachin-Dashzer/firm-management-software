@@ -30,10 +30,10 @@ export default function FirmOverview({
 
       {branches.length > 1 && (
         <Panel title="By branch">
-          <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+          <div className="rounded-table border-rule bg-surface overflow-x-auto border">
             <table className="text-14 w-full">
               <thead>
-                <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+                <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
                   <th className="px-3 py-2 font-medium">Branch</th>
                   <th className="px-3 py-2 text-right font-medium">Open</th>
                   <th className="px-3 py-2 text-right font-medium">Overdue</th>

@@ -69,6 +69,19 @@ const serviceTemplateSchema = new mongoose.Schema(
      * `turnaroundNote`, and the due-date master in Step 7.
      */
     turnaroundDays: { type: Number, default: null, min: 0 },
+
+    /**
+     * How long one of these takes to prepare, in hours (P3-16).
+     *
+     * Null until the firm says, like the fee and the SAC code: a guessed
+     * estimate would drive a workload board that looks authoritative and
+     * is not. The board shows hours against capacity only where every job
+     * in the lane has one, and counts jobs otherwise.
+     *
+     * Preparation only. Nobody has estimated review effort, and a fraction
+     * of this one would be a number the firm never agreed to.
+     */
+    effortHours: { type: Number, default: null, min: 0, max: 200 },
     turnaroundNote: { type: String, default: "", trim: true },
     /** Filled in Step 7, when the due-date master exists. */
     dueRuleId: { type: mongoose.Schema.Types.ObjectId, default: null },
@@ -84,6 +97,16 @@ const serviceTemplateSchema = new mongoose.Schema(
     gstRate: { type: Number, default: 18, min: 0, max: 28 },
 
     udinRequired: { type: Boolean, default: false },
+
+    /**
+     * Does the client confirm the figures before anything is filed (P3-5)?
+     *
+     * True for GST, GSTR-9, TDS and the two ITRs (owner, 26-10-2026), and
+     * false for assurance work, which carries its own sign-off and
+     * representation letters. It lives on the template rather than in a list
+     * in the code so the firm can change its mind in Settings.
+     */
+    clientConfirmationRequired: { type: Boolean, default: false },
 
     version: { type: Number, default: 1, min: 1 },
     active: { type: Boolean, default: true },

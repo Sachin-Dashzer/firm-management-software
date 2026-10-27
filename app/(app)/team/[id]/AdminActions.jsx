@@ -78,7 +78,7 @@ export default function AdminActions({
 
       {/* --- offices, senior, capacity, skills --- */}
       <section className="rounded-ledger border-rule bg-surface flex flex-col gap-4 border p-4">
-        <h2 className="font-display text-20">Where they work</h2>
+        <h2 className="font-display text-15 font-semibold">Where they work</h2>
         <form
           action={(formData) => run(() => updateTeamMember(userId, formData))}
           className="flex flex-col gap-4"
@@ -109,7 +109,7 @@ export default function AdminActions({
               <select
                 name="reportingTo"
                 defaultValue={current.reportingTo}
-                className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
               >
                 <option value="">— none —</option>
                 {seniors
@@ -132,7 +132,7 @@ export default function AdminActions({
                 min={0}
                 max={24}
                 defaultValue={current.capacityHours}
-                className="rounded-ledger border-rule bg-paper text-14 h-9 w-24 border px-2 font-mono"
+                className="rounded-control border-rule bg-paper text-14 h-9 w-24 border px-2 font-mono"
               />
             </label>
           </div>
@@ -145,14 +145,14 @@ export default function AdminActions({
               name="skills"
               defaultValue={current.skills}
               placeholder="GST returns, TDS returns, Bookkeeping"
-              className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
             />
           </label>
 
           <button
             type="submit"
             disabled={pending}
-            className="rounded-ledger bg-carbon text-surface text-14 h-9 self-start px-4 disabled:opacity-50"
+            className="rounded-control bg-carbon text-surface text-14 h-9 self-start px-4 disabled:opacity-50"
           >
             {pending ? "Saving…" : "Save"}
           </button>
@@ -161,7 +161,7 @@ export default function AdminActions({
 
       {/* --- role --- */}
       <section className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4">
-        <h2 className="font-display text-20">Role</h2>
+        <h2 className="font-display text-15 font-semibold">Role</h2>
         <p className="text-13 text-ink-muted max-w-[62ch]">
           A demotion is refused while {first} is still on work the new role
           could not do or review — the engagements are named, so they can be
@@ -173,7 +173,7 @@ export default function AdminActions({
             <select
               value={wantRole}
               onChange={(e) => setWantRole(e.target.value)}
-              className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
             >
               {ROLES.map((r) => (
                 <option key={r} value={r}>
@@ -186,7 +186,7 @@ export default function AdminActions({
             type="button"
             disabled={pending || wantRole === role}
             onClick={() => run(() => changeRole(userId, wantRole))}
-            className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3 disabled:opacity-50"
+            className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 disabled:opacity-50"
           >
             Change role
           </button>
@@ -195,13 +195,13 @@ export default function AdminActions({
 
       {/* --- signing in --- */}
       <section className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4">
-        <h2 className="font-display text-20">Signing in</h2>
+        <h2 className="font-display text-15 font-semibold">Signing in</h2>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             disabled={pending}
             onClick={() => run(() => resetPassword(userId))}
-            className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3 disabled:opacity-50"
+            className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 disabled:opacity-50"
           >
             Issue a new one-time password
           </button>
@@ -209,7 +209,7 @@ export default function AdminActions({
             type="button"
             disabled={pending || !twoFactorOn}
             onClick={() => run(() => reset2FA(userId))}
-            className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3 disabled:opacity-50"
+            className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 disabled:opacity-50"
           >
             Clear two-factor
           </button>
@@ -224,14 +224,14 @@ export default function AdminActions({
 
       {/* --- leaving --- */}
       <section className="rounded-ledger border-redpen bg-surface flex flex-col gap-3 border p-4">
-        <h2 className="font-display text-20">Leaving the firm</h2>
+        <h2 className="font-display text-15 font-semibold">Leaving the firm</h2>
 
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             disabled={pending}
             onClick={() => run(() => setUserActive(userId, !active))}
-            className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3 disabled:opacity-50"
+            className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 disabled:opacity-50"
           >
             {active ? "Deactivate the account" : "Activate the account"}
           </button>
@@ -261,7 +261,7 @@ export default function AdminActions({
           )}
           <Link
             href={`/team/${userId}/offboard`}
-            className="rounded-ledger border-redpen text-redpen text-14 h-9 self-start border px-3 leading-9"
+            className="rounded-control border-redpen text-redpen text-14 h-9 self-start border px-3 leading-9"
           >
             Offboard {first}
           </Link>

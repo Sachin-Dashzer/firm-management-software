@@ -8,12 +8,15 @@ import { connectDB } from "@/lib/db";
 import User from "@/models/User";
 import Engagement from "@/models/Engagement";
 import ClientAccess from "@/models/ClientAccess";
+import Leave from "@/models/Leave";
 import { hashPassword } from "@/lib/crypto";
 import { temporaryPassword } from "@/lib/security/password";
 import { audited } from "@/lib/audit/request";
 import { recordAudit, ACTIONS } from "@/lib/audit";
 import { checkAssignment } from "@/lib/engagements/assign";
 import { CLOSED_STATUSES } from "@/lib/engagements/status";
+import { LEAVE_KINDS, checkLeave } from "@/lib/team/leave";
+import { startOfISTDay, formatISTDate } from "@/lib/dates";
 
 /**
  * Team administration. Moved here from `/settings/users` in P2-3, so the
@@ -464,4 +467,144 @@ export async function offboard(userId, reason) {
       grants.length === 1 ? "grant was" : "grants were"
     } revoked. Their work and their history are untouched, and the email address can be used again.`,
   };
+}
+
+/**
+ * Record an absence, with the person who holds the work (P3-16).
+ *
+ * **A partner records it, and that is the approval** (owner decision,
+ * 27-10-2026). There is deliberately no request-and-approve cycle: a
+ * two-state workflow for a five-person firm is a second list to chase, and
+ * a leave nobody approved would still have to be honoured when the person
+ * does not turn up.
+ *
+ * Every rule `checkLeave` applies is applied here, on the server, because a
+ * server action is reachable whether or not a form is rendered.
+ */
+export async function recordLeave(userId, formData) {
+  const actor = await requireUser();
+  assertCan(actor, "edit", "usersSettings");
+
+  await connectDB();
+  const [person, cover] = await Promise.all([
+    User.findById(userId).select("name active").lean(),
+    User.findById(String(formData.get("coverId") ?? ""))
+      .select("name active role")
+      .lean(),
+  ]);
+  if (!person) return { error: "That person is not on the team." };
+  if (!cover) {
+    return {
+      error:
+        "Name who holds their work while they are away. An absence with nobody named is the one that loses a return.",
+    };
+  }
+  if (cover.active === false) {
+    return { error: `${cover.name}'s account is switched off.` };
+  }
+
+  const kind = String(formData.get("kind") ?? "Leave");
+  if (!LEAVE_KINDS.includes(kind)) return { error: "Unknown kind of leave." };
+
+  const from = String(formData.get("from") ?? "");
+  const to = String(formData.get("to") ?? "");
+  if (!from || !to) return { error: "Both dates are needed." };
+
+  const start = startOfISTDay(new Date(`${from}T00:00:00+05:30`));
+  const end = startOfISTDay(new Date(`${to}T00:00:00+05:30`));
+
+  /** Every live leave for either person, which is all `checkLeave` reads. */
+  const leaves = await Leave.find({
+    userId: { $in: [userId, cover._id] },
+    to: { $gte: new Date(start.getTime() - 366 * 86400000) },
+  }).lean();
+
+  const check = checkLeave({
+    userId: String(userId),
+    coverId: String(cover._id),
+    from: start,
+    to: end,
+    leaves,
+    person,
+    cover,
+  });
+  if (!check.ok) return { error: check.error };
+
+  await audited(actor, async (session) => {
+    const [row] = await Leave.create(
+      [
+        {
+          userId,
+          from: start,
+          to: end,
+          kind,
+          coverId: cover._id,
+          note: String(formData.get("note") ?? "").trim(),
+          approvedBy: actor.id,
+          approvedByName: actor.name,
+          approvedAt: new Date(),
+          createdBy: actor.id,
+          updatedBy: actor.id,
+        },
+      ],
+      { session },
+    );
+
+    await recordAudit(
+      {
+        action: ACTIONS.create,
+        entityType: "Leave",
+        entityId: row._id,
+        note: `${person.name} away ${formatISTDate(start)} to ${formatISTDate(end)} (${kind.toLowerCase()}), covered by ${cover.name}`,
+      },
+      session,
+    );
+  });
+
+  revalidatePath(`/team/${userId}`);
+  revalidatePath("/team/plan");
+  return {
+    ok: `Recorded. ${cover.name} holds ${person.name.split(" ")[0]}'s Issues and reminders from ${formatISTDate(start)} to ${formatISTDate(end)}.`,
+  };
+}
+
+/**
+ * Withdraw one.
+ *
+ * A soft delete like everything else (CLAUDE.md rule 3): a cover who held
+ * somebody's work for three days of a cancelled fortnight did hold it, and
+ * the mail that went to them is in the message log either way.
+ */
+export async function cancelLeave(leaveId, reason) {
+  const actor = await requireUser();
+  assertCan(actor, "edit", "usersSettings");
+
+  const why = String(reason ?? "").trim();
+  if (why.length < 3) return { error: "Say why it is being withdrawn." };
+
+  await connectDB();
+  const leave = await Leave.findById(leaveId);
+  if (!leave) return { error: "That leave is already gone." };
+
+  const person = await User.findById(leave.userId).select("name").lean();
+
+  await audited(actor, async (session) => {
+    leave.note = [leave.note, `Withdrawn: ${why}`].filter(Boolean).join(" · ");
+    leave.updatedBy = actor.id;
+    await leave.softDelete(actor.id, { session });
+
+    await recordAudit(
+      {
+        action: ACTIONS.delete,
+        entityType: "Leave",
+        entityId: leave._id,
+        note: `${person?.name ?? "Somebody"}'s leave of ${formatISTDate(leave.from)} withdrawn — ${why}`,
+      },
+      session,
+    );
+  });
+
+  revalidatePath(`/team/${String(leave.userId)}`);
+  revalidatePath("/team/plan");
+  return { ok: "Withdrawn." };
 }

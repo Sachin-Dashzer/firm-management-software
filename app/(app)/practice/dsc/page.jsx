@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function DscPage({ searchParams }) {
   const actor = await requireUser();
-  if (!can(actor, "view", "dsc")) redirect("/today");
+  if (!can(actor, "view", "dsc")) redirect("/issues");
 
   const params = (await searchParams) ?? {};
   const soonOnly = params.soon === "1";

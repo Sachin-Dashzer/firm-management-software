@@ -31,7 +31,7 @@ export default async function ChangePasswordPage({ searchParams }) {
         <p className="text-13 text-ink-muted font-mono">
           PHMG &amp; Associates
         </p>
-        <h1 className="font-display text-28 mt-1 font-semibold">
+        <h1 className="font-display text-24 mt-1 font-bold tracking-tight">
           {forced ? "Set your own password" : "Change your password"}
         </h1>
         <p className="text-14 text-ink-muted mt-2">

@@ -52,16 +52,29 @@ const rocRule = {
   verifiedAt: new Date("2026-10-01"),
 };
 
-/** An engagement with GST's two filings for October, nothing filed. */
+/**
+ * An engagement with GST's two filings for October, nothing filed.
+ *
+ * Reviewed and approved, because since P3-5 a filing cannot be recorded
+ * before that — see `tests/gates.test.js` for the gate itself. This suite is
+ * about what happens to the filings, so it starts from a job that has passed
+ * the gate rather than re-testing it in every case.
+ */
 function gstEngagement() {
   const milestones = buildMilestones(gstRule, "2026-10").map((m, i) => ({
     ...m,
     _id: `m${i + 1}`,
   }));
   return syncDerived({
-    status: "In progress",
+    status: "Under review",
     billingStatus: "Unbilled",
     version: 1,
+    review: {
+      approvedBy: "u2",
+      approvedByName: "Ritika Chandra",
+      approvedAt: d("2026-11-05"),
+      version: 1,
+    },
     milestones,
     statutoryDue: null,
     filedOn: null,

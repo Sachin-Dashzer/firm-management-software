@@ -30,7 +30,7 @@ export default function CatalogList({ rows, categories, editable }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by name or code"
-          className="rounded-ledger border-rule bg-paper text-14 h-10 max-w-sm border px-3"
+          className="rounded-control border-rule bg-paper text-14 h-10 max-w-sm border px-3"
         />
       </label>
 
@@ -59,10 +59,10 @@ export default function CatalogList({ rows, categories, editable }) {
             <h2 className="text-12 text-ink-muted font-medium tracking-wide uppercase">
               {category}
             </h2>
-            <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+            <div className="rounded-table border-rule bg-surface overflow-x-auto border">
               <table className="text-14 w-full">
                 <thead>
-                  <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+                  <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
                     <Th>Service</Th>
                     <Th>Tier</Th>
                     <Th>Recurrence</Th>

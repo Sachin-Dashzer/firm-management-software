@@ -24,7 +24,7 @@ export default function DataRights({ clientId, clientName, redactedAt }) {
   if (redactedAt) {
     return (
       <section className="rounded-ledger border-rule bg-surface flex flex-col gap-2 border p-4">
-        <h2 className="font-display text-20">Data protection</h2>
+        <h2 className="font-display text-15 font-semibold">Data protection</h2>
         <p className="text-14">
           This client&rsquo;s personal data was redacted on a deletion request
           on <strong>{redactedAt}</strong>. The invoices, the work and the audit
@@ -37,7 +37,7 @@ export default function DataRights({ clientId, clientName, redactedAt }) {
   return (
     <section className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4">
       <div>
-        <h2 className="font-display text-20">Data protection</h2>
+        <h2 className="font-display text-15 font-semibold">Data protection</h2>
         <p className="text-13 text-ink-muted">
           What to do if {clientName} asks for a copy of their data, or asks the
           firm to delete it (Digital Personal Data Protection Act, 2023).
@@ -64,7 +64,7 @@ export default function DataRights({ clientId, clientName, redactedAt }) {
       <div className="flex flex-wrap gap-2">
         <a
           href={`/clients/${clientId}/export`}
-          className="rounded-ledger bg-carbon text-14 h-9 px-3 leading-9 font-medium text-white"
+          className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 leading-9 font-medium"
         >
           Download everything we hold
         </a>
@@ -79,7 +79,7 @@ export default function DataRights({ clientId, clientName, redactedAt }) {
                 setPlan(result);
               })
             }
-            className="rounded-ledger border-redpen text-14 text-redpen h-9 border px-3 font-medium"
+            className="rounded-control border-redpen text-14 text-redpen h-9 border px-3 font-medium"
           >
             They have asked us to delete their data…
           </button>
@@ -144,7 +144,7 @@ export default function DataRights({ clientId, clientName, redactedAt }) {
               onChange={(event) => setReason(event.target.value)}
               rows={2}
               placeholder="Mr Verma asked by email on 14-10-2026; engagement ended March 2026."
-              className="rounded-ledger border-rule bg-paper text-14 border px-2 py-1"
+              className="rounded-control border-rule bg-paper text-14 border px-2 py-1"
             />
           </label>
 
@@ -162,7 +162,7 @@ export default function DataRights({ clientId, clientName, redactedAt }) {
                   }
                 })
               }
-              className="rounded-ledger bg-redpen text-14 h-9 px-3 font-medium text-white disabled:opacity-50"
+              className="rounded-control bg-redpen text-14 h-9 px-3 font-medium text-white disabled:opacity-50"
             >
               {pending ? "Redacting…" : "Redact this client's personal data"}
             </button>

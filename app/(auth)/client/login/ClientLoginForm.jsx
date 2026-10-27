@@ -86,7 +86,9 @@ export default function ClientLoginForm({ firmName }) {
 
   return (
     <div className="w-full max-w-sm">
-      <h1 className="font-display text-28 font-semibold">{firmName}</h1>
+      <h1 className="font-display text-24 font-bold tracking-tight">
+        {firmName}
+      </h1>
       <p className="text-13 text-ink-muted mt-1">
         {stage === "password"
           ? "Sign in to see your documents, your work and your invoices."
@@ -128,11 +130,10 @@ export default function ClientLoginForm({ firmName }) {
           {stage === "setup" && (
             <div className="rounded-ledger border-rule bg-paper border p-4">
               <p className="text-13 text-ink-muted">
-                Open an authenticator app on your phone — Google
-                Authenticator or any other — tap{" "}
-                <strong className="text-ink">+</strong>, choose{" "}
-                <strong className="text-ink">Scan a QR code</strong>, and scan
-                this:
+                Open an authenticator app on your phone — Google Authenticator
+                or any other — tap <strong className="text-ink">+</strong>,
+                choose <strong className="text-ink">Scan a QR code</strong>, and
+                scan this:
               </p>
               {qr && (
                 <Image
@@ -188,7 +189,7 @@ function Field({ label, name, className = "", ...rest }) {
       <span className="text-13 text-ink-muted font-medium">{label}</span>
       <input
         name={name}
-        className={`rounded-ledger border-rule bg-paper text-16 text-ink h-10 border px-3 ${className}`}
+        className={`rounded-control border-rule bg-paper text-16 text-ink h-10 border px-3 ${className}`}
         {...rest}
       />
     </label>
@@ -200,7 +201,7 @@ function Submit({ busy, children }) {
     <button
       type="submit"
       disabled={busy}
-      className="rounded-ledger bg-carbon text-14 h-10 font-medium text-white disabled:opacity-60"
+      className="rounded-control bg-carbon text-14 text-on-carbon h-10 font-medium disabled:opacity-60"
     >
       {busy ? "One moment…" : children}
     </button>

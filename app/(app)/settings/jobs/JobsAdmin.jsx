@@ -31,7 +31,7 @@ export default function JobsAdmin({ health, schedules }) {
     <div className="mx-auto flex max-w-[1000px] flex-col gap-6 p-4 md:p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="font-display text-28 font-semibold">
+          <h1 className="font-display text-24 font-bold tracking-tight">
             Background jobs
           </h1>
           <p className="text-13 text-ink-muted">
@@ -43,7 +43,7 @@ export default function JobsAdmin({ health, schedules }) {
           type="button"
           disabled={pending}
           onClick={() => run(runNow)}
-          className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+          className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
         >
           {pending ? "Running…" : "Run now"}
         </button>
@@ -100,7 +100,9 @@ export default function JobsAdmin({ health, schedules }) {
       </div>
 
       <section className="flex flex-col gap-2">
-        <h2 className="font-display text-20">What runs, and when</h2>
+        <h2 className="font-display text-15 font-semibold">
+          What runs, and when
+        </h2>
         <div className="rounded-ledger border-rule bg-surface border">
           <table className="text-14 w-full">
             <tbody>
@@ -121,11 +123,13 @@ export default function JobsAdmin({ health, schedules }) {
 
       {health.failed.length > 0 && (
         <section className="flex flex-col gap-2">
-          <h2 className="font-display text-20">Jobs that gave up</h2>
-          <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+          <h2 className="font-display text-15 font-semibold">
+            Jobs that gave up
+          </h2>
+          <div className="rounded-table border-rule bg-surface overflow-x-auto border">
             <table className="text-14 w-full">
               <thead>
-                <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+                <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
                   <th className="px-3 py-2 font-medium">Job</th>
                   <th className="px-3 py-2 font-medium">When</th>
                   <th className="px-3 py-2 font-medium">What happened</th>

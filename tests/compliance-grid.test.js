@@ -299,3 +299,105 @@ describe("part-filed cells (P3-1)", () => {
     expect(grid.rows[0].cells[0].state).toBe("done");
   });
 });
+
+/**
+ * An empty cell meant one thing and is three (P3-9).
+ *
+ * The property that matters is that the **count** separates them. "Periods
+ * with nothing created" was the one figure a partner read off this screen,
+ * and it mixed the firm's own failures in with clients it was never that
+ * firm's job to file for — so it was a number nobody could act on.
+ */
+describe("a period with nothing against it, and why", () => {
+  const april = periodsInYear("monthly", 2026)[0];
+
+  it("is a miss when nobody has said anything", () => {
+    const cell = cellFor(null, NOW, april);
+    expect(cell.state).toBe("missing");
+    expect(cell.title).toMatch(/was ever created/);
+  });
+
+  it("is not a miss when another professional did it", () => {
+    const cell = cellFor(null, NOW, april, {
+      reason: "other-professional",
+      note: "filed by their earlier CA",
+      recordedByName: "Ritika Chandra",
+    });
+    expect(cell.state).toBe("explained");
+    expect(cell.label).toBe("E");
+    expect(cell.title).toBe(
+      "Handled by another professional — filed by their earlier CA (Ritika Chandra)",
+    );
+  });
+
+  it("is not a miss when the client was not with us", () => {
+    const cell = cellFor(null, NOW, april, { reason: "not-engaged" });
+    expect(cell.state).toBe("explained");
+    expect(cell.label).toBe("NE");
+    expect(cell.title).toBe("Not engaged for this period");
+  });
+
+  it("does not explain away a period that is not even due", () => {
+    const march = periodsInYear("monthly", 2027)[11];
+    // a reason on a future period is meaningless, and future wins
+    expect(cellFor(null, NOW, march, { reason: "not-engaged" }).state).toBe(
+      "future",
+    );
+  });
+
+  it("does not explain away work that exists", () => {
+    const engagement = { status: "In progress", milestones: [] };
+    expect(
+      cellFor(engagement, NOW, april, { reason: "not-engaged" }).state,
+    ).toBe("open");
+  });
+
+  it("takes the explained periods out of the count, and names them", () => {
+    const periods = periodsInYear("monthly", 2026).slice(0, 3);
+    const grid = buildGrid({
+      clients: [{ id: "c1", name: "Ravi Textiles" }],
+      engagements: [],
+      periods,
+      reasons: [
+        { clientId: "c1", period: periods[0].code, reason: "not-engaged" },
+        {
+          clientId: "c1",
+          period: periods[1].code,
+          reason: "other-professional",
+        },
+      ],
+      now: NOW,
+    });
+
+    // three past months, two answered for, one still nobody's
+    expect(grid.totalMissing).toBe(1);
+    expect(grid.totalExplained).toBe(2);
+    expect(grid.rows[0].missing).toBe(1);
+    expect(grid.rows[0].cells.map((c) => c.state)).toEqual([
+      "explained",
+      "explained",
+      "missing",
+    ]);
+  });
+
+  it("keys a reason to one client, service and period and no other", () => {
+    const periods = periodsInYear("monthly", 2026).slice(0, 1);
+    const grid = buildGrid({
+      clients: [
+        { id: "c1", name: "Ravi Textiles" },
+        { id: "c2", name: "Jaiswal Steels" },
+      ],
+      engagements: [],
+      periods,
+      // the reason belongs to c1; c2's identical period is untouched
+      reasons: [
+        { clientId: "c1", period: periods[0].code, reason: "not-engaged" },
+      ],
+      now: NOW,
+    });
+
+    expect(grid.rows[0].cells[0].state).toBe("explained");
+    expect(grid.rows[1].cells[0].state).toBe("missing");
+    expect(grid.totalMissing).toBe(1);
+  });
+});

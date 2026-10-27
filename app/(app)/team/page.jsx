@@ -86,7 +86,9 @@ export default async function TeamPage({ searchParams }) {
     <div className="mx-auto flex max-w-[1400px] flex-col gap-5 p-4 md:p-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-28 font-semibold">Team</h1>
+          <h1 className="font-display text-24 font-bold tracking-tight">
+            Team
+          </h1>
           <p className="text-14 text-ink-muted">
             {people.length} {people.length === 1 ? "person" : "people"}
             {scope ? " in your branches" : " across the firm"}
@@ -95,7 +97,7 @@ export default async function TeamPage({ searchParams }) {
         </div>
         <Link
           href="/team/export"
-          className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
+          className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
         >
           Export
         </Link>
@@ -122,7 +124,7 @@ export default async function TeamPage({ searchParams }) {
           <select
             name="branch"
             defaultValue={wantBranch}
-            className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
           >
             <option value="">All</option>
             {branches.map((b) => (
@@ -137,7 +139,7 @@ export default async function TeamPage({ searchParams }) {
           <select
             name="role"
             defaultValue={wantRole}
-            className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
           >
             <option value="">All</option>
             {ROLES.map((role) => (
@@ -152,7 +154,7 @@ export default async function TeamPage({ searchParams }) {
           <select
             name="senior"
             defaultValue={wantSenior}
-            className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
           >
             <option value="">Anyone</option>
             {seniors.map((s) => (
@@ -174,13 +176,13 @@ export default async function TeamPage({ searchParams }) {
         </label>
         <button
           type="submit"
-          className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3"
+          className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3"
         >
           Apply
         </button>
       </form>
 
-      <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+      <div className="rounded-table border-rule bg-surface overflow-x-auto border">
         <table className="text-14 w-full">
           <caption className="sr-only">
             The firm&rsquo;s team, with what is on each desk

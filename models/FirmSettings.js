@@ -38,6 +38,17 @@ const firmSettingsSchema = new mongoose.Schema(
       },
     },
     headOffice: { type: String, trim: true, default: "", maxlength: 300 },
+
+    /**
+     * One switch that stops every automatic message to a client (P3-10).
+     *
+     * For the morning somebody notices a rule is wrong: the firm can stop
+     * the sending without switching rules off one by one, and without
+     * anybody editing an environment variable on Vercel.
+     */
+    automationPaused: { type: Boolean, default: false },
+    automationPausedBy: { type: String, default: null },
+    automationPausedAt: { type: Date, default: null },
     email: { type: String, trim: true, lowercase: true, default: "" },
     phone: { type: String, trim: true, default: "" },
 

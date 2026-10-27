@@ -240,3 +240,47 @@ export async function setPortalTwoFactor(clientId, userId, required) {
       : "Two-factor is no longer required for this account.",
   };
 }
+
+/**
+ * Let this person confirm the figures on a return, or stop them (P3-6).
+ *
+ * Deliberately separate from everything else a portal account can do. The
+ * other rights are about seeing and uploading; this one is the client taking
+ * responsibility for a number that goes to the department in their name.
+ */
+export async function setPortalMayConfirm(clientId, userId, may) {
+  const actor = await requireUser();
+  await gate(actor, clientId);
+
+  const person = await ClientUser.findOne({ _id: userId, clientId });
+  if (!person) return { error: "That account is gone." };
+
+  const on = Boolean(may);
+
+  await audited(actor, async (session) => {
+    person.mayConfirmFigures = on;
+    person.updatedBy = actor.id;
+    await person.save({ session });
+
+    await recordAudit(
+      {
+        action: ACTIONS.update,
+        entityType: "ClientUser",
+        entityId: String(person._id),
+        clientId,
+        diff: { mayConfirmFigures: [!on, on] },
+        note: on
+          ? `${person.email} may now confirm figures before filing`
+          : `${person.email} may no longer confirm figures`,
+      },
+      session,
+    );
+  });
+
+  revalidatePath(`/clients/${clientId}`);
+  return {
+    ok: on
+      ? "They can now confirm figures on the portal before a return is filed."
+      : "They can no longer confirm figures.",
+  };
+}

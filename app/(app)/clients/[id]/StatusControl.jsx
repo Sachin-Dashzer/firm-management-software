@@ -25,7 +25,7 @@ export default function StatusControl({ clientId, status, canApprove }) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3"
+        className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3"
       >
         Change status
       </button>
@@ -39,7 +39,7 @@ export default function StatusControl({ clientId, status, canApprove }) {
             <select
               value={next}
               onChange={(e) => setNext(e.target.value)}
-              className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
             >
               {CLIENT_STATUSES.map((s) => (
                 <option key={s} value={s}>
@@ -58,7 +58,7 @@ export default function StatusControl({ clientId, status, canApprove }) {
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Fees overdue; client unresponsive"
-                className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
               />
             </label>
           )}
@@ -89,7 +89,7 @@ export default function StatusControl({ clientId, status, canApprove }) {
                   }
                 })
               }
-              className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+              className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
             >
               Apply
             </button>
@@ -110,7 +110,7 @@ export default function StatusControl({ clientId, status, canApprove }) {
                     if (result?.ok) router.push("/clients");
                   })
                 }
-                className="rounded-ledger border-rule text-14 hover:bg-redpen-wash hover:text-redpen h-9 border px-3 disabled:opacity-60"
+                className="rounded-control border-rule text-14 hover:bg-redpen-wash hover:text-redpen h-9 border px-3 disabled:opacity-60"
               >
                 Delete client
               </button>

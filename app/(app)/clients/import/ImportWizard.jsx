@@ -75,7 +75,7 @@ export default function ImportWizard() {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-ledger bg-carbon text-14 h-10 px-4 font-medium text-white disabled:opacity-60"
+          className="rounded-control bg-carbon text-14 text-on-carbon h-10 px-4 font-medium disabled:opacity-60"
         >
           {pending ? "Checking…" : "Check the file"}
         </button>
@@ -139,7 +139,7 @@ export default function ImportWizard() {
               type="button"
               disabled={pending || preview.readyCount === 0}
               onClick={onCommit}
-              className="rounded-ledger bg-carbon text-14 h-10 px-4 font-medium text-white disabled:opacity-60"
+              className="rounded-control bg-carbon text-14 text-on-carbon h-10 px-4 font-medium disabled:opacity-60"
             >
               {pending
                 ? "Importing…"
@@ -154,10 +154,10 @@ export default function ImportWizard() {
             </p>
           )}
 
-          <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+          <div className="rounded-table border-rule bg-surface overflow-x-auto border">
             <table className="text-14 w-full">
               <thead>
-                <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+                <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
                   <th className="px-3 py-2 font-medium">Row</th>
                   <th className="px-3 py-2 font-medium">Group</th>
                   <th className="px-3 py-2 font-medium">Client</th>

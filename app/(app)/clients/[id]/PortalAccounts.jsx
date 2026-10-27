@@ -5,6 +5,7 @@ import {
   invitePortalUser,
   resetPortalPassword,
   setPortalTwoFactor,
+  setPortalMayConfirm,
   setPortalUserActive,
 } from "./portal";
 
@@ -38,7 +39,7 @@ export default function PortalAccounts({ clientId, accounts, mayEdit }) {
     <section className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <h2 className="font-display text-20">
+          <h2 className="font-display text-15 font-semibold">
             The client&rsquo;s own logins
           </h2>
           <p className="text-13 text-ink-muted max-w-[65ch]">
@@ -51,7 +52,7 @@ export default function PortalAccounts({ clientId, accounts, mayEdit }) {
           <button
             type="button"
             onClick={() => setAdding((v) => !v)}
-            className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white"
+            className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium"
           >
             {adding ? "Cancel" : "Invite somebody"}
           </button>
@@ -92,7 +93,7 @@ export default function PortalAccounts({ clientId, accounts, mayEdit }) {
             <input
               name="name"
               required
-              className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
             />
           </label>
           <label className="flex flex-col gap-1">
@@ -101,7 +102,7 @@ export default function PortalAccounts({ clientId, accounts, mayEdit }) {
               name="email"
               type="email"
               required
-              className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
             />
           </label>
           <label className="flex flex-col gap-1">
@@ -111,14 +112,14 @@ export default function PortalAccounts({ clientId, accounts, mayEdit }) {
             <input
               name="designation"
               placeholder="Director"
-              className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
             />
           </label>
           <div className="sm:col-span-3">
             <button
               type="submit"
               disabled={pending}
-              className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+              className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
             >
               Create the account
             </button>
@@ -166,7 +167,7 @@ export default function PortalAccounts({ clientId, accounts, mayEdit }) {
                     onClick={() =>
                       run(() => resetPortalPassword(clientId, account.id))
                     }
-                    className="rounded-ledger border-rule text-13 h-8 border px-2"
+                    className="rounded-control border-rule text-13 h-8 border px-2"
                   >
                     New password
                   </button>
@@ -182,9 +183,27 @@ export default function PortalAccounts({ clientId, accounts, mayEdit }) {
                         ),
                       )
                     }
-                    className="rounded-ledger border-rule text-13 h-8 border px-2"
+                    className="rounded-control border-rule text-13 h-8 border px-2"
                   >
                     {account.twoFactor ? "Stop requiring 2FA" : "Require 2FA"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() =>
+                      run(() =>
+                        setPortalMayConfirm(
+                          clientId,
+                          account.id,
+                          !account.mayConfirmFigures,
+                        ),
+                      )
+                    }
+                    className="rounded-control border-rule text-13 h-8 border px-2"
+                  >
+                    {account.mayConfirmFigures
+                      ? "Stop them confirming figures"
+                      : "Let them confirm figures"}
                   </button>
                   <button
                     type="button"
@@ -198,7 +217,7 @@ export default function PortalAccounts({ clientId, accounts, mayEdit }) {
                         ),
                       )
                     }
-                    className="rounded-ledger border-rule text-13 h-8 border px-2"
+                    className="rounded-control border-rule text-13 h-8 border px-2"
                   >
                     {account.active ? "Close access" : "Reopen"}
                   </button>

@@ -34,7 +34,7 @@ export default async function ReportPage({ params, searchParams }) {
   if (!definition) notFound();
 
   const actor = await requireUser();
-  if (!can(actor, "view", definition.area)) redirect("/today");
+  if (!can(actor, "view", definition.area)) redirect("/issues");
 
   const params_ = (await searchParams) ?? {};
 
@@ -42,7 +42,10 @@ export default async function ReportPage({ params, searchParams }) {
   const [report, branches, services, people, views] = await Promise.all([
     runReport(key, actor, params_),
     Branch.find({}).select("code name").sort({ code: 1 }).lean(),
-    ServiceTemplate.find({ active: true }).select("name").sort({ name: 1 }).lean(),
+    ServiceTemplate.find({ active: true })
+      .select("name")
+      .sort({ name: 1 })
+      .lean(),
     User.find({ active: true }).select("name").sort({ name: 1 }).lean(),
     listViews(actor, key),
   ]);
@@ -62,20 +65,22 @@ export default async function ReportPage({ params, searchParams }) {
               Reports
             </Link>
           </p>
-          <h1 className="font-display text-28 font-semibold">{report.title}</h1>
+          <h1 className="font-display text-24 font-bold tracking-tight">
+            {report.title}
+          </h1>
           <p className="text-13 text-ink-muted">{report.what}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <a
             href={`/reports/${key}/export${search ? `?${search}` : ""}`}
-            className="rounded-ledger bg-carbon text-14 h-9 px-3 leading-9 font-medium text-white"
+            className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 leading-9 font-medium"
           >
             Excel
           </a>
           {definition.pdf && (
             <a
               href={`/reports/${key}/pdf${search ? `?${search}` : ""}`}
-              className="rounded-ledger border-rule text-14 h-9 border px-3 leading-9 font-medium"
+              className="rounded-control border-rule text-14 h-9 border px-3 leading-9 font-medium"
             >
               PDF
             </a>
@@ -92,7 +97,7 @@ export default async function ReportPage({ params, searchParams }) {
             type="date"
             name="from"
             defaultValue={params_.from ?? ""}
-            className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
           />
         </Field>
         <Field label="To">
@@ -100,7 +105,7 @@ export default async function ReportPage({ params, searchParams }) {
             type="date"
             name="to"
             defaultValue={params_.to ?? ""}
-            className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
           />
         </Field>
 
@@ -127,7 +132,11 @@ export default async function ReportPage({ params, searchParams }) {
         ) : (
           <>
             <Field label="Service">
-              <Select name="service" value={params_.service} any="Every service">
+              <Select
+                name="service"
+                value={params_.service}
+                any="Every service"
+              >
                 {services.map((service) => (
                   <option key={String(service._id)} value={String(service._id)}>
                     {service.name}
@@ -161,7 +170,7 @@ export default async function ReportPage({ params, searchParams }) {
 
         <button
           type="submit"
-          className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white"
+          className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium"
         >
           Apply
         </button>
@@ -184,10 +193,10 @@ export default async function ReportPage({ params, searchParams }) {
 
       <p className="text-12 text-ink-muted">{describeFilters(params_)}</p>
 
-      <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+      <div className="rounded-table border-rule bg-surface overflow-x-auto border">
         <table className="text-14 w-full">
           <thead>
-            <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+            <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
               {report.columns.map((column) => (
                 <th
                   key={column.key}
@@ -262,7 +271,7 @@ function Select({ name, value, any, children }) {
     <select
       name={name}
       defaultValue={value ?? ""}
-      className="rounded-ledger border-rule bg-paper text-14 h-9 max-w-52 border px-2"
+      className="rounded-control border-rule bg-paper text-14 h-9 max-w-52 border px-2"
     >
       {any !== null && <option value="">{any}</option>}
       {children}

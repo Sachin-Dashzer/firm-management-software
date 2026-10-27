@@ -38,10 +38,10 @@ export default function RecycleBin({ rows }) {
         </p>
       )}
 
-      <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+      <div className="rounded-table border-rule bg-surface overflow-x-auto border">
         <table className="text-14 w-full">
           <thead>
-            <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+            <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
               <th className="px-3 py-2 font-medium">File</th>
               <th className="px-3 py-2 font-medium">Client</th>
               <th className="px-3 py-2 font-medium">Deleted</th>
@@ -78,7 +78,7 @@ export default function RecycleBin({ rows }) {
                         type="button"
                         disabled={pending}
                         onClick={() => run(() => purgeDocument(r.id))}
-                        className="rounded-ledger border-redpen text-redpen h-8 border px-2"
+                        className="rounded-control border-redpen text-redpen h-8 border px-2"
                       >
                         Yes, erase it
                       </button>

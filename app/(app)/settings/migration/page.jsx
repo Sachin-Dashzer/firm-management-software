@@ -18,12 +18,12 @@ export const dynamic = "force-dynamic";
  */
 export default async function MigrationPage() {
   const actor = await requireUser();
-  if (!can(actor, "edit", "usersSettings")) redirect("/today");
+  if (!can(actor, "edit", "usersSettings")) redirect("/issues");
 
   return (
     <div className="mx-auto flex max-w-[1000px] flex-col gap-6 p-4 md:p-6">
       <div>
-        <h1 className="font-display text-28 font-semibold">
+        <h1 className="font-display text-24 font-bold tracking-tight">
           Bringing data in
         </h1>
         <p className="text-13 text-ink-muted">
@@ -39,17 +39,14 @@ export default async function MigrationPage() {
         </li>
         <li>
           <strong>2. The clients</strong> —{" "}
-          <Link
-            href="/clients/import"
-            className="underline underline-offset-4"
-          >
+          <Link href="/clients/import" className="underline underline-offset-4">
             on the client import screen
           </Link>
           , where it has been since the clients were built.
         </li>
         <li>
-          <strong>3. Opening balances</strong> — below, once the clients are
-          in, because each balance has to belong to one.
+          <strong>3. Opening balances</strong> — below, once the clients are in,
+          because each balance has to belong to one.
         </li>
       </ol>
 

@@ -22,6 +22,19 @@ const notificationRuleSchema = new mongoose.Schema(
 
     enabled: { type: Boolean, default: true },
 
+    /**
+     * A partner has decided this rule may write to clients without being
+     * looked at first (P3-10). Off by default, and only a partner can set
+     * it — trusting a rule is trusting every message it will ever send.
+     *
+     * Trusted is not unlimited: a send above 25 clients still queues, and
+     * quiet hours, the monthly cap and the firm-wide pause all still apply.
+     */
+    trusted: { type: Boolean, default: false },
+    trustedBy: { type: String, default: null },
+    trustedByName: { type: String, default: "" },
+    trustedAt: { type: Date, default: null },
+
     /** How many days before the date it goes out, e.g. [5, 1]. */
     daysBefore: { type: [Number], default: undefined },
     /** How often it repeats once the date has passed. */

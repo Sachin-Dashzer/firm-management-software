@@ -21,7 +21,7 @@ import {
 } from "@/lib/engagements/status";
 import { tierOf } from "@/lib/services/catalog";
 import TierBadge from "@/components/ledger/TierBadge";
-import { DueChip, PriorityChip, StatusChip } from "./chips";
+import { AtRiskChip, DueChip, PriorityChip, StatusChip } from "./chips";
 import {
   bulkApprove,
   bulkInternalDue,
@@ -132,7 +132,7 @@ export default function EngagementViews({
             key={key}
             href={linkTo({ view: key === "list" ? "" : key, page: "" })}
             aria-current={view === key ? "page" : undefined}
-            className={`rounded-ledger text-14 h-9 border px-3 leading-9 ${
+            className={`rounded-control text-14 h-9 border px-3 leading-9 ${
               view === key
                 ? "border-carbon bg-carbon-wash text-carbon"
                 : "border-rule hover:bg-carbon-wash"
@@ -272,7 +272,7 @@ function BulkBar({
                 : approve.why
             }
             onClick={onApprove}
-            className="rounded-ledger border-filed text-filed text-14 hover:bg-filed-wash h-9 border px-3 font-medium disabled:opacity-60"
+            className="rounded-control border-filed text-filed text-14 hover:bg-filed-wash h-9 border px-3 font-medium disabled:opacity-60"
           >
             Approve selected
           </button>
@@ -289,7 +289,7 @@ function BulkBar({
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+          className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
         >
           <option value="">— status —</option>
           {STATUSES.map((s) => (
@@ -305,7 +305,7 @@ function BulkBar({
           <input
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
           />
         </label>
       )}
@@ -317,7 +317,7 @@ function BulkBar({
           setStatus("");
           setReason("");
         }}
-        className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+        className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
       >
         Apply
       </button>
@@ -328,7 +328,7 @@ function BulkBar({
           defaultValue=""
           disabled={pending}
           onChange={(e) => e.target.value && onAssignee(e.target.value)}
-          className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+          className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
         >
           <option value="">— someone —</option>
           {team.map((u) => (
@@ -345,7 +345,7 @@ function BulkBar({
           defaultValue=""
           disabled={pending}
           onChange={(e) => e.target.value && onReviewer(e.target.value)}
-          className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+          className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
         >
           <option value="">— someone —</option>
           {team
@@ -364,7 +364,7 @@ function BulkBar({
           type="date"
           disabled={pending}
           onChange={(e) => e.target.value && onDue(e.target.value)}
-          className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+          className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
         />
       </label>
 
@@ -374,7 +374,7 @@ function BulkBar({
           defaultValue=""
           disabled={pending}
           onChange={(e) => e.target.value && onPriority(e.target.value)}
-          className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+          className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
         >
           <option value="">— level —</option>
           {PRIORITIES.map((p) => (
@@ -403,10 +403,10 @@ function ListView({
 
   return (
     <>
-      <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+      <div className="rounded-table border-rule bg-surface overflow-x-auto border">
         <table className="text-14 w-full">
           <thead>
-            <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+            <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
               {selectable && (
                 <th className="px-3 py-2">
                   <input
@@ -464,11 +464,18 @@ function ListView({
                   <StatusChip status={r.status} />
                 </Td>
                 <Td>
-                  {r.due ? (
-                    <DueChip label={r.dueKind} date={r.due} days={r.dueDays} />
-                  ) : (
-                    <span className="text-13 text-ink-muted">not set</span>
-                  )}
+                  <div className="flex flex-wrap items-center gap-1">
+                    {r.due ? (
+                      <DueChip
+                        label={r.dueKind}
+                        date={r.due}
+                        days={r.dueDays}
+                      />
+                    ) : (
+                      <span className="text-13 text-ink-muted">not set</span>
+                    )}
+                    <AtRiskChip reason={r.atRisk} />
+                  </div>
                 </Td>
                 <Td className="text-13">{r.assignee}</Td>
                 <Td className="text-13">{r.reviewer}</Td>
@@ -659,7 +666,7 @@ function BoardCard({ row, selected, toggle, selectable, hidden, moving }) {
       ref={setNodeRef}
       className={`rounded-ledger border-rule bg-paper flex flex-col gap-1 border p-2 ${
         hidden ? "opacity-30" : ""
-      } ${moving ? "animate-pulse" : ""}`}
+      } ${moving ? "opacity-50" : ""}`}
     >
       <div className="flex items-start gap-2">
         {selectable && (
@@ -700,6 +707,7 @@ function BoardCard({ row, selected, toggle, selectable, hidden, moving }) {
         {row.due && (
           <DueChip label={row.dueKind} date={row.due} days={row.dueDays} />
         )}
+        <AtRiskChip reason={row.atRisk} />
         <PriorityChip priority={row.priority} />
       </div>
       <p className="text-12 text-ink-muted">{row.assignee}</p>
@@ -741,15 +749,15 @@ function CalendarView({ rows, params }) {
         <button
           type="button"
           onClick={() => setMonth(new Date(year, monthIndex - 1, 1))}
-          className="rounded-ledger border-rule text-14 h-9 border px-3"
+          className="rounded-control border-rule text-14 h-9 border px-3"
         >
           ← Previous
         </button>
-        <h2 className="font-display text-20">{monthName}</h2>
+        <h2 className="font-display text-15 font-semibold">{monthName}</h2>
         <button
           type="button"
           onClick={() => setMonth(new Date(year, monthIndex + 1, 1))}
-          className="rounded-ledger border-rule text-14 h-9 border px-3"
+          className="rounded-control border-rule text-14 h-9 border px-3"
         >
           Next →
         </button>

@@ -26,7 +26,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function DocumentsPage({ searchParams }) {
   const actor = await requireUser();
-  if (!can(actor, "view", "documents")) redirect("/today");
+  if (!can(actor, "view", "documents")) redirect("/issues");
 
   const params = (await searchParams) ?? {};
   const tab = params.tab === "pending" ? "pending" : "search";
@@ -49,10 +49,10 @@ export default async function DocumentsPage({ searchParams }) {
           {rows.length} {rows.length === 1 ? "job is" : "jobs are"} waiting on
           documents from a client.
         </p>
-        <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+        <div className="rounded-table border-rule bg-surface overflow-x-auto border">
           <table className="text-14 w-full">
             <thead>
-              <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+              <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
                 <th className="px-3 py-2 font-medium">Client</th>
                 <th className="px-3 py-2 font-medium">Work</th>
                 <th className="px-3 py-2 font-medium">Waiting for</th>
@@ -204,7 +204,9 @@ function Shell({ tab, search, children }) {
   return (
     <div className="mx-auto flex max-w-[1400px] flex-col gap-5 p-4 md:p-6">
       <div>
-        <h1 className="font-display text-28 font-semibold">Documents</h1>
+        <h1 className="font-display text-24 font-bold tracking-tight">
+          Documents
+        </h1>
         <p className="text-13 text-ink-muted">
           Every file the firm holds, and everything still to come in.
         </p>
@@ -223,7 +225,7 @@ function Shell({ tab, search, children }) {
                 : "/documents?tab=pending"
             }
             aria-current={tab === key ? "page" : undefined}
-            className={`rounded-ledger text-14 h-9 border px-3 leading-9 ${
+            className={`rounded-control text-14 h-9 border px-3 leading-9 ${
               tab === key
                 ? "border-carbon bg-carbon-wash text-carbon"
                 : "border-rule hover:bg-carbon-wash"

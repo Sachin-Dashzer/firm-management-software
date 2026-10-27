@@ -77,7 +77,7 @@ export default function FolderTabs({ tabs, active, basePath, label }) {
       {bar && (
         <span
           aria-hidden="true"
-          className="bg-brass pointer-events-none absolute -bottom-px h-0.5 transition-all duration-300 ease-out motion-reduce:transition-none"
+          className="bg-brass pointer-events-none absolute -bottom-px h-0.5 transition-[left,width] duration-300 ease-out motion-reduce:transition-none"
           style={{ left: bar.left, width: bar.width }}
         />
       )}

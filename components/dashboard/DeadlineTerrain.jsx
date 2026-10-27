@@ -163,7 +163,7 @@ export default function DeadlineTerrain({ data }) {
       {hover && (
         <div
           role="status"
-          className="rounded-ledger border-rule bg-surface text-13 pointer-events-none absolute top-2 left-2 border px-2 py-1"
+          className="rounded-control border-rule bg-surface text-13 pointer-events-none absolute top-2 left-2 border px-2 py-1"
         >
           <strong>{hover.branch}</strong> · week of {hover.label} ·{" "}
           <span className="num">{hover.due}</span> due

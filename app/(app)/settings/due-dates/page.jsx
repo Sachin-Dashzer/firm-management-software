@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function DueDatesPage() {
   const actor = await requireUser();
-  if (!can(actor, "edit", "usersSettings")) redirect("/today");
+  if (!can(actor, "edit", "usersSettings")) redirect("/issues");
 
   await connectDB();
   const [rules, templates] = await Promise.all([

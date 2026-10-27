@@ -154,7 +154,7 @@ export default async function InvoicePage({ params }) {
         >
           Billing
         </Link>
-        <h1 className="font-display text-28 font-semibold">
+        <h1 className="font-display text-24 font-bold tracking-tight">
           {view.number ?? "Draft invoice"}
         </h1>
         <p className="text-13 text-ink-muted">
@@ -180,7 +180,7 @@ export default async function InvoicePage({ params }) {
       />
 
       <section className="flex flex-col gap-2">
-        <h2 className="font-display text-20">Activity</h2>
+        <h2 className="font-display text-15 font-semibold">Activity</h2>
         <div className="rounded-ledger border-rule bg-surface border px-4">
           <ActivityFeed
             entries={audit.map((e) => ({ ...e, _id: String(e._id) }))}

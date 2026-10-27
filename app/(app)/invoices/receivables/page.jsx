@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/auth";
-import { can, branchFilter } from "@/lib/permissions";
+import { can, branchFilter, whyNot } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import Invoice from "@/models/Invoice";
 import Client from "@/models/Client";
@@ -12,7 +12,9 @@ import { ageReceivables, outstandingOf } from "@/lib/billing/allocation";
 import { promiseHolds, promiseBroken } from "@/lib/billing/promise";
 import { advances } from "@/lib/reports/figures";
 import { clientIdsInGroup } from "@/lib/groups/summary";
+import { feeState, pendingWaiver } from "@/lib/engagements/scope";
 import ClientGroup from "@/models/ClientGroup";
+import UnbilledWork from "./UnbilledWork";
 
 export const metadata = { title: "Receivables · PHMG" };
 export const dynamic = "force-dynamic";
@@ -26,7 +28,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function ReceivablesPage({ searchParams }) {
   const actor = await requireUser();
-  if (!can(actor, "view", "invoices")) redirect("/today");
+  if (!can(actor, "view", "invoices")) redirect("/issues");
 
   const params = (await searchParams) ?? {};
   const tab = params.tab === "unbilled" ? "unbilled" : "ageing";
@@ -56,6 +58,12 @@ export default async function ReceivablesPage({ searchParams }) {
       .limit(500)
       .lean();
 
+    // a waiver somebody is waiting on outranks the oldest unbilled job (P3-4)
+    engagements.sort(
+      (a, b) =>
+        Number(Boolean(pendingWaiver(b))) - Number(Boolean(pendingWaiver(a))),
+    );
+
     const clients = await Client.find({
       _id: { $in: engagements.map((e) => e.clientId) },
     })
@@ -65,75 +73,36 @@ export default async function ReceivablesPage({ searchParams }) {
       clients.map((c) => [String(c._id), c.tradeName || c.legalName]),
     );
 
-    const total = engagements.reduce((sum, e) => sum + (e.feePaise ?? 0), 0);
-
     return (
       <Shell tab={tab} group={group}>
-        <p className="text-14">
-          <strong>{engagements.length}</strong>{" "}
-          {engagements.length === 1 ? "job is" : "jobs are"} finished and not
-          billed, worth <strong className="num">{formatPaise(total)}</strong>{" "}
-          before tax.
-        </p>
-
-        <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
-          <table className="text-14 w-full">
-            <thead>
-              <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
-                <th className="px-3 py-2 font-medium">Client</th>
-                <th className="px-3 py-2 font-medium">Work</th>
-                <th className="px-3 py-2 font-medium">Finished</th>
-                <th className="px-3 py-2 text-right font-medium">Fee</th>
-                <th className="px-3 py-2 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {engagements.map((e) => (
-                <tr
-                  key={String(e._id)}
-                  className="border-rule border-b last:border-0"
-                >
-                  <td className="px-3 py-2">
-                    {clientName.get(String(e.clientId)) ?? "Client"}
-                  </td>
-                  <td className="text-13 px-3 py-2">
-                    <Link
-                      href={`/engagements/${e._id}`}
-                      className="underline underline-offset-4"
-                    >
-                      {e.templateSnapshot?.name ?? "Work"}
-                    </Link>{" "}
-                    · {e.periodLabel || e.period}
-                  </td>
-                  <td className="num text-13 px-3 py-2">
-                    {e.completedAt ? formatISTDate(e.completedAt) : "—"}
-                  </td>
-                  <td className="num px-3 py-2 text-right">
-                    {formatPaise(e.feePaise ?? 0)}
-                  </td>
-                  <td className="text-13 px-3 py-2">
-                    <Link
-                      href={`/invoices/new?client=${e.clientId}`}
-                      className="underline underline-offset-4"
-                    >
-                      Bill it
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-              {engagements.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="text-ink-muted px-3 py-6 text-center"
-                  >
-                    Everything finished has been billed.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <UnbilledWork
+          canPrice={can(actor, "edit", "invoices")}
+          isPartner={can(actor, "approve", "feeWriteOff")}
+          whyNoPricing={whyNot(actor, "edit", "invoices")}
+          rows={engagements.map((e) => {
+            const state = feeState(e);
+            const pending = pendingWaiver(e);
+            return {
+              id: String(e._id),
+              clientId: String(e.clientId),
+              client: clientName.get(String(e.clientId)) ?? "Client",
+              work: e.templateSnapshot?.name ?? "Work",
+              period: e.periodLabel || e.period,
+              finished: e.completedAt ? formatISTDate(e.completedAt) : "",
+              feePaise: e.feePaise ?? 0,
+              scope: state.scope,
+              stateLabel: state.label,
+              stateDetail: state.detail,
+              blocked: state.pending,
+              waiver: pending
+                ? {
+                    reason: pending.reason,
+                    requestedByName: pending.requestedByName || "Staff",
+                  }
+                : null,
+            };
+          })}
+        />
       </Shell>
     );
   }
@@ -333,10 +302,10 @@ export default async function ReceivablesPage({ searchParams }) {
         ))}
       </div>
 
-      <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+      <div className="rounded-table border-rule bg-surface overflow-x-auto border">
         <table className="text-14 w-full">
           <thead>
-            <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+            <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
               <th className="px-3 py-2 font-medium">Client</th>
               {BUCKETS.map((b) => (
                 <th key={b} className="px-3 py-2 text-right font-medium">
@@ -408,7 +377,7 @@ function Shell({ tab, group = null, children }) {
         >
           Billing
         </Link>
-        <h1 className="font-display text-28 font-semibold">
+        <h1 className="font-display text-24 font-bold tracking-tight">
           Where the money is
         </h1>
       </div>
@@ -440,7 +409,7 @@ function Shell({ tab, group = null, children }) {
                 : "/invoices/receivables"
             }
             aria-current={tab === key ? "page" : undefined}
-            className={`rounded-ledger text-14 h-9 border px-3 leading-9 ${
+            className={`rounded-control text-14 h-9 border px-3 leading-9 ${
               tab === key
                 ? "border-carbon bg-carbon-wash text-carbon"
                 : "border-rule hover:bg-carbon-wash"

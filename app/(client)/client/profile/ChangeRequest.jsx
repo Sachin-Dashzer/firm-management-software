@@ -16,11 +16,13 @@ export default function ChangeRequest() {
   return (
     <section className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4">
       <div>
-        <h2 className="font-display text-20">Ask us to correct something</h2>
+        <h2 className="font-display text-15 font-semibold">
+          Ask us to correct something
+        </h2>
         <p className="text-13 text-ink-muted max-w-[65ch]">
-          Tell us what is wrong and what it should be. Somebody who looks
-          after your file will read it, check it, and make the change —
-          nothing here changes your record by itself.
+          Tell us what is wrong and what it should be. Somebody who looks after
+          your file will read it, check it, and make the change — nothing here
+          changes your record by itself.
         </p>
       </div>
 
@@ -61,7 +63,7 @@ export default function ChangeRequest() {
           <button
             type="submit"
             disabled={pending}
-            className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+            className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
           >
             {pending ? "Sending…" : "Send it to the firm"}
           </button>

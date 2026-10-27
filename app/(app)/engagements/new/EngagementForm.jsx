@@ -109,7 +109,7 @@ export default function EngagementForm({
             value={clientId}
             onChange={(e) => setClientId(e.target.value)}
             required
-            className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
           >
             <option value="">— choose —</option>
             {clients.map((c) => (
@@ -127,7 +127,7 @@ export default function EngagementForm({
             value={templateId}
             onChange={(e) => setTemplateId(e.target.value)}
             required
-            className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
           >
             <option value="">— choose —</option>
             {templates.map((t) => (
@@ -146,7 +146,7 @@ export default function EngagementForm({
             onChange={(e) => setPeriod(e.target.value)}
             disabled={!template}
             required
-            className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
           >
             {periods.map((p) => (
               <option key={p.code} value={p.code}>
@@ -172,7 +172,7 @@ export default function EngagementForm({
             name="internalDue"
             value={internalDue}
             onChange={(e) => setInternalDue(e.target.value)}
-            className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
           />
           <span className="text-12 text-ink-muted">
             {!template
@@ -188,7 +188,7 @@ export default function EngagementForm({
           <select
             name="priority"
             defaultValue="Normal"
-            className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
           >
             {PRIORITIES.map((p) => (
               <option key={p} value={p}>
@@ -206,7 +206,7 @@ export default function EngagementForm({
             name="assigneeId"
             value={assigneeId}
             onChange={(e) => setAssigneeId(e.target.value)}
-            className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
           >
             <option value="">— decide later —</option>
             {canDo.map((u) => (
@@ -229,7 +229,7 @@ export default function EngagementForm({
             name="reviewerId"
             value={reviewerId}
             onChange={(e) => setReviewerId(e.target.value)}
-            className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
           >
             <option value="">— decide later —</option>
             {canCheck
@@ -254,7 +254,7 @@ export default function EngagementForm({
             value={fee}
             onChange={(e) => setFee(e.target.value)}
             inputMode="decimal"
-            className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
           />
         </label>
       </section>
@@ -288,7 +288,7 @@ export default function EngagementForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-ledger bg-carbon text-14 h-10 px-4 font-medium text-white disabled:opacity-60"
+          className="rounded-control bg-carbon text-14 text-on-carbon h-10 px-4 font-medium disabled:opacity-60"
         >
           {pending ? "Creating…" : "Create engagement"}
         </button>

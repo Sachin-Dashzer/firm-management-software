@@ -22,21 +22,20 @@ export const dynamic = "force-dynamic";
  */
 export default async function SecurityPage() {
   const actor = await requireUser();
-  if (!can(actor, "edit", "usersSettings")) redirect("/today");
+  if (!can(actor, "edit", "usersSettings")) redirect("/issues");
 
   await connectDB();
   const [signals, incidents] = await Promise.all([
     securitySignals(),
-    Incident.find({})
-      .sort({ status: 1, occurredAt: -1 })
-      .limit(100)
-      .lean(),
+    Incident.find({}).sort({ status: 1, occurredAt: -1 }).limit(100).lean(),
   ]);
 
   return (
     <div className="mx-auto flex max-w-[1100px] flex-col gap-6 p-4 md:p-6">
       <div>
-        <h1 className="font-display text-28 font-semibold">Security</h1>
+        <h1 className="font-display text-24 font-bold tracking-tight">
+          Security
+        </h1>
         <p className="text-13 text-ink-muted">
           What the portal log is showing, and the firm&rsquo;s record of
           anything that went wrong.{" "}

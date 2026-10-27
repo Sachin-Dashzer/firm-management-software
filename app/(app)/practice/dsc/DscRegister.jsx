@@ -55,7 +55,9 @@ export default function DscRegister({
     <div className="mx-auto flex max-w-[1200px] flex-col gap-5 p-4 md:p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="font-display text-28 font-semibold">DSC register</h1>
+          <h1 className="font-display text-24 font-bold tracking-tight">
+            DSC register
+          </h1>
           <p className="text-13 text-ink-muted">
             Whose digital signature certificate expires when. The firm does not
             hold clients&rsquo; tokens — this is the date, so nobody is caught
@@ -66,7 +68,7 @@ export default function DscRegister({
           <button
             type="button"
             onClick={() => setAdding((v) => !v)}
-            className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white"
+            className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium"
           >
             {adding ? "Cancel" : "Add a certificate"}
           </button>
@@ -130,13 +132,13 @@ export default function DscRegister({
         />
       )}
 
-      <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+      <div className="rounded-table border-rule bg-surface overflow-x-auto border">
         <table className="text-14 w-full">
           <caption className="sr-only">
             Digital signature certificates, soonest to expire first
           </caption>
           <thead>
-            <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+            <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
               <th scope="col" className="px-3 py-2 font-medium">
                 Whose
               </th>
@@ -257,7 +259,7 @@ function Form({ clients, row, pending, onSubmit, onCancel }) {
       action={onSubmit}
       className="rounded-ledger border-carbon bg-surface grid gap-4 border p-4 sm:grid-cols-2"
     >
-      <h2 className="font-display text-20 sm:col-span-2">
+      <h2 className="font-display text-15 font-semibold sm:col-span-2">
         {row ? `${row.holderName}'s certificate` : "A certificate"}
       </h2>
 
@@ -269,7 +271,7 @@ function Form({ clients, row, pending, onSubmit, onCancel }) {
           <select
             name="clientId"
             required
-            className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
           >
             <option value="">Choose a client</option>
             {clients.map((client) => (
@@ -300,7 +302,7 @@ function Form({ clients, row, pending, onSubmit, onCancel }) {
         <select
           name="certClass"
           defaultValue={row?.certClass ?? "Class 3"}
-          className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+          className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
         >
           <option value="">Not recorded</option>
           {DSC_CLASSES.map((c) => (
@@ -336,7 +338,7 @@ function Form({ clients, row, pending, onSubmit, onCancel }) {
         <select
           name="heldBy"
           defaultValue={row?.heldBy ?? "client"}
-          className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+          className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
         >
           {DSC_HOLDERS.map((who) => (
             <option key={who} value={who}>
@@ -363,7 +365,7 @@ function Form({ clients, row, pending, onSubmit, onCancel }) {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-ledger bg-carbon text-14 h-10 px-4 font-medium text-white disabled:opacity-60"
+          className="rounded-control bg-carbon text-14 text-on-carbon h-10 px-4 font-medium disabled:opacity-60"
         >
           {pending ? "Saving…" : row ? "Save changes" : "Add to the register"}
         </button>
@@ -385,7 +387,7 @@ function Field({ label, hint, className = "", inputClassName = "", ...rest }) {
       <span className="text-13 text-ink-muted font-medium">{label}</span>
       <input
         {...rest}
-        className={`rounded-ledger border-rule bg-paper text-14 h-10 border px-2 ${inputClassName}`}
+        className={`rounded-control border-rule bg-paper text-14 h-10 border px-2 ${inputClassName}`}
       />
       {hint && <span className="text-12 text-ink-muted">{hint}</span>}
     </label>

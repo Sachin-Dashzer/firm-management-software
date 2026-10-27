@@ -51,13 +51,13 @@ export default function Security({ mobile, twoFactorOn }) {
             defaultValue={mobile}
             inputMode="numeric"
             placeholder="9811034567"
-            className="rounded-ledger border-rule bg-paper text-14 h-9 w-48 border px-2 font-mono"
+            className="rounded-control border-rule bg-paper text-14 h-9 w-48 border px-2 font-mono"
           />
         </label>
         <button
           type="submit"
           disabled={pending}
-          className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3 disabled:opacity-50"
+          className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 disabled:opacity-50"
         >
           Save
         </button>
@@ -113,13 +113,13 @@ export default function Security({ mobile, twoFactorOn }) {
                 name="password"
                 required
                 autoComplete="current-password"
-                className="rounded-ledger border-rule bg-paper text-14 h-9 w-64 border px-2"
+                className="rounded-control border-rule bg-paper text-14 h-9 w-64 border px-2"
               />
             </label>
             <button
               type="submit"
               disabled={pending}
-              className="rounded-ledger border-redpen text-redpen text-14 h-9 self-start border px-3 disabled:opacity-50"
+              className="rounded-control border-redpen text-redpen text-14 h-9 self-start border px-3 disabled:opacity-50"
             >
               {pending ? "Clearing…" : "Clear two-factor"}
             </button>

@@ -31,7 +31,14 @@ const ACTIONS = [
   },
   { title: "New client", href: "/clients/new", area: "clients" },
   { title: "New invoice", href: "/invoices/new", area: "invoices" },
+  { title: "Issues", href: "/issues", area: null },
   { title: "Today", href: "/today", area: null },
+  { title: "Notices", href: "/practice/notices", area: "practice" },
+  {
+    title: "Open a notice matter",
+    href: "/practice/notices/new",
+    area: "practice",
+  },
   {
     title: "Overdue work",
     href: "/engagements?due=overdue",

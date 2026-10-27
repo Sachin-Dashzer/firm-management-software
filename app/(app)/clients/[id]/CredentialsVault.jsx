@@ -31,12 +31,12 @@ export default function CredentialsVault({ clientId, credentials, mayEdit }) {
   return (
     <section className="rounded-ledger border-brass bg-surface border p-4">
       <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-display text-20">Portal logins</h2>
+        <h2 className="font-display text-15 font-semibold">Portal logins</h2>
         {mayEdit && (
           <button
             type="button"
             onClick={() => setAdding((v) => !v)}
-            className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3"
+            className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3"
           >
             {adding ? "Cancel" : "Add a login"}
           </button>
@@ -79,7 +79,7 @@ export default function CredentialsVault({ clientId, credentials, mayEdit }) {
             <span className="text-13 text-ink-muted font-medium">Portal</span>
             <select
               name="portal"
-              className="rounded-ledger border-rule bg-surface text-14 h-9 border px-2"
+              className="rounded-control border-rule bg-surface text-14 h-9 border px-2"
             >
               {PORTALS.map((p) => (
                 <option key={p} value={p}>
@@ -105,7 +105,7 @@ export default function CredentialsVault({ clientId, credentials, mayEdit }) {
             <button
               type="submit"
               disabled={pending}
-              className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+              className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
             >
               Save
             </button>
@@ -137,7 +137,7 @@ export default function CredentialsVault({ clientId, credentials, mayEdit }) {
 
                 {open ? (
                   <>
-                    <span className="rounded-ledger border-brass bg-waiting-wash text-14 border px-2 py-0.5 font-mono select-all">
+                    <span className="rounded-chip border-brass bg-waiting-wash text-14 border px-2 py-0.5 font-mono select-all">
                       {open.password}
                     </span>
                     {open.notes && (
@@ -160,7 +160,7 @@ export default function CredentialsVault({ clientId, credentials, mayEdit }) {
                     type="button"
                     disabled={pending}
                     onClick={() => reveal(c.id)}
-                    className="rounded-ledger border-rule text-13 hover:bg-carbon-wash border px-2 py-1 disabled:opacity-60"
+                    className="rounded-control border-rule text-13 hover:bg-carbon-wash border px-2 py-1 disabled:opacity-60"
                   >
                     Reveal
                   </button>
@@ -180,7 +180,7 @@ export default function CredentialsVault({ clientId, credentials, mayEdit }) {
                         setMessage(await deleteCredential(clientId, c.id)),
                       )
                     }
-                    className="rounded-ledger border-rule text-13 hover:bg-redpen-wash hover:text-redpen border px-2 py-1"
+                    className="rounded-control border-rule text-13 hover:bg-redpen-wash hover:text-redpen border px-2 py-1"
                   >
                     Remove
                   </button>
@@ -199,7 +199,7 @@ function Input({ label, className = "", ...rest }) {
     <label className={`flex flex-col gap-1 ${className}`}>
       <span className="text-13 text-ink-muted font-medium">{label}</span>
       <input
-        className="rounded-ledger border-rule bg-surface text-14 h-9 border px-2"
+        className="rounded-control border-rule bg-surface text-14 h-9 border px-2"
         {...rest}
       />
     </label>

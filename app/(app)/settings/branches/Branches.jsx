@@ -22,7 +22,9 @@ export default function Branches({ rows }) {
   return (
     <div className="mx-auto flex max-w-[900px] flex-col gap-5 p-4 md:p-6">
       <div>
-        <h1 className="font-display text-28 font-semibold">Branches</h1>
+        <h1 className="font-display text-24 font-bold tracking-tight">
+          Branches
+        </h1>
         <p className="text-13 text-ink-muted">
           Each office bills under its own GST registration and its own invoice
           series.
@@ -70,7 +72,9 @@ export default function Branches({ rows }) {
         >
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div>
-              <h2 className="font-display text-20">{branch.name}</h2>
+              <h2 className="font-display text-15 font-semibold">
+                {branch.name}
+              </h2>
               <p className="text-13 text-ink-muted font-mono">{branch.code}</p>
             </div>
             <p className="text-13 text-ink-muted">
@@ -99,7 +103,7 @@ export default function Branches({ rows }) {
                   defaultValue={branch.gstin}
                   maxLength={15}
                   placeholder="09AABCS1429P1ZZ"
-                  className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2 font-mono uppercase"
+                  className="rounded-control border-rule bg-paper text-14 h-9 border px-2 font-mono uppercase"
                 />
                 <span className="text-12 text-ink-muted">
                   Checked properly, not just for shape.
@@ -112,14 +116,14 @@ export default function Branches({ rows }) {
                 <input
                   name="address"
                   defaultValue={branch.address}
-                  className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                  className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
                 />
               </label>
               <div className="flex gap-3 sm:col-span-2">
                 <button
                   type="submit"
                   disabled={pending}
-                  className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+                  className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
                 >
                   Save
                 </button>

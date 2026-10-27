@@ -22,7 +22,9 @@ export default async function ClientInvoicesPage() {
   await connectDB();
 
   const invoices = await Invoice.find(invoiceScope(person))
-    .select("number type date dueDate status totalPaise paidPaise tdsCreditedPaise writtenOffPaise")
+    .select(
+      "number type date dueDate status totalPaise paidPaise tdsCreditedPaise writtenOffPaise",
+    )
     .sort({ date: -1 })
     .limit(500)
     .lean();
@@ -33,7 +35,9 @@ export default async function ClientInvoicesPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="font-display text-28 font-semibold">Invoices</h1>
+          <h1 className="font-display text-24 font-bold tracking-tight">
+            Invoices
+          </h1>
           <p className="text-14 text-ink-muted">
             Every bill we have raised for you.
           </p>
@@ -53,21 +57,27 @@ export default async function ClientInvoicesPage() {
           No invoices yet.
         </p>
       ) : (
-        <div className="rounded-ledger border-rule overflow-x-auto border">
+        <div className="rounded-table border-rule overflow-x-auto border">
           <table className="text-14 w-full border-collapse">
             <thead>
               <tr className="border-rule bg-surface border-b text-left">
-                {["Number", "Date", "Due", "Total", "Outstanding", "Status", ""].map(
-                  (head, index) => (
-                    <th
-                      key={head || index}
-                      scope="col"
-                      className="text-13 text-ink-muted px-3 py-2 font-medium"
-                    >
-                      {head}
-                    </th>
-                  ),
-                )}
+                {[
+                  "Number",
+                  "Date",
+                  "Due",
+                  "Total",
+                  "Outstanding",
+                  "Status",
+                  "",
+                ].map((head, index) => (
+                  <th
+                    key={head || index}
+                    scope="col"
+                    className="text-13 text-ink-muted px-3 py-2 font-medium"
+                  >
+                    {head}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>

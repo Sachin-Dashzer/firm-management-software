@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/auth";
-import { assertCan, can } from "@/lib/permissions";
+import { assertCan } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import { audited } from "@/lib/audit/request";
 import { recordAudit, ACTIONS } from "@/lib/audit";
@@ -16,6 +16,7 @@ import { nextInvoiceNumber } from "@/lib/billing/number";
 import { invoicePdfAttachment } from "@/lib/billing/attachment";
 import { invoiceIssued } from "@/lib/mailer/events";
 import { checkPromise } from "@/lib/billing/promise";
+import { blocksInvoice } from "@/lib/engagements/scope";
 import { istInputDate } from "@/lib/dates";
 
 /**
@@ -72,6 +73,26 @@ export async function createDraft(input) {
         clientId: client._id,
       }).lean()
     : [];
+
+  /**
+   * Nothing waived, nothing covered by a retainer, and nothing unpriced goes
+   * on an invoice (P3-4). The picker shows these rows disabled with the
+   * reason, so this is the lock behind that courtesy — a ticked box in a
+   * stale tab is the case it exists for.
+   */
+  const refused = engagements
+    .map((e) => {
+      const why = blocksInvoice(e);
+      return why
+        ? `${e.templateSnapshot?.name ?? "Work"} ${e.periodLabel || e.period} — ${why}`
+        : null;
+    })
+    .filter(Boolean);
+  if (refused.length) {
+    return {
+      error: `This cannot go on an invoice yet: ${refused.join("; ")}.`,
+    };
+  }
 
   const creditDays = Number(client.creditDays ?? 0);
   const date = new Date();
@@ -434,29 +455,12 @@ export async function writeOff(id, reason) {
   return { ok: "Written off." };
 }
 
-/** Completed engagements with nothing billed against them (spec §7). */
-export async function unbilledFor(clientId) {
-  const actor = await requireUser();
-  if (!can(actor, "view", "invoices")) return [];
-
-  await connectDB();
-  const engagements = await Engagement.find({
-    clientId,
-    billingStatus: "Unbilled",
-    status: { $in: ["Filed / delivered", "Completed"] },
-  })
-    .select("code templateSnapshot periodLabel period feePaise")
-    .sort({ completedAt: -1 })
-    .limit(100)
-    .lean();
-
-  return engagements.map((e) => ({
-    id: String(e._id),
-    code: e.code,
-    label: `${e.templateSnapshot?.name ?? "Work"} — ${e.periodLabel || e.period}`,
-    feePaise: e.feePaise ?? 0,
-  }));
-}
+/**
+ * `unbilledFor()` used to live here: a second copy of the unbilled query that
+ * nothing called — `/invoices/new` has always run its own. Removed at P3-4
+ * rather than taught the waiver rule, because a dead copy of a money query is
+ * exactly the thing that gets found later and trusted.
+ */
 
 /**
  * Record the date a client has given for paying one invoice (P3-3).

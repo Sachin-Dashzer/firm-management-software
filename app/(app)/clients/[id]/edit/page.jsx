@@ -41,7 +41,7 @@ export default async function EditClientPage({ params }) {
     <div className="mx-auto flex max-w-[1100px] flex-col gap-5 p-4 md:p-6">
       <div>
         <p className="text-13 text-ink-muted font-mono">{client.code}</p>
-        <h1 className="font-display text-28 font-semibold">
+        <h1 className="font-display text-24 font-bold tracking-tight">
           Edit {client.tradeName || client.legalName}
         </h1>
       </div>

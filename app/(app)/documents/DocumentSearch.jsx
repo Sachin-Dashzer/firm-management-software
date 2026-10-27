@@ -41,7 +41,7 @@ export default function DocumentSearch({ rows, filters, years, services }) {
             name="q"
             defaultValue={filters.q ?? ""}
             placeholder="Form 16, ABC Traders…"
-            className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
           />
         </label>
 
@@ -52,7 +52,7 @@ export default function DocumentSearch({ rows, filters, years, services }) {
           <select
             name="fy"
             defaultValue={filters.fy}
-            className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
           >
             <option value="">Any</option>
             {years.map((y) => (
@@ -68,7 +68,7 @@ export default function DocumentSearch({ rows, filters, years, services }) {
           <select
             name="service"
             defaultValue={filters.service}
-            className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
           >
             <option value="">Any</option>
             {services.map((s) => (
@@ -91,7 +91,7 @@ export default function DocumentSearch({ rows, filters, years, services }) {
           </label>
           <button
             type="submit"
-            className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white"
+            className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium"
           >
             Search
           </button>
@@ -107,10 +107,10 @@ export default function DocumentSearch({ rows, filters, years, services }) {
         </p>
       )}
 
-      <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+      <div className="rounded-table border-rule bg-surface overflow-x-auto border">
         <table className="text-14 w-full">
           <thead>
-            <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+            <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
               <th className="px-3 py-2 font-medium">File</th>
               <th className="px-3 py-2 font-medium">Client</th>
               <th className="px-3 py-2 font-medium">Where</th>

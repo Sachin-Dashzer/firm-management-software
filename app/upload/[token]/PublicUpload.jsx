@@ -143,7 +143,7 @@ export default function PublicUpload({ token, details }) {
               </span>
             </span>
 
-            <label className="rounded-ledger bg-carbon text-14 h-10 cursor-pointer px-4 leading-10 font-medium text-white">
+            <label className="rounded-control bg-carbon text-14 text-on-carbon h-10 cursor-pointer px-4 leading-10 font-medium">
               {item.received ? "Send another" : "Choose file"}
               <input
                 type="file"

@@ -1,96 +1,179 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------
-   PHMG CRM design tokens — "the modern ledger" (spec section 15)
-   Light theme: Paper.  Dark theme: Night shift.
-   The theme is chosen by data-theme on <html>; no theme attribute
-   means follow the operating system.
+   PHMG CRM design tokens.
+
+   These are the values from the v6.2 prototype, which the owner chose
+   on 26-10-2026 over the "modern ledger" language of spec section 15
+   (see D35). The token *names* are unchanged — `paper`, `surface`,
+   `ink`, `carbon`, `filed`, `waiting`, `redpen` — because sixty routes
+   already read them, so swapping the values here restyles the whole
+   application without touching a screen. The names now describe their
+   job rather than the ledger metaphor they came from:
+
+     paper   → the prototype's --bg
+     surface → --surface
+     ink     → --fg
+     ink-muted → --muted
+     faint   → --faint   (new: the prototype's third text weight)
+     rule    → --line
+     carbon  → --accent
+     carbon-ink → --accent-ink
+     filed / waiting / redpen → --good / --warn / --bad
+
+   Every value is the prototype's exactly, with **one** exception,
+   `--faint`. See the note on it below.
    --------------------------------------------------------------- */
 
 :root {
-  --paper: #f5f1e8;
-  --surface: #fffdf8;
-  --ink: #1b2233;
-  --ink-muted: #5e6577;
-  --rule: #e3dccb;
-  --carbon: #2346a0;
-  --brass: #b07a2a;
+  --paper: #f4f6f9;
+  --surface: #ffffff;
+  --sunk: #eef1f5;
+  --ink: #141821;
+  --ink-muted: #566070;
+  --rule: #dfe3ea;
+  --rule-soft: #e9ecf1;
+  --carbon: #2546b8;
+  --carbon-ink: #1a3490;
+  --carbon-soft: #e8edfb;
+  --on-carbon: #ffffff;
 
-  /* Filed green and Waiting amber are a few steps darker than the hex in
-     spec section 15. The spec also sets WCAG 2.2 AA as a quality bar, and
-     on Paper its own values give 4.47:1 for the green and 2.61:1 for the
-     amber as text — the amber failing badly. These are the darkest-by-the
-     -smallest-amount values that clear 4.5:1 on Paper, on Surface and on
-     their own wash; the washes below keep the spec's brighter hues, so a
-     chip is still the right colour, with legible ink on it.
-     tests/contrast.test.js measures all of this and fails if it drifts. */
-  --filed: #2d784c;
-  --waiting: #8d610f;
-  --redpen: #b3362c;
+  --filed: #1d7a4b;
+  --filed-soft: #e5f4ec;
+  --waiting: #8a4206;
+  --waiting-soft: #fcefe3;
+  --redpen: #b42318;
+  --redpen-soft: #fcebe9;
 
-  /* Brass is a boundary colour and clears the 3:1 bar a focus ring has to
-     meet, so the ring keeps the spec's value. Where brass is used as
-     *text* it needs 4.5:1, which this is for. */
-  --brass-ink: #8d6222;
+  /**
+   * The one value that is not the prototype's.
+   *
+   * The prototype uses #8790A0, which gives 2.97:1 on --bg and 3.22:1 on
+   * --surface — and it uses it for the smallest text on screen, 11.5 and
+   * 12px, which is exactly where WCAG wants 4.5:1. So it fails the bar
+   * spec section 15 sets and `tests/contrast.test.js` enforces, and it
+   * fails it at the size where it matters most.
+   *
+   * #687080 is the least-darkened value that clears 4.5:1 on both
+   * backgrounds. Nothing else in the palette needed touching.
+   */
+  --faint: #687080;
 
-  /* ink wash: the token colour at low opacity, for row and chip fills */
-  --filed-wash: #2f7d4f1f;
-  --waiting-wash: #c98a161f;
-  --redpen-wash: #b3362c1f;
-  --carbon-wash: #2346a014;
+  /**
+   * Brass was the ledger language's highlight and focus colour. The
+   * prototype has no brass: its focus ring is the accent, and so is every
+   * highlight brass was doing.
+   *
+   * Kept as an alias rather than deleted, because a dozen screens name it
+   * and rewriting them to say `carbon` would be a large diff for no visible
+   * change — this way they all become the prototype's accent at once.
+   */
+  --brass: var(--carbon);
+  --brass-ink: var(--carbon-ink);
 
-  --grain-opacity: 0.02;
+  /* kept so existing wash utilities resolve; the prototype's soft fills
+     above are the ones the new markup uses */
+  --filed-wash: #1d7a4b1f;
+  --waiting-wash: #8a42061f;
+  --redpen-wash: #b423181f;
+  --carbon-wash: #2546b814;
+
+  /* the prototype has no paper grain and no ledger ruling */
+  --grain-opacity: 0;
   --rule-opacity: 1;
 
-  /* 8px spacing grid, 6px corner radius */
-  --radius: 6px;
+  /**
+   * Four radii, because the prototype has four and they are all different
+   * (P3-21b). One token was doing all four jobs here, which was the single
+   * most visible shape difference between the two: a chip with a 12px
+   * corner reads as a small card, and a card with a pill corner reads as a
+   * button.
+   *
+   *   card    12px  .card, .tile
+   *   control  8px  .btn, .field input, .nav button.item
+   *   table   10px  .tablewrap
+   *   chip    full  .chip, .ph
+   */
+  --radius: 12px;
+  --radius-control-px: 8px;
+  --radius-table-px: 10px;
+  --shadow: 0 1px 2px rgba(20, 24, 33, 0.06);
   --row-height: 40px; /* comfortable; compact mode overrides below */
   --row-pad-y: 8px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --paper: #12141a;
-    --surface: #1a1d25;
-    --ink: #e9e4d8;
-    --ink-muted: #9aa0ae;
-    --rule: #2a2e39;
-    --carbon: #7d9bff;
-    --brass: #d9a75a;
-    --filed: #5fbf86;
-    --waiting: #e7b04a;
-    --redpen: #f07466;
-    /* dark brass already clears 4.5:1, so text and ring are the same */
-    --brass-ink: #d9a75a;
+    --paper: #0f131a;
+    --surface: #171c25;
+    --sunk: #1e2430;
+    --ink: #e8ecf2;
+    --ink-muted: #a3adbd;
+    --rule: #2b3240;
+    --rule-soft: #242a36;
+    --carbon: #7d97f0;
+    --carbon-ink: #a9bbf7;
+    --carbon-soft: #1f2945;
+    --on-carbon: #0f131a;
 
-    --filed-wash: #5fbf8624;
-    --waiting-wash: #e7b04a24;
-    --redpen-wash: #f0746624;
-    --carbon-wash: #7d9bff1a;
+    --filed: #5cc48e;
+    --filed-soft: #15291f;
+    --waiting: #f0a55e;
+    --waiting-soft: #2e2215;
+    --redpen: #f2877b;
+    --redpen-soft: #341b19;
 
-    --grain-opacity: 0.035;
+    /* prototype #768092 gives 4.29:1 on --surface; this is the least
+       lightened value that clears 4.5:1 on both */
+    --faint: #7e8899;
+
+    --brass: var(--carbon);
+    --brass-ink: var(--carbon-ink);
+
+    --filed-wash: #5cc48e24;
+    --waiting-wash: #f0a55e24;
+    --redpen-wash: #f2877b24;
+    --carbon-wash: #7d97f01a;
+
+    --grain-opacity: 0;
+    --shadow: none;
   }
 }
 
 :root[data-theme="dark"] {
-  --paper: #12141a;
-  --surface: #1a1d25;
-  --ink: #e9e4d8;
-  --ink-muted: #9aa0ae;
-  --rule: #2a2e39;
-  --carbon: #7d9bff;
-  --brass: #d9a75a;
-  --filed: #5fbf86;
-  --waiting: #e7b04a;
-  --redpen: #f07466;
-  --brass-ink: #d9a75a;
+  --paper: #0f131a;
+  --surface: #171c25;
+  --sunk: #1e2430;
+  --ink: #e8ecf2;
+  --ink-muted: #a3adbd;
+  --rule: #2b3240;
+  --rule-soft: #242a36;
+  --carbon: #7d97f0;
+  --carbon-ink: #a9bbf7;
+  --carbon-soft: #1f2945;
+  --on-carbon: #0f131a;
 
-  --filed-wash: #5fbf8624;
-  --waiting-wash: #e7b04a24;
-  --redpen-wash: #f0746624;
-  --carbon-wash: #7d9bff1a;
+  --filed: #5cc48e;
+  --filed-soft: #15291f;
+  --waiting: #f0a55e;
+  --waiting-soft: #2e2215;
+  --redpen: #f2877b;
+  --redpen-soft: #341b19;
 
-  --grain-opacity: 0.035;
+  /* prototype #768092 gives 4.29:1 on --surface; this is the least
+     lightened value that clears 4.5:1 on both */
+  --faint: #7e8899;
+
+  --brass: var(--carbon);
+  --brass-ink: var(--carbon-ink);
+
+  --filed-wash: #5cc48e24;
+  --waiting-wash: #f0a55e24;
+  --redpen-wash: #f2877b24;
+  --carbon-wash: #7d97f01a;
+
+  --grain-opacity: 0;
+  --shadow: none;
 }
 
 /* compact density: same type, tighter rows (spec section 15, density toggle) */
@@ -104,21 +187,39 @@
 @theme inline {
   --color-paper: var(--paper);
   --color-surface: var(--surface);
+  --color-sunk: var(--sunk);
   --color-ink: var(--ink);
   --color-ink-muted: var(--ink-muted);
+  --color-faint: var(--faint);
   --color-rule: var(--rule);
+  --color-rule-soft: var(--rule-soft);
   --color-carbon: var(--carbon);
+  --color-carbon-ink: var(--carbon-ink);
+  --color-carbon-soft: var(--carbon-soft);
+  --color-on-carbon: var(--on-carbon);
+  /* aliases, so the screens that name brass keep resolving (see above) */
   --color-brass: var(--brass);
   --color-brass-ink: var(--brass-ink);
   --color-filed: var(--filed);
+  --color-filed-soft: var(--filed-soft);
   --color-waiting: var(--waiting);
+  --color-waiting-soft: var(--waiting-soft);
   --color-redpen: var(--redpen);
+  --color-redpen-soft: var(--redpen-soft);
   --color-filed-wash: var(--filed-wash);
   --color-waiting-wash: var(--waiting-wash);
   --color-redpen-wash: var(--redpen-wash);
   --color-carbon-wash: var(--carbon-wash);
 
-  --font-display: var(--font-fraunces), Georgia, serif;
+  /**
+   * `font-display` is now the same family as the body (D35).
+   *
+   * The prototype sets no display face: its headings are IBM Plex Sans at
+   * 24px/700 with -0.01em tracking. `font-display` stays as a token rather
+   * than being deleted from sixty files, so one line here switches the
+   * serif back on if the decision is ever reversed.
+   */
+  --font-display: var(--font-plex-sans), system-ui, sans-serif;
   --font-sans: var(--font-plex-sans), system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, monospace;
 
@@ -132,6 +233,22 @@
   --text-40: 2.5rem;
 
   --radius-ledger: var(--radius);
+  --radius-control: var(--radius-control-px);
+  --radius-table: var(--radius-table-px);
+  --radius-chip: 9999px;
+
+  /**
+   * The prototype's own type scale (P3-21b). Its h1 is **24px**, not 28,
+   * and its h2 is 15.5px, not 20 — this application's headings were a step
+   * larger than the reference throughout.
+   *
+   * 24 also happens to be where the app-screen study lands: of 23 real
+   * product screens, nine have no heading over 16px at all and the median
+   * of those that do is 24px. A 28px page title on a screen somebody works
+   * in all day is a page's habit, not an application's.
+   */
+  --text-15: 0.96875rem; /* the prototype's 15.5px h2 */
+  --text-24: 1.5rem; /* its h1 */
 }
 
 html {
@@ -165,8 +282,20 @@ input[type="number"] {
   font-feature-settings: "tnum" 1;
 }
 
-/* Ledger ruling behind a table: hairlines on the 8px grid. */
+/**
+ * Ledger ruling: a no-op now (D35).
+ *
+ * The prototype has no ruling behind its tables, and a handful of tables
+ * still carry this class. Blanking the image here is one line; stripping
+ * the class out of every table is not, and would have to be undone if the
+ * decision is reversed. `.ledger-rule-lines` keeps the original rule so
+ * reversing it is a rename.
+ */
 .ledger-rule {
+  background-image: none;
+}
+
+.ledger-rule-lines {
   background-image: repeating-linear-gradient(
     to bottom,
     transparent 0,
@@ -176,7 +305,7 @@ input[type="number"] {
   );
 }
 
-/* Focus is brass, never the browser default blue. */
+/* Focus is the accent, like the prototype; brass is an alias for it. */
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
   outline: 2px solid var(--brass);
   outline-offset: 2px;
@@ -190,6 +319,76 @@ input[type="number"] {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   The signature moments, parked rather than deleted (P3-21b, D52)
+
+   Spec §15 asked for eight: the 3D branch map on the login screen, the
+   hand-drawn audit tick, the rubber completion stamp, the paper grain, the
+   ledger ruling, the brass focus ring, the serif display face and the
+   copy-on-click chips. Step 11 built all eight. The prototype has none of
+   them.
+
+   They are switched off at the root rather than torn out of the markup, for
+   the reason D35 gave about the tokens: a decision the owner made in one
+   afternoon should be reversible in one line, and stripping eight features
+   out of sixty screens is not reversible at all.
+
+   `[data-moments="on"]` turns them back on, and `components/shell/
+   Preferences.jsx` has the switch. The default is off, which is the
+   prototype.
+
+   Three of the eight are already off above: the grain is `--grain-opacity`,
+   the ruling is `.ledger-rule`, the brass ring and the serif are aliases
+   pointing at the accent and at Plex Sans.
+   --------------------------------------------------------------------------- */
+
+:root:not([data-moments="on"]) .ink-draw,
+:root:not([data-moments="on"]) .ink-scratch {
+  /* the tick is simply there, drawn, with no stroke to lay down */
+  animation: none;
+  stroke-dasharray: none;
+}
+
+:root:not([data-moments="on"]) .stamp-press,
+:root:not([data-moments="on"]) .stamp-set {
+  /* the stamp sits square and still: a label, not an impression */
+  animation: none;
+  transform: none;
+}
+
+:root[data-moments="on"] {
+  --grain-opacity: 0.035;
+}
+
+/**
+ * Anything that exists only as a flourish: the branch constellation on the
+ * sign-in screen, and anything else of the eight that is a whole element
+ * rather than a property of one.
+ *
+ * `display: none` rather than `visibility`, so the scene's own canvas never
+ * starts and the layout closes up around where it was.
+ */
+.moments-only {
+  display: none;
+}
+
+:root[data-moments="on"] .moments-only {
+  display: block;
+}
+
+/**
+ * The brass hairline under the top bar: another of the eight, and the only
+ * one that was drawn inline on a screen rather than declared here, which is
+ * why it survived P3-21a untouched.
+ */
+.brass-hairline {
+  background: transparent;
+}
+
+:root[data-moments="on"] .brass-hairline {
+  background: linear-gradient(to right, transparent, var(--brass), transparent);
 }
 
 /* ---------------------------------------------------------------------------

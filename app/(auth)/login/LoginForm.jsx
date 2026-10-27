@@ -13,7 +13,7 @@ import { ARRIVE_EVENT, ARRIVE_MS } from "@/components/login/capability";
  * code box, because 2FA is mandatory (spec section 16).
  */
 export default function LoginForm() {
-  const next = useSearchParams().get("next") || "/today";
+  const next = useSearchParams().get("next") || "/issues";
 
   const [stage, setStage] = useState("password"); // password | setup | code
   const [challenge, setChallenge] = useState("");
@@ -96,7 +96,7 @@ export default function LoginForm() {
         arriving ? "opacity-0" : "opacity-100"
       }`}
     >
-      <h1 className="font-display text-28 font-semibold">
+      <h1 className="font-display text-24 font-bold tracking-tight">
         PHMG &amp; Associates
       </h1>
       <p className="text-13 text-ink-muted mt-1">
@@ -191,7 +191,7 @@ function Field({ label, name, className = "", ...rest }) {
       <span className="text-13 text-ink-muted font-medium">{label}</span>
       <input
         name={name}
-        className={`rounded-ledger border-rule bg-paper text-16 text-ink h-10 border px-3 ${className}`}
+        className={`rounded-control border-rule bg-paper text-16 text-ink h-10 border px-3 ${className}`}
         {...rest}
       />
     </label>
@@ -203,7 +203,7 @@ function Submit({ busy, children }) {
     <button
       type="submit"
       disabled={busy}
-      className="rounded-ledger bg-carbon text-14 h-10 px-4 font-medium text-white disabled:opacity-60"
+      className="rounded-control bg-carbon text-14 text-on-carbon h-10 px-4 font-medium disabled:opacity-60"
     >
       {busy ? "Please wait…" : children}
     </button>

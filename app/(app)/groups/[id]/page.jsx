@@ -33,7 +33,7 @@ export async function generateMetadata({ params }) {
  */
 export default async function GroupPage({ params }) {
   const actor = await requireUser();
-  if (!can(actor, "view", "clients")) redirect("/today");
+  if (!can(actor, "view", "clients")) redirect("/issues");
 
   const { id } = await params;
   await connectDB();
@@ -72,7 +72,9 @@ export default async function GroupPage({ params }) {
           >
             Groups
           </Link>
-          <h1 className="font-display text-28 font-semibold">{group.name}</h1>
+          <h1 className="font-display text-24 font-bold tracking-tight">
+            {group.name}
+          </h1>
           <p className="num text-13 text-ink-muted">
             {businesses.length}{" "}
             {businesses.length === 1 ? "business" : "businesses"}
@@ -98,11 +100,11 @@ export default async function GroupPage({ params }) {
       </div>
 
       <section className="flex flex-col gap-2">
-        <h2 className="font-display text-20 font-semibold">The businesses</h2>
-        <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+        <h2 className="font-display text-15 font-semibold">The businesses</h2>
+        <div className="rounded-table border-rule bg-surface overflow-x-auto border">
           <table className="text-14 w-full">
             <thead>
-              <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+              <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
                 <th className="px-3 py-2 font-medium">Code</th>
                 <th className="px-3 py-2 font-medium">Business</th>
                 <th className="px-3 py-2 font-medium">Type</th>
@@ -173,30 +175,30 @@ export default async function GroupPage({ params }) {
 
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="font-display text-20 font-semibold">
+          <h2 className="font-display text-15 font-semibold">
             Open work across the group
           </h2>
           <div className="flex flex-wrap gap-2">
             <Link
               href={`/engagements?group=${id}`}
-              className="rounded-ledger border-rule text-13 hover:bg-carbon-wash h-8 border px-3 leading-8"
+              className="rounded-control border-rule text-13 hover:bg-carbon-wash h-8 border px-3 leading-8"
             >
               Open in the engagement list
             </Link>
             {seesMoney && (
               <Link
                 href={`/invoices/receivables?group=${id}`}
-                className="rounded-ledger border-rule text-13 hover:bg-carbon-wash h-8 border px-3 leading-8"
+                className="rounded-control border-rule text-13 hover:bg-carbon-wash h-8 border px-3 leading-8"
               >
                 What the group owes
               </Link>
             )}
           </div>
         </div>
-        <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+        <div className="rounded-table border-rule bg-surface overflow-x-auto border">
           <table className="text-14 w-full">
             <thead>
-              <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+              <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
                 <th className="px-3 py-2 font-medium">Business</th>
                 <th className="px-3 py-2 font-medium">Work</th>
                 <th className="px-3 py-2 font-medium">Period</th>

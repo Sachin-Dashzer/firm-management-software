@@ -106,7 +106,7 @@ export default function ServiceForm({ service }) {
             name="level"
             value={level}
             onChange={(e) => chooseLevel(e.target.value)}
-            className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
           >
             {/* A first: the firm reads the tiers downward, not L1 upward */}
             {TIERS.map((t) => (
@@ -128,7 +128,7 @@ export default function ServiceForm({ service }) {
             name="minExecRole"
             value={minExecRole}
             onChange={(e) => setMinExecRole(e.target.value)}
-            className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
           >
             {EXEC_ROLES.map((r) => (
               <option key={r} value={r}>
@@ -146,7 +146,7 @@ export default function ServiceForm({ service }) {
             name="minReviewRole"
             value={minReviewRole}
             onChange={(e) => setMinReviewRole(e.target.value)}
-            className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
           >
             {REVIEW_ROLES.map((r) => (
               <option key={r} value={r}>
@@ -177,6 +177,17 @@ export default function ServiceForm({ service }) {
         />
 
         <Field
+          label="Effort to prepare (hours)"
+          name="effortHours"
+          type="number"
+          min={0}
+          max={200}
+          step="0.5"
+          defaultValue={service?.effortHours ?? ""}
+          hint="Leave blank until the firm has a figure. The weekly plan counts jobs instead"
+        />
+
+        <Field
           label="If not a number of days, what decides the date?"
           name="turnaroundNote"
           defaultValue={service?.turnaroundNote}
@@ -197,7 +208,7 @@ export default function ServiceForm({ service }) {
               aria-label="Side"
               value={item.side}
               onChange={(e) => update({ side: e.target.value })}
-              className="rounded-ledger border-rule bg-paper text-13 h-9 border px-2"
+              className="rounded-control border-rule bg-paper text-13 h-9 border px-2"
             >
               <option value="client">From the client</option>
               <option value="firm">We produce</option>
@@ -225,7 +236,7 @@ export default function ServiceForm({ service }) {
             aria-label="Who may do this step"
             value={item.minRole ?? ""}
             onChange={(e) => update({ minRole: e.target.value })}
-            className="rounded-ledger border-rule bg-paper text-13 h-9 border px-2"
+            className="rounded-control border-rule bg-paper text-13 h-9 border px-2"
           >
             <option value="">Anyone on the job</option>
             {EXEC_ROLES.map((r) => (
@@ -238,7 +249,9 @@ export default function ServiceForm({ service }) {
       />
 
       <section className="rounded-ledger border-rule bg-surface grid gap-4 border p-4 sm:grid-cols-2">
-        <h2 className="font-display text-20 sm:col-span-2">Billing defaults</h2>
+        <h2 className="font-display text-15 font-semibold sm:col-span-2">
+          Billing defaults
+        </h2>
         <Field
           label="Default fee (rupees)"
           name="defaultFee"
@@ -276,7 +289,7 @@ export default function ServiceForm({ service }) {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-ledger bg-carbon text-14 h-10 px-4 font-medium text-white disabled:opacity-60"
+          className="rounded-control bg-carbon text-14 text-on-carbon h-10 px-4 font-medium disabled:opacity-60"
         >
           {pending ? "Saving…" : editing ? "Save changes" : "Add service"}
         </button>
@@ -317,7 +330,7 @@ function ItemList({ title, hint, items, onChange, blank, renderExtra }) {
   return (
     <section className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4">
       <div>
-        <h2 className="font-display text-20">{title}</h2>
+        <h2 className="font-display text-15 font-semibold">{title}</h2>
         <p className="text-13 text-ink-muted">{hint}</p>
       </div>
 
@@ -331,7 +344,7 @@ function ItemList({ title, hint, items, onChange, blank, renderExtra }) {
               aria-label={`${title} item ${index + 1}`}
               value={item.name}
               onChange={(e) => update(index, { name: e.target.value })}
-              className="rounded-ledger border-rule bg-paper text-14 h-9 min-w-0 flex-1 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-9 min-w-0 flex-1 border px-2"
             />
             {renderExtra?.(item, (patch) => update(index, patch))}
             <div className="flex gap-1">
@@ -364,7 +377,7 @@ function ItemList({ title, hint, items, onChange, blank, renderExtra }) {
         <button
           type="button"
           onClick={() => onChange([...items, { ...blank }])}
-          className="rounded-ledger border-rule text-14 h-9 border px-3"
+          className="rounded-control border-rule text-14 h-9 border px-3"
         >
           Add a row
         </button>
@@ -379,7 +392,7 @@ function RowButton({ label, children, ...rest }) {
       type="button"
       aria-label={label}
       title={label}
-      className="rounded-ledger border-rule text-14 h-9 w-9 border disabled:opacity-40"
+      className="rounded-control border-rule text-14 h-9 w-9 border disabled:opacity-40"
       {...rest}
     >
       {children}
@@ -392,7 +405,7 @@ function Field({ label, hint, className = "", inputClassName = "", ...rest }) {
     <label className={`flex flex-col gap-1 ${className}`}>
       <span className="text-13 text-ink-muted font-medium">{label}</span>
       <input
-        className={`rounded-ledger border-rule bg-paper text-14 h-10 border px-2 ${inputClassName}`}
+        className={`rounded-control border-rule bg-paper text-14 h-10 border px-2 ${inputClassName}`}
         {...rest}
       />
       {hint && <span className="text-12 text-ink-muted">{hint}</span>}
@@ -405,7 +418,7 @@ function Select({ label, options, ...rest }) {
     <label className="flex flex-col gap-1">
       <span className="text-13 text-ink-muted font-medium">{label}</span>
       <select
-        className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+        className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
         {...rest}
       >
         {options.map(([value, text]) => (

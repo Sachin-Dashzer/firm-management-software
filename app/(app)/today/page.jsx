@@ -136,7 +136,7 @@ export default async function TodayPage() {
   return (
     <div className="mx-auto flex max-w-[1600px] flex-col gap-6 p-4 md:p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="font-display text-28 font-semibold">Today</h1>
+        <h1 className="font-display text-24 font-bold tracking-tight">Today</h1>
         <p className="num text-13 text-ink-muted">
           {formatISTDate(now)} · FY {financialYearLabel(now)}
         </p>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FirmWide } from "@/components/shell/ViewNote";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/auth";
 import { can } from "@/lib/permissions";
@@ -116,6 +117,14 @@ const SECTIONS = [
     action: "edit",
   },
   {
+    href: "/settings/automation",
+    group: "messages",
+    title: "Automatic messages",
+    body: "What the system wants to send your clients, waiting for a partner — and the log of everything it has sent.",
+    area: "usersSettings",
+    action: "view",
+  },
+  {
     href: "/settings/messages",
     group: "messages",
     title: "Messages",
@@ -168,7 +177,7 @@ const SECTIONS = [
 export default async function SettingsPage() {
   const actor = await requireUser();
   const sections = SECTIONS.filter((s) => can(actor, s.action, s.area));
-  if (sections.length === 0) redirect("/today");
+  if (sections.length === 0) redirect("/issues");
 
   await connectDB();
   const firm = await firmProfile();
@@ -176,12 +185,17 @@ export default async function SettingsPage() {
 
   return (
     <div className="mx-auto flex max-w-[900px] flex-col gap-6 p-4 md:p-6">
-      <h1 className="font-display text-28 font-semibold">Settings</h1>
+      <div>
+        <h1 className="font-display text-24 font-bold tracking-tight">
+          Settings
+        </h1>
+        <FirmWide />
+      </div>
 
       {/* what is stopping this system from being trusted, and nothing else:
           an item that counts zero is absent, not shown ticked */}
       <section className="flex flex-col gap-2">
-        <h2 className="font-display text-20">Needs attention</h2>
+        <h2 className="font-display text-15 font-semibold">Needs attention</h2>
         {attention.length === 0 ? (
           <p className="rounded-ledger border-rule text-14 text-ink-muted border border-dashed p-4">
             Nothing is waiting on you. Due dates are confirmed, every branch is

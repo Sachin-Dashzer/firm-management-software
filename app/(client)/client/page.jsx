@@ -107,7 +107,7 @@ export default async function ClientHome() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-display text-28 font-semibold">
+        <h1 className="font-display text-24 font-bold tracking-tight">
           Welcome, {person.name.split(" ")[0]}
         </h1>
         <p className="text-14 text-ink-muted max-w-[65ch]">
@@ -117,7 +117,7 @@ export default async function ClientHome() {
 
       {wanted.length > 0 && (
         <section className="rounded-ledger border-waiting bg-surface border p-4">
-          <h2 className="font-display text-20">
+          <h2 className="font-display text-15 font-semibold">
             We are waiting for{" "}
             {wanted.length === 1 ? "one thing" : `${wanted.length} things`} from
             you
@@ -141,7 +141,9 @@ export default async function ClientHome() {
 
       <section className="rounded-ledger border-rule bg-surface border p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="font-display text-20">What we are working on</h2>
+          <h2 className="font-display text-15 font-semibold">
+            What we are working on
+          </h2>
           <Link
             href="/client/work"
             className="text-13 underline underline-offset-4"

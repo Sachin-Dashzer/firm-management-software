@@ -35,7 +35,9 @@ export default async function ClientLedgerPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="font-display text-28 font-semibold">Your account</h1>
+          <h1 className="font-display text-24 font-bold tracking-tight">
+            Your account
+          </h1>
           <p className="text-14 text-ink-muted">
             Bills raised, payments received, and what is left.
           </p>
@@ -56,27 +58,35 @@ export default async function ClientLedgerPage() {
           Nothing on the account yet.
         </p>
       ) : (
-        <div className="rounded-ledger border-rule overflow-x-auto border">
+        <div className="rounded-table border-rule overflow-x-auto border">
           <table className="text-14 w-full border-collapse">
             <caption className="sr-only">Statement of account</caption>
             <thead>
               <tr className="border-rule bg-surface border-b text-left">
-                {["Date", "What", "Reference", "Charged", "Paid", "Balance"].map(
-                  (head) => (
-                    <th
-                      key={head}
-                      scope="col"
-                      className="text-13 text-ink-muted px-3 py-2 font-medium"
-                    >
-                      {head}
-                    </th>
-                  ),
-                )}
+                {[
+                  "Date",
+                  "What",
+                  "Reference",
+                  "Charged",
+                  "Paid",
+                  "Balance",
+                ].map((head) => (
+                  <th
+                    key={head}
+                    scope="col"
+                    className="text-13 text-ink-muted px-3 py-2 font-medium"
+                  >
+                    {head}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {entries.map((entry) => (
-                <tr key={entry.id} className="border-rule border-b last:border-0">
+                <tr
+                  key={entry.id}
+                  className="border-rule border-b last:border-0"
+                >
                   <td className="px-3 py-2">{formatISTDate(entry.date)}</td>
                   <td className="px-3 py-2">{entry.kind}</td>
                   <td className="px-3 py-2 font-mono">
@@ -85,14 +95,18 @@ export default async function ClientLedgerPage() {
                     )}
                   </td>
                   <td className="num px-3 py-2">
-                    {entry.debitPaise
-                      ? formatPaise(entry.debitPaise)
-                      : <span className="text-ink-muted">—</span>}
+                    {entry.debitPaise ? (
+                      formatPaise(entry.debitPaise)
+                    ) : (
+                      <span className="text-ink-muted">—</span>
+                    )}
                   </td>
                   <td className="num px-3 py-2">
-                    {entry.creditPaise
-                      ? formatPaise(entry.creditPaise)
-                      : <span className="text-ink-muted">—</span>}
+                    {entry.creditPaise ? (
+                      formatPaise(entry.creditPaise)
+                    ) : (
+                      <span className="text-ink-muted">—</span>
+                    )}
                   </td>
                   <td className="num px-3 py-2 font-medium">
                     {formatPaise(entry.balancePaise ?? 0)}

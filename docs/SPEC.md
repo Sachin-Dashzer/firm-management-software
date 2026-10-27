@@ -2,6 +2,12 @@
 
 Oct 15, 2026 · @Someone
 
+**Amended 26-10-2026.** Six passages were overtaken by decisions taken in
+`docs/PROGRESS.md` while Phase 2 and Phase 3 were built, and they are
+corrected in place below; each one is marked **(amended 26-10-2026)** with
+the decision behind it. The decisions themselves live in PROGRESS; this
+document is the contracted build and now agrees with them again.
+
 ## 1. Purpose and scope
 
 Build a web-based practice management CRM that puts every client, service engagement, document, invoice and team member of PHMG & Associates in one system, with a full audit trail of who did what and when.
@@ -17,7 +23,14 @@ Build a web-based practice management CRM that puts every client, service engage
 - Every create, update, delete, status change, upload and login is written to an immutable audit log.
 - Partners see firm-wide dashboards; each team member sees their own queue.
 
-**In scope:** clients, service catalog, engagements and tasks, documents, billing, compliance calendar, time tracking, team and articleship tracking, dashboards, audit log, notifications, multi-branch support (Noida head office, Delhi–Rohini, Ludhiana, Meerut).
+**In scope:** clients, service catalog, engagements and tasks, documents, billing, compliance calendar, time tracking, team and articleship tracking, dashboards, audit log, notifications, multi-branch support.
+
+**Branches — (amended 26-10-2026, unresolved).** This document and the
+seed data use four: Noida (head office), Delhi–Rohini, Ludhiana and Meerut.
+The `CA-Firm-OS-v6.2` prototype has five and calls the Delhi office
+Pitampura. **The real list is the owner's to confirm**, and nothing should
+be read from either source until they do; `scripts/seed.js` carries the
+four above.
 
 **Out of scope for v1:** a full accounting ledger (use Tally/Zoho Books; export to them), direct filing to government portals (GST, Income Tax, MCA), and a payroll module.
 
@@ -105,7 +118,13 @@ Each service is defined once as a template; every engagement is created from a t
 **Service template fields**
 
 - Name, code, category (Direct Tax, Indirect Tax, Audit and Assurance, Company Law / ROC, Accounting, Payroll and Labour, Advisory, Registrations, Certification)
-- Complexity level: **L1 Routine** (intern/employee can execute), **L2 Standard** (employee executes, CA reviews), **L3 Expert** (CA executes, Partner reviews)
+- Complexity level — **(amended 26-10-2026, D4)**: shown throughout as
+  **Tier A / B / C** rather than L1 / L2 / L3. **Tier C Routine**
+  (intern/employee can execute), **Tier B Standard** (employee executes, CA
+  reviews), **Tier A Expert** (CA executes, Partner reviews). The stored
+  values stay `L1`–`L3` so work already created keeps its meaning; the
+  letters are what the firm reads. The table below is still in the stored
+  values: L1 is Tier C, L2 is Tier B, L3 is Tier A.
 - Minimum role to execute and minimum role to review
 - Standard turnaround in working days, and an optional statutory due-date rule (links to section 8)
 - Recurrence: one-time, monthly, quarterly, half-yearly, annual
@@ -153,7 +172,7 @@ Work is done by the assignee (maker) and approved by a different, senior reviewe
 | Awaiting documents | Assignee | Waiting on mandatory client documents; the clock on internal SLA pauses |
 | In progress | Assignee | Work underway |
 | Under review | Assignee | Submitted to the reviewer; assignee can no longer edit deliverables |
-| Filed / delivered | Assignee or reviewer | Return filed or report issued; acknowledgement no. and UDIN captured |
+| Filed / delivered | Assignee or reviewer | Every filing recorded with its own acknowledgement; UDIN captured. **(Amended 26-10-2026, P3-5.)** A filing cannot be recorded until a reviewer has approved *this version* of the work, and — for GST, GSTR-9, TDS and the two ITRs — until the client has confirmed the figures, named, dated and evidenced. Changing the work after approval raises the version and both gates fall away |
 | Completed | Reviewer (CA / Partner) only | Closed; locked except for comments |
 | Billed | System | All fees for the engagement invoiced (billing status runs alongside, see section 7) |
 | On hold | CA / Partner | Paused with a mandatory reason (e.g. client unresponsive, fees overdue) |
@@ -188,7 +207,17 @@ Work is done by the assignee (maker) and approved by a different, senior reviewe
 
 Every engagement carries two checklists copied from its service template — documents due *from the client* and deliverables due *from the firm* — and each item is tracked to receipt, with the file attached.
 
-**Checklist item fields:** name, side (client / firm), mandatory flag, status (*Requested → Received → Verified* or *Not applicable*), requested date, received date, verified by, linked file(s), remarks.
+**Checklist item fields:** name, side (client / firm), mandatory flag,
+status, requested date, received date, verified by, linked file(s), remarks.
+
+**(Amended 26-10-2026, P3-2.)** The three states are six: *Requested →
+Received → Format checked → Accepted*, or *Replacement requested*, or *Not
+required*. A passed format check is **not** acceptance — a person accepts.
+Submissions are numbered and a replacement clears the checks on the one
+before it, so an accepted file and a later corrected file are never
+confused. A client may also reply without uploading: *I cannot provide
+this*, *somebody else will send it* (which issues a one-item link), or a
+question, which is answered back to them.
 
 **Requirements**
 
@@ -257,7 +286,17 @@ The system auto-creates recurring engagements ahead of each statutory due date f
 - *Due this week* and *Overdue* lists on every user's home screen.
 - A **compliance status grid**: clients down the side, periods across the top (e.g. Apr–Mar for GSTR-3B), each cell coloured by status — the fastest way to spot a missed month.
 
-**Internal deadlines:** each engagement has both a statutory due date and an internal target date (default 3 working days earlier) so review happens before the last day.
+**Internal deadlines:** each engagement has a statutory due date and an
+internal target date (default 3 working days earlier) so review happens
+before the last day.
+
+**(Amended 26-10-2026, D41.)** Two more targets are *computed* from the
+statutory date rather than stored: **prepare by** 4 working days before and
+**reviewed by** 2 working days before. From them comes a state the system
+did not have — **at risk**: the statutory date is still ahead, but an
+internal target has already slipped. Overdue is the list where acting is
+too late; at risk is the list where it still works, and the two are never
+merged into one figure.
 
 The due-date master is maintained by the firm. The developer should seed it for FY 2026-27 from official CBIC, CBDT and MCA notifications, and the firm should verify it before go-live.
 
@@ -388,6 +427,20 @@ The data lives in MongoDB, modelled with Mongoose: embed what is always read wit
 | `dueDateRules` | serviceCode, periodType, formula | overrides\[\] {period, dueDate, reason} | — |
 | `clientServices` | fee, startPeriod, active | — | clientId, serviceTemplateId, defaultAssigneeId, defaultReviewerId |
 | `engagements` | code, period, status, priority, statutoryDue, internalDue, completedAt, udin, ackNo, fee, billingStatus | tasks\[\], checklist\[\] {name, side, status, requestedAt, receivedAt, verifiedBy, documentIds\[\]}, reviewChecklist\[\], statusHistory\[\], templateSnapshot | clientId, serviceTemplateId, assigneeId, reviewerId, branchId |
+
+**(Amended 26-10-2026, P3-1, P3-4, P3-5.)** The engagement gained
+`milestones[]`, `version`, `review`, `clientConfirmation`, `scope`,
+`scopeReason` and `waiver`, and `statutoryDue`, `filedOn` and `ackNo`
+became **derived** fields written in one place from `milestones[]`.
+
+An engagement is one service for one client for one period but not always
+one *filing*: October GST owes GSTR-1 on the 11th and GSTR-3B on the 20th.
+Each milestone keeps its own due date, the due date **as it stood on the
+day it was filed**, its acknowledgement, the proof document, the version
+filed, and a correction history in which a wrong record is superseded with
+a reason and stays readable. `scope` is billable / in retainer / waived,
+because a zero fee and a waived fee look identical in a database and mean
+opposite things.
 | `documents` | name, fileKey, size, mime, fy, isPermanent | versions\[\] {fileKey, uploadedBy, uploadedAt} | clientId, engagementId, uploadedBy |
 | `docRequests` | tokenHash, expiresAt, items\[\], sentVia | — | clientId, engagementId |
 | `comments` | body, mentions\[\], internal | — | entityType + entityId |
@@ -553,8 +606,22 @@ The interface follows one concept, **"the modern ledger"**, drawn from the physi
 
 **App shell and key screens**
 
-- **Shell:** slim left rail (collapsible), top bar with branch switcher, command bar, quick-add (+), notifications and profile. Any client or engagement opens in a right-side drawer, so users never lose their place in a list.
-- **Today** (everyone's home): three ruled columns, *Due today*, *Waiting on clients*, *Awaiting my review*, with the week's statutory dates as a single ledger line across the top.
+- **Shell:** slim left rail (collapsible), top bar with the **view**
+  selector — **(amended 26-10-2026, P3-7)**: *access* is what you may see
+  and is enforced on the server; the selector changes only what you are
+  *looking at* inside it, offering all your branches, one branch, or your
+  own work across branches. Changing it never changes a record, a GSTIN or
+  an invoice series. Firm-wide screens say the view does not apply to them,
+  and a record opened from outside the current view says why it is visible.
+  Then the command bar, quick-add (+), notifications and profile. Any client or engagement opens in a right-side drawer, so users never lose their place in a list.
+- **Issues** (everyone's home) — **(amended 26-10-2026, D43)**: every
+  exception in the firm worked out live from the records, each row carrying
+  the action that fixes it, filtered by Mine / Everyone and by kind.
+  **Nothing is marked resolved**: fix the record and the row goes. The
+  count sits beside it on the rail.
+- **Today** (still reachable, no longer the landing page): three ruled
+  columns, *Due today*, *Waiting on clients*, *Awaiting my review*, with
+  the week's statutory dates as a single ledger line across the top.
 - **Client case file:** client name in Fraunces, PAN and GSTIN as monospaced copy-on-click chips, risk, status and outstanding balance in the header; folder-style tabs below.
 - **Engagement:** checklist with audit ticks on the left, tasks and comments in the centre, status timeline and the stamp on the right.
 - **Kanban:** columns by status, swimlanes by assignee; each card's left edge is coloured by days to due date.

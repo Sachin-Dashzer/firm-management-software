@@ -89,7 +89,7 @@ export default async function IcaiPage() {
         >
           Settings
         </Link>
-        <h1 className="font-display text-28 font-semibold">ICAI</h1>
+        <h1 className="font-display text-24 font-bold tracking-tight">ICAI</h1>
         <p className="text-13 text-ink-muted">
           The firm&rsquo;s own record, who holds what membership, and the CPE
           log.

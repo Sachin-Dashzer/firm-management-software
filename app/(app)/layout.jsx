@@ -7,6 +7,7 @@ import LeftRail, { MobileNav } from "@/components/shell/LeftRail";
 import TopBar from "@/components/shell/TopBar";
 import CommandBar from "@/components/shell/CommandBar";
 import { AREAS, can } from "@/lib/permissions";
+import { issueRows, isMine } from "@/lib/issues/list";
 
 /**
  * Every page in here depends on who is signed in, so none of them may be
@@ -37,11 +38,23 @@ export default async function AppLayout({ children }) {
 
   await connectDB();
   // a user only ever sees their own branches in the switcher (spec section 2)
-  const [branches, unreadCount] = await Promise.all([
+  const [branches, unreadCount, issues] = await Promise.all([
     Branch.find(user.role === "partner" ? {} : { _id: { $in: user.branchIds } })
       .sort({ code: 1 })
       .lean(),
     Notification.countDocuments({ userId: user.id, readAt: null }),
+    /**
+     * The count beside Issues on the rail (P3-6). It is this person's own
+     * count, not the firm's: a number that does not match what the page
+     * opens on is a number nobody trusts twice.
+     *
+     * ponytail: recomputed on every page view — seven bounded queries for a
+     * five-person firm. If it ever shows up in the Atlas slow log, cache it
+     * per user for a minute rather than storing a count that can go stale.
+     */
+    issueRows(user).then(
+      (rows) => rows.filter((row) => isMine(row, user)).length,
+    ),
   ]);
 
   // what this person may even be offered in the command bar; the server
@@ -59,7 +72,7 @@ export default async function AppLayout({ children }) {
       </a>
 
       <div className="flex min-h-0 flex-1">
-        <LeftRail role={user.role} />
+        <LeftRail role={user.role} issueCount={issues} />
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar
             user={{ name: user.name, email: user.email, role: user.role }}
@@ -69,6 +82,7 @@ export default async function AppLayout({ children }) {
               name: b.name,
             }))}
             unreadCount={unreadCount}
+            view={user.view}
           />
           <main
             id="content"

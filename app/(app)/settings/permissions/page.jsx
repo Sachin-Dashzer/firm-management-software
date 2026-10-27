@@ -33,7 +33,9 @@ export default async function PermissionsPage() {
         >
           Settings
         </Link>
-        <h1 className="font-display text-28 font-semibold">Who can do what</h1>
+        <h1 className="font-display text-24 font-bold tracking-tight">
+          Who can do what
+        </h1>
         <p className="text-14 text-ink-muted max-w-[70ch]">
           Every part of the system, and what each role may do with it. This is
           the list the server enforces on every action — not a summary of it,
@@ -41,7 +43,7 @@ export default async function PermissionsPage() {
         </p>
       </div>
 
-      <div className="rounded-ledger border-rule overflow-x-auto border">
+      <div className="rounded-table border-rule overflow-x-auto border">
         <table className="text-14 w-full border-collapse">
           <caption className="sr-only">Permissions by area and role</caption>
           <thead>

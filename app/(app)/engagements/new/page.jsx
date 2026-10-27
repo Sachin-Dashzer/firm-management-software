@@ -44,7 +44,9 @@ export default async function NewEngagementPage({ searchParams }) {
         >
           Engagements
         </Link>
-        <h1 className="font-display text-28 font-semibold">New engagement</h1>
+        <h1 className="font-display text-24 font-bold tracking-tight">
+          New engagement
+        </h1>
         <p className="text-13 text-ink-muted">
           One service, one client, one period. The checklist and steps are
           copied from the service as it stands today.

@@ -9,6 +9,7 @@ import Branch from "@/models/Branch";
 import User from "@/models/User";
 import ServiceTemplate from "@/models/ServiceTemplate";
 import ClientService from "@/models/ClientService";
+import PeriodReason from "@/models/PeriodReason";
 import {
   formatISTDate,
   daysUntil,
@@ -35,7 +36,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function CalendarPage({ searchParams }) {
   const actor = await requireUser();
-  if (!can(actor, "view", "engagementsWork")) redirect("/today");
+  if (!can(actor, "view", "engagementsWork")) redirect("/issues");
 
   const params = (await searchParams) ?? {};
   /**
@@ -291,18 +292,52 @@ async function GridView({ actor, params, shared, clientIds }) {
     shared.partners.map((p) => [p.id, p.name.split(" · ")[0]]),
   );
 
+  /**
+   * Why some of the holes are not holes (P3-9). Read alongside the
+   * engagements, keyed the same way, so the grid can tell a period somebody
+   * has answered for from one nobody has.
+   */
+  const reasons = await PeriodReason.find({
+    serviceTemplateId: service.id,
+    period: { $in: periods.map((period) => period.code) },
+    ...(clientIds ? { clientId: { $in: clientIds } } : {}),
+    ...(scope.branchId ? { branchId: scope.branchId } : {}),
+  })
+    .select("clientId period reason note recordedByName")
+    .limit(5000)
+    .lean();
+
+  const rowsFor = clients.map((c) => ({
+    id: String(c._id),
+    name: c.tradeName || c.legalName,
+    code: c.code,
+    note: c.clientPartnerId
+      ? (partnerName.get(String(c.clientPartnerId)) ?? "")
+      : "No client partner",
+  }));
+
   const grid = buildGrid({
-    clients: clients.map((c) => ({
-      id: String(c._id),
-      name: c.tradeName || c.legalName,
-      code: c.code,
-      note: c.clientPartnerId
-        ? (partnerName.get(String(c.clientPartnerId)) ?? "")
-        : "No client partner",
-    })),
+    clients: rowsFor,
     engagements,
     periods,
+    reasons,
   });
+
+  // every cell still unexplained, as a worklist rather than a dot on a grid
+  const periodLabel = new Map(
+    periods.map((period) => [period.code, period.label]),
+  );
+  const neverCreated = grid.rows.flatMap((row) =>
+    row.cells
+      .filter((cell) => cell.state === "missing")
+      .map((cell) => ({
+        key: `${row.id}:${cell.period}`,
+        clientId: row.id,
+        clientName: row.name,
+        period: cell.period,
+        periodLabel: periodLabel.get(cell.period) ?? cell.period,
+      })),
+  );
 
   return (
     <ComplianceViews
@@ -312,6 +347,7 @@ async function GridView({ actor, params, shared, clientIds }) {
         periods: periods.map((p) => ({ code: p.code, short: p.short })),
       }}
       gridService={service}
+      neverCreated={neverCreated}
       fyStart={fyStart}
     />
   );

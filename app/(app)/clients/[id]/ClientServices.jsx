@@ -33,7 +33,9 @@ export default function ClientServices({
   return (
     <section className="flex flex-col gap-2">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-display text-20">Services this client takes</h2>
+        <h2 className="font-display text-15 font-semibold">
+          Services this client takes
+        </h2>
         {mayEdit && (
           <button
             type="button"
@@ -83,7 +85,7 @@ export default function ClientServices({
               value={templateId}
               onChange={(e) => setTemplateId(e.target.value)}
               required
-              className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
             >
               <option value="">— choose —</option>
               {templates
@@ -105,7 +107,7 @@ export default function ClientServices({
               key={templateId}
               defaultValue={template?.defaultFee ?? "0"}
               inputMode="decimal"
-              className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
             />
           </label>
 
@@ -115,7 +117,7 @@ export default function ClientServices({
             </span>
             <select
               name="defaultAssigneeId"
-              className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
             >
               <option value="">— decide each time —</option>
               {team
@@ -136,7 +138,7 @@ export default function ClientServices({
             </span>
             <select
               name="defaultReviewerId"
-              className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
             >
               <option value="">— decide each time —</option>
               {team
@@ -155,7 +157,7 @@ export default function ClientServices({
             <button
               type="submit"
               disabled={pending}
-              className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+              className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
             >
               Add service
             </button>

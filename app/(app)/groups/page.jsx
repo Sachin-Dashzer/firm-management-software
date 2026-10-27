@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function GroupsPage({ searchParams }) {
   const actor = await requireUser();
-  if (!can(actor, "view", "clients")) redirect("/today");
+  if (!can(actor, "view", "clients")) redirect("/issues");
 
   const params = (await searchParams) ?? {};
   const search = String(params.q ?? "").trim();
@@ -43,7 +43,9 @@ export default async function GroupsPage({ searchParams }) {
     <div className="mx-auto flex max-w-[1400px] flex-col gap-5 p-4 md:p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="font-display text-28 font-semibold">Groups</h1>
+          <h1 className="font-display text-24 font-bold tracking-tight">
+            Groups
+          </h1>
           <p className="num text-13 text-ink-muted">
             {groups.length} {groups.length === 1 ? "group" : "groups"} ·{" "}
             {businesses} {businesses === 1 ? "business" : "businesses"}
@@ -52,7 +54,7 @@ export default async function GroupsPage({ searchParams }) {
         </div>
         <Link
           href="/clients"
-          className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
+          className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
         >
           All clients
         </Link>
@@ -73,29 +75,29 @@ export default async function GroupsPage({ searchParams }) {
             name="q"
             defaultValue={search}
             placeholder="Sharma, Agarwal Textiles…"
-            className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
           />
         </label>
         <button
           type="submit"
-          className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white"
+          className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium"
         >
           Search
         </button>
         {search && (
           <Link
             href="/groups"
-            className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
+            className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
           >
             Clear
           </Link>
         )}
       </form>
 
-      <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+      <div className="rounded-table border-rule bg-surface overflow-x-auto border">
         <table className="text-14 w-full">
           <thead>
-            <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+            <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
               <th className="px-3 py-2 font-medium">Group</th>
               <th className="px-3 py-2 font-medium">Businesses</th>
               <th className="px-3 py-2 text-right font-medium">Open work</th>

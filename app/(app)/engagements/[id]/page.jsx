@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { currentUser, requireUser } from "@/auth";
-import { can } from "@/lib/permissions";
+import { can, whyNot } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import Engagement from "@/models/Engagement";
 import Client from "@/models/Client";
@@ -20,10 +20,29 @@ import {
   istInputDate,
 } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
-import { nextStatuses, canEditWork } from "@/lib/engagements/status";
+import {
+  offeredStatuses,
+  canEditWork,
+  checkReviewer,
+} from "@/lib/engagements/status";
+import { feeState, pendingWaiver, scopeLine } from "@/lib/engagements/scope";
+import {
+  isApproved,
+  isClientConfirmed,
+  needsClientConfirmation,
+  blocksFiling,
+  versionOf,
+} from "@/lib/engagements/gates";
+import { atRisk } from "@/lib/engagements/risk";
+import { nextStep } from "@/lib/issues/next";
+import { outsideViewNote } from "@/lib/access/view";
+import { OutsideView } from "@/components/shell/ViewNote";
+import Branch from "@/models/Branch";
 import DocTemplate from "@/models/DocTemplate";
 import GeneratedDoc from "@/models/GeneratedDoc";
 import EngagementWork from "./EngagementWork";
+import NotifyPanel from "./NotifyPanel";
+import { notifyAudience } from "./notify";
 import RequestPanel from "./RequestPanel";
 import DocsPanel from "./DocsPanel";
 import { issuerFor } from "@/lib/docs/rules";
@@ -80,7 +99,9 @@ export default async function EngagementPage({ params }) {
     assigneeId: String(engagement.assigneeId ?? ""),
     reviewerId: String(engagement.reviewerId ?? ""),
   };
-  if (!can(actor, "view", "engagementsWork", target)) redirect("/engagements");
+  if (!can(actor, "view", "engagementsWork", target)) {
+    redirect(`/no-access?client=${engagement.clientId}`);
+  }
 
   const [
     client,
@@ -159,7 +180,30 @@ export default async function EngagementPage({ params }) {
     udinRequired: Boolean(engagement.templateSnapshot?.udinRequired),
     periodLabel: engagement.periodLabel || engagement.period,
     fee: formatPaise(engagement.feePaise ?? 0),
+    feePaise: engagement.feePaise ?? 0,
     billingStatus: engagement.billingStatus,
+    /** How this job is paid for, and what that is waiting on (P3-4). */
+    money: (() => {
+      const state = feeState(engagement);
+      const pending = pendingWaiver(engagement);
+      return {
+        scope: state.scope,
+        label: state.label,
+        detail: state.detail,
+        blocked: state.pending,
+        waiver: pending
+          ? {
+              reason: pending.reason,
+              requestedByName: pending.requestedByName || "Staff",
+            }
+          : null,
+        line: scopeLine(engagement),
+        // why the controls are absent, rather than their simply being absent
+        whyNoPricing: whyNot(actor, "edit", "invoices", {
+          branchId: String(engagement.branchId),
+        }),
+      };
+    })(),
     ackNo: engagement.ackNo ?? "",
     udin: engagement.udin ?? "",
     // the filing panel's date inputs want yyyy-mm-dd; everything the firm
@@ -177,6 +221,98 @@ export default async function EngagementPage({ params }) {
       opinion: engagement.assurance?.opinion ?? "",
       qualificationNote: engagement.assurance?.qualificationNote ?? "",
     },
+    /**
+     * The gates before a filing (P3-5). `cannotApprove` is the sentence the
+     * server would refuse with, worked out here so the button is disabled
+     * with the reason rather than offered and then refused.
+     */
+    gates: (() => {
+      const approved = isApproved(engagement);
+      const confirmed = isClientConfirmed(engagement);
+      const identity = checkReviewer(
+        actor,
+        {
+          status: engagement.status,
+          assigneeId: target.assigneeId,
+          reviewerId: target.reviewerId,
+          minReviewRole: engagement.templateSnapshot?.minReviewRole ?? "",
+          level: engagement.templateSnapshot?.level ?? "",
+        },
+        { act: "approve it", instead: "approve it", only: "approve this" },
+      );
+      return {
+        version: versionOf(engagement),
+        approved,
+        approvedByName: approved ? engagement.review.approvedByName : "",
+        approvedVersion: approved ? engagement.review.version : null,
+        approvedOn: approved
+          ? formatISTDate(engagement.review.approvedAt)
+          : null,
+        needsClient: needsClientConfirmation(engagement),
+        confirmation: confirmed
+          ? {
+              who: engagement.clientConfirmation.who,
+              when: formatISTDate(engagement.clientConfirmation.when),
+              evidence: engagement.clientConfirmation.evidence,
+              version: engagement.clientConfirmation.version,
+              recordedByName: engagement.clientConfirmation.recordedByName,
+            }
+          : null,
+        blocksFiling: blocksFiling(engagement),
+        /**
+         * In order: may this person approve anything at all, then may they
+         * approve *this*, then is it even submitted. The first comes from
+         * the matrix (P3-8), the second from maker-checker, and saying the
+         * wrong one first would send somebody to ask for a permission they
+         * already have.
+         */
+        cannotApprove:
+          whyNot(actor, "approve", "engagementsReview", target) ??
+          (identity.ok
+            ? engagement.status !== "Under review"
+              ? "Send the work for review first."
+              : null
+            : identity.error),
+      };
+    })(),
+    atRisk: atRisk(engagement),
+    /**
+     * The monthly GST cycle (P3-12). Only on GST work: every other
+     * service would get a panel asking for sheets it does not need.
+     */
+    isGst: /GSTR|GST/i.test(engagement.templateSnapshot?.code ?? ""),
+    gst: engagement.gstPrep
+      ? {
+          fileName: engagement.gstPrep.fileName ?? "",
+          uploadedAt: engagement.gstPrep.uploadedAt
+            ? formatISTDateTime(engagement.gstPrep.uploadedAt)
+            : null,
+          uploadedByName: engagement.gstPrep.uploadedByName ?? "",
+          counts: engagement.gstPrep.counts ?? {},
+          missingSheets: engagement.gstPrep.missingSheets ?? [],
+          issues: engagement.gstPrep.issues ?? [],
+          submissionCount: engagement.gstPrep.submissionCount ?? 0,
+          sentBackAt: engagement.gstPrep.sentBackAt
+            ? formatISTDate(engagement.gstPrep.sentBackAt)
+            : null,
+          sentBackCount: engagement.gstPrep.sentBackCount ?? 0,
+          computation: engagement.gstPrep.computation ?? null,
+        }
+      : {
+          issues: [],
+          counts: {},
+          missingSheets: [],
+          computation: null,
+          uploadedAt: null,
+        },
+    /**
+     * The one next thing on this job, read for this reader (P3-6). The same
+     * conditions Issues computes firm-wide, for one engagement.
+     */
+    next: nextStep(engagement, actor, {
+      assigneeName: assignee?.name,
+      reviewerName: reviewer?.name,
+    }),
     reworkCount: engagement.reworkCount ?? 0,
     // for the completion stamp (spec section 15)
     completedOn: engagement.completedAt
@@ -277,8 +413,25 @@ export default async function EngagementPage({ params }) {
     })),
   };
 
+  /**
+   * Opened from a link or a search while the top bar says one branch
+   * (P3-7). The record is shown — access allowed it — and the line says
+   * why, rather than leaving the selector looking as though it lied.
+   */
+  const branches = await Branch.find(
+    actor.role === "partner" ? {} : { _id: { $in: actor.branchIds } },
+  )
+    .select("name")
+    .lean();
+  const outside = outsideViewNote(
+    actor.view,
+    String(engagement.branchId),
+    branches.map((b) => ({ id: String(b._id), name: b.name })),
+  );
+
   return (
     <div className="mx-auto flex max-w-[1200px] flex-col gap-6 p-4 md:p-6">
+      <OutsideView note={outside} />
       <div className="flex flex-col gap-2">
         <Link
           href="/engagements"
@@ -288,7 +441,7 @@ export default async function EngagementPage({ params }) {
         </Link>
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div>
-            <h1 className="font-display text-28 font-semibold">
+            <h1 className="font-display text-24 font-bold tracking-tight">
               {view.service}
             </h1>
             <p className="text-13 text-ink-muted">
@@ -323,7 +476,7 @@ export default async function EngagementPage({ params }) {
                 days={view.statutoryDueDays}
               />
             ) : (
-              <span className="rounded-ledger border-rule text-13 text-ink-muted border px-2 py-0.5">
+              <span className="rounded-chip border-rule text-13 text-ink-muted border px-2 py-0.5">
                 Statutory date: Step 7
               </span>
             )}
@@ -340,7 +493,7 @@ export default async function EngagementPage({ params }) {
 
       <EngagementWork
         engagement={view}
-        nextStatuses={nextStatuses(actor, {
+        moves={offeredStatuses(actor, {
           status: engagement.status,
           assigneeId: target.assigneeId,
           reviewerId: target.reviewerId,
@@ -349,6 +502,10 @@ export default async function EngagementPage({ params }) {
         })}
         canEditWork={mayWork && canEditWork(actor, engagement)}
         mayManage={mayManage}
+        mayPrice={can(actor, "edit", "invoices", {
+          branchId: String(engagement.branchId),
+        })}
+        isPartner={can(actor, "approve", "feeWriteOff")}
         isReviewer={isReviewer}
         actorRole={actor.role}
         documents={documents.map((d) => ({
@@ -372,6 +529,9 @@ export default async function EngagementPage({ params }) {
           by: c.createdByName || "Someone",
           at: formatISTDateTime(c.createdAt),
           internal: c.internal,
+          /** P3-17b: whether it reached them, and whether they wrote it. */
+          sentAt: c.sentToClientAt ? formatISTDateTime(c.sentToClientAt) : "",
+          fromClient: c.kind === "Client message",
         }))}
       />
 
@@ -425,8 +585,21 @@ export default async function EngagementPage({ params }) {
         }}
       />
 
+      {/* --- telling somebody about it (P3-17a) ------------------------- */}
+      <section className="rounded-ledger border-rule bg-surface flex flex-col gap-2 border p-4">
+        <div>
+          <h2 className="font-display text-15 font-semibold">Notify</h2>
+          <p className="text-13 text-ink-muted max-w-[70ch]">
+            One message, to the people on this job and to the client&rsquo;s own
+            contacts, in your words. You see exactly what each of them will get
+            before any of it is sent.
+          </p>
+        </div>
+        <NotifyPanel {...await notifyAudience(id)} id={id} />
+      </section>
+
       <section className="flex flex-col gap-2">
-        <h2 className="font-display text-20">Activity</h2>
+        <h2 className="font-display text-15 font-semibold">Activity</h2>
         <ActivityFeed entries={JSON.parse(JSON.stringify(audit))} />
       </section>
     </div>

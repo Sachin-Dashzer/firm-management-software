@@ -6,6 +6,7 @@ import { requireUser } from "@/auth";
 import { assertCan, can, seesOnlyOwnRecords } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import { audited } from "@/lib/audit/request";
+import { mentionsIn } from "@/lib/inbox";
 import { recordAudit, ACTIONS } from "@/lib/audit";
 import {
   engagementAssigned,
@@ -13,8 +14,10 @@ import {
   engagementReworked,
   checklistReplacement,
   checklistAnswer,
+  commentMentioned,
+  clientThreadMessage,
 } from "@/lib/mailer/events";
-import { toPaise } from "@/lib/money";
+import { toPaise, formatPaise } from "@/lib/money";
 import { istInputDate } from "@/lib/dates";
 import Engagement from "@/models/Engagement";
 import ServiceTemplate from "@/models/ServiceTemplate";
@@ -33,6 +36,20 @@ import {
   correctFiling,
   latenessDays,
 } from "@/lib/engagements/milestones";
+import {
+  approve,
+  recordClientConfirmation,
+  changedAfterApproval,
+  needsClientConfirmation,
+} from "@/lib/engagements/gates";
+import {
+  setFee,
+  setScope,
+  requestWaiver,
+  decideWaiver,
+  scopeOf,
+  scopeLine,
+} from "@/lib/engagements/scope";
 import {
   request,
   accept,
@@ -507,16 +524,24 @@ export async function setTaskDone(id, taskId, done) {
     };
   }
 
+  let bump = null;
   await audited(actor, async (session) => {
     task.done = Boolean(done);
     task.doneAt = done ? new Date() : null;
     task.doneBy = done ? actor.id : null;
     engagement.updatedBy = actor.id;
+    bump = await resetGatesIfApproved(
+      engagement,
+      actor,
+      `"${task.name}" ${done ? "ticked" : "reopened"}`,
+      session,
+    );
     await engagement.save({ session });
   });
 
   revalidatePath(`/engagements/${id}`);
-  return { ok: done ? `${task.name} done.` : `${task.name} reopened.` };
+  const said = done ? `${task.name} done.` : `${task.name} reopened.`;
+  return { ok: bump ? `${said} ${bump.note}` : said };
 }
 
 /**
@@ -595,9 +620,24 @@ async function loadItem(actor, id, itemId) {
  * @param {string} note
  * @param {Record<string, [unknown, unknown]>} diff
  */
-async function saveItem(actor, engagement, note, diff) {
+/**
+ * @param {string} [changedWhat] when this write changes what was reviewed —
+ *   a document accepted, rejected or dropped — so the gates reset (P3-5).
+ *   Asking for a document and answering a question do not: neither moves a
+ *   figure.
+ */
+async function saveItem(actor, engagement, note, diff, changedWhat) {
+  let bump = null;
   await audited(actor, async (session) => {
     engagement.updatedBy = actor.id;
+    if (changedWhat) {
+      bump = await resetGatesIfApproved(
+        engagement,
+        actor,
+        changedWhat,
+        session,
+      );
+    }
     await engagement.save({ session });
     await recordAudit(
       {
@@ -611,6 +651,7 @@ async function saveItem(actor, engagement, note, diff) {
       session,
     );
   });
+  return bump;
 }
 
 /** Ask the client for one item. */
@@ -647,14 +688,17 @@ export async function acceptChecklistItem(id, itemId) {
   const out = accept(item, { id: actor.id, name: actor.name });
   if (!out.ok) return { error: out.error };
 
-  await saveItem(
+  const bump = await saveItem(
     actor,
     engagement,
     `${item.name}: accepted (submission ${item.acceptedSubmission})`,
     { [item.name]: [was, "Accepted"] },
+    `${item.name} accepted`,
   );
   revalidatePath(`/engagements/${id}`);
-  return { ok: `${item.name} accepted.` };
+  return {
+    ok: bump ? `${item.name} accepted. ${bump.note}` : `${item.name} accepted.`,
+  };
 }
 
 /**
@@ -674,19 +718,20 @@ export async function replaceChecklistItem(id, itemId, formData) {
   const out = requestReplacement(item, reason);
   if (!out.ok) return { error: out.error };
 
-  await saveItem(
+  const bump = await saveItem(
     actor,
     engagement,
     `${item.name}: replacement requested — ${item.rejectReason}`,
     { [item.name]: [was, "Replacement requested"] },
+    `a replacement was asked for on ${item.name}`,
   );
 
   await checklistReplacement(engagement, item).catch(() => {});
 
   revalidatePath(`/engagements/${id}`);
-  return {
-    ok: `Asked for a replacement. The client is told why, in your words.`,
-  };
+  const said =
+    "Asked for a replacement. The client is told why, in your words.";
+  return { ok: bump ? `${said} ${bump.note}` : said };
 }
 
 /** Decide the firm does not need it after all, with a reason. */
@@ -704,16 +749,16 @@ export async function waiveChecklistItem(id, itemId, formData) {
   });
   if (!out.ok) return { error: out.error };
 
-  await saveItem(
+  const bump = await saveItem(
     actor,
     engagement,
     `${item.name}: not required — ${item.notRequiredReason}`,
     { [item.name]: [was, "Not required"] },
+    `${item.name} marked not required`,
   );
   revalidatePath(`/engagements/${id}`);
-  return {
-    ok: `${item.name} marked not required. The reason is on the record.`,
-  };
+  const said = `${item.name} marked not required. The reason is on the record.`;
+  return { ok: bump ? `${said} ${bump.note}` : said };
 }
 
 /** Answer a question the client asked about one item. */
@@ -1078,9 +1123,360 @@ export async function setInternalDue(id, date) {
   };
 }
 
+// --- the gates before a filing ----------------------------------------------
+
+/**
+ * A reviewer approves the version in front of them (P3-5).
+ *
+ * This is not "Completed" — it is the gate that lets a filing be recorded at
+ * all. The identity rules are the same ones completion uses, because they
+ * are the same rule: `checkReviewer` in `lib/engagements/status.js`.
+ */
+export async function approveWork(id) {
+  const actor = await requireUser();
+  const engagement = await loadForWork(actor, id);
+  assertCan(actor, "approve", "engagementsReview", {
+    branchId: String(engagement.branchId),
+  });
+
+  const result = approve(engagement, {
+    id: actor.id,
+    role: actor.role,
+    name: actor.name,
+  });
+  if (!result.ok) return { error: result.error };
+
+  await audited(actor, async (session) => {
+    engagement.updatedBy = actor.id;
+    await engagement.save({ session });
+    await recordAudit(
+      {
+        action: ACTIONS.statusChange,
+        entityType: "Engagement",
+        entityId: engagement._id,
+        clientId: engagement.clientId,
+        note: `Version ${result.version} approved for filing`,
+      },
+      session,
+    );
+  });
+
+  revalidatePath(`/engagements/${id}`);
+  revalidatePath("/engagements");
+
+  return {
+    ok: needsClientConfirmation(engagement)
+      ? `Version ${result.version} approved. The client confirms the figures next — nothing can be filed until they do.`
+      : `Version ${result.version} approved. The filings can be recorded now.`,
+  };
+}
+
+/**
+ * Record that the client confirmed the figures (P3-5).
+ *
+ * Usually the firm records it, because the confirmation arrives on WhatsApp
+ * or over the phone — hence the mandatory evidence line saying where it can
+ * be found.
+ */
+export async function recordConfirmation(id, formData) {
+  const actor = await requireUser();
+  const engagement = await loadForWork(actor, id);
+
+  const when = readDate(formData.get("when"));
+  if (when === undefined) return { error: "That date is not a date." };
+
+  const result = recordClientConfirmation(
+    engagement,
+    {
+      who: formData.get("who"),
+      when,
+      evidence: formData.get("evidence"),
+    },
+    { id: actor.id, name: actor.name },
+  );
+  if (!result.ok) return { error: result.error };
+
+  await audited(actor, async (session) => {
+    engagement.updatedBy = actor.id;
+    await engagement.save({ session });
+    await recordAudit(
+      {
+        action: ACTIONS.update,
+        entityType: "Engagement",
+        entityId: engagement._id,
+        clientId: engagement.clientId,
+        note: `Client confirmed version ${result.version}: ${engagement.clientConfirmation.who} on ${istInputDate(when)} — ${engagement.clientConfirmation.evidence}`,
+      },
+      session,
+    );
+  });
+
+  revalidatePath(`/engagements/${id}`);
+  return {
+    ok: `Confirmation recorded against version ${result.version}, with its evidence. The filings can be recorded now.`,
+  };
+}
+
+/**
+ * Called by every action that changes the work itself, inside that action's
+ * own transaction.
+ *
+ * Does nothing in the ordinary case — most edits happen before anyone has
+ * approved anything. When an approval was standing it raises the version,
+ * drops both gates, sends the job back, and leaves the assignee a note they
+ * will actually read, which is the same reasoning `changeStatus` applies to
+ * a rejection.
+ */
+async function resetGatesIfApproved(engagement, actor, what, session) {
+  const from = engagement.status;
+  const bump = changedAfterApproval(engagement, actor, what);
+  if (!bump.bumped) return null;
+
+  if (engagement.status !== from) {
+    engagement.statusHistory.push({
+      from,
+      to: engagement.status,
+      at: new Date(),
+      byId: actor.id,
+      byName: actor.name,
+      reason: bump.note,
+    });
+  }
+
+  await recordAudit(
+    {
+      action: ACTIONS.statusChange,
+      entityType: "Engagement",
+      entityId: engagement._id,
+      clientId: engagement.clientId,
+      diff: { version: [bump.version - 1, bump.version] },
+      note: bump.note,
+    },
+    session,
+  );
+
+  await Comment.create(
+    [
+      {
+        entityType: "Engagement",
+        entityId: engagement._id,
+        clientId: engagement.clientId,
+        kind: "Note",
+        body: bump.note,
+        internal: true,
+        createdBy: actor.id,
+        createdByName: actor.name,
+      },
+    ],
+    { session },
+  );
+
+  return bump;
+}
+
+// --- what the work is worth -------------------------------------------------
+
+/**
+ * Load an engagement for a change to its money.
+ *
+ * Pricing is the billing team's and the partners', which the matrix already
+ * says: `invoices` is edit for a partner, for a CA within their branch, and
+ * for accounts. The person who did the work does not price it, and does not
+ * ask for the fee to be dropped either — that request comes from whoever is
+ * billing, which is where it can be weighed against the ledger.
+ */
+async function loadForMoney(actor, id) {
+  await connectDB();
+  const engagement = await Engagement.findById(id);
+  if (!engagement) {
+    const err = new Error("That engagement no longer exists.");
+    err.code = "NOT_FOUND";
+    throw err;
+  }
+  assertCan(actor, "edit", "invoices", {
+    branchId: String(engagement.branchId),
+  });
+  return engagement;
+}
+
+/** Everything the fee screens refresh together. */
+function revalidateMoney(id) {
+  revalidatePath(`/engagements/${id}`);
+  revalidatePath("/engagements");
+  revalidatePath("/invoices/receivables");
+  revalidatePath("/reports/unbilled");
+}
+
+/**
+ * Agree the fee for one job (P3-4).
+ *
+ * Positive whole rupees, enforced in `lib/engagements/scope.js` so the
+ * billing screen and this one refuse the same things in the same words.
+ */
+export async function setEngagementFee(id, formData) {
+  const actor = await requireUser();
+  const engagement = await loadForMoney(actor, id);
+
+  const before = engagement.feePaise ?? 0;
+  const result = setFee(engagement, formData.get("fee"));
+  if (!result.ok) return { error: result.error };
+
+  await audited(actor, async (session) => {
+    engagement.updatedBy = actor.id;
+    await engagement.save({ session });
+    await recordAudit(
+      {
+        action: ACTIONS.update,
+        entityType: "Engagement",
+        entityId: engagement._id,
+        clientId: engagement.clientId,
+        diff: { feePaise: [before, result.paise] },
+        note: `Fee agreed at ${formatPaise(result.paise)}`,
+      },
+      session,
+    );
+  });
+
+  revalidateMoney(id);
+  return { ok: `Fee agreed at ${formatPaise(result.paise)}.` };
+}
+
+/**
+ * Move a job between billable and covered-by-a-retainer (P3-4).
+ *
+ * Waived is deliberately not reachable here: free work needs a partner, and
+ * that is `decideFeeWaiver`.
+ */
+export async function setEngagementScope(id, scope, reason = "") {
+  const actor = await requireUser();
+  const engagement = await loadForMoney(actor, id);
+
+  const before = scopeOf(engagement);
+  const result = setScope(engagement, scope, reason);
+  if (!result.ok) return { error: result.error };
+
+  await audited(actor, async (session) => {
+    engagement.updatedBy = actor.id;
+    await engagement.save({ session });
+    await recordAudit(
+      {
+        action: ACTIONS.update,
+        entityType: "Engagement",
+        entityId: engagement._id,
+        clientId: engagement.clientId,
+        diff: { scope: [before, result.scope] },
+        note:
+          result.scope === "retainer"
+            ? `Covered by a retainer — ${engagement.scopeReason}`
+            : "Back on the billable list",
+      },
+      session,
+    );
+  });
+
+  revalidateMoney(id);
+  return {
+    ok:
+      result.scope === "retainer"
+        ? "Marked as covered by the retainer. It stays on the unbilled list with the reason."
+        : "Back on the list to bill.",
+  };
+}
+
+/**
+ * Ask a partner to waive the fee (P3-4). The job does not move: it stays
+ * chargeable and unbilled until the partner decides.
+ */
+export async function requestFeeWaiver(id, formData) {
+  const actor = await requireUser();
+  const engagement = await loadForMoney(actor, id);
+
+  const reason = String(formData.get("reason") ?? "");
+  const result = requestWaiver(engagement, reason, {
+    id: actor.id,
+    name: actor.name,
+  });
+  if (!result.ok) return { error: result.error };
+
+  await audited(actor, async (session) => {
+    engagement.updatedBy = actor.id;
+    await engagement.save({ session });
+    await recordAudit(
+      {
+        action: ACTIONS.update,
+        entityType: "Engagement",
+        entityId: engagement._id,
+        clientId: engagement.clientId,
+        note: `Fee waiver requested: ${engagement.waiver.reason}`,
+      },
+      session,
+    );
+  });
+
+  revalidateMoney(id);
+  return {
+    ok: "Sent to a partner. The job stays on the list to bill until they decide.",
+  };
+}
+
+/**
+ * A partner approves or declines a waiver (P3-4).
+ *
+ * `feeWriteOff` is partner-only in the matrix and has been since Phase 1, so
+ * no new permission is needed — which is also the answer to "who may do
+ * this": exactly whoever may write a debt off.
+ */
+export async function decideFeeWaiver(id, approve, reason = "") {
+  const actor = await requireUser();
+  assertCan(actor, "approve", "feeWriteOff");
+  await connectDB();
+  const engagement = await Engagement.findById(id);
+  if (!engagement) return { error: "That engagement no longer exists." };
+
+  const result = decideWaiver(engagement, Boolean(approve), reason, {
+    id: actor.id,
+    name: actor.name,
+  });
+  if (!result.ok) return { error: result.error };
+
+  await audited(actor, async (session) => {
+    engagement.updatedBy = actor.id;
+    await engagement.save({ session });
+    await recordAudit(
+      {
+        action: result.approved ? ACTIONS.writeOff : ACTIONS.update,
+        entityType: "Engagement",
+        entityId: engagement._id,
+        clientId: engagement.clientId,
+        diff: result.approved ? { scope: ["billable", "waived"] } : undefined,
+        note: result.approved
+          ? scopeLine(engagement)
+          : `Waiver declined — ${engagement.waiver.declineReason} (asked: ${result.reason})`,
+      },
+      session,
+    );
+  });
+
+  revalidateMoney(id);
+  return {
+    ok: result.approved
+      ? "Fee waived. The reason and both names are on the record."
+      : "Waiver declined. The job is still chargeable and the fee is still to agree.",
+  };
+}
+
 // --- talking about the work -------------------------------------------------
 
-/** A comment on the thread, with @mentions (spec section 5). */
+/**
+ * A comment on the thread, with @mentions (spec section 5, P3-17a).
+ *
+ * **The mention now tells the person.** It was collected here from Step 5
+ * and the line under it said "the mentioned people are notified in Step 9";
+ * Step 9 never did it, so for twelve steps somebody could type a
+ * colleague's name into a box and nobody was told. The matching moved to
+ * `lib/inbox`, where it is tested — it used to match on `startsWith`, so
+ * `@pri` reached Priya and `@a` reached everybody beginning with an A.
+ */
 export async function addEngagementComment(id, formData) {
   const actor = await requireUser();
   const engagement = await loadForWork(actor, id, "view");
@@ -1088,19 +1484,59 @@ export async function addEngagementComment(id, formData) {
   const body = String(formData.get("body") ?? "").trim();
   if (!body) return { error: "Write something first." };
 
-  // @mentions are matched against the team by name, case-insensitively
-  const names = [...body.matchAll(/@([\w.]+)/g)].map((m) => m[1].toLowerCase());
-  const mentions = names.length
-    ? await User.find({ active: true }).select("name").lean()
-    : [];
-  const mentioned = mentions
-    .filter((u) =>
-      names.some((n) => u.name.toLowerCase().replace(/\s+/g, "").startsWith(n)),
-    )
-    .map((u) => u._id);
+  /**
+   * The tick on the box, and the one place its meaning is decided: a
+   * comment is internal unless somebody says otherwise, and saying
+   * otherwise now **sends it** (P3-17b).
+   */
+  const internal = formData.get("internal") !== "off";
 
-  await audited(actor, (session) =>
-    Comment.create(
+  const team = body.includes("@")
+    ? await User.find({ active: true }).select("name email").lean()
+    : [];
+  /** Never the writer: nobody needs telling what they just typed. */
+  const mentioned = mentionsIn(body, team).filter(
+    (person) => String(person._id) !== actor.id,
+  );
+
+  /**
+   * A with-client message needs the contacts, and a mention inside one is
+   * refused rather than quietly stripped: `@priya` in a paragraph the
+   * client reads is the firm talking to itself in front of them.
+   */
+  let client = null;
+  if (!internal) {
+    if (mentioned.length) {
+      return {
+        error:
+          "This one goes to the client, and it names a colleague. Say it in the internal thread, or take the @mention out.",
+      };
+    }
+    client = await Client.findById(engagement.clientId)
+      .select("legalName tradeName contacts")
+      .lean();
+    if (!(client?.contacts ?? []).some((contact) => contact.email)) {
+      return {
+        error:
+          "Nobody at this client has an email address on their record, so there is nowhere to send it. Add one on the client, or write it in the internal thread.",
+      };
+    }
+  }
+
+  let delivered = false;
+
+  await audited(actor, async (session) => {
+    if (!internal) {
+      delivered = await clientThreadMessage(
+        engagement,
+        client,
+        actor,
+        body,
+        session,
+      );
+    }
+
+    await Comment.create(
       [
         {
           entityType: "Engagement",
@@ -1108,19 +1544,36 @@ export async function addEngagementComment(id, formData) {
           clientId: engagement.clientId,
           kind: "Note",
           body,
-          mentions: mentioned,
-          internal: formData.get("internal") !== "off",
+          mentions: mentioned.map((person) => person._id),
+          internal,
+          sentToClientAt: delivered ? new Date() : null,
           createdBy: actor.id,
           createdByName: actor.name,
         },
       ],
       { session },
-    ),
-  );
+    );
 
-  // the mentioned people are notified in Step 9
+    if (mentioned.length) {
+      await commentMentioned(engagement, actor, mentioned, body, session);
+    }
+  });
+
   revalidatePath(`/engagements/${id}`);
-  return { ok: "Comment added." };
+
+  if (!internal) {
+    return {
+      ok: delivered
+        ? "Sent to the client, and on the with-client thread."
+        : "On the with-client thread, and held: client email is switched off, so nothing has reached them. What was held is on Settings → Messages.",
+    };
+  }
+
+  return {
+    ok: mentioned.length
+      ? `Added to the internal thread. ${mentioned.map((person) => person.name.split(" ")[0]).join(" and ")} ${mentioned.length === 1 ? "was" : "were"} told.`
+      : "Added to the internal thread.",
+  };
 }
 
 // --- the client's service subscriptions (spec section 5 defaults) -----------

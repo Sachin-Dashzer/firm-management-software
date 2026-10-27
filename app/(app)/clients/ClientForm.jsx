@@ -253,7 +253,7 @@ export default function ClientForm({
               onChange={(e) => update({ gstin: e.target.value.toUpperCase() })}
               onBlur={(e) => runDuplicateCheck(e.currentTarget.form)}
               placeholder="09AAAPZ1234C1ZX"
-              className="rounded-ledger border-rule bg-paper text-14 h-9 flex-1 border px-2 font-mono uppercase"
+              className="rounded-control border-rule bg-paper text-14 h-9 flex-1 border px-2 font-mono uppercase"
             />
             <label className="text-13 flex items-center gap-2 whitespace-nowrap">
               <input
@@ -288,14 +288,14 @@ export default function ClientForm({
               value={row.name ?? ""}
               onChange={(e) => update({ name: e.target.value })}
               placeholder="Name"
-              className="rounded-ledger border-rule bg-paper text-14 h-9 min-w-0 flex-1 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-9 min-w-0 flex-1 border px-2"
             />
             <input
               name={`contacts.${i}.designation`}
               value={row.designation ?? ""}
               onChange={(e) => update({ designation: e.target.value })}
               placeholder="Designation"
-              className="rounded-ledger border-rule bg-paper text-14 h-9 min-w-0 flex-1 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-9 min-w-0 flex-1 border px-2"
             />
             <input
               name={`contacts.${i}.mobile`}
@@ -304,7 +304,7 @@ export default function ClientForm({
               onBlur={(e) => runDuplicateCheck(e.currentTarget.form)}
               placeholder="Mobile"
               inputMode="numeric"
-              className="rounded-ledger border-rule bg-paper text-14 h-9 w-32 border px-2 font-mono"
+              className="rounded-control border-rule bg-paper text-14 h-9 w-32 border px-2 font-mono"
             />
             <input
               name={`contacts.${i}.email`}
@@ -312,7 +312,7 @@ export default function ClientForm({
               onChange={(e) => update({ email: e.target.value })}
               placeholder="Email"
               type="email"
-              className="rounded-ledger border-rule bg-paper text-14 h-9 min-w-0 flex-1 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-9 min-w-0 flex-1 border px-2"
             />
             <label className="text-13 flex items-center gap-1 whitespace-nowrap">
               <input
@@ -431,14 +431,14 @@ export default function ClientForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-ledger bg-carbon text-14 h-10 px-4 font-medium text-white disabled:opacity-60"
+          className="rounded-control bg-carbon text-14 text-on-carbon h-10 px-4 font-medium disabled:opacity-60"
         >
           {pending ? "Saving…" : editing ? "Save changes" : "Create client"}
         </button>
         <button
           type="button"
           onClick={() => router.back()}
-          className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-10 border px-4"
+          className="rounded-control border-rule text-14 hover:bg-carbon-wash h-10 border px-4"
         >
           Cancel
         </button>
@@ -465,7 +465,7 @@ function Field({ label, hint, className = "", defaultValue, ...rest }) {
       <span className="text-13 text-ink-muted font-medium">{label}</span>
       <input
         defaultValue={defaultValue ?? ""}
-        className={`rounded-ledger border-rule bg-paper text-14 text-ink h-10 border px-3 disabled:opacity-60 ${className}`}
+        className={`rounded-control border-rule bg-paper text-14 text-ink h-10 border px-3 disabled:opacity-60 ${className}`}
         {...rest}
       />
       {hint && <span className="text-12 text-ink-muted">{hint}</span>}
@@ -479,7 +479,7 @@ function Select({ label, options, placeholder, defaultValue, ...rest }) {
       <span className="text-13 text-ink-muted font-medium">{label}</span>
       <select
         defaultValue={defaultValue ?? ""}
-        className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+        className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
         {...rest}
       >
         {placeholder && <option value="">{placeholder}</option>}
@@ -543,7 +543,7 @@ function GroupPicker({ groups, defaultValue, required }) {
         required={required}
         value={value}
         onChange={(event) => setValue(event.target.value)}
-        className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+        className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
       >
         <option value="">{required ? "— choose a group —" : "— none —"}</option>
         {list.map((group) => (
@@ -563,13 +563,13 @@ function GroupPicker({ groups, defaultValue, required }) {
             }
           }}
           placeholder="…or a new group: Sharma family"
-          className="rounded-ledger border-rule bg-paper text-13 h-9 min-w-0 flex-1 border px-2"
+          className="rounded-control border-rule bg-paper text-13 h-9 min-w-0 flex-1 border px-2"
         />
         <button
           type="button"
           onClick={add}
           disabled={pending || name.trim().length < 2}
-          className="rounded-ledger border-rule text-13 hover:bg-carbon-wash h-9 shrink-0 border px-2 disabled:opacity-50"
+          className="rounded-control border-rule text-13 hover:bg-carbon-wash h-9 shrink-0 border px-2 disabled:opacity-50"
         >
           Add
         </button>
@@ -596,7 +596,7 @@ function Rows({ title, hint, rows, setRows, blank, addLabel, render }) {
                 type="button"
                 onClick={() => setRows(rows.filter((_, j) => j !== i))}
                 aria-label={`Remove row ${i + 1}`}
-                className="rounded-ledger border-rule text-13 hover:bg-redpen-wash hover:text-redpen h-9 border px-2"
+                className="rounded-control border-rule text-13 hover:bg-redpen-wash hover:text-redpen h-9 border px-2"
               >
                 Remove
               </button>
@@ -607,7 +607,7 @@ function Rows({ title, hint, rows, setRows, blank, addLabel, render }) {
       <button
         type="button"
         onClick={() => setRows([...rows, { ...blank }])}
-        className="rounded-ledger border-rule text-13 hover:bg-carbon-wash mt-3 h-9 border px-3"
+        className="rounded-control border-rule text-13 hover:bg-carbon-wash mt-3 h-9 border px-3"
       >
         {addLabel}
       </button>

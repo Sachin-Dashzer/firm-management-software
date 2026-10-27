@@ -8,6 +8,7 @@ import {
   BILLING_STATUSES,
   PRIORITIES,
 } from "../lib/engagements/status.js";
+import { SCOPES } from "../lib/engagements/scope.js";
 
 /**
  * One service, for one client, for one period (spec section 5).
@@ -168,6 +169,71 @@ const assuranceSchema = new mongoose.Schema(
   { _id: false },
 );
 
+/**
+ * A fee somebody asked to be let off, and what a partner decided (P3-4).
+ *
+ * Both names are kept on purpose: a waiver carrying one name cannot be told
+ * apart from somebody waiving their own client's fee, which is the thing a
+ * peer reviewer looks for. A declined request is kept too — the asking
+ * happened, and the answer is part of why the fee was charged.
+ */
+const waiverSchema = new mongoose.Schema(
+  {
+    reason: { type: String, default: "", trim: true },
+    requestedBy: { type: String, default: null },
+    requestedByName: { type: String, default: "" },
+    requestedAt: { type: Date, default: null },
+    approvedBy: { type: String, default: null },
+    approvedByName: { type: String, default: "" },
+    approvedAt: { type: Date, default: null },
+    declinedBy: { type: String, default: null },
+    declinedByName: { type: String, default: "" },
+    declinedAt: { type: Date, default: null },
+    declineReason: { type: String, default: "", trim: true },
+  },
+  { _id: false },
+);
+
+/**
+ * A reviewer's approval of one version of the work (P3-5).
+ *
+ * `version` is what makes it an approval of something rather than a tick:
+ * change the work afterwards and the engagement's version moves past this
+ * one, so the approval stops counting without anybody having to remember to
+ * withdraw it.
+ */
+const reviewApprovalSchema = new mongoose.Schema(
+  {
+    approvedBy: { type: String, default: null },
+    approvedByName: { type: String, default: "" },
+    approvedAt: { type: Date, default: null },
+    version: { type: Number, default: 1 },
+  },
+  { _id: false },
+);
+
+/**
+ * The client's confirmation of the figures (P3-5).
+ *
+ * The client, not the firm, owes the tax. `evidence` is mandatory and says
+ * where the confirmation can be found, because this record's whole purpose
+ * is to answer a dispute two years later.
+ */
+const clientConfirmationSchema = new mongoose.Schema(
+  {
+    /** Who at the client confirmed — a person, not the company. */
+    who: { type: String, default: "", trim: true },
+    when: { type: Date, default: null },
+    /** Where it can be found: "WhatsApp from Jaspal, 25 Oct 4:10 pm". */
+    evidence: { type: String, default: "", trim: true },
+    version: { type: Number, default: 1 },
+    recordedBy: { type: String, default: null },
+    recordedByName: { type: String, default: "" },
+    recordedAt: { type: Date, default: null },
+  },
+  { _id: false },
+);
+
 const statusEventSchema = new mongoose.Schema(
   {
     from: { type: String, default: "" },
@@ -262,6 +328,52 @@ const milestoneSchema = new mongoose.Schema(
     history: { type: [filingHistorySchema], default: [] },
   },
   { _id: true },
+);
+
+/**
+ * The month's GST preparation, from the sheet the client sent (P3-12).
+ *
+ * The raw rows are **not** kept here: they are in the uploaded document,
+ * which is the client's own file and the thing a reviewer wants to open. What
+ * is kept is what was found in it and what was worked out from it, so the
+ * screen does not have to re-read a spreadsheet to tell anybody where the
+ * month stands.
+ *
+ * Every figure in `computation` is indicative, and `lib/gst/compute.js`
+ * returns the sentence that says so with them.
+ */
+const gstPrepSchema = new mongoose.Schema(
+  {
+    /** The workbook the client filled in. */
+    documentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Document",
+      default: null,
+    },
+    fileName: { type: String, default: "", trim: true },
+    uploadedAt: { type: Date, default: null },
+    uploadedBy: { type: String, default: null },
+    uploadedByName: { type: String, default: "" },
+
+    /** How many rows came in on each sheet. */
+    counts: { type: mongoose.Schema.Types.Mixed, default: {} },
+    /** Sheets the workbook did not have at all. */
+    missingSheets: { type: [String], default: [] },
+    /**
+     * What is wrong with it, as the client is told. Kept so the correction
+     * loop is a record rather than a conversation: what we sent back, and
+     * whether the next file fixed it.
+     */
+    issues: { type: mongoose.Schema.Types.Mixed, default: [] },
+    /** Each upload is a submission, like a checklist item (P3-2). */
+    submissionCount: { type: Number, default: 0, min: 0 },
+    sentBackAt: { type: Date, default: null },
+    sentBackCount: { type: Number, default: 0, min: 0 },
+
+    computation: { type: mongoose.Schema.Types.Mixed, default: null },
+    computedAt: { type: Date, default: null },
+  },
+  { _id: false },
 );
 
 const engagementSchema = new mongoose.Schema(
@@ -366,12 +478,38 @@ const engagementSchema = new mongoose.Schema(
     /** Audit and assurance work only; empty on everything else. */
     assurance: { type: assuranceSchema, default: () => ({}) },
 
+    /** Monthly GST work only; empty on everything else (P3-12). */
+    gstPrep: { type: gstPrepSchema, default: undefined },
+
     feePaise: { type: Number, default: 0, min: 0 },
     billingStatus: {
       type: String,
       enum: BILLING_STATUSES,
       default: "Unbilled",
     },
+
+    /**
+     * How this job is paid for (P3-4): billable, covered by a retainer, or
+     * waived. It runs alongside `billingStatus` rather than inside it for the
+     * same reason billing runs alongside the pipeline — "waived" and "billed"
+     * are answers to different questions, and one column cannot hold both.
+     *
+     * Everything created before P3-4 defaults to billable, which is what it
+     * was, so no engagement changes meaning on the way in.
+     */
+    scope: { type: String, enum: SCOPES, default: "billable" },
+    /** Why it is not separately chargeable. Required for retainer and waived. */
+    scopeReason: { type: String, default: "", trim: true },
+    waiver: { type: waiverSchema, default: undefined },
+
+    /**
+     * Which version of the work this is (P3-5). It starts at 1 and rises
+     * every time something changes after an approval — which is also how
+     * `milestones.versionFiled` says which version actually went in.
+     */
+    version: { type: Number, default: 1, min: 1 },
+    review: { type: reviewApprovalSchema, default: undefined },
+    clientConfirmation: { type: clientConfirmationSchema, default: undefined },
 
     tasks: { type: [taskSchema], default: [] },
     checklist: { type: [checklistItemSchema], default: [] },

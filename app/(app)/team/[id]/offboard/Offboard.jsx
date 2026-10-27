@@ -93,7 +93,7 @@ export default function Offboard({ userId, name, rows, grants }) {
             else&rsquo;s now.
           </p>
         ) : (
-          <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+          <div className="rounded-table border-rule bg-surface overflow-x-auto border">
             <table className="text-14 w-full">
               <caption className="sr-only">
                 Open engagements still assigned to {name}
@@ -144,7 +144,7 @@ export default function Offboard({ userId, name, rows, grants }) {
                         onChange={(e) =>
                           setPicked((p) => ({ ...p, [row.id]: e.target.value }))
                         }
-                        className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                        className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
                       >
                         <option value="">Choose…</option>
                         {row.candidates.map((c) => (
@@ -165,7 +165,7 @@ export default function Offboard({ userId, name, rows, grants }) {
                         type="button"
                         disabled={pending || !picked[row.id]}
                         onClick={() => moveOne(row)}
-                        className="rounded-ledger border-rule text-13 hover:bg-carbon-wash h-9 border px-3 disabled:opacity-50"
+                        className="rounded-control border-rule text-13 hover:bg-carbon-wash h-9 border px-3 disabled:opacity-50"
                       >
                         Move
                       </button>
@@ -244,14 +244,14 @@ export default function Offboard({ userId, name, rows, grants }) {
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Resigned, last working day 31-10-2026"
-                className="rounded-ledger border-rule bg-paper text-14 h-9 max-w-md border px-2"
+                className="rounded-control border-rule bg-paper text-14 h-9 max-w-md border px-2"
               />
             </label>
             <button
               type="button"
               disabled={pending || !clear || reason.trim().length < 3}
               onClick={finish}
-              className="rounded-ledger border-redpen text-redpen text-14 h-9 self-start border px-4 disabled:opacity-50"
+              className="rounded-control border-redpen text-redpen text-14 h-9 self-start border px-4 disabled:opacity-50"
             >
               {pending ? "Offboarding…" : `Offboard ${first}`}
             </button>
@@ -281,7 +281,7 @@ function Step({ number, title, done, summary, children }) {
         >
           {number}
         </span>
-        <h2 className="font-display text-20">{title}</h2>
+        <h2 className="font-display text-15 font-semibold">{title}</h2>
         <p className="text-13 text-ink-muted">{summary}</p>
       </div>
       <div className="pl-10">{children}</div>

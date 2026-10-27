@@ -119,7 +119,7 @@ export default function Uploader({
           type="button"
           disabled={disabled || Boolean(busy)}
           onClick={() => input.current?.click()}
-          className="rounded-ledger border-rule text-14 h-9 border px-3 disabled:opacity-60"
+          className="rounded-control border-rule text-14 h-9 border px-3 disabled:opacity-60"
         >
           {busy ? "Uploading…" : label}
         </button>

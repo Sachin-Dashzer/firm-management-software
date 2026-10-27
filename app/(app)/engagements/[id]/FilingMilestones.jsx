@@ -49,7 +49,19 @@ function StateLabel({ milestone }) {
   );
 }
 
-export default function FilingMilestones({ engagement, locked, setMessage }) {
+/**
+ * @param {object} props
+ * @param {string|null} [props.blocked] why nothing can be filed yet (P3-5):
+ *   the review or the client's confirmation is still outstanding. Said once
+ *   above the list, and the forms are not drawn — an offer that would be
+ *   refused is worse than no offer.
+ */
+export default function FilingMilestones({
+  engagement,
+  locked,
+  blocked = null,
+  setMessage,
+}) {
   const [pending, startTransition] = useTransition();
   const [correcting, setCorrecting] = useState(null);
 
@@ -58,7 +70,7 @@ export default function FilingMilestones({ engagement, locked, setMessage }) {
   if (!milestones.length) {
     return (
       <section className="rounded-ledger border-rule bg-surface flex flex-col gap-2 border p-4">
-        <h2 className="font-display text-20">Filings</h2>
+        <h2 className="font-display text-15 font-semibold">Filings</h2>
         <p className="text-13 text-ink-muted">
           This work has no filings listed. The system will not invent a
           statutory date, so until a partner confirms the due-date rule for this
@@ -70,9 +82,12 @@ export default function FilingMilestones({ engagement, locked, setMessage }) {
   }
 
   return (
-    <section className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4">
+    <section
+      id="filings"
+      className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4"
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-display text-20">Filings</h2>
+        <h2 className="font-display text-15 font-semibold">Filings</h2>
         {engagement.filingProgress === "part" && (
           <span className="text-12 text-waiting font-medium">
             Part filed — {milestones.filter((m) => m.filedOn).length} of{" "}
@@ -80,6 +95,13 @@ export default function FilingMilestones({ engagement, locked, setMessage }) {
           </span>
         )}
       </div>
+
+      {blocked && !locked && (
+        <p className="rounded-ledger border-waiting/40 bg-waiting/5 text-13 border px-3 py-2">
+          {blocked} Nothing can be recorded as filed until then — the review
+          comes before the filing, not after it.
+        </p>
+      )}
 
       {engagement.proofPending && (
         <p className="rounded-ledger border-waiting/40 bg-waiting/5 text-13 border px-3 py-2">
@@ -107,7 +129,7 @@ export default function FilingMilestones({ engagement, locked, setMessage }) {
             </p>
 
             {/* record it ------------------------------------------------- */}
-            {!m.filedOn && !locked && (
+            {!m.filedOn && !locked && !blocked && (
               <form
                 action={(formData) =>
                   startTransition(async () =>
@@ -127,7 +149,7 @@ export default function FilingMilestones({ engagement, locked, setMessage }) {
                     name="ackNo"
                     required
                     placeholder="ARN, token or SRN"
-                    className="rounded-ledger border-rule bg-paper text-14 h-9 min-w-40 border px-2 font-mono"
+                    className="rounded-control border-rule bg-paper text-14 h-9 min-w-40 border px-2 font-mono"
                   />
                 </label>
                 <label className="flex flex-col gap-1">
@@ -139,13 +161,13 @@ export default function FilingMilestones({ engagement, locked, setMessage }) {
                     name="filedOn"
                     required
                     max={engagement.todayInput}
-                    className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                    className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
                   />
                 </label>
                 <button
                   type="submit"
                   disabled={pending}
-                  className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-50"
+                  className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-50"
                 >
                   Record {m.name}
                 </button>
@@ -185,13 +207,13 @@ export default function FilingMilestones({ engagement, locked, setMessage }) {
                     required
                     minLength={5}
                     placeholder="e.g. the ARN belonged to September"
-                    className="rounded-ledger border-rule bg-paper text-14 h-9 min-w-56 border px-2"
+                    className="rounded-control border-rule bg-paper text-14 h-9 min-w-56 border px-2"
                   />
                 </label>
                 <button
                   type="submit"
                   disabled={pending}
-                  className="rounded-ledger border-rule text-14 h-9 border px-3 font-medium disabled:opacity-50"
+                  className="rounded-control border-rule text-14 h-9 border px-3 font-medium disabled:opacity-50"
                 >
                   Correct
                 </button>

@@ -89,7 +89,7 @@ export default function ChecklistRow({ engagementId, item, disabled, run }) {
 
       {/* what the client said back ---------------------------------------- */}
       {reply?.kind === "cannot" && (
-        <p className="rounded-ledger border-waiting/40 bg-waiting/5 text-12 border px-2 py-1">
+        <p className="rounded-control border-waiting/40 bg-waiting/5 text-12 border px-2 py-1">
           <strong>{reply.byName} says they cannot provide this.</strong>
           {reply.note && ` ${reply.note}`} Decide: ask for an alternative, or
           mark it not required.
@@ -102,7 +102,7 @@ export default function ChecklistRow({ engagementId, item, disabled, run }) {
         </p>
       )}
       {reply?.kind === "question" && (
-        <p className="rounded-ledger border-carbon/30 bg-carbon-wash text-12 border px-2 py-1">
+        <p className="rounded-control border-carbon/30 bg-carbon-wash text-12 border px-2 py-1">
           <strong>{reply.byName} asks:</strong> {reply.question}
           {reply.answer && (
             <>
@@ -123,7 +123,7 @@ export default function ChecklistRow({ engagementId, item, disabled, run }) {
                 onClick={() =>
                   run(() => acceptChecklistItem(engagementId, item.id))
                 }
-                className="rounded-ledger bg-carbon text-12 h-7 px-2 font-medium text-white"
+                className="rounded-ledger bg-carbon text-12 text-on-carbon h-7 px-2 font-medium"
               >
                 Accept
               </button>
@@ -151,7 +151,7 @@ export default function ChecklistRow({ engagementId, item, disabled, run }) {
             <button
               type="button"
               onClick={() => setForm("answer")}
-              className="rounded-ledger bg-carbon text-12 h-7 px-2 font-medium text-white"
+              className="rounded-ledger bg-carbon text-12 text-on-carbon h-7 px-2 font-medium"
             >
               Answer the client
             </button>
@@ -192,12 +192,12 @@ export default function ChecklistRow({ engagementId, item, disabled, run }) {
               required
               minLength={5}
               placeholder="e.g. these are August challans, we need September"
-              className="rounded-ledger border-rule bg-paper text-13 h-8 min-w-56 border px-2"
+              className="rounded-control border-rule bg-paper text-13 h-8 min-w-56 border px-2"
             />
           </label>
           <button
             type="submit"
-            className="rounded-ledger bg-carbon text-12 h-8 px-2 font-medium text-white"
+            className="rounded-control bg-carbon text-12 text-on-carbon h-8 px-2 font-medium"
           >
             Send it back
           </button>
@@ -232,12 +232,12 @@ export default function ChecklistRow({ engagementId, item, disabled, run }) {
               required
               minLength={5}
               placeholder="e.g. client has no vehicle, so no logbook exists"
-              className="rounded-ledger border-rule bg-paper text-13 h-8 min-w-56 border px-2"
+              className="rounded-control border-rule bg-paper text-13 h-8 min-w-56 border px-2"
             />
           </label>
           <button
             type="submit"
-            className="rounded-ledger border-rule text-12 h-8 border px-2 font-medium"
+            className="rounded-control border-rule text-12 h-8 border px-2 font-medium"
           >
             Mark not required
           </button>
@@ -270,12 +270,12 @@ export default function ChecklistRow({ engagementId, item, disabled, run }) {
               name="answer"
               required
               minLength={2}
-              className="rounded-ledger border-rule bg-paper text-13 h-8 min-w-56 border px-2"
+              className="rounded-control border-rule bg-paper text-13 h-8 min-w-56 border px-2"
             />
           </label>
           <button
             type="submit"
-            className="rounded-ledger bg-carbon text-12 h-8 px-2 font-medium text-white"
+            className="rounded-control bg-carbon text-12 text-on-carbon h-8 px-2 font-medium"
           >
             Answer
           </button>

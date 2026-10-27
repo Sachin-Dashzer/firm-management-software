@@ -35,7 +35,7 @@ export default function DueDates({ rows, unverified }) {
   return (
     <div className="mx-auto flex max-w-[1000px] flex-col gap-5 p-4 md:p-6">
       <div>
-        <h1 className="font-display text-28 font-semibold">
+        <h1 className="font-display text-24 font-bold tracking-tight">
           Statutory due dates
         </h1>
         <p className="text-13 text-ink-muted">
@@ -89,17 +89,19 @@ export default function DueDates({ rows, unverified }) {
         >
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div>
-              <h2 className="font-display text-20">{rule.name}</h2>
+              <h2 className="font-display text-15 font-semibold">
+                {rule.name}
+              </h2>
               <p className="text-13 text-ink-muted font-mono">
                 {rule.serviceCode} · {rule.periodType}
               </p>
             </div>
             {rule.verified ? (
-              <span className="rounded-ledger border-filed bg-filed-wash text-13 text-filed border px-2 py-0.5">
+              <span className="rounded-chip border-filed bg-filed-wash text-13 text-filed border px-2 py-0.5">
                 Confirmed by {rule.verifiedBy} on {rule.verifiedOn}
               </span>
             ) : (
-              <span className="rounded-ledger border-waiting bg-waiting-wash text-waiting text-13 border px-2 py-0.5">
+              <span className="rounded-chip border-waiting bg-waiting-wash text-waiting text-13 border px-2 py-0.5">
                 Not confirmed
               </span>
             )}
@@ -200,7 +202,7 @@ export default function DueDates({ rows, unverified }) {
                 type="button"
                 disabled={pending}
                 onClick={() => run(() => verifyRule(rule.id))}
-                className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+                className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
               >
                 This is right — confirm it
               </button>
@@ -243,7 +245,7 @@ export default function DueDates({ rows, unverified }) {
                 <select
                   name="kind"
                   defaultValue={rule.formula?.kind ?? "dayOfMonth"}
-                  className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                  className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
                 >
                   <option value="dayOfMonth">A day of the month</option>
                   <option value="daysAfterEvent">Days after an event</option>
@@ -289,7 +291,7 @@ export default function DueDates({ rows, unverified }) {
                 <button
                   type="submit"
                   disabled={pending}
-                  className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+                  className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
                 >
                   Save the correction
                 </button>
@@ -327,7 +329,7 @@ export default function DueDates({ rows, unverified }) {
                 <button
                   type="submit"
                   disabled={pending}
-                  className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+                  className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
                 >
                   Move this period
                 </button>
@@ -364,7 +366,7 @@ function Field({ label, className = "", inputClassName = "", ...rest }) {
     <label className={`flex flex-col gap-1 ${className}`}>
       <span className="text-13 text-ink-muted font-medium">{label}</span>
       <input
-        className={`rounded-ledger border-rule bg-paper text-14 h-9 border px-2 ${inputClassName}`}
+        className={`rounded-control border-rule bg-paper text-14 h-9 border px-2 ${inputClassName}`}
         {...rest}
       />
     </label>

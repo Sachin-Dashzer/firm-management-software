@@ -59,7 +59,9 @@ export default function UdinRegister({
     <div className="mx-auto flex max-w-[1200px] flex-col gap-5 p-4 md:p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="font-display text-28 font-semibold">UDIN register</h1>
+          <h1 className="font-display text-24 font-bold tracking-tight">
+            UDIN register
+          </h1>
           <p className="num text-13 text-ink-muted">
             {live} {live === 1 ? "number" : "numbers"} in {fyStart}–
             {String(fyStart + 1).slice(2)}
@@ -74,7 +76,7 @@ export default function UdinRegister({
               key={year}
               href={`/practice/udin?fy=${year}`}
               aria-current={year === fyStart ? "page" : undefined}
-              className={`rounded-ledger text-13 h-8 border px-2 leading-8 ${
+              className={`rounded-control text-13 h-8 border px-2 leading-8 ${
                 year === fyStart
                   ? "border-carbon bg-carbon-wash text-carbon"
                   : "border-rule hover:bg-carbon-wash"
@@ -87,7 +89,7 @@ export default function UdinRegister({
             <button
               type="button"
               onClick={() => setAdding((v) => !v)}
-              className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white"
+              className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium"
             >
               {adding ? "Cancel" : "Record a UDIN"}
             </button>
@@ -112,7 +114,7 @@ export default function UdinRegister({
           <select
             name="member"
             defaultValue={member}
-            className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+            className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
           >
             <option value="">Every partner and CA</option>
             {members.map((m) => (
@@ -124,14 +126,14 @@ export default function UdinRegister({
         </label>
         <button
           type="submit"
-          className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white"
+          className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium"
         >
           Show
         </button>
         {member && (
           <Link
             href={`/practice/udin?fy=${fyStart}`}
-            className="rounded-ledger border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
+            className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
           >
             Everyone
           </Link>
@@ -168,7 +170,7 @@ export default function UdinRegister({
               required
               maxLength={18}
               placeholder="18 letters and digits, from the portal"
-              className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2 font-mono uppercase"
+              className="rounded-control border-rule bg-paper text-14 h-10 border px-2 font-mono uppercase"
             />
           </label>
 
@@ -177,7 +179,7 @@ export default function UdinRegister({
             <select
               name="clientId"
               required
-              className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
             >
               <option value="">Choose a client</option>
               {clients.map((client) => (
@@ -195,7 +197,7 @@ export default function UdinRegister({
             <select
               name="memberId"
               required
-              className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
             >
               <option value="">Choose the partner or CA</option>
               {members.map((signer) => (
@@ -219,7 +221,7 @@ export default function UdinRegister({
               required
               maxLength={120}
               placeholder="Tax audit report, net worth certificate…"
-              className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
             />
           </label>
 
@@ -231,7 +233,7 @@ export default function UdinRegister({
               type="date"
               name="generatedOn"
               required
-              className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
             />
           </label>
 
@@ -242,7 +244,7 @@ export default function UdinRegister({
             <input
               name="engagementId"
               placeholder="Leave blank for a certificate outside any engagement"
-              className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2 font-mono"
+              className="rounded-control border-rule bg-paper text-14 h-10 border px-2 font-mono"
             />
             <span className="text-12 text-ink-muted">
               Saving a UDIN on the engagement&rsquo;s own filing panel fills
@@ -255,7 +257,7 @@ export default function UdinRegister({
             <input
               name="note"
               maxLength={500}
-              className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
             />
           </label>
 
@@ -263,7 +265,7 @@ export default function UdinRegister({
             <button
               type="submit"
               disabled={pending}
-              className="rounded-ledger bg-carbon text-14 h-10 px-4 font-medium text-white disabled:opacity-60"
+              className="rounded-control bg-carbon text-14 text-on-carbon h-10 px-4 font-medium disabled:opacity-60"
             >
               {pending ? "Recording…" : "Record it"}
             </button>
@@ -271,13 +273,13 @@ export default function UdinRegister({
         </form>
       )}
 
-      <div className="rounded-ledger border-rule bg-surface overflow-x-auto border">
+      <div className="rounded-table border-rule bg-surface overflow-x-auto border">
         <table className="text-14 w-full">
           <caption className="sr-only">
             UDINs generated in {fyStart}–{String(fyStart + 1).slice(2)}
           </caption>
           <thead>
-            <tr className="border-rule text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+            <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
               <th scope="col" className="px-3 py-2 font-medium">
                 UDIN
               </th>
@@ -436,14 +438,14 @@ export default function UdinRegister({
             <input
               value={reason}
               onChange={(event) => setReason(event.target.value)}
-              className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
             />
           </label>
           <button
             type="button"
             disabled={pending || !reason.trim()}
             onClick={() => run(() => setUdinRevoked(revoking, true, reason))}
-            className="rounded-ledger bg-carbon text-14 h-10 px-3 font-medium text-white disabled:opacity-60"
+            className="rounded-control bg-carbon text-14 text-on-carbon h-10 px-3 font-medium disabled:opacity-60"
           >
             Mark revoked
           </button>

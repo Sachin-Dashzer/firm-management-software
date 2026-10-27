@@ -47,11 +47,13 @@ export default function SecurityBoard({ signals, counts, since, incidents }) {
       {/* --- what the log is showing ------------------------------------- */}
       <section className="flex flex-col gap-2">
         <div>
-          <h2 className="font-display text-20">Worth a second look</h2>
+          <h2 className="font-display text-15 font-semibold">
+            Worth a second look
+          </h2>
           <p className="text-13 text-ink-muted">
-            Since {since}: {counts.failures} failed sign-ins,{" "}
-            {counts.reveals} portal passwords revealed, {counts.downloads}{" "}
-            documents downloaded, across {counts.staff} people.
+            Since {since}: {counts.failures} failed sign-ins, {counts.reveals}{" "}
+            portal passwords revealed, {counts.downloads} documents downloaded,
+            across {counts.staff} people.
           </p>
         </div>
 
@@ -89,18 +91,18 @@ export default function SecurityBoard({ signals, counts, since, incidents }) {
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div>
-            <h2 className="font-display text-20">Incident log</h2>
+            <h2 className="font-display text-15 font-semibold">Incident log</h2>
             <p className="text-13 text-ink-muted">
-              A laptop left on a train, a password sent over WhatsApp, an
-              email that went to the wrong client. Write it down even when it
-              came to nothing.
+              A laptop left on a train, a password sent over WhatsApp, an email
+              that went to the wrong client. Write it down even when it came to
+              nothing.
             </p>
           </div>
           {!raising && (
             <button
               type="button"
               onClick={() => setRaising(true)}
-              className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white"
+              className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium"
             >
               Record something
             </button>
@@ -130,7 +132,7 @@ export default function SecurityBoard({ signals, counts, since, incidents }) {
                 required
                 maxLength={200}
                 placeholder="Engagement letter for the wrong client attached to an email"
-                className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
               />
             </label>
 
@@ -140,7 +142,7 @@ export default function SecurityBoard({ signals, counts, since, incidents }) {
                 <select
                   name="severity"
                   defaultValue="Noted"
-                  className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                  className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
                 >
                   {SEVERITIES.map((severity) => (
                     <option key={severity} value={severity}>
@@ -154,7 +156,7 @@ export default function SecurityBoard({ signals, counts, since, incidents }) {
                 <input
                   type="date"
                   name="occurredAt"
-                  className="rounded-ledger border-rule bg-paper text-14 h-9 border px-2"
+                  className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
                 />
               </label>
               <label className="flex flex-col gap-1">
@@ -164,7 +166,7 @@ export default function SecurityBoard({ signals, counts, since, incidents }) {
                   name="clientsAffected"
                   min="0"
                   defaultValue="0"
-                  className="rounded-ledger border-rule bg-paper text-14 h-9 w-28 border px-2"
+                  className="rounded-control border-rule bg-paper text-14 h-9 w-28 border px-2"
                 />
               </label>
             </div>
@@ -192,7 +194,7 @@ export default function SecurityBoard({ signals, counts, since, incidents }) {
               <textarea
                 name="detail"
                 rows={4}
-                className="rounded-ledger border-rule bg-paper text-14 border px-2 py-1"
+                className="rounded-control border-rule bg-paper text-14 border px-2 py-1"
               />
             </label>
 
@@ -200,7 +202,7 @@ export default function SecurityBoard({ signals, counts, since, incidents }) {
               <button
                 type="submit"
                 disabled={pending}
-                className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+                className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
               >
                 {pending ? "Recording…" : "Record it"}
               </button>
@@ -244,7 +246,7 @@ export default function SecurityBoard({ signals, counts, since, incidents }) {
                 </p>
               </div>
               <span
-                className={`rounded-ledger text-13 border px-2 py-0.5 ${
+                className={`rounded-chip text-13 border px-2 py-0.5 ${
                   incident.status === "Closed"
                     ? "border-filed bg-filed-wash text-filed"
                     : incident.status === "Contained"
@@ -300,7 +302,7 @@ export default function SecurityBoard({ signals, counts, since, incidents }) {
                       <textarea
                         name="action"
                         rows={3}
-                        className="rounded-ledger border-rule bg-surface text-14 border px-2 py-1"
+                        className="rounded-control border-rule bg-surface text-14 border px-2 py-1"
                       />
                     </label>
                     <label className="flex flex-col gap-1">
@@ -311,7 +313,7 @@ export default function SecurityBoard({ signals, counts, since, incidents }) {
                         name="notified"
                         defaultValue={incident.notified}
                         placeholder="The client, by phone, on 18-10-2026"
-                        className="rounded-ledger border-rule bg-surface text-14 h-9 border px-2"
+                        className="rounded-control border-rule bg-surface text-14 h-9 border px-2"
                       />
                     </label>
                     <label className="flex flex-col gap-1">
@@ -319,7 +321,7 @@ export default function SecurityBoard({ signals, counts, since, incidents }) {
                       <select
                         name="status"
                         defaultValue={incident.status}
-                        className="rounded-ledger border-rule bg-surface text-14 h-9 w-44 border px-2"
+                        className="rounded-control border-rule bg-surface text-14 h-9 w-44 border px-2"
                       >
                         {INCIDENT_STATES.map((state) => (
                           <option key={state} value={state}>
@@ -332,7 +334,7 @@ export default function SecurityBoard({ signals, counts, since, incidents }) {
                       <button
                         type="submit"
                         disabled={pending}
-                        className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+                        className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
                       >
                         Save
                       </button>

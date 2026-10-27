@@ -28,7 +28,7 @@ export default async function ClientChangePasswordPage({ searchParams }) {
     <main className="grid min-h-dvh place-items-center p-6">
       <div className="w-full max-w-sm">
         <p className="text-13 text-ink-muted font-mono">{firm.name}</p>
-        <h1 className="font-display text-28 mt-1 font-semibold">
+        <h1 className="font-display text-24 mt-1 font-bold tracking-tight">
           {forced ? "Set your own password" : "Change your password"}
         </h1>
         <p className="text-14 text-ink-muted mt-2">

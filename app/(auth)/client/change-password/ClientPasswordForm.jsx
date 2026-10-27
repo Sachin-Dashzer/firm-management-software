@@ -28,7 +28,7 @@ export default function ClientPasswordForm({ forced }) {
           required
           autoComplete="current-password"
           autoFocus
-          className="rounded-ledger border-rule bg-paper text-14 h-10 border px-3"
+          className="rounded-control border-rule bg-paper text-14 h-10 border px-3"
         />
       </label>
 
@@ -42,7 +42,7 @@ export default function ClientPasswordForm({ forced }) {
           required
           minLength={10}
           autoComplete="new-password"
-          className="rounded-ledger border-rule bg-paper text-14 h-10 border px-3"
+          className="rounded-control border-rule bg-paper text-14 h-10 border px-3"
         />
       </label>
 
@@ -54,7 +54,7 @@ export default function ClientPasswordForm({ forced }) {
           required
           minLength={10}
           autoComplete="new-password"
-          className="rounded-ledger border-rule bg-paper text-14 h-10 border px-3"
+          className="rounded-control border-rule bg-paper text-14 h-10 border px-3"
         />
       </label>
 
@@ -78,7 +78,7 @@ export default function ClientPasswordForm({ forced }) {
       <button
         type="submit"
         disabled={pending || Boolean(state?.ok)}
-        className="rounded-ledger bg-carbon text-surface text-14 h-10 px-4 disabled:opacity-50"
+        className="rounded-control bg-carbon text-surface text-14 h-10 px-4 disabled:opacity-50"
       >
         {pending ? "Saving…" : "Change password"}
       </button>

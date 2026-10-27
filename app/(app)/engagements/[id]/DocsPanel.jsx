@@ -44,7 +44,9 @@ export default function DocsPanel({ templates, docs, mayGenerate, mayIssue }) {
   return (
     <section className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-display text-20">Documents from templates</h2>
+        <h2 className="font-display text-15 font-semibold">
+          Documents from templates
+        </h2>
         <p className="text-13 text-ink-muted">
           A draft can be regenerated any time. Issuing fixes the wording.
         </p>
@@ -68,7 +70,7 @@ export default function DocsPanel({ templates, docs, mayGenerate, mayIssue }) {
             <select
               value={chosen}
               onChange={(event) => setChosen(event.target.value)}
-              className="rounded-ledger border-rule bg-paper text-14 h-10 border px-2"
+              className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
             >
               <option value="">Choose a template</option>
               {templates.map((template) => (
@@ -83,7 +85,7 @@ export default function DocsPanel({ templates, docs, mayGenerate, mayIssue }) {
             type="button"
             disabled={!chosen || pending}
             onClick={() => run(() => createDraft(docs.engagementId, chosen))}
-            className="rounded-ledger bg-carbon text-14 h-10 px-3 font-medium text-white disabled:opacity-60"
+            className="rounded-control bg-carbon text-14 text-on-carbon h-10 px-3 font-medium disabled:opacity-60"
           >
             Start the draft
           </button>
@@ -112,7 +114,7 @@ export default function DocsPanel({ templates, docs, mayGenerate, mayIssue }) {
                 <div>
                   <span className="text-14 font-medium">{doc.name}</span>{" "}
                   <span
-                    className={`text-12 rounded-ledger border px-1.5 py-0.5 ${
+                    className={`text-12 rounded-chip border px-1.5 py-0.5 ${
                       doc.final
                         ? "border-rule text-ink-muted"
                         : "border-waiting text-waiting"
@@ -130,7 +132,7 @@ export default function DocsPanel({ templates, docs, mayGenerate, mayIssue }) {
                   <button
                     type="button"
                     onClick={() => show(doc.id)}
-                    className="rounded-ledger border-rule text-13 h-8 border px-2"
+                    className="rounded-control border-rule text-13 h-8 border px-2"
                   >
                     {preview?.id === doc.id ? "Hide" : "Read it"}
                   </button>
@@ -138,7 +140,7 @@ export default function DocsPanel({ templates, docs, mayGenerate, mayIssue }) {
                     href={`/docs/${doc.id}/pdf`}
                     target="_blank"
                     rel="noreferrer"
-                    className="rounded-ledger border-rule text-13 flex h-8 items-center border px-2"
+                    className="rounded-control border-rule text-13 flex h-8 items-center border px-2"
                   >
                     PDF
                   </a>
@@ -146,7 +148,7 @@ export default function DocsPanel({ templates, docs, mayGenerate, mayIssue }) {
                       it is sent, and a PDF cannot be */}
                   <a
                     href={`/docs/${doc.id}/docx`}
-                    className="rounded-ledger border-rule text-13 flex h-8 items-center border px-2"
+                    className="rounded-control border-rule text-13 flex h-8 items-center border px-2"
                   >
                     Word
                   </a>
@@ -155,7 +157,7 @@ export default function DocsPanel({ templates, docs, mayGenerate, mayIssue }) {
                       type="button"
                       disabled={pending}
                       onClick={() => run(() => issueDoc(doc.id))}
-                      className="rounded-ledger bg-carbon text-13 h-8 px-2 font-medium text-white disabled:opacity-60"
+                      className="rounded-control bg-carbon text-13 text-on-carbon h-8 px-2 font-medium disabled:opacity-60"
                     >
                       Issue
                     </button>
@@ -165,7 +167,7 @@ export default function DocsPanel({ templates, docs, mayGenerate, mayIssue }) {
                       type="button"
                       disabled={pending}
                       onClick={() => run(() => discardDraft(doc.id))}
-                      className="rounded-ledger border-rule text-13 h-8 border px-2"
+                      className="rounded-control border-rule text-13 h-8 border px-2"
                     >
                       Discard
                     </button>

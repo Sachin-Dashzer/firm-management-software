@@ -114,7 +114,7 @@ async function signIn(page, email) {
 
   await page.getByLabel("6-digit code").fill(code);
   await page.getByRole("button", { name: /Sign in|Turn on 2FA/ }).click();
-  await expect(page).toHaveURL(/\/today$/);
+  await expect(page).toHaveURL(/\/issues$/);
 }
 
 test("the unconfirmed rule is on the strip, and leaves it once confirmed", async ({

@@ -13,6 +13,7 @@ import {
   clientAsks,
 } from "@/lib/engagements/checklist";
 import { createDelegateRequest } from "@/lib/documents/delegate";
+import { recordClientConfirmation } from "@/lib/engagements/gates";
 
 /**
  * What a client can say back about a document we asked for (P3-2).
@@ -174,4 +175,78 @@ export async function askAboutRequest(engagementId, itemId, formData) {
     `Client asks about ${item.name}: ${item.clientReply.question}`,
   );
   return { ok: "Sent. Your CA will come back to you." };
+}
+
+/**
+ * The client confirms the figures before a return is filed (P3-5, P3-6).
+ *
+ * **The third write a portal account can make**, and the only one that
+ * changes what the firm may do next: until this record exists, `blocksFiling`
+ * refuses the filing.
+ *
+ * Narrow in the same way as the other two, with one addition — the account
+ * must have been *given* the right. Uploading a bank statement and agreeing
+ * a tax figure are not the same act, so they are not the same permission:
+ * `mayConfirmFigures` is off until somebody at the firm turns it on for a
+ * named person at the client.
+ *
+ * The evidence line writes itself here. For a confirmation over the phone a
+ * staff member has to say where it can be found; a confirmation made on the
+ * portal *is* the record, and it says so, with the account's own name on it.
+ */
+export async function confirmFigures(engagementId) {
+  const person = await requireClientUser();
+
+  if (!person.mayConfirmFigures) {
+    return {
+      error:
+        "Your login cannot confirm figures. Ask us to give you that, or ask whoever at your office signs these off.",
+    };
+  }
+
+  await connectDB();
+  const engagement = await Engagement.findOne({
+    ...engagementScope(person),
+    _id: engagementId,
+  });
+  if (!engagement) return { error: "That work is not on your file." };
+
+  const actor = {
+    id: person.id,
+    name: person.name,
+    role: "client",
+    kind: "client",
+  };
+
+  const result = recordClientConfirmation(
+    engagement,
+    {
+      who: person.name,
+      when: new Date(),
+      evidence: `Confirmed on the client portal by ${person.name} (${person.email})`,
+    },
+    actor,
+  );
+  if (!result.ok) return { error: result.error };
+
+  await audited(actor, async (session) => {
+    engagement.updatedBy = person.id;
+    await engagement.save({ session });
+    await recordAudit(
+      {
+        action: ACTIONS.update,
+        entityType: "Engagement",
+        entityId: engagement._id,
+        clientId: engagement.clientId,
+        note: `Client confirmed version ${result.version} on the portal: ${person.name}`,
+      },
+      session,
+    );
+  });
+
+  revalidatePath("/client/work");
+  revalidatePath(`/engagements/${engagementId}`);
+  return {
+    ok: `Thank you. We have recorded that you confirmed version ${result.version} of the figures, and we can now file.`,
+  };
 }

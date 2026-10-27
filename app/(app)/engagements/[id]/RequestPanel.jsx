@@ -49,7 +49,7 @@ export default function RequestPanel({
   return (
     <section className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4">
       <div>
-        <h2 className="font-display text-20">Ask the client</h2>
+        <h2 className="font-display text-15 font-semibold">Ask the client</h2>
         <p className="text-13 text-ink-muted">
           {outstanding === 0
             ? "Nothing is outstanding from the client."
@@ -85,7 +85,7 @@ export default function RequestPanel({
               value={link}
               aria-label="Upload link for the client"
               onFocus={(e) => e.target.select()}
-              className="rounded-ledger border-rule bg-paper text-13 h-9 min-w-0 flex-1 border px-2 font-mono"
+              className="rounded-control border-rule bg-paper text-13 h-9 min-w-0 flex-1 border px-2 font-mono"
             />
             <button
               type="button"
@@ -97,7 +97,7 @@ export default function RequestPanel({
                   setCopied(false);
                 }
               }}
-              className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white"
+              className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium"
             >
               {copied ? "Copied" : "Copy"}
             </button>
@@ -120,7 +120,7 @@ export default function RequestPanel({
               onChange={(e) => setNote(e.target.value)}
               rows={2}
               placeholder="We need these to file October's return by the 20th."
-              className="rounded-ledger border-rule bg-paper text-14 border px-2 py-1"
+              className="rounded-control border-rule bg-paper text-14 border px-2 py-1"
             />
           </label>
           <div className="flex flex-wrap gap-2">
@@ -128,7 +128,7 @@ export default function RequestPanel({
               type="button"
               disabled={pending}
               onClick={() => make({ email: true })}
-              className="rounded-ledger bg-carbon text-14 h-9 px-3 font-medium text-white disabled:opacity-60"
+              className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
             >
               {pending ? "Working…" : "Email the client a link"}
             </button>
@@ -136,7 +136,7 @@ export default function RequestPanel({
               type="button"
               disabled={pending}
               onClick={() => make()}
-              className="rounded-ledger border-rule text-14 h-9 border px-3 font-medium disabled:opacity-60"
+              className="rounded-control border-rule text-14 h-9 border px-3 font-medium disabled:opacity-60"
             >
               Just make a link
             </button>

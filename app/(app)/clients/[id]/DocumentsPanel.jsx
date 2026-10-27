@@ -30,7 +30,7 @@ export default function DocumentsPanel({
     <div className="flex flex-col gap-6">
       <section className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4">
         <div>
-          <h2 className="font-display text-20">Permanent file</h2>
+          <h2 className="font-display text-15 font-semibold">Permanent file</h2>
           <p className="text-13 text-ink-muted">
             Documents that do not change year to year. Any engagement can use
             these without asking the client again.
@@ -65,7 +65,7 @@ export default function DocumentsPanel({
           key={group.id}
           className="rounded-ledger border-rule bg-surface flex flex-col gap-2 border p-4"
         >
-          <h2 className="font-display text-20">{group.title}</h2>
+          <h2 className="font-display text-15 font-semibold">{group.title}</h2>
           <p className="text-13 text-ink-muted font-mono">{group.code}</p>
           <DocumentList
             documents={group.documents}

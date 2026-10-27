@@ -50,7 +50,7 @@ export default async function PracticeBookPage({ params, searchParams }) {
   const definition = BOOKS[book];
 
   const actor = await requireUser();
-  if (!can(actor, "view", "practice")) redirect("/today");
+  if (!can(actor, "view", "practice")) redirect("/issues");
 
   const query = (await searchParams) ?? {};
   const thisYear = financialYearStart(new Date());
@@ -156,7 +156,7 @@ export default async function PracticeBookPage({ params, searchParams }) {
     <div className="mx-auto flex max-w-[1400px] flex-col gap-5 p-4 md:p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="font-display text-28 font-semibold">
+          <h1 className="font-display text-24 font-bold tracking-tight">
             {definition.title}
           </h1>
           <p className="text-13 text-ink-muted max-w-[70ch]">
@@ -247,7 +247,7 @@ export default async function PracticeBookPage({ params, searchParams }) {
             : ` A job appears here as soon as a ${definition.categories[0].toLowerCase()} service is set up for a client.`}
         </p>
       ) : (
-        <div className="rounded-ledger border-rule overflow-x-auto border">
+        <div className="rounded-table border-rule overflow-x-auto border">
           <table className="text-14 w-full border-collapse">
             <caption className="sr-only">
               {definition.title}, {financialYearLabel(istDate(fyStart, 6, 1))}
