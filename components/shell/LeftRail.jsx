@@ -1,14 +1,7 @@
-
 "use client";
 
 import Link from "next/link";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   CaretDown,
@@ -36,7 +29,7 @@ export default function LeftRail({
 
   const current = useMemo(
     () => activeIn(menu, pathname, query ? `?${query}` : ""),
-    [menu, pathname, query]
+    [menu, pathname, query],
   );
 
   const [open, setOpen] = useState(current?._group_ ?? null);
@@ -58,10 +51,7 @@ export default function LeftRail({
 
   useEffect(() => {
     try {
-      localStorage.setItem(
-        "phmg-rail",
-        compact ? "compact" : "wide"
-      );
+      localStorage.setItem("phmg-rail", compact ? "compact" : "wide");
     } catch {
       // Storage may be unavailable.
     }
@@ -116,9 +106,7 @@ export default function LeftRail({
         items: (group.items || []).filter(
           (item) =>
             typeof item !== "string" &&
-            `${item.label} ${group.label}`
-              .toLowerCase()
-              .includes(term)
+            `${item.label} ${group.label}`.toLowerCase().includes(term),
         ),
       }))
       .filter((group) => group.items.length > 0);
@@ -130,26 +118,23 @@ export default function LeftRail({
   }, []);
 
   const renderSidebar = (isCompact) => (
-    <div className="flex h-full min-h-0 flex-col text-slate-700">
+    <div className="text-ink-muted flex h-full min-h-0 flex-col">
       {/* Brand */}
       <div
-        className={`flex h-[62px] shrink-0 items-center border-b border-slate-200 px-3 ${
+        className={`border-rule flex h-[62px] shrink-0 items-center border-b px-3 ${
           isCompact ? "justify-center" : "gap-3"
         }`}
       >
-        <div
-          className="grid size-10 shrink-0 place-items-center rounded-xl
-            bg-slate-950 text-lg font-extrabold text-white shadow-sm"
-        >
+        <div className="bg-plate text-plate-ink grid size-10 shrink-0 place-items-center rounded-xl text-lg font-extrabold shadow-sm">
           P
         </div>
 
         {!isCompact && (
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-bold tracking-tight text-slate-950">
+            <p className="text-ink truncate text-sm font-bold tracking-tight">
               {firmName || "PHMG & Associates"}
             </p>
-            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+            <p className="text-faint mt-0.5 text-[10px] font-semibold tracking-[0.16em] uppercase">
               Firm management
             </p>
           </div>
@@ -160,236 +145,210 @@ export default function LeftRail({
           onClick={() => setCompact(!isCompact)}
           title={isCompact ? "Expand sidebar" : "Collapse sidebar"}
           aria-label={isCompact ? "Expand sidebar" : "Collapse sidebar"}
-          className="hidden size-8 shrink-0 items-center justify-center
-            rounded-lg text-slate-500 transition hover:bg-slate-100
-            hover:text-slate-900 md:flex"
+          className="text-ink-muted hover:bg-carbon-wash hover:text-ink hidden size-8 shrink-0 items-center justify-center rounded-lg transition md:flex"
         >
           <SidebarSimple size={19} />
         </button>
       </div>
 
-      {/* Search */}
-      {!isCompact && (
-        <div className="shrink-0 px-3 pb-3 pt-4">
-          <div className="relative">
-            <MagnifyingGlass
-              size={17}
-              className="pointer-events-none absolute left-3 top-1/2
-                -translate-y-1/2 text-slate-400"
-            />
+      {/*
+        One landmark over the search and the list together (P3-29 repair).
 
-            <input
-              ref={searchRef}
-              value={find}
-              onChange={(event) => setFind(event.target.value)}
-              placeholder="Search navigation..."
-              aria-label="Search navigation"
-              className="h-10 w-full rounded-xl border border-slate-200
-                bg-slate-50 pl-9 pr-9 text-sm text-slate-800 outline-none
-                transition placeholder:text-slate-400
-                focus:border-slate-400 focus:bg-white
-                focus:ring-4 focus:ring-slate-100"
-            />
+        The box that filters the menu belongs inside the menu: a screen
+        reader jumping to the navigation lands on the search, and the
+        suite's drawer test tells the two rails apart by which one holds
+        it. The redesign had the input outside the `nav`, so the drawer had
+        no way to be identified and the filter had no landmark at all.
+      */}
+      <nav aria-label="Main" className="flex min-h-0 flex-1 flex-col">
+        {/* Search */}
+        {!isCompact && (
+          <div className="shrink-0 px-3 pt-4 pb-3">
+            <div className="relative">
+              <MagnifyingGlass
+                size={17}
+                className="text-faint pointer-events-none absolute top-1/2 left-3 -translate-y-1/2"
+              />
 
-            {find && (
-              <button
-                type="button"
-                onClick={() => {
-                  setFind("");
-                  searchRef.current?.focus();
-                }}
-                aria-label="Clear search"
-                className="absolute right-2 top-1/2 -translate-y-1/2
-                  rounded-md p-1 text-slate-400 hover:text-slate-800"
-              >
-                <X size={15} />
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+              <input
+                ref={searchRef}
+                value={find}
+                onChange={(event) => setFind(event.target.value)}
+                placeholder="Find in menu…"
+                aria-label="Find in menu"
+                className="border-rule bg-sunk text-ink placeholder:text-faint focus:border-carbon focus:bg-surface focus:ring-carbon-soft h-10 w-full rounded-xl border pr-9 pl-9 text-sm transition outline-none focus:ring-4"
+              />
 
-      {/* Navigation */}
-      <nav
-        aria-label="Main navigation"
-        className="min-h-0 flex-1 overflow-y-auto px-2 pb-3
-          [scrollbar-color:#cbd5e1_transparent]
-          [scrollbar-width:thin]"
-      >
-        {shown.length === 0 ? (
-          <div className="px-3 py-8 text-center">
-            <MagnifyingGlass
-              size={25}
-              className="mx-auto mb-2 text-slate-300"
-            />
-            <p className="text-sm font-medium text-slate-600">
-              No results found
-            </p>
-            <p className="mt-1 text-xs text-slate-400">
-              Try another search.
-            </p>
-          </div>
-        ) : (
-          <ul className="space-y-1">
-            {shown.map((group) => {
-              const isOpen =
-                Boolean(find) || open === group.id;
-
-              const isCurrentGroup =
-                current?._group_ === group.id;
-
-              const groupCount = group.count
-                ? counts[group.count] || 0
-                : 0;
-
-              const isAdminGroup = ADMIN_GROUPS.has(group.id);
-
-              return (
-                <li
-                  key={group.id}
-                  className={
-                    isAdminGroup
-                      ? "mt-3 border-t border-slate-200 pt-3"
-                      : ""
-                  }
+              {find && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFind("");
+                    searchRef.current?.focus();
+                  }}
+                  aria-label="Clear search"
+                  className="text-faint hover:text-ink absolute top-1/2 right-2 -translate-y-1/2 rounded-md p-1"
                 >
-                  <button
-                    type="button"
-                    title={isCompact ? group.label : undefined}
-                    aria-expanded={isOpen}
-                    onClick={() => {
-                      if (isCompact) {
-                        setCompact(false);
-                        setOpen(group.id);
-                        return;
-                      }
+                  <X size={15} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
-                      setOpen(isOpen && !find ? null : group.id);
-                    }}
-                    className={`group flex min-h-10 w-full items-center
-                      rounded-xl px-3 py-2 text-left transition-all
-                      duration-150 ${
+        {/* The groups themselves */}
+        <div className="min-h-0 flex-1 [scrollbar-width:thin] [scrollbar-color:var(--rule)_transparent] overflow-y-auto px-2 pb-3">
+          {shown.length === 0 ? (
+            <div className="px-3 py-8 text-center">
+              <MagnifyingGlass size={25} className="text-faint mx-auto mb-2" />
+              <p className="text-14 text-ink-muted font-medium">
+                No menu item matches.
+              </p>
+              <p className="text-12 text-faint mt-1">
+                Try a shorter word, or clear the box.
+              </p>
+            </div>
+          ) : (
+            <ul className="space-y-1">
+              {shown.map((group) => {
+                const isOpen = Boolean(find) || open === group.id;
+
+                const isCurrentGroup = current?._group_ === group.id;
+
+                const groupCount = group.count ? counts[group.count] || 0 : 0;
+
+                const isAdminGroup = ADMIN_GROUPS.has(group.id);
+
+                return (
+                  <li
+                    key={group.id}
+                    className={
+                      isAdminGroup ? "border-rule mt-3 border-t pt-3" : ""
+                    }
+                  >
+                    <button
+                      type="button"
+                      title={isCompact ? group.label : undefined}
+                      aria-expanded={isOpen}
+                      onClick={() => {
+                        if (isCompact) {
+                          setCompact(false);
+                          setOpen(group.id);
+                          return;
+                        }
+
+                        setOpen(isOpen && !find ? null : group.id);
+                      }}
+                      className={`group flex min-h-10 w-full items-center rounded-xl px-3 py-2 text-left transition-all duration-150 ${
                         isCompact ? "justify-center px-0" : "gap-3"
                       } ${
                         isCurrentGroup
-                          ? "bg-slate-100 text-slate-950"
-                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                          ? "bg-carbon-wash text-ink"
+                          : "text-ink-muted hover:bg-carbon-wash hover:text-ink"
                       }`}
-                  >
-                    <span className="relative grid size-5 shrink-0 place-items-center">
-                      <NavIcon
-                        name={group.icon}
-                        className={
-                          isCurrentGroup
-                            ? "text-slate-950"
-                            : "text-slate-500 group-hover:text-slate-800"
-                        }
-                      />
+                    >
+                      <span className="relative grid size-5 shrink-0 place-items-center">
+                        <NavIcon
+                          name={group.icon}
+                          className={
+                            isCurrentGroup
+                              ? "text-ink"
+                              : "text-ink-muted group-hover:text-ink"
+                          }
+                        />
 
-                      {isCompact && groupCount > 0 && (
-                        <span
-                          className={`absolute -right-1 -top-1 size-2
-                            rounded-full ring-2 ring-white ${
+                        {isCompact && groupCount > 0 && (
+                          <span
+                            className={`absolute -top-1 -right-1 size-2 rounded-full ring-2 ring-white ${
                               group.tone === "bad"
                                 ? "bg-rose-500"
                                 : "bg-amber-500"
                             }`}
-                        />
-                      )}
-                    </span>
-
-                    {!isCompact && (
-                      <>
-                        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
-                          {group.label}
-                        </span>
-
-                        {!isOpen && groupCount > 0 && (
-                          <Badge
-                            value={groupCount}
-                            tone={group.tone}
                           />
                         )}
+                      </span>
 
-                        <CaretDown
-                          size={14}
-                          className={`shrink-0 text-slate-400
-                            transition-transform duration-200 ${
+                      {!isCompact && (
+                        <>
+                          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
+                            {group.label}
+                          </span>
+
+                          {!isOpen && groupCount > 0 && (
+                            <Badge value={groupCount} tone={group.tone} />
+                          )}
+
+                          <CaretDown
+                            size={14}
+                            className={`text-faint shrink-0 transition-transform duration-200 ${
                               isOpen ? "rotate-180" : ""
                             }`}
-                        />
-                      </>
-                    )}
-                  </button>
+                          />
+                        </>
+                      )}
+                    </button>
 
-                  {/* Group links */}
-                  {!isCompact && isOpen && (
-                    <ul className="ml-[21px] mt-1 space-y-0.5
-                      border-l border-slate-200 pb-1 pl-3">
-                      {group.items.map((item, index) => {
-                        if (typeof item === "string") {
+                    {/* Group links */}
+                    {!isCompact && isOpen && (
+                      <ul className="border-rule mt-1 ml-[21px] space-y-0.5 border-l pb-1 pl-3">
+                        {group.items.map((item, index) => {
+                          if (typeof item === "string") {
+                            return (
+                              <li
+                                key={`${group.id}-label-${index}`}
+                                className="text-faint px-2 pt-3 pb-1 text-[10px] font-bold tracking-[0.12em] uppercase"
+                              >
+                                {item}
+                              </li>
+                            );
+                          }
+
+                          const active = current?._href_ === item.href;
+
+                          const itemCount = item.count
+                            ? counts[item.count] || 0
+                            : 0;
+
                           return (
-                            <li
-                              key={`${group.id}-label-${index}`}
-                              className="px-2 pb-1 pt-3 text-[10px]
-                                font-bold uppercase tracking-[0.12em]
-                                text-slate-400"
-                            >
-                              {item}
+                            <li key={item.href}>
+                              <Link
+                                href={item.href}
+                                onClick={navigate}
+                                aria-current={active ? "page" : undefined}
+                                className={`relative flex min-h-9 items-center gap-2 rounded-lg px-3 py-2 text-[12.5px] transition-all duration-150 ${
+                                  active
+                                    ? "bg-carbon text-on-carbon font-semibold shadow-sm"
+                                    : "text-ink-muted hover:bg-carbon-wash hover:text-ink"
+                                }`}
+                              >
+                                <span className="min-w-0 flex-1 truncate">
+                                  {item.label}
+                                </span>
+
+                                {itemCount > 0 && (
+                                  <Badge
+                                    value={itemCount}
+                                    tone={item.tone}
+                                    active={active}
+                                  />
+                                )}
+                              </Link>
                             </li>
                           );
-                        }
-
-                        const active =
-                          current?._href_ === item.href;
-
-                        const itemCount = item.count
-                          ? counts[item.count] || 0
-                          : 0;
-
-                        return (
-                          <li key={item.href}>
-                            <Link
-                              href={item.href}
-                              onClick={navigate}
-                              aria-current={
-                                active ? "page" : undefined
-                              }
-                              className={`relative flex min-h-9
-                                items-center gap-2 rounded-lg px-3 py-2
-                                text-[12.5px] transition-all duration-150 ${
-                                  active
-                                    ? "bg-slate-950 font-semibold text-white shadow-sm"
-                                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
-                                }`}
-                            >
-                              <span className="min-w-0 flex-1 truncate">
-                                {item.label}
-                              </span>
-
-                              {itemCount > 0 && (
-                                <Badge
-                                  value={itemCount}
-                                  tone={item.tone}
-                                  active={active}
-                                />
-                              )}
-                            </Link>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
+                        })}
+                      </ul>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </nav>
 
       {/* Signed-in user */}
       <div
-        className={`shrink-0 border-t border-slate-200 bg-white p-3 ${
+        className={`border-rule bg-surface shrink-0 border-t p-3 ${
           isCompact ? "flex justify-center" : ""
         }`}
       >
@@ -400,19 +359,17 @@ export default function LeftRail({
         >
           <div
             title={isCompact ? `${userName} — ${roleLabel}` : undefined}
-            className="grid size-10 shrink-0 place-items-center
-              rounded-xl bg-indigo-50 text-xs font-bold
-              text-indigo-700 ring-1 ring-indigo-100"
+            className="grid size-10 shrink-0 place-items-center rounded-xl bg-indigo-50 text-xs font-bold text-indigo-700 ring-1 ring-indigo-100"
           >
             {initials(userName)}
           </div>
 
           {!isCompact && (
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-bold text-slate-900">
+              <p className="text-ink truncate text-[13px] font-bold">
                 {userName || "User"}
               </p>
-              <p className="mt-0.5 truncate text-[11px] text-slate-500">
+              <p className="text-ink-muted mt-0.5 truncate text-[11px]">
                 {roleLabel || "Team member"}
               </p>
             </div>
@@ -427,11 +384,9 @@ export default function LeftRail({
       {/* Desktop sidebar */}
       <aside
         data-compact={compact ? "yes" : "no"}
-        className={`hidden h-dvh shrink-0 flex-col overflow-hidden
-          border-r border-slate-200 bg-white transition-[width]
-          duration-200 md:sticky md:top-0 md:flex ${
-            compact ? "w-[76px]" : "w-[272px]"
-          }`}
+        className={`border-rule bg-surface hidden h-dvh shrink-0 flex-col overflow-hidden border-r transition-[width] duration-200 md:sticky md:top-0 md:flex ${
+          compact ? "w-[76px]" : "w-[272px]"
+        }`}
       >
         {renderSidebar(compact)}
       </aside>
@@ -443,15 +398,12 @@ export default function LeftRail({
             type="button"
             aria-label="Close navigation"
             onClick={() => setDrawer(false)}
-            className="fixed inset-0 z-40 bg-slate-950/40
-              backdrop-blur-[2px] md:hidden"
+            className="bg-ink/40 fixed inset-0 z-40 backdrop-blur-[2px] md:hidden"
           />
 
           <aside
             ref={drawerRef}
-            className="fixed inset-y-0 left-0 z-50 flex
-              w-[288px] max-w-[85vw] flex-col overflow-hidden
-              border-r border-slate-200 bg-white shadow-2xl md:hidden"
+            className="border-rule bg-surface fixed inset-y-0 left-0 z-50 flex w-[288px] max-w-[85vw] flex-col overflow-hidden border-r shadow-2xl md:hidden"
           >
             <div className="flex min-h-0 flex-1 flex-col">
               {renderSidebar(false)}
@@ -461,9 +413,7 @@ export default function LeftRail({
               type="button"
               onClick={() => setDrawer(false)}
               aria-label="Close menu"
-              className="absolute right-3 top-4 grid size-8
-                place-items-center rounded-lg bg-white
-                text-slate-500 hover:bg-slate-100"
+              className="bg-surface text-ink-muted hover:bg-carbon-wash absolute top-4 right-3 grid size-8 place-items-center rounded-lg"
             >
               <X size={18} />
             </button>
@@ -478,18 +428,16 @@ function Badge({ value, tone = "", active = false }) {
   if (!value) return null;
 
   const styles = active
-    ? "bg-white/15 text-white"
+    ? "bg-on-carbon/20 text-on-carbon"
     : tone === "bad"
       ? "bg-rose-50 text-rose-600"
       : tone === "warn"
         ? "bg-amber-50 text-amber-700"
-        : "bg-slate-100 text-slate-600";
+        : "bg-sunk text-ink-muted";
 
   return (
     <span
-      className={`inline-flex min-w-5 shrink-0 items-center
-        justify-center rounded-md px-1.5 py-0.5 text-[10px]
-        font-bold tabular-nums ${styles}`}
+      className={`inline-flex min-w-5 shrink-0 items-center justify-center rounded-md px-1.5 py-0.5 text-[10px] font-bold tabular-nums ${styles}`}
     >
       {value}
     </span>
@@ -497,17 +445,11 @@ function Badge({ value, tone = "", active = false }) {
 }
 
 function initials(name) {
-  const parts = String(name)
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
+  const parts = String(name).trim().split(/\s+/).filter(Boolean);
 
   if (!parts.length) return "?";
 
-  return (
-    parts[0][0] +
-    (parts.length > 1 ? parts[parts.length - 1][0] : "")
-  )
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : ""))
     .toUpperCase()
     .slice(0, 2);
 }

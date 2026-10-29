@@ -66,6 +66,32 @@ const firmSettingsSchema = new mongoose.Schema(
       default: () => ({}),
     },
 
+    /**
+     * The firm's own words (P3-29).
+     *
+     * Labels only: no field, status, URL or audit entry is renamed, so a
+     * vocabulary cannot break a query and clearing it puts every word
+     * back. Blank means the application's own word, and singular and
+     * plural are separate because a firm that renames "client" to "party"
+     * does not want "partys". The list lives in `lib/firm/words.js`.
+     */
+    vocabulary: {
+      type: new mongoose.Schema(
+        {
+          client: { type: String, trim: true, default: "", maxlength: 40 },
+          clients: { type: String, trim: true, default: "", maxlength: 40 },
+          job: { type: String, trim: true, default: "", maxlength: 40 },
+          jobs: { type: String, trim: true, default: "", maxlength: 40 },
+          matter: { type: String, trim: true, default: "", maxlength: 40 },
+          matters: { type: String, trim: true, default: "", maxlength: 40 },
+          invoice: { type: String, trim: true, default: "", maxlength: 40 },
+          invoices: { type: String, trim: true, default: "", maxlength: 40 },
+        },
+        { _id: false },
+      ),
+      default: () => ({}),
+    },
+
     automationPaused: { type: Boolean, default: false },
     automationPausedBy: { type: String, default: null },
     automationPausedAt: { type: Date, default: null },

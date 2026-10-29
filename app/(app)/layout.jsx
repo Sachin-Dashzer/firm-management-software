@@ -9,7 +9,7 @@ import CommandBar from "@/components/shell/CommandBar";
 import { AREAS, can, ROLE_LABELS } from "@/lib/permissions";
 import { menuFor } from "@/lib/nav/tree";
 import { navCounts } from "@/lib/nav/counts";
-import { firmModules, firmName } from "@/lib/firm/settings";
+import { firmModules, firmName, firmWords } from "@/lib/firm/settings";
 
 /**
  * Every page in here depends on who is signed in, so none of them may be
@@ -40,22 +40,27 @@ export default async function AppLayout({ children }) {
 
   await connectDB();
   // a user only ever sees their own branches in the switcher (spec section 2)
-  const [branches, unreadCount, counts, modules, name] = await Promise.all([
-    Branch.find(user.role === "partner" ? {} : { _id: { $in: user.branchIds } })
-      .sort({ code: 1 })
-      .lean(),
-    Notification.countDocuments({ userId: user.id, readAt: null }),
-    /**
-     * Every badge on the menu, in one call (P3-22a). Each number comes from
-     * the same helper its page uses, so a badge cannot disagree with the
-     * rows the click shows — which is the only reason to have badges at all.
-     */
-    navCounts(user),
-    firmModules(),
-    firmName(),
-  ]);
+  const [branches, unreadCount, counts, modules, name, words] =
+    await Promise.all([
+      Branch.find(
+        user.role === "partner" ? {} : { _id: { $in: user.branchIds } },
+      )
+        .sort({ code: 1 })
+        .lean(),
+      Notification.countDocuments({ userId: user.id, readAt: null }),
+      /**
+       * Every badge on the menu, in one call (P3-22a). Each number comes from
+       * the same helper its page uses, so a badge cannot disagree with the
+       * rows the click shows — which is the only reason to have badges at all.
+       */
+      navCounts(user),
+      firmModules(),
+      firmName(),
+      /* the firm’s own words for the menu (P3-29); empty unless set */
+      firmWords(),
+    ]);
 
-  const menu = menuFor(user, modules);
+  const menu = menuFor(user, modules, words);
 
   // what this person may even be offered in the command bar; the server
   // checks again when they get there

@@ -153,6 +153,8 @@ whose cost grows every week it waits.
 
 | Date | Decision | By |
 | --- | --- | --- |
+| 29-10-2026 | D90: **the left rail reads the design tokens again, and the menu landmark is back.** The 28-10 panel rewrite had hardcoded Tailwind slate and white into `LeftRail.jsx`, `CommandBar.jsx` and `TodoLines.jsx` — so the three loudest pieces of chrome ignored the token layer entirely and stayed white in dark mode, which contradicts what P3-25 reported. The same rewrite renamed the navigation landmark to "Main navigation", renamed the filter box to "Search navigation" and moved it outside the `nav`, which broke six of `nav.spec.js` silently: the browser suite takes hours and had not been run since. Repaired by mapping every slate class onto its token, restoring the landmark name and the label, and putting the filter box back inside the landmark, where a screen reader and the drawer test both expect it. | Agent |
+| 29-10-2026 | D89: **the firm can rename four nouns, and nothing else.** Client, job, matter and invoice, singular and plural separately — English pluralisation is the trap this feature is built around, so "party" and "parties" are both given rather than one guessed from the other, and giving one without the other is refused. The substitution is applied **in one place, on the way out of `menuFor`**, after the permission and module filtering: `area`, `module` and `href` are what the router and `can()` read, so a renamed label cannot reach any of them, and clearing the boxes puts every word back. Page headings and status values keep the application's own words, and the screen says so — they are written into each of ninety screens rather than produced from one list, so renaming them is a job of its own and not a setting. Custom fields and portal branding stay unbuilt with the reason on the screen: a custom field is a change to the data model, and a second palette means a second set of contrast checks on every screen a client sees. | Agent |
 | 29-10-2026 | D88: **time is stored in minutes, and chargeable means it has a job on it.** Minutes rather than decimal hours for the same reason money is paise (rule 5): 2.5 hours stored as a float adds up wrong often enough to matter, and a timesheet's whole purpose is that the week's total is the sum of its lines. Chargeable is **derived from `engagementId` on save, never offered as a choice** — a person who could tick "not chargeable" on a GSTR-1 could flatter their own utilisation, and the figure would then measure nothing. A line with no job must say what it was instead, so an unexplained hour cannot be saved. **A running timer is a row of the same collection** with `startedAt` set and `minutes` still zero, rather than a second collection holding one row per person, which would be the same thing with twice the code and a way for the two to disagree. | Agent |
 | 29-10-2026 | D87: **partner and CA may edit time entries, not only read them.** The matrix had both at `view`, which meant the two roles doing most of the firm's chargeable work could not record their own hours — the timesheet would have been a report on everybody except the people who need it most. A CA reaches their own reports' sheets as well, because the commonest correction to a timesheet is a senior fixing a line an article put on the wrong job; every such correction is audited. **Accounts stays at `none`**: they bill the firm's work, they do not do it, so the Timesheet item does not appear in their menu. | Agent |
 | 29-10-2026 | D86: **the strip tiles get icons too**, at the owner's instruction after the agent argued against it. The concern was that six tinted squares in one row is the grid of identical tiles rule 10 is actually about; built at 28px rather than the money tiles' 36px, which keeps the row from becoming the loudest thing on the screen. The icon is chosen **by label, in `Tiles.jsx`**, because the four places that build these tiles do not agree on a shape — only `headlines.js` carries a `key` — and threading a React component through four server functions to avoid a lookup table would put a presentation decision inside the counting code. `Circle` is the fallback, so a label added later renders a neutral mark rather than a hole in the row. | Owner, reaffirmed |
@@ -3201,3 +3203,81 @@ default and there will not be one.
   not yet built.** Timesheet, utilisation, realisation and profitability
   all exist as panels on this screen; none of them is in
   `lib/reports/standard.js`, so none exports to Excel or PDF yet.
+
+## What P3-29 built — the firm's own words, and the rail repaired (29-10-2026)
+
+The second of the five screens from `docs/GAP-SCREENS.md`. The prototype's
+Customise screen has five tabs; **three of them already existed here, and
+deeper**, so this screen points at them instead of building a second way
+to do the same thing.
+
+**Service templates were already done.** `/settings/services/[id]` edits
+the steps and the checklist with versioning the prototype has no idea
+about — an open job keeps the version it started on, so editing a template
+never rewrites work in progress. The only gap was that nothing linked to
+it from here. Same for quick setup: `/settings/setup` is the real thing
+rather than six boxes with the answers already typed in.
+
+**What had nowhere to go was the vocabulary**, and that is what was built.
+Four nouns — client, job, matter, invoice — each with its singular and its
+plural given separately, because a firm that renames "client" to "party"
+does not want "partys". One of the pair without the other is refused: it
+would rename half the menu and read as a bug.
+
+**It renames labels and nothing else.** The substitution runs in one
+place, on the way out of `menuFor`, after the permission and module
+filtering — `area`, `module` and `href` are what `can()` and the router
+read, so a renamed word cannot reach any of them. The test asserts exactly
+that: rename everything, and every `href` and every `area` is unchanged.
+Clearing the boxes puts every word back.
+
+**The preview is the feature.** A settings screen that takes eight words
+and shows nothing is a screen nobody trusts, so the real menu labels are
+rendered through the real substitution as the boxes are typed in — the
+same function that will run on the server.
+
+**Page headings and statuses keep the application's own words**, and the
+screen says so rather than letting the owner find out. They are written
+into each of ninety screens rather than produced from one list.
+
+**Custom fields and portal branding stay unbuilt, with the reason on the
+screen.** A custom field has to be stored, indexed, exported, audited,
+shown on a form and validated, and "pick from a list" needs the list
+stored too: it is a change to the data model and needs the owner's
+decision. A second palette for the portal means a second set of contrast
+checks on every screen a client sees, and a brand colour that does not
+clear 4.5:1 against white.
+
+**The left rail was repaired at the same time (D90), and this part is a
+correction to what P3-25 reported.** The 28-10 panel rewrite had
+hardcoded Tailwind `slate` and `white` into `LeftRail.jsx`,
+`CommandBar.jsx` and `TodoLines.jsx`. The rail, the command bar and the
+to-do lines therefore ignored the token layer completely and stayed white
+in dark mode — so "light and dark across the whole CRM" was not true of
+the three loudest pieces of chrome. Every class is now its token. The
+same rewrite had also renamed the navigation landmark and the filter box
+and moved the box outside the `nav`, which broke six tests in
+`nav.spec.js` without anybody noticing, because the browser suite takes
+hours and had not been run since.
+
+**Checks:** lint clean, 1506 + 12 Vitest tests pass (contrast included),
+`next build` succeeds, `nav.spec.js` 6 of 6 and the new `words.spec.js`
+pass at laptop width.
+
+**Left over**
+
+- **`settings.spec.js:109` fails, and it is not this step's doing** —
+  verified by stashing everything and running it against the previous
+  commit. It confirms every due-date rule it can see and then expects the
+  attention strip to be clear; one rule stays unconfirmed, which is the
+  firm's own long-standing outstanding rule. Confirming it is the owner's
+  job (rule 8) and not a test's, so the test is asking for the wrong
+  thing, not the application.
+- **The vocabulary does not reach the client portal.** A client who has
+  been renamed a "party" still reads "client" on their own screens. The
+  portal has its own small vocabulary and the same argument about ninety
+  headings applies.
+- **Nothing warns when a renamed word collides.** A firm that renames
+  "job" to "matter" gets two menu groups called the same thing. Four
+  nouns and a preview on the screen seem enough warning for a five-person
+  firm.
