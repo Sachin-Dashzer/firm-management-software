@@ -69,7 +69,7 @@ export default function ClientCompliance({
 
       {sections.map((section) => (
         <section key={section.recurrence} className="flex flex-col gap-2">
-          <h3 className="text-12 text-ink-muted font-medium tracking-wide uppercase">
+          <h3 className="text-12 text-ink-muted font-medium">
             {section.label}
           </h3>
           <StatusGrid

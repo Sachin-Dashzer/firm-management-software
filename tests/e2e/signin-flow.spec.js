@@ -41,7 +41,7 @@ test.beforeAll(async () => {
           passwordHash: await hashPassword(PASSWORD),
         },
       ],
-      { session },
+      { session, ordered: true },
     );
   });
 });
@@ -85,15 +85,11 @@ test("a wrong password says nothing useful to an attacker", async ({
   await page.getByLabel("Password").fill("definitely-not-the-password");
   await page.getByRole("button", { name: "Continue" }).click();
 
-  await expect(alertBox(page)).toHaveText(
-    "Email or password is not correct.",
-  );
+  await expect(alertBox(page)).toHaveText("Email or password is not correct.");
   // an unknown email gives exactly the same answer
   await page.getByLabel("Email").fill("nobody@phmgindia.test");
   await page.getByRole("button", { name: "Continue" }).click();
-  await expect(alertBox(page)).toHaveText(
-    "Email or password is not correct.",
-  );
+  await expect(alertBox(page)).toHaveText("Email or password is not correct.");
 });
 
 test("first sign-in sets up 2FA, then lands in the app", async ({ page }) => {

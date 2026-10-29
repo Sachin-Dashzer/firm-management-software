@@ -46,6 +46,26 @@ const firmSettingsSchema = new mongoose.Schema(
      * the sending without switching rules off one by one, and without
      * anybody editing an environment variable on Vercel.
      */
+    /**
+     * Which modules are switched on (P3-22a). Absent means on, so a
+     * database written before this field existed behaves as it always did.
+     * Switching one off hides its menu group and makes its pages answer
+     * "switched off" on the server — it never deletes anything.
+     */
+    modules: {
+      type: new mongoose.Schema(
+        {
+          audit: { type: Boolean, default: true },
+          notices: { type: Boolean, default: true },
+          lab: { type: Boolean, default: true },
+          learning: { type: Boolean, default: true },
+          cx: { type: Boolean, default: true },
+        },
+        { _id: false },
+      ),
+      default: () => ({}),
+    },
+
     automationPaused: { type: Boolean, default: false },
     automationPausedBy: { type: String, default: null },
     automationPausedAt: { type: Date, default: null },

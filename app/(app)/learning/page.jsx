@@ -19,8 +19,15 @@ export const dynamic = "force-dynamic";
  * Nothing here is seeded. Every word on this screen was typed by somebody
  * at the firm.
  */
-export default async function LearningPage() {
+export default async function LearningPage({ searchParams }) {
   const actor = await requireUser();
+  const params = (await searchParams) ?? {};
+  /**
+   * Two menu items, one page (P3-22a): "How we work here" is the per-screen
+   * procedures and "Learning library" is the playbooks. Both sections stay
+   * on the page — the tab decides which one is first and which is open.
+   */
+  const tab = params.tab === "sops" ? "sops" : "playbooks";
 
   await connectDB();
   const rows = await Procedure.find({}).sort({ updatedAt: -1 }).lean();
@@ -41,11 +48,10 @@ export default async function LearningPage() {
           How we do things
         </h1>
         <p className="text-13 text-ink-muted max-w-[70ch]">
-          The firm&rsquo;s own procedures, beside the work they are about —
-          the <strong>?</strong> in the top bar opens the one for whatever
-          screen you are on. Nothing here is written by the system: every
-          word is somebody&rsquo;s at PHMG, and a screen nobody has written
-          up says so.
+          The firm&rsquo;s own procedures, beside the work they are about — the{" "}
+          <strong>?</strong> in the top bar opens the one for whatever screen
+          you are on. Nothing here is written by the system: every word is
+          somebody&rsquo;s at PHMG, and a screen nobody has written up says so.
         </p>
       </div>
 
@@ -59,7 +65,11 @@ export default async function LearningPage() {
           : "A CA or a partner writes these."}
       </p>
 
-      <section className="flex flex-col gap-2">
+      <section
+        className="flex flex-col gap-2"
+        id="sops"
+        hidden={tab !== "sops"}
+      >
         <h2 className="text-15 font-bold">Screen by screen</h2>
         <ul className="rounded-table border-rule bg-surface divide-rule divide-y border">
           {screens.map((screen) => (
@@ -104,7 +114,11 @@ export default async function LearningPage() {
         </ul>
       </section>
 
-      <section className="flex flex-col gap-2">
+      <section
+        className="flex flex-col gap-2"
+        id="playbooks"
+        hidden={tab !== "playbooks"}
+      >
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-15 font-bold">Playbooks</h2>
           {canWrite && (

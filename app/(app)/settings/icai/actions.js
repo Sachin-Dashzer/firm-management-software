@@ -85,7 +85,7 @@ export async function saveFirm(_prev, formData) {
   clearFirmCache();
   // the name reaches invoices, reports and emails, so nothing may stay stale
   revalidatePath("/settings/icai");
-  revalidatePath("/invoices");
+  revalidatePath("/billing");
 
   return {
     ok: `Saved. ${data.name} is the name on every invoice and email from now on.`,

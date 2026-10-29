@@ -42,7 +42,7 @@ export default function FirmForm({ firm, mayEdit }) {
         </dl>
         {firm.icaiNotes && (
           <div>
-            <h3 className="text-12 text-ink-muted font-medium tracking-wide uppercase">
+            <h3 className="text-12 text-ink-muted font-medium">
               The firm&rsquo;s notes
             </h3>
             <p className="text-14 whitespace-pre-wrap">{firm.icaiNotes}</p>
@@ -246,7 +246,7 @@ export default function FirmForm({ firm, mayEdit }) {
 function Fact({ label, value, mono }) {
   return (
     <div className="flex flex-col">
-      <dt className="text-12 text-ink-muted tracking-wide uppercase">
+      <dt className="text-12 text-ink-muted">
         {label}
       </dt>
       <dd className={mono ? "font-mono" : ""}>

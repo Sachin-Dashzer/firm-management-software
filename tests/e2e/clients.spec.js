@@ -1,13 +1,13 @@
 import { test, expect } from "@playwright/test";
-import { alertBox } from "./alerts.js";
-import { TOTP, Secret } from "otpauth";
+import { signIn, gotoForm } from "./signin.js";
+import { alertBox, pick } from "./alerts.js";
 import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
 import Branch from "../../models/Branch.js";
 import Client from "../../models/Client.js";
 import AuditLog from "../../models/AuditLog.js";
 import ClientGroup from "../../models/ClientGroup.js";
-import { hashPassword, decryptField } from "../../lib/crypto.js";
+import { hashPassword } from "../../lib/crypto.js";
 import { systemAudit } from "../../lib/audit/system.js";
 
 /**
@@ -47,7 +47,7 @@ test.beforeAll(async () => {
           passwordHash: await hashPassword(PASSWORD),
         },
       ],
-      { session },
+      { session, ordered: true },
     );
   });
   await Client.deleteMany({ pan: PAN }, { withDeleted: true });
@@ -66,36 +66,6 @@ test.afterAll(async () => {
    */
 });
 
-async function signIn(page) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(EMAIL);
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByLabel("6-digit code").waitFor();
-
-  const user = await User.findOne({ email: EMAIL }).select("+totpSecret");
-  /**
-   * An authenticator shows one code per 30 seconds, and the app refuses a
-   * code it has already accepted — replay protection, working as spec §16
-   * asks. A suite that signs in a dozen times inside one window hits it
-   * every time, so the counter is cleared to stand for time having
-   * passed. The rule itself is tested in tests/security.test.js.
-   */
-  await User.updateOne({ email }, { $set: { lastTotpCounter: 0 } });
-  const code = new TOTP({
-    issuer: "PHMG & Associates",
-    label: EMAIL,
-    algorithm: "SHA1",
-    digits: 6,
-    period: 30,
-    secret: Secret.fromBase32(decryptField(user.totpSecret)),
-  }).generate();
-
-  await page.getByLabel("6-digit code").fill(code);
-  await page.getByRole("button", { name: /Sign in|Turn on 2FA/ }).click();
-  await expect(page).toHaveURL(/\/issues$/);
-}
-
 /**
  * Every new client belongs to a group (owner decision, 24-10-2026). The
  * group can be made from the form itself, which is the flow here: the first
@@ -113,8 +83,8 @@ async function chooseGroup(page, name = GROUP) {
 }
 
 test("a new client cannot be saved without a group", async ({ page }) => {
-  await signIn(page);
-  await page.goto("/clients/new");
+  await signIn(page, EMAIL);
+  await gotoForm(page, "/clients/new");
 
   const select = page.locator('select[name="groupId"]');
   await expect(select).toHaveAttribute("required", "");
@@ -122,13 +92,13 @@ test("a new client cannot be saved without a group", async ({ page }) => {
 });
 
 test("onboard a client, then find it again", async ({ page }) => {
-  await signIn(page);
+  await signIn(page, EMAIL);
 
-  await page.goto("/clients/new");
+  await gotoForm(page, "/clients/new");
   await page.getByLabel("Legal name").fill(NAME);
   await page.getByLabel("Trade name").fill("Playwright Textiles");
   await page.getByLabel("Entity type").selectOption("Private Limited");
-  await page.getByLabel("Branch").selectOption({ label: /NOI/ });
+  await pick(page.getByLabel("Branch"), /NOI/);
   await page.getByLabel("PAN").fill(PAN);
   await chooseGroup(page);
   await page.locator('input[name="gstins.0.gstin"]').fill(GSTIN);
@@ -154,13 +124,15 @@ test("onboard a client, then find it again", async ({ page }) => {
 test("the list names the group before the client, and filters by it", async ({
   page,
 }) => {
-  await signIn(page);
+  await signIn(page, EMAIL);
   await page.goto("/clients");
 
-  // the group is the first column, so a family reads before its businesses
+  // the group is the first column, so a family reads before its businesses.
+  // Compared without case: these are `innerText`, which is what the reader
+  // sees, and CSS sets the headers in capitals
   const headings = await page.locator("thead th").allInnerTexts();
-  expect(headings[0]).toBe("Group");
-  expect(headings[2]).toBe("Client");
+  expect(headings[0].toLowerCase()).toBe("group");
+  expect(headings[2].toLowerCase()).toBe("client");
 
   await page.getByLabel("Group").selectOption({ label: GROUP });
   await page.getByRole("button", { name: "Filter" }).click();
@@ -171,12 +143,12 @@ test("the list names the group before the client, and filters by it", async ({
 });
 
 test("a bad GSTIN is refused with a readable reason", async ({ page }) => {
-  await signIn(page);
-  await page.goto("/clients/new");
+  await signIn(page, EMAIL);
+  await gotoForm(page, "/clients/new");
 
   await page.getByLabel("Legal name").fill("Bad GSTIN Traders");
   await page.getByLabel("Entity type").selectOption("Partnership Firm");
-  await page.getByLabel("Branch").selectOption({ label: /NOI/ });
+  await pick(page.getByLabel("Branch"), /NOI/);
   await page.locator('input[name="contacts.0.name"]').fill("Someone");
   await chooseGroup(page);
   // right shape, wrong check digit
@@ -190,12 +162,12 @@ test("a bad GSTIN is refused with a readable reason", async ({ page }) => {
 test("the same PAN twice is blocked until it is confirmed", async ({
   page,
 }) => {
-  await signIn(page);
-  await page.goto("/clients/new");
+  await signIn(page, EMAIL);
+  await gotoForm(page, "/clients/new");
 
   await page.getByLabel("Legal name").fill("Playwright Textiles Duplicate");
   await page.getByLabel("Entity type").selectOption("Private Limited");
-  await page.getByLabel("Branch").selectOption({ label: /NOI/ });
+  await pick(page.getByLabel("Branch"), /NOI/);
   await page.getByLabel("PAN").fill(PAN);
   await page.locator('input[name="contacts.0.name"]').fill("Someone Else");
   await chooseGroup(page);
@@ -208,7 +180,7 @@ test("the same PAN twice is blocked until it is confirmed", async ({
 test("a portal password is hidden until revealed, and the reveal is logged", async ({
   page,
 }) => {
-  await signIn(page);
+  await signIn(page, EMAIL);
 
   const client = await Client.findOne({ pan: PAN }).lean();
   await page.goto(`/clients/${client._id}`);
@@ -240,7 +212,7 @@ test("a portal password is hidden until revealed, and the reveal is logged", asy
 });
 
 test("a note goes on the communication log", async ({ page }) => {
-  await signIn(page);
+  await signIn(page, EMAIL);
   const client = await Client.findOne({ pan: PAN }).lean();
 
   await page.goto(`/clients/${client._id}?tab=notes`);
@@ -257,8 +229,8 @@ test("a note goes on the communication log", async ({ page }) => {
 test("the import preview refuses a bad file without saving anything", async ({
   page,
 }) => {
-  await signIn(page);
-  await page.goto("/clients/import");
+  await signIn(page, EMAIL);
+  await gotoForm(page, "/clients/import");
 
   const before = await Client.countDocuments({});
 

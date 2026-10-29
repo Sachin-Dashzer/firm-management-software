@@ -1303,7 +1303,7 @@ async function loadForMoney(actor, id) {
 function revalidateMoney(id) {
   revalidatePath(`/engagements/${id}`);
   revalidatePath("/engagements");
-  revalidatePath("/invoices/receivables");
+  revalidatePath("/billing");
   revalidatePath("/reports/unbilled");
 }
 

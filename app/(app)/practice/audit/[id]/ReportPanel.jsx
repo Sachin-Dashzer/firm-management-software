@@ -556,7 +556,7 @@ export default function ReportPanel({
         </div>
 
         <div className="rounded-ledger border-rule bg-paper flex flex-col gap-1 border p-3">
-          <p className="text-12 text-ink-muted font-medium tracking-wide uppercase">
+          <p className="text-12 text-ink-muted font-medium">
             One — what the matters suggest
           </p>
           <p className="text-14">
@@ -568,7 +568,7 @@ export default function ReportPanel({
         </div>
 
         <div className="rounded-ledger border-rule bg-paper flex flex-col gap-2 border p-3">
-          <p className="text-12 text-ink-muted font-medium tracking-wide uppercase">
+          <p className="text-12 text-ink-muted font-medium">
             Three — the opinion being signed
           </p>
           {report.opinion.type ? (
@@ -658,7 +658,7 @@ export default function ReportPanel({
               : "border-waiting bg-waiting-wash"
           }`}
         >
-          <p className="text-12 text-ink-muted font-medium tracking-wide uppercase">
+          <p className="text-12 text-ink-muted font-medium">
             Two — the reviewer&rsquo;s overall conclusion
           </p>
           {report.overall?.text && report.conclusionStands ? (

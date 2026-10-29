@@ -134,7 +134,7 @@ export default function ComplianceViews({
         <div className="flex items-end gap-2">
           <button
             type="submit"
-            className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium"
+            className="rounded-control border-rule bg-sunk text-14 text-ink h-9 border px-3 font-medium"
           >
             Filter
           </button>
@@ -244,7 +244,7 @@ function Heads({ heads, fyStart, linkTo }) {
                 {String((fyStart + 1) % 100).padStart(2, "0")}
               </caption>
               <thead>
-                <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+                <tr className="border-rule text-12 text-faint border-b text-left font-normal">
                   <th className="px-3 py-2 font-medium">Head</th>
                   <th className="px-3 py-2 font-medium">Basis</th>
                   <th className="px-3 py-2 text-right font-medium">Clients</th>
@@ -388,7 +388,7 @@ function ListView({ rows }) {
       <div className="rounded-table border-rule bg-surface overflow-x-auto border">
         <table className="text-14 w-full">
           <thead>
-            <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+            <tr className="border-rule text-12 text-faint border-b text-left font-normal">
               <th className="px-3 py-2 font-medium">Due</th>
               <th className="px-3 py-2 font-medium">Client</th>
               <th className="px-3 py-2 font-medium">Work</th>
@@ -514,7 +514,7 @@ function CalendarView({ rows, weeks }) {
         {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
           <div
             key={d}
-            className="bg-surface text-12 text-ink-muted px-2 py-1 font-medium tracking-wide uppercase"
+            className="bg-surface text-12 text-ink-muted px-2 py-1 font-medium"
           >
             {d}
           </div>

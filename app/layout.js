@@ -1,14 +1,17 @@
-import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
+import { IBM_Plex_Sans, IBM_Plex_Mono, Fraunces } from "next/font/google";
 import "./globals.css";
 
 /**
- * The prototype loads IBM Plex Sans and IBM Plex Mono and nothing else
- * (D35). Fraunces is gone with the ledger language it belonged to — it was
- * the only serif and the only third font, so dropping it also takes a font
- * file off every page load.
+ * Three faces, each with one job (D78).
  *
- * 700 is new: the prototype's page titles are Plex Sans at 700, which is
- * the weight Fraunces was doing the job of.
+ * Plex Sans is every word; Plex Mono is every figure, which is the firm's
+ * own face and the reason the mono weights are no longer optional; and
+ * Fraunces comes back from the ledger language it was dropped with in
+ * D35 — but only for the sign-in screen, where the firm's name is set.
+ *
+ * Fraunces costs nothing on the screens behind the sign-in: `next/font`
+ * emits a variable that only `/login` reads, so the file is requested on
+ * the one route whose markup uses it.
  */
 const plexSans = IBM_Plex_Sans({
   variable: "--font-plex-sans",
@@ -20,7 +23,17 @@ const plexSans = IBM_Plex_Sans({
 const plexMono = IBM_Plex_Mono({
   variable: "--font-plex-mono",
   subsets: ["latin"],
-  weight: ["400", "500"],
+  weight: ["400", "500", "600"],
+  display: "swap",
+});
+
+/* The sign-in screen only, and loaded as the variable font it is: at 72px
+   its optical size axis sets itself, so the firm's name is cut for display
+   rather than being a text face scaled up. Passing `weight` here would pin
+   it to static instances and `next/font` refuses the axes alongside it. */
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
   display: "swap",
 });
 
@@ -52,7 +65,9 @@ export default function RootLayout({ children }) {
           dangerouslySetInnerHTML={{ __html: preferenceScript }}
         />
       </head>
-      <body className={`${plexSans.variable} ${plexMono.variable}`}>
+      <body
+        className={`${plexSans.variable} ${plexMono.variable} ${fraunces.variable}`}
+      >
         {children}
       </body>
     </html>

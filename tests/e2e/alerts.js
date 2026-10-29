@@ -16,3 +16,19 @@
 export function alertBox(page) {
   return page.locator('[role="alert"]:not(#__next-route-announcer__)');
 }
+
+/**
+ * Choose the option whose text matches, by its value.
+ *
+ * `selectOption({ label: /NOI/ })` reads naturally and Playwright refuses
+ * it: a label has to be an exact string. The option's value is a database
+ * id the test does not know, so the text is matched first and the value
+ * read off it — which is what the regex was always trying to say.
+ *
+ * @param {import("@playwright/test").Locator} select
+ * @param {RegExp|string} text
+ */
+export async function pick(select, text) {
+  const option = select.locator("option").filter({ hasText: text }).first();
+  await select.selectOption(await option.getAttribute("value"));
+}

@@ -7,6 +7,7 @@ import {
   istParts,
   istInputDate,
   addWorkingDays,
+  financialQuarterLabel,
 } from "@/lib/dates";
 
 describe("IST display", () => {
@@ -84,5 +85,23 @@ describe("a stored date back into a date input", () => {
     );
     expect(istInputDate(null)).toBe("");
     expect(istInputDate(undefined)).toBe("");
+  });
+});
+
+describe("the quarter of the financial year (P3-22b)", () => {
+  const q = (iso) => financialQuarterLabel(new Date(iso));
+
+  it("runs April to March, not January to December", () => {
+    expect(q("2026-04-01T00:00:00+05:30")).toBe("Q1 2026-27");
+    expect(q("2026-06-30T00:00:00+05:30")).toBe("Q1 2026-27");
+    expect(q("2026-07-01T00:00:00+05:30")).toBe("Q2 2026-27");
+    expect(q("2026-10-15T00:00:00+05:30")).toBe("Q3 2026-27");
+    expect(q("2027-01-01T00:00:00+05:30")).toBe("Q4 2026-27");
+    expect(q("2027-03-31T00:00:00+05:30")).toBe("Q4 2026-27");
+  });
+
+  it("turns over on 1 April, in IST", () => {
+    // 20:00 UTC on 31 March is already 1 April in India
+    expect(q("2027-03-31T20:00:00Z")).toBe("Q1 2027-28");
   });
 });

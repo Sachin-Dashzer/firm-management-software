@@ -179,16 +179,14 @@ export default async function ClientsPage({ searchParams }) {
           value={entityType}
           options={ENTITY_TYPES}
         />
-        <div className="flex items-end gap-2">
-          <Filter
-            label="Risk"
-            name="risk"
-            value={risk}
-            options={RISK_RATINGS}
-          />
+        <Filter label="Risk" name="risk" value={risk} options={RISK_RATINGS} />
+        {/* The six filters fill the six columns, so the two controls take a
+            row of their own. Sharing the last cell with Risk pushed Clear
+            off the card's right edge at 1440. */}
+        <div className="flex items-end justify-end gap-2 lg:col-span-6">
           <button
             type="submit"
-            className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium"
+            className="rounded-control border-rule bg-sunk text-14 text-ink h-9 border px-3 font-medium"
           >
             Filter
           </button>
@@ -210,7 +208,7 @@ export default async function ClientsPage({ searchParams }) {
         <div className="rounded-table border-rule bg-surface overflow-x-auto border">
           <table className="text-14 w-full">
             <thead>
-              <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+              <tr className="border-rule text-12 text-faint border-b text-left font-normal">
                 <Th>Group</Th>
                 <Th>Code</Th>
                 <Th>Client</Th>

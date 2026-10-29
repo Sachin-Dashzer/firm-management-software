@@ -135,7 +135,7 @@ export async function createDraft(input) {
     return doc;
   });
 
-  revalidatePath("/invoices");
+  revalidatePath("/billing");
   return { ok: "Draft created.", id: String(draft._id) };
 }
 
@@ -292,7 +292,7 @@ export async function issueInvoice(id) {
   }
 
   revalidatePath(`/invoices/${id}`);
-  revalidatePath("/invoices");
+  revalidatePath("/billing");
   return { ok: `Issued as ${invoice.number}.` };
 }
 
@@ -401,7 +401,7 @@ export async function raiseCreditNote(id, { reason, amount }) {
   }
 
   revalidatePath(`/invoices/${id}`);
-  revalidatePath("/invoices");
+  revalidatePath("/billing");
   return { ok: `Credit note ${note.number} raised.`, id: String(note._id) };
 }
 
@@ -516,7 +516,7 @@ export async function recordPromise(id, formData) {
   });
 
   revalidatePath(`/invoices/${id}`);
-  revalidatePath("/invoices/receivables");
+  revalidatePath("/billing");
   return {
     ok: `Noted. ${invoice.number} will not be chased automatically until ${istInputDate(date)} has passed.`,
   };
@@ -556,6 +556,6 @@ export async function clearPromise(id) {
   });
 
   revalidatePath(`/invoices/${id}`);
-  revalidatePath("/invoices/receivables");
+  revalidatePath("/billing");
   return { ok: "Promise removed. Reminders resume on the usual cadence." };
 }

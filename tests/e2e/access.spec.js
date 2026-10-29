@@ -1,11 +1,12 @@
 import { test, expect } from "@playwright/test";
-import { TOTP, Secret } from "otpauth";
+import { signIn } from "./signin.js";
+import { pick } from "./alerts.js";
 import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
 import Branch from "../../models/Branch.js";
 import Client from "../../models/Client.js";
 import ClientAccess from "../../models/ClientAccess.js";
-import { hashPassword, decryptField } from "../../lib/crypto.js";
+import { hashPassword } from "../../lib/crypto.js";
 import { systemAudit } from "../../lib/audit/system.js";
 
 /**
@@ -59,7 +60,7 @@ test.beforeAll(async () => {
           passwordHash: await hashPassword(PASSWORD),
         },
       ],
-      { session },
+      { session, ordered: true },
     );
 
     const [employee] = await User.create(
@@ -72,7 +73,7 @@ test.beforeAll(async () => {
           passwordHash: await hashPassword(PASSWORD),
         },
       ],
-      { session },
+      { session, ordered: true },
     );
     ids.employee = String(employee._id);
 
@@ -97,7 +98,7 @@ test.beforeAll(async () => {
           branchId: branch._id,
         },
       ],
-      { session },
+      { session, ordered: true },
     );
     ids.granted = String(made[0]._id);
     ids.unseen = String(made[1]._id);
@@ -115,7 +116,7 @@ test.beforeAll(async () => {
           grantedByName: "Praveen Mehrotra",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
   });
 });
@@ -139,35 +140,6 @@ test.afterAll(async () => {
 });
 
 /** @param {import("@playwright/test").Page} page */
-async function signIn(page, email) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByLabel("6-digit code").waitFor();
-
-  const user = await User.findOne({ email }).select("+totpSecret");
-  /**
-   * An authenticator shows one code per 30 seconds, and the app refuses a
-   * code it has already accepted — replay protection, working as spec §16
-   * asks. A suite that signs in a dozen times inside one window hits it
-   * every time, so the counter is cleared to stand for time having
-   * passed. The rule itself is tested in tests/security.test.js.
-   */
-  await User.updateOne({ email }, { $set: { lastTotpCounter: 0 } });
-  const code = new TOTP({
-    issuer: "PHMG & Associates",
-    label: email,
-    algorithm: "SHA1",
-    digits: 6,
-    period: 30,
-    secret: Secret.fromBase32(decryptField(user.totpSecret)),
-  }).generate();
-
-  await page.getByLabel("6-digit code").fill(code);
-  await page.getByRole("button", { name: /Sign in|Turn on 2FA/ }).click();
-  await expect(page).toHaveURL(/\/issues$/);
-}
 
 // --- acceptance 1 ----------------------------------------------------------
 
@@ -176,12 +148,18 @@ test("a client with no grant and no assignment is nowhere to be found", async ({
 }) => {
   await signIn(page, EMPLOYEE);
 
-  await page.goto("/clients");
+  // the row's own link: since P2-13 the list prints the group beside the
+  // client, so the name can appear twice on one row
+  await expect(
+    page.getByRole("link", { name: "Jaiswal Steels" }).first(),
+  ).toBeVisible();
   await expect(page.getByText("Jaiswal Steels")).toBeVisible();
   await expect(page.getByText("Tandon Exports")).toHaveCount(0);
 
   await page.goto(`/clients/${ids.unseen}`);
-  await expect(page).toHaveURL(/\/clients$/);
+  // a client they may not see goes to the same page as a revoked grant:
+  // "it exists, and here is who can open it for you" (P3-7)
+  await expect(page).toHaveURL(/no-access\?client=/);
 
   const search = await page.request.get("/api/search?q=Tandon");
   expect(JSON.stringify(await search.json())).not.toContain("Tandon");
@@ -231,7 +209,10 @@ test("revoking a grant closes the client on the next request", async ({
   );
 
   await page.goto(`/clients/${ids.granted}`);
-  await expect(page).toHaveURL(/\/clients$/);
+  // not the list: P3-7 sends you to the page that says the record exists
+  // and who can open it for you, because a redirect to the list reads as
+  // "no such client"
+  await expect(page).toHaveURL(/no-access\?client=/);
 
   await ClientAccess.updateOne(
     { userId: ids.employee, clientId: ids.granted },
@@ -249,7 +230,8 @@ test("an expired grant does nothing, without waiting for the nightly job", async
 
   await signIn(page, EMPLOYEE);
   await page.goto(`/clients/${ids.granted}`);
-  await expect(page).toHaveURL(/\/clients$/);
+  // the same page as a revoked grant: the client exists, you cannot open it
+  await expect(page).toHaveURL(/no-access\?client=/);
   await expect(page.getByText("Jaiswal Steels")).toHaveCount(0);
 
   await ClientAccess.updateOne(
@@ -267,7 +249,7 @@ test("the grant drawer disables what the role may never hold", async ({
   await page.goto(`/clients/${ids.unseen}?tab=access`);
 
   await page.getByRole("button", { name: "Give someone access" }).click();
-  await page.getByLabel("Who").selectOption({ label: /Ankit Saxena/ });
+  await pick(page.getByLabel("Who"), /Ankit Saxena/);
 
   await expect(page.getByLabel(/Profile and contacts/)).toBeEnabled();
   await expect(page.getByLabel(/Statutory IDs/)).toBeEnabled();
@@ -284,7 +266,7 @@ test("a partner can give access, and the client appears for the employee", async
   await page.goto(`/clients/${ids.unseen}?tab=access`);
 
   await page.getByRole("button", { name: "Give someone access" }).click();
-  await page.getByLabel("Who").selectOption({ label: /Ankit Saxena/ });
+  await pick(page.getByLabel("Who"), /Ankit Saxena/);
   await page.getByLabel(/Profile and contacts/).check();
   await page
     .getByLabel(/Why they need it/)

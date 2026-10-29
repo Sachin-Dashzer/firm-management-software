@@ -89,7 +89,7 @@ const GROUPS = [
         what: "Every unpaid invoice, what is left on it and how late.",
       },
       {
-        href: "/invoices/receivables",
+        href: "/billing?tab=collections",
         area: "invoices",
         name: "Receivables ageing",
         what: "The same money in 30-day buckets, with the unbilled tab beside it.",

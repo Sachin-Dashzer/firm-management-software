@@ -3,11 +3,13 @@ import { currentUser } from "@/auth";
 import { connectDB } from "@/lib/db";
 import Branch from "@/models/Branch";
 import Notification from "@/models/Notification";
-import LeftRail, { MobileNav } from "@/components/shell/LeftRail";
+import LeftRail from "@/components/shell/LeftRail";
 import TopBar from "@/components/shell/TopBar";
 import CommandBar from "@/components/shell/CommandBar";
-import { AREAS, can } from "@/lib/permissions";
-import { issueRows, isMine } from "@/lib/issues/list";
+import { AREAS, can, ROLE_LABELS } from "@/lib/permissions";
+import { menuFor } from "@/lib/nav/tree";
+import { navCounts } from "@/lib/nav/counts";
+import { firmModules, firmName } from "@/lib/firm/settings";
 
 /**
  * Every page in here depends on who is signed in, so none of them may be
@@ -38,24 +40,22 @@ export default async function AppLayout({ children }) {
 
   await connectDB();
   // a user only ever sees their own branches in the switcher (spec section 2)
-  const [branches, unreadCount, issues] = await Promise.all([
+  const [branches, unreadCount, counts, modules, name] = await Promise.all([
     Branch.find(user.role === "partner" ? {} : { _id: { $in: user.branchIds } })
       .sort({ code: 1 })
       .lean(),
     Notification.countDocuments({ userId: user.id, readAt: null }),
     /**
-     * The count beside Issues on the rail (P3-6). It is this person's own
-     * count, not the firm's: a number that does not match what the page
-     * opens on is a number nobody trusts twice.
-     *
-     * ponytail: recomputed on every page view — seven bounded queries for a
-     * five-person firm. If it ever shows up in the Atlas slow log, cache it
-     * per user for a minute rather than storing a count that can go stale.
+     * Every badge on the menu, in one call (P3-22a). Each number comes from
+     * the same helper its page uses, so a badge cannot disagree with the
+     * rows the click shows — which is the only reason to have badges at all.
      */
-    issueRows(user).then(
-      (rows) => rows.filter((row) => isMine(row, user)).length,
-    ),
+    navCounts(user),
+    firmModules(),
+    firmName(),
   ]);
+
+  const menu = menuFor(user, modules);
 
   // what this person may even be offered in the command bar; the server
   // checks again when they get there
@@ -72,7 +72,13 @@ export default async function AppLayout({ children }) {
       </a>
 
       <div className="flex min-h-0 flex-1">
-        <LeftRail role={user.role} issueCount={issues} />
+        <LeftRail
+          menu={menu}
+          counts={counts}
+          userName={user.name}
+          roleLabel={ROLE_LABELS[user.role] ?? user.role}
+          firmName={name}
+        />
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar
             user={{ name: user.name, email: user.email, role: user.role }}
@@ -84,16 +90,31 @@ export default async function AppLayout({ children }) {
             unreadCount={unreadCount}
             view={user.view}
           />
+          {/**
+           * One canvas, set once (D80).
+           *
+           * Sixty pages each named their own width — 760, 860, 900, 1000,
+           * 1100, 1200, 1400 and 1600 — so the application changed shape
+           * from screen to screen, and on a 1920px monitor the widest of
+           * them stretched a row of filters to 1550px with a name at one
+           * end and its figure at the other. That was the worst-looking
+           * view in the product.
+           *
+           * Capping here rather than editing sixty files means a page can
+           * still be *narrower* than the canvas — a settings form at 760
+           * is right — but none can be wider. The measured range for a
+           * data screen is 1100-1250; 1280 leaves the gutter inside it.
+           */}
           <main
             id="content"
-            className="relative z-10 min-h-0 flex-1 overflow-auto"
+            className="relative z-10 min-h-0 w-full max-w-[1280px] flex-1 self-center overflow-auto"
           >
             {children}
           </main>
         </div>
       </div>
-      <MobileNav role={user.role} />
-      <CommandBar allowed={allowed} />
+      {/* the rail is the phone menu now, opened as a drawer (P3-22a) */}
+      <CommandBar allowed={allowed} menu={menu} />
     </div>
   );
 }

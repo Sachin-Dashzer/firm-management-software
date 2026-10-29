@@ -44,6 +44,11 @@ export default async function CalendarPage({ searchParams }) {
    * to know where GST, TDS and ITR stand before they want to know which
    * client missed August.
    */
+  /** The menu asks for one kind of return (P3-22a). */
+  const freq = ["monthly", "quarterly", "annual"].includes(params.freq)
+    ? params.freq
+    : "";
+
   const view = ["grid", "calendar"].includes(params.view)
     ? params.view
     : "heads";
@@ -89,13 +94,21 @@ export default async function CalendarPage({ searchParams }) {
       Object.entries(params).filter(([, v]) => typeof v === "string"),
     ),
     branches: branches.map((b) => ({ id: String(b._id), code: b.code })),
-    services: templates.map((t) => ({
-      id: String(t._id),
-      code: t.code,
-      name: t.name,
-      category: t.category,
-      recurrence: t.recurrence,
-    })),
+    /**
+     * The menu's three links are one page with a filter (P3-22a): the
+     * services whose recurrence matches. Quarterly covers the GST QRMP and
+     * TDS returns; annual covers the ITRs and the ROC filings.
+     */
+    services: templates
+      .filter((t) => !freq || recurrenceIs(t.recurrence, freq))
+      .map((t) => ({
+        id: String(t._id),
+        code: t.code,
+        name: t.name,
+        category: t.category,
+        recurrence: t.recurrence,
+      })),
+    freq,
     team: team.map((u) => ({ id: String(u._id), name: u.name })),
     partners: partners.map((u) => ({
       id: String(u._id),
@@ -351,4 +364,19 @@ async function GridView({ actor, params, shared, clientIds }) {
       fyStart={fyStart}
     />
   );
+}
+
+/**
+ * Which recurrences each of the menu three words covers (P3-22a).
+ *
+ * The catalog has five (`RECURRENCES`): one-time, monthly, quarterly,
+ * half-yearly and annual. "Annual filings" takes the half-yearly ones with
+ * it, because a client asking for the annual filings means those too, and a
+ * menu item that showed half of them would be worse than none. One-time
+ * work belongs to no recurrence and appears under none of the three.
+ */
+function recurrenceIs(recurrence, freq) {
+  if (freq === "monthly") return recurrence === "monthly";
+  if (freq === "quarterly") return recurrence === "quarterly";
+  return recurrence === "annual" || recurrence === "half-yearly";
 }

@@ -1,437 +1,448 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import {
-  House,
-  Warning,
-  Users,
-  UsersThree,
-  Buildings,
-  UserCircle,
-  Briefcase,
-  CalendarCheck,
-  FolderOpen,
-  Receipt,
-  ChartBar,
-  ClipboardText,
-  Gear,
-  Stamp,
-  CaretDown,
-  CaretLeft,
-  DotsThree,
-} from "@phosphor-icons/react";
-import { can, scopeOf, seesOnlyOwnRecords } from "@/lib/permissions";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { CaretDown, X, SidebarSimple } from "@phosphor-icons/react";
+import NavIcon from "./navIcons";
+import { activeIn } from "@/lib/nav/active";
 
 /**
- * Phase 1 destinations. `area` is the permission area from spec section 2, so
- * a link only appears for a role that may open it — the page itself checks
- * again, because hiding a link is not security.
+ * The left menu (P3-22a), rendered from `lib/nav/tree.js`.
+ *
+ * Everything it knows arrives as props: the already-filtered menu, the
+ * badge numbers, and who is signed in. It holds no list of its own — there
+ * were three before this (the rail, the command bar, a bottom bar for
+ * phones) and they had already drifted apart.
+ *
+ * Four behaviours come from the prototype and each has a reason:
+ *
+ *  - **accordion**: opening a group closes the others, so the rail never
+ *    becomes a wall of 58 links
+ *  - **the group that holds the current page opens itself** on every
+ *    navigation, so the menu always shows where you are
+ *  - **a group's own badge shows only while it is closed** — open, the
+ *    item badges say the same thing more precisely
+ *  - **a badge of zero is not drawn**: "0 overdue" is noise with a colour
+ *
+ * The rail is three zones rather than one scrolling column: a fixed head, a
+ * scrolling list, a fixed foot. With a group open the list is taller than a
+ * laptop screen, and the firm's name, the find box and the signed-in line
+ * used to scroll away with it — so the two lines that say *where you are*
+ * and *who you are* were the first things to leave.
  */
-const LINKS = [
-  /**
-   * Issues is the landing page (P3-6, owner decision D43): everything that
-   * needs attention, worked out live. Today stays below it — it answers a
-   * different question (what is on *today*) and nothing is gained by
-   * deleting a screen that works.
-   */
-  { href: "/issues", label: "Issues", icon: Warning, area: null },
-  { href: "/today", label: "Today", icon: House, area: "dashboards" },
-  {
-    href: "/clients",
-    label: "Clients",
-    // An employee or an intern reaches clients one at a time, through work on
-    // their desk or a grant (owner decision D3), so "Clients" would promise a
-    // list of the firm's clients that they will never see.
-    narrowLabel: "My clients",
-    icon: Users,
-    area: "clients",
-  },
-  /**
-   * Groups (P2-11): one owner, several businesses. Its own entry rather than
-   * a tab inside Clients, because the question it answers — what is going on
-   * across this family — is asked before any one business is chosen.
-   */
-  { href: "/groups", label: "Groups", icon: Buildings, area: "clients" },
-  {
-    href: "/engagements",
-    label: "Engagements",
-    icon: Briefcase,
-    area: "engagementsWork",
-  },
-  {
-    href: "/calendar",
-    label: "Compliance",
-    icon: CalendarCheck,
-    area: "engagementsWork",
-  },
-  {
-    href: "/documents",
-    label: "Documents",
-    icon: FolderOpen,
-    area: "documents",
-  },
-  { href: "/invoices", label: "Billing", icon: Receipt, area: "invoices" },
-  {
-    href: "/team",
-    label: "Team",
-    icon: UsersThree,
-    area: "team",
-    children: [
-      { href: "/team", label: "Everyone", area: "team" },
-      // the workload board spec section 9 asks for, by week (P3-16)
-      { href: "/team/plan", label: "The week", area: "team" },
-    ],
-  },
-  { href: "/reports", label: "Reports", icon: ChartBar, area: "dashboards" },
-  /**
-   * The practice registers (P2-10d). They were reachable only through
-   * Settings, where they never belonged: an audit book and a UDIN register
-   * are daily work, not configuration. One rail entry that opens into the
-   * five, so the rail gains a line rather than five.
-   */
-  {
-    href: "/practice",
-    label: "Practice",
-    icon: Stamp,
-    area: "practice",
-    children: [
-      { href: "/practice/audits", label: "Audits", area: "practice" },
-      { href: "/practice/statutory", label: "Statutory", area: "practice" },
-      { href: "/practice/tax", label: "Tax", area: "practice" },
-      // a notice is a matter rather than a job (P3-11), so it sits beside
-      // the registers rather than inside the engagement list
-      { href: "/practice/notices", label: "Notices", area: "practice" },
-      // a certificate is a thing the firm signed, so it lives with the
-      // register of what the firm has signed rather than on an engagement (P3-15)
-      {
-        href: "/practice/certificates",
-        label: "Certificates",
-        area: "udin",
-      },
-      { href: "/practice/udin", label: "UDIN", area: "udin" },
-      { href: "/practice/dsc", label: "DSC", area: "dsc" },
-    ],
-  },
-  {
-    href: "/portal-log",
-    label: "Portal log",
-    icon: ClipboardText,
-    area: "auditLog",
-  },
-  // everyone can read the service catalog, which lives under Settings;
-  // the sections inside are filtered by role
-  { href: "/settings", label: "Settings", icon: Gear, area: "serviceCatalog" },
-  // everybody has one of these, which is the point of it
-  { href: "/me", label: "Me", icon: UserCircle, area: null },
-];
 
 /**
- * What this role may open, with the labels that tell the truth for it.
- *
- * `/team` appears for everybody — a Partner and a CA get the list, and an
- * employee or an intern has `team: view/own`, which the page turns into a
- * redirect to `/me`. So the rail drops it for them and shows "Me" instead.
- *
- * @param {string} role
+ * The groups that run the firm rather than the work in it. A hairline above
+ * the first of them is the only division the menu has: ten identical rows
+ * is a list, eight and two is a shape you can aim at.
  */
-function linksFor(role) {
-  const actor = { id: "", role, branchIds: [] };
-  return LINKS.filter((link) => {
-    if (link.area === null) return true;
-    if (link.href === "/team" && scopeOf(actor, "team") === "own") return false;
-    /**
-     * A group is worth showing when any one of its registers is: an intern
-     * may open none of the five, so for them the Practice entry is absent
-     * rather than present and empty.
-     */
-    if (link.children) {
-      return link.children.some((child) => can(actor, "view", child.area));
-    }
-    return can(actor, "view", link.area);
-  }).map((link) => ({
-    ...link,
-    // after `...link`, not before it: spread the other way round and the
-    // unfiltered `children` from the link won the overwrite, so a register
-    // an intern may not open was still listed under Practice
-    ...(link.children
-      ? {
-          children: link.children.filter((child) =>
-            can(actor, "view", child.area),
-          ),
-        }
-      : {}),
-    label:
-      link.narrowLabel && seesOnlyOwnRecords(actor, link.area)
-        ? link.narrowLabel
-        : link.label,
-  }));
-}
+const ADMIN_GROUPS = new Set(["team", "firm", "tools"]);
 
-export default function LeftRail({ role = "partner", issueCount = 0 }) {
+export default function LeftRail({
+  menu = [],
+  counts = {},
+  userName = "",
+  roleLabel = "",
+  firmName = "",
+}) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
-  // the Practice group's own state; it also opens itself when you are inside
-  const [practiceOpen, setPracticeOpen] = useState(false);
-  const links = linksFor(role);
+  const search = useSearchParams();
+  const query = search.toString();
 
+  const current = useMemo(
+    () => activeIn(menu, pathname, query ? `?${query}` : ""),
+    [menu, pathname, query],
+  );
+
+  const [open, setOpen] = useState(current.group);
+  const [find, setFind] = useState("");
+  const [compact, setCompact] = useState(false);
+  const [drawer, setDrawer] = useState(false);
+  const drawerRef = useRef(null);
+
+  /** Compact mode is a reading preference, and the old key still holds it. */
   useEffect(() => {
     try {
-      setCollapsed(localStorage.getItem("phmg-rail") === "collapsed");
+      setCompact(localStorage.getItem("phmg-rail") === "compact");
     } catch {
-      // ignore: the rail just starts expanded
+      // a private window: the rail just opens wide every time
     }
   }, []);
 
-  function toggle() {
-    const next = !collapsed;
-    setCollapsed(next);
+  useEffect(() => {
     try {
-      localStorage.setItem("phmg-rail", next ? "collapsed" : "open");
+      localStorage.setItem("phmg-rail", compact ? "compact" : "wide");
     } catch {
-      // ignore
+      /* nothing to do */
     }
-  }
+  }, [compact]);
+
+  /** On every navigation, the group holding the page opens and the rest close. */
+  useEffect(() => {
+    if (current.group) setOpen(current.group);
+    setDrawer(false);
+  }, [pathname, query, current.group]);
+
+  /** The top bar's Menu button, on a phone. */
+  useEffect(() => {
+    const show = () => setDrawer(true);
+    window.addEventListener("phmg:nav-drawer", show);
+    return () => window.removeEventListener("phmg:nav-drawer", show);
+  }, []);
+
+  useEffect(() => {
+    if (!drawer) return;
+    const onKey = (event) => event.key === "Escape" && setDrawer(false);
+    window.addEventListener("keydown", onKey);
+    drawerRef.current?.querySelector("a,button,input")?.focus();
+    return () => window.removeEventListener("keydown", onKey);
+  }, [drawer]);
+
+  const shown = useMemo(() => filterMenu(menu, find), [menu, find]);
+
+  /**
+   * The drawer is never narrow, whatever the desktop rail is set to. They
+   * share one preference because they are one menu, but a 288px drawer
+   * showing ten unlabelled icons is that preference applied where it means
+   * nothing: on a phone there is no wide rail to narrow.
+   */
+  const body = (isCompact) => (
+    <Body
+      menu={shown}
+      counts={counts}
+      current={current}
+      open={find ? null : open}
+      setOpen={setOpen}
+      find={find}
+      setFind={setFind}
+      compact={isCompact}
+      setCompact={setCompact}
+      userName={userName}
+      roleLabel={roleLabel}
+      firmName={firmName}
+      onNavigate={() => {
+        setFind("");
+        setDrawer(false);
+      }}
+    />
+  );
 
   return (
-    <nav
-      aria-label="Main"
-      data-collapsed={collapsed}
-      className="border-rule bg-surface relative z-10 flex shrink-0 flex-col gap-1 border-r p-2 transition-[width] duration-150 max-md:hidden"
-      style={{ width: collapsed ? 56 : 232 }}
-    >
-      <div className="flex h-12 items-center gap-2 px-2">
-        <span
-          aria-hidden
-          className="bg-carbon text-on-carbon font-display text-14 grid size-[34px] shrink-0 place-items-center rounded-[9px] font-bold"
-        >
+    <>
+      {/* --- desktop --- */}
+      <nav
+        aria-label="Main"
+        data-compact={compact ? "yes" : "no"}
+        className={`border-rule bg-sunk hidden shrink-0 flex-col overflow-hidden border-r px-2.5 pt-3 pb-3 md:sticky md:top-0 md:flex md:h-dvh ${
+          compact ? "w-[68px]" : "w-[252px]"
+        }`}
+      >
+        {body(compact)}
+      </nav>
+
+      {/* --- phone: the same rail, as a drawer --- */}
+      {drawer && (
+        <>
+          <button
+            type="button"
+            aria-label="Close the menu"
+            onClick={() => setDrawer(false)}
+            className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          />
+          <nav
+            ref={drawerRef}
+            aria-label="Main"
+            className="border-rule bg-sunk fixed top-0 bottom-0 left-0 z-50 flex w-[288px] max-w-[85vw] flex-col overflow-hidden border-r px-2.5 pt-3 pb-3 shadow-xl md:hidden"
+          >
+            {body(false)}
+          </nav>
+        </>
+      )}
+    </>
+  );
+}
+
+function Body({
+  menu,
+  counts,
+  current,
+  open,
+  setOpen,
+  find,
+  setFind,
+  compact,
+  setCompact,
+  userName,
+  roleLabel,
+  firmName,
+  onNavigate,
+}) {
+  /**
+   * The first group that administers the firm, so the hairline is drawn once
+   * and only when such a group is on screen at all — an employee's menu has
+   * none of them, and nor does a search that matches nothing in them.
+   */
+  const firstAdmin = menu.find((group) => ADMIN_GROUPS.has(group.id))?.id;
+
+  return (
+    <>
+      {/*
+        The mark and the firm's name, once. It read "PHMG" and then "PHMG &
+        Associates" underneath it, which is the same words twice with the
+        second set truncated.
+      */}
+      <div
+        className={`mb-2.5 flex shrink-0 items-center gap-2.5 px-1 ${compact ? "flex-col gap-2" : ""}`}
+      >
+        <span className="bg-carbon text-on-carbon text-14 grid size-[34px] shrink-0 place-items-center rounded-[10px] font-bold">
           P
         </span>
-        {!collapsed && (
-          <span className="font-display text-16 truncate font-semibold">
-            PHMG
+        {!compact && (
+          <span className="text-14 text-ink min-w-0 flex-1 truncate font-semibold">
+            {firmName || "PHMG & Associates"}
           </span>
         )}
+        {/*
+          One button, present in both states. It used to sit in the find row
+          and disappear once the rail was narrow, so the only way back was to
+          click a group and hope: the control that closes a thing has to be
+          there to open it again.
+        */}
+        <button
+          type="button"
+          aria-label={compact ? "Widen the menu" : "Narrow the menu"}
+          title={compact ? "Widen the menu" : "Narrow the menu"}
+          onClick={() => setCompact(!compact)}
+          className="rounded-control text-ink-muted hover:bg-carbon-wash hover:text-ink hidden size-8 shrink-0 place-items-center transition-colors duration-150 md:grid"
+        >
+          <SidebarSimple size={16} />
+        </button>
       </div>
 
-      {links.map(({ href, label, icon: Icon, children }) => {
-        const active = pathname === href || pathname.startsWith(`${href}/`);
-
-        /**
-         * A group opens in place rather than navigating: `/practice` is not
-         * a page of its own, and sending somebody to an index that only
-         * lists five links they can already see would be a click for
-         * nothing. It opens itself when they are inside it.
-         */
-        if (children) {
-          const open = practiceOpen || active;
-          return (
-            <div key={href} className="flex flex-col">
+      {!compact && (
+        <div className="mb-2 shrink-0 px-1">
+          <span className="relative block">
+            <input
+              value={find}
+              onChange={(event) => setFind(event.target.value)}
+              placeholder="Find in menu"
+              aria-label="Find in menu"
+              className="rounded-control border-rule bg-paper text-13 placeholder:text-faint focus:border-carbon w-full border px-2.5 py-[7px] pr-7 transition-colors duration-150"
+            />
+            {find && (
               <button
                 type="button"
-                onClick={() => setPracticeOpen((v) => !v)}
-                aria-expanded={open}
-                title={collapsed ? label : undefined}
-                className={`rounded-control text-14 flex h-9 items-center gap-3 px-2 ${
-                  active
-                    ? "bg-carbon-soft text-carbon-ink font-semibold"
+                aria-label="Clear"
+                onClick={() => setFind("")}
+                className="text-ink-muted hover:text-ink absolute top-1/2 right-1.5 -translate-y-1/2"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </span>
+        </div>
+      )}
+
+      {/*
+        The only part that scrolls. `-mr-1 pr-1` keeps the scrollbar clear of
+        the rows without the rows giving up any of their hit area.
+      */}
+      <ul className="-mr-1 flex min-h-0 flex-1 flex-col gap-px overflow-y-auto pr-1">
+        {menu.map((group) => {
+          const isOpen = open === group.id || Boolean(find);
+          const here = current.group === group.id;
+          const badge = group.count ? counts[group.count] : 0;
+
+          return (
+            <li
+              key={group.id}
+              className={
+                group.id === firstAdmin
+                  ? "border-rule mt-2 border-t pt-2"
+                  : undefined
+              }
+            >
+              <button
+                type="button"
+                aria-expanded={isOpen}
+                title={compact ? group.label : undefined}
+                onClick={() => {
+                  if (compact) {
+                    setCompact(false);
+                    setOpen(group.id);
+                    return;
+                  }
+                  // accordion: one open group at a time
+                  setOpen(isOpen ? null : group.id);
+                }}
+                className={`rounded-control flex w-full items-center gap-2.5 py-[7px] text-left transition-colors duration-150 max-md:py-2.5 ${
+                  compact ? "justify-center px-0" : "px-2"
+                } ${
+                  here
+                    ? "bg-carbon-wash text-ink"
                     : "text-ink-muted hover:bg-carbon-wash hover:text-ink"
                 }`}
               >
-                <Icon size={20} weight={active ? "duotone" : "regular"} />
-                {!collapsed && (
+                <span className="relative grid shrink-0 place-items-center">
+                  <NavIcon
+                    name={group.icon}
+                    className={here ? "text-carbon" : ""}
+                  />
+                  {compact && badge > 0 && (
+                    <span
+                      className={`absolute -top-0.5 -right-0.5 size-[7px] rounded-full ${
+                        group.tone === "bad" ? "bg-redpen" : "bg-waiting"
+                      }`}
+                    />
+                  )}
+                </span>
+                {!compact && (
                   <>
-                    <span className="truncate">{label}</span>
+                    <span className="flex-1 truncate text-[13.5px] font-semibold">
+                      {group.label}
+                    </span>
+                    {!isOpen && (
+                      <Badge
+                        value={badge}
+                        tone={group.tone}
+                        label={group.label}
+                      />
+                    )}
                     <CaretDown
-                      size={14}
-                      className={`ml-auto transition-transform ${open ? "" : "-rotate-90"}`}
+                      size={13}
+                      aria-hidden
+                      className={`text-faint shrink-0 transition-transform duration-150 ease-out ${isOpen ? "rotate-180" : ""}`}
                     />
                   </>
                 )}
               </button>
-              {open && !collapsed && (
-                <ul className="border-rule ml-5 flex flex-col border-l pl-2">
-                  {children.map((child) => {
-                    const here = pathname === child.href;
-                    return (
-                      <li key={child.href}>
+
+              {!compact && isOpen && (
+                <ul className="border-rule mt-px mb-1 ml-[18px] flex flex-col gap-px border-l pl-2.5">
+                  {group.items.map((item, index) =>
+                    typeof item === "string" ? (
+                      <li
+                        key={`${group.id}-label-${index}`}
+                        /* Sentence case at 12px, not tracked capitals at
+                           10.5 — a nav group label is read, not shouted,
+                           and 10.5px is under the floor for a label. */
+                        className="text-faint px-2 pt-2.5 pb-1 text-12 font-medium"
+                      >
+                        {item}
+                      </li>
+                    ) : (
+                      <li key={item.href}>
                         <Link
-                          href={child.href}
-                          aria-current={here ? "page" : undefined}
-                          className={`rounded-control text-13 flex h-8 items-center px-2 ${
-                            here
-                              ? "text-carbon font-medium"
+                          href={item.href}
+                          onClick={onNavigate}
+                          aria-current={
+                            current.href === item.href ? "page" : undefined
+                          }
+                          className={`rounded-control text-13 flex items-center gap-2 px-2 py-1.5 transition-colors duration-150 max-md:py-2.5 ${
+                            current.href === item.href
+                              ? "bg-carbon-soft text-carbon-ink font-semibold"
                               : "text-ink-muted hover:bg-carbon-wash hover:text-ink"
                           }`}
                         >
-                          {child.label}
+                          <span className="flex-1 truncate">{item.label}</span>
+                          <Badge
+                            value={item.count ? counts[item.count] : 0}
+                            tone={item.tone}
+                            label={item.label}
+                          />
                         </Link>
                       </li>
-                    );
-                  })}
+                    ),
+                  )}
                 </ul>
               )}
-            </div>
+            </li>
           );
-        }
+        })}
 
-        return (
-          <Link
-            key={href}
-            href={href}
-            title={collapsed ? label : undefined}
-            aria-current={active ? "page" : undefined}
-            className={`rounded-control text-14 flex h-9 items-center gap-3 px-2 ${
-              active
-                ? "bg-carbon-soft text-carbon-ink font-semibold"
-                : "text-ink-muted hover:bg-carbon-wash hover:text-ink"
-            }`}
-          >
-            <Icon size={20} weight={active ? "duotone" : "regular"} />
-            {!collapsed && <span className="truncate">{label}</span>}
-            {href === "/issues" && issueCount > 0 && (
-              <span
-                className="rounded-chip border-waiting bg-waiting-wash text-waiting num text-12 ml-auto border px-1.5"
-                aria-label={`${issueCount} needing attention`}
-              >
-                {issueCount}
-              </span>
-            )}
-          </Link>
-        );
-      })}
+        {menu.length === 0 && (
+          <li className="text-13 text-ink-muted px-2 py-3">
+            No menu item matches.
+          </li>
+        )}
+      </ul>
 
-      <button
-        type="button"
-        onClick={toggle}
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        aria-expanded={!collapsed}
-        className="rounded-control text-14 text-ink-muted hover:bg-carbon-wash hover:text-ink mt-auto flex h-9 items-center gap-3 px-2"
+      {/*
+        Who you are signed in as, pinned to the floor of the rail. "Signed in
+        as" was two words doing a face's job: the initials say it, and the
+        role underneath is what somebody actually checks before they wonder
+        why a button is missing.
+      */}
+      <div
+        className={`border-rule mt-2 flex shrink-0 items-center gap-2 border-t px-1 pt-2.5 ${compact ? "justify-center" : ""}`}
       >
-        <CaretLeft
-          size={20}
-          className={
-            collapsed
-              ? "rotate-180 transition-transform"
-              : "transition-transform"
-          }
-        />
-        {!collapsed && <span>Collapse</span>}
-      </button>
-    </nav>
+        <span
+          title={compact ? `${userName} — ${roleLabel}` : undefined}
+          className="bg-carbon-soft text-carbon-ink grid size-7 shrink-0 place-items-center rounded-full text-[11px] font-bold"
+        >
+          {initials(userName)}
+        </span>
+        {!compact && (
+          <span className="min-w-0">
+            <span className="text-12 text-ink block truncate leading-tight font-semibold">
+              {userName}
+            </span>
+            <span className="text-12 text-ink-muted block truncate leading-tight">
+              {roleLabel}
+            </span>
+          </span>
+        )}
+      </div>
+    </>
+  );
+}
+
+/** Two letters for the footer chip; one for a one-word name. */
+function initials(name) {
+  const parts = String(name).trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : ""))
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+/** A count of zero is not news. */
+function Badge({ value, tone = "", label = "" }) {
+  if (!value) return null;
+  const skin =
+    tone === "bad"
+      ? "bg-redpen-wash text-redpen"
+      : tone === "warn"
+        ? "bg-waiting-wash text-waiting"
+        : "bg-paper text-ink-muted";
+
+  return (
+    <span
+      aria-label={`${value} ${label.toLowerCase()}`}
+      className={`grid h-[18px] min-w-[20px] shrink-0 place-items-center rounded-full px-1 text-[11px] font-bold tabular-nums ${skin}`}
+    >
+      {value}
+    </span>
   );
 }
 
 /**
- * Phone layout (spec section 15: works at 390 px).
- *
- * Four links and a More sheet. Every link used to be rendered as a bottom
- * bar, which already filled the width for a Partner at nine of them — and
- * the rail is still growing. The current page is always one of the four, so
- * wherever somebody is, the bar shows where they are.
+ * Find in menu: an item matches on its own label or its group's, and a
+ * group with no match disappears rather than sitting there empty.
  */
-const MOBILE_SHOWN = 4;
+function filterMenu(menu, find) {
+  const text = find.trim().toLowerCase();
+  if (!text) return menu;
 
-export function MobileNav({ role = "partner" }) {
-  const pathname = usePathname();
-  const [moreOpen, setMoreOpen] = useState(false);
-  /**
-   * A group has no page of its own, so on a phone it is flattened into its
-   * registers and they fall into the More sheet like everything else. An
-   * expandable tree inside a bottom sheet is two taps where one will do.
-   */
-  const links = linksFor(role).flatMap((link) =>
-    link.children
-      ? link.children.map((child) => ({ ...child, icon: link.icon }))
-      : [link],
-  );
-
-  const isActive = (href) =>
-    pathname === href || pathname.startsWith(`${href}/`);
-
-  // whichever page they are on comes to the front, so it is never hidden
-  const current = links.findIndex((link) => isActive(link.href));
-  const shown =
-    current >= MOBILE_SHOWN
-      ? [...links.slice(0, MOBILE_SHOWN - 1), links[current]]
-      : links.slice(0, MOBILE_SHOWN);
-  const rest = links.filter((link) => !shown.includes(link));
-
-  return (
-    <>
-      {moreOpen && rest.length > 0 && (
-        <>
-          {/* tapping anywhere else closes it */}
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={() => setMoreOpen(false)}
-            className="bg-ink/20 fixed inset-0 z-20 md:hidden"
-          />
-          <div
-            role="dialog"
-            aria-label="More places"
-            className="border-rule bg-surface fixed inset-x-0 bottom-12 z-30 border-t p-2 md:hidden"
-          >
-            <ul className="flex flex-col">
-              {rest.map(({ href, label, icon: Icon }) => (
-                <li key={href}>
-                  <Link
-                    href={href}
-                    onClick={() => setMoreOpen(false)}
-                    aria-current={isActive(href) ? "page" : undefined}
-                    className={`rounded-control text-14 flex h-11 items-center gap-3 px-3 ${
-                      isActive(href)
-                        ? "bg-carbon-soft text-carbon-ink font-semibold"
-                        : "text-ink"
-                    }`}
-                  >
-                    <Icon size={22} />
-                    {label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </>
-      )}
-
-      <nav
-        aria-label="Main"
-        className="border-rule bg-surface relative z-10 flex h-12 shrink-0 items-center justify-between gap-1 border-t px-2 md:hidden"
-      >
-        {shown.map(({ href, label, icon: Icon }) => {
-          const active = isActive(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              aria-label={label}
-              aria-current={active ? "page" : undefined}
-              className={`rounded-control grid size-10 place-items-center ${
-                active ? "bg-carbon-wash text-carbon" : "text-ink-muted"
-              }`}
-            >
-              <Icon size={22} weight={active ? "duotone" : "regular"} />
-            </Link>
-          );
-        })}
-
-        {rest.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setMoreOpen((v) => !v)}
-            aria-expanded={moreOpen}
-            aria-label={`More — ${rest.length} more places`}
-            className={`rounded-control grid size-10 place-items-center ${
-              moreOpen ? "bg-carbon-wash text-carbon" : "text-ink-muted"
-            }`}
-          >
-            <DotsThree size={22} weight="bold" />
-          </button>
-        )}
-      </nav>
-    </>
-  );
+  return menu
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (item) =>
+          typeof item !== "string" &&
+          `${item.label} ${group.label}`.toLowerCase().includes(text),
+      ),
+    }))
+    .filter((group) => group.items.length > 0);
 }

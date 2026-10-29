@@ -1,10 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { TOTP, Secret } from "otpauth";
+import { signIn } from "./signin.js";
 import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
 import Branch from "../../models/Branch.js";
 import DueDateRule from "../../models/DueDateRule.js";
-import { hashPassword, decryptField } from "../../lib/crypto.js";
+import { hashPassword } from "../../lib/crypto.js";
 import { systemAudit } from "../../lib/audit/system.js";
 
 /**
@@ -68,7 +68,7 @@ test.beforeAll(async ({}, testInfo) => {
           passwordHash: await hashPassword(PASSWORD),
         },
       ],
-      { session },
+      { session, ordered: true },
     );
 
     // one unconfirmed rule, which is what the strip should notice
@@ -78,14 +78,20 @@ test.beforeAll(async ({}, testInfo) => {
           serviceCode: fx.serviceCode,
           name: `Playwright settings rule ${testInfo.project.name}`,
           periodType: "monthly",
-          dayOfMonth: 20,
-          monthOffset: 1,
+          /**
+           * The 20th of the month after the period. `dayOfMonth` and
+           * `monthOffset` were the shape before step 7b gave the rule a
+           * `formula`, and the fixture was never moved across — so this
+           * spec's `beforeAll` threw a validation error and none of its
+           * tests had ever run.
+           */
+          formula: { kind: "dayOfMonth", day: 20, monthsAfter: 1 },
           source: "Test fixture",
           createdBy: "test",
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
   });
 });
@@ -99,36 +105,6 @@ test.afterAll(async ({}, testInfo) => {
    * that worker down with it. The worker exiting closes it.
    */
 });
-
-async function signIn(page, email) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByLabel("6-digit code").waitFor();
-
-  const user = await User.findOne({ email }).select("+totpSecret");
-  /**
-   * An authenticator shows one code per 30 seconds, and the app refuses a
-   * code it has already accepted — replay protection, working as spec §16
-   * asks. A suite that signs in a dozen times inside one window hits it
-   * every time, so the counter is cleared to stand for time having
-   * passed. The rule itself is tested in tests/security.test.js.
-   */
-  await User.updateOne({ email }, { $set: { lastTotpCounter: 0 } });
-  const code = new TOTP({
-    issuer: "PHMG & Associates",
-    label: email,
-    algorithm: "SHA1",
-    digits: 6,
-    period: 30,
-    secret: Secret.fromBase32(decryptField(user.totpSecret)),
-  }).generate();
-
-  await page.getByLabel("6-digit code").fill(code);
-  await page.getByRole("button", { name: /Sign in|Turn on 2FA/ }).click();
-  await expect(page).toHaveURL(/\/issues$/);
-}
 
 test("the unconfirmed rule is on the strip, and leaves it once confirmed", async ({
   page,
@@ -244,24 +220,34 @@ test("the reports index carries its figures and the new reports", async ({
   expect(sheet.status()).toBe(200);
 });
 
-test("the Practice group in the rail opens the registers", async ({
+/**
+ * The registers in the rail.
+ *
+ * The group was called "Practice" until P3-22a rebuilt the menu; it is
+ * "Audit and certificates" now, and the items are the register names rather
+ * than the book names. Written against `lib/nav/tree.js` as it stands, which
+ * is the file that decides.
+ */
+test("the audit group in the rail opens the registers", async ({
   page,
 }, testInfo) => {
   const fx = names(testInfo.project.name);
   await signIn(page, fx.partner);
 
-  const rail = page.getByRole("navigation", { name: "Main" });
-  await rail.getByRole("button", { name: "Practice" }).click();
+  const rail = page.getByRole("navigation", { name: "Main" }).first();
+  await rail.getByRole("button", { name: "Audit and certificates" }).click();
 
   for (const [label, path] of [
-    ["Audits", "/practice/audits"],
-    ["UDIN", "/practice/udin"],
-    ["DSC", "/practice/dsc"],
+    ["All files", "/practice/audits"],
+    ["UDIN register", "/practice/udin"],
+    ["Audit studio", "/practice/audit"],
   ]) {
-    await rail.getByRole("link", { name: label }).click();
-    await expect(page).toHaveURL(new RegExp(path.replace("/", "\/")));
-    // the group stays open while you are inside it
-    await expect(rail.getByRole("link", { name: "Audits" })).toBeVisible();
+    await rail.getByRole("link", { name: label, exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(path.replace(/\//g, "\/")));
+    // the group holding the page you are on stays open
+    await expect(
+      rail.getByRole("link", { name: "All files", exact: true }).first(),
+    ).toBeVisible();
   }
 });
 
@@ -271,8 +257,99 @@ test("an employee gets the group without the registers they cannot open", async 
   const fx = names(testInfo.project.name);
   await signIn(page, fx.employee);
 
-  const rail = page.getByRole("navigation", { name: "Main" });
-  await rail.getByRole("button", { name: "Practice" }).click();
-  // they may read the books and the DSC register; the group is there
-  await expect(rail.getByRole("link", { name: "Audits" })).toBeVisible();
+  const rail = page.getByRole("navigation", { name: "Main" }).first();
+  // their audit group is shorter and is called what their work is called
+  await rail.getByRole("button", { name: "Audit", exact: true }).click();
+  await expect(
+    rail.getByRole("link", { name: "Certificate studio" }),
+  ).toBeVisible();
+  // and the firm's registers are not in it
+  await expect(rail.getByRole("link", { name: "UDIN register" })).toHaveCount(
+    0,
+  );
+});
+test("setting the firm up reads the records, and says what is left", async ({
+  page,
+}, testInfo) => {
+  const fx = names(testInfo.project.name);
+  await signIn(page, fx.partner);
+  await page.goto("/settings/setup");
+
+  await expect(
+    page.getByRole("heading", { name: "Setting the firm up", level: 1 }),
+  ).toBeVisible();
+
+  // eight steps, each with the screen that does it behind it
+  // inside the page: the rail is a list of items too
+  const steps = page.getByRole("main").getByRole("listitem");
+  await expect(steps).toHaveCount(8);
+
+  /**
+   * The rule this spec's own fixture creates is unconfirmed, so the
+   * due-date step must say so — the point of the screen is that it is read
+   * from the records rather than ticked off by hand.
+   */
+  const dueDates = steps.filter({ hasText: "Confirm the due-date rules" });
+  await expect(dueDates).toContainText("unconfirmed");
+  await dueDates.getByRole("link", { name: "Do it now" }).click();
+  await expect(page).toHaveURL(/\/settings\/due-dates$/);
+});
+
+test("what this covers counts the menu and owns up to the gaps", async ({
+  page,
+}, testInfo) => {
+  const fx = names(testInfo.project.name);
+  await signIn(page, fx.partner);
+  await page.goto("/settings/coverage");
+
+  await expect(
+    page.getByRole("heading", { name: "What this covers", level: 1 }),
+  ).toBeVisible();
+  // the groups come from the menu, so the Billing one has to be in the table
+  await expect(page.getByRole("cell", { name: "Billing" })).toBeVisible();
+
+  // and the gaps say which kind they are
+  await expect(
+    page.getByRole("heading", { name: /waiting on a decision/ }),
+  ).toBeVisible();
+  await expect(page.getByText("WhatsApp to clients")).toBeVisible();
+  await expect(page.getByText(/section 18/)).toBeVisible();
+});
+
+test("what's new is read from the log, not written up by hand", async ({
+  page,
+}, testInfo) => {
+  const fx = names(testInfo.project.name);
+  await signIn(page, fx.partner);
+
+  // this spec's own fixture creates a rule and two accounts, so there is
+  // always something for the page to have read
+  await page.goto("/settings/whats-new");
+  await expect(
+    page.getByRole("heading", { name: /What.s new/, level: 1 }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
+
+  const main = page.getByRole("main");
+
+  /**
+   * What the lens promises, which is what is asserted — rather than one
+   * particular entry being on the first page, which depends on how much
+   * the rest of the suite happened to write today.
+   *
+   * It shows **changes to how the firm works**…
+   */
+  await expect(
+    main
+      .getByText(/created the (team member|due-date rule|firm.s own record)/)
+      .first(),
+  ).toBeVisible();
+
+  // …and not events: a sign-in is not a change, and it is on the Portal log
+  await expect(main.getByText(/signed in/)).toHaveCount(0);
+
+  // …nor the day's work, which is also the Portal log's
+  await expect(
+    main.getByText(/the (client|invoice|engagement|payment)\b/),
+  ).toHaveCount(0);
 });

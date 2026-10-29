@@ -104,7 +104,7 @@ export default async function GroupPage({ params }) {
         <div className="rounded-table border-rule bg-surface overflow-x-auto border">
           <table className="text-14 w-full">
             <thead>
-              <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+              <tr className="border-rule text-12 text-faint border-b text-left font-normal">
                 <th className="px-3 py-2 font-medium">Code</th>
                 <th className="px-3 py-2 font-medium">Business</th>
                 <th className="px-3 py-2 font-medium">Type</th>
@@ -187,7 +187,7 @@ export default async function GroupPage({ params }) {
             </Link>
             {seesMoney && (
               <Link
-                href={`/invoices/receivables?group=${id}`}
+                href={`/billing?tab=collections&group=${id}`}
                 className="rounded-control border-rule text-13 hover:bg-carbon-wash h-8 border px-3 leading-8"
               >
                 What the group owes
@@ -198,7 +198,7 @@ export default async function GroupPage({ params }) {
         <div className="rounded-table border-rule bg-surface overflow-x-auto border">
           <table className="text-14 w-full">
             <thead>
-              <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+              <tr className="border-rule text-12 text-faint border-b text-left font-normal">
                 <th className="px-3 py-2 font-medium">Business</th>
                 <th className="px-3 py-2 font-medium">Work</th>
                 <th className="px-3 py-2 font-medium">Period</th>

@@ -3,7 +3,7 @@
 Source of truth for what is done. Updated at the end of every step.
 Status: ⬜ not started · 🟡 in progress · ✅ done
 
-Last updated: 27-10-2026
+Last updated: 29-10-2026
 
 ## Phase 1 — Core MVP
 
@@ -118,6 +118,18 @@ prototype's; the foundation is this project's.
 | P3-20a | **The data lab**: any spreadsheet in, a summary and a checklist out | 🟡 | Built 27-10-2026. **It profiles; it does not interpret** (D66): a column is a date or an amount only when *every* filled cell in it reads as one, and until somebody maps which column is which, **nothing is checked** — a tool that guesses analyses the wrong column and reports it with confidence. **Dates are read day first**, because 03-04-2026 is 3 April here and reading it month-first would move every entry in the file into the wrong month with nothing on screen looking odd. **Nothing is stored**: the file is read inside the request and the rows are gone when the response ends, so the firm does not grow a second store of its clients' transactions for a convenience tool; what can be kept is the *summary*, posted to a job's internal thread through `addEngagementComment`, so the lab adds no second way into an engagement. The checks are the ones true whatever the file is — unbalanced debits and credits, a reference used twice, **a gap in a numbered series** (what a department asks about), dates outside the period or in the future, amounts that are not numbers, negatives, the largest few, round figures, blank parties — and **every finding says what it does not mean**, because something that cries wolf is something nobody opens in March. A number the lab could not stand behind was deleted rather than approximated: "blank rows skipped" is impossible to count honestly once the parser has dropped them, so it is not reported. 22 new unit tests (1417 total); 2 Playwright tests waiting on Atlas |
 | P3-20b | **Client experience**: WhatsApp assistant from live data, partner-released monthly report, business pulse | ⬜ | **Blocked on spec §18, unanswered since Step 0**: no WhatsApp Business provider has been chosen, and a messaging channel built against a provider nobody picked is work that gets thrown away. The monthly report is worth revisiting at the same time — it is largely "the client portal, emailed", which is a smaller job than it looks |
 
+**Group 5 — menu and page parity.** Owner's brief, 27-10-2026: the left
+menu and the number of pages must match `CA-Firm-OS-v6.2.html`. Built in
+sub-steps P3-22a … P3-22f.
+
+| Step | What | Status |
+| --- | --- | --- |
+| P3-22a | **The menu itself**: one config the rail, the drawer and the command bar read; the accordion, find-in-menu, compact mode and the phone drawer; module switches; the URL filters the menu needs; and a real route behind every item | 🟡 | Built 27-10-2026. **Ten groups and 58 links for a partner, eight and 24 for staff** — counted by `tests/nav.test.js`, and the rendered menu compared against `tests/fixtures/nav-v6.2.json` in a browser. There were **three menu lists** before this (the rail's, the command bar's, a bottom bar for phones) and they had already drifted: the rail knew the practice books, the command bar knew notices, neither knew the inbox. Now `lib/nav/tree.js` is the only file that names a menu item. **Every badge comes from the helper its page uses** (`navCounts`), because a number that disagrees with the rows it opens is a number nobody trusts twice — and `noticeQuery()` was extracted so the notices page and its four badges ask one question. **A badge of zero is not drawn.** The three filters are the brief's: module on, `can()`, and may-enter-client-data — and a group or a section label left with nothing under it **disappears**, which is the one thing the unit tests hammer, because a heading over an empty space is a menu lying about what you can do. **Nineteen new routes exist from today** with their own server-side permission checks and an empty state naming the sub-step that fills them: no menu item 404s, and nothing is invented to fill the space. The phone bottom bar is gone; the rail is a drawer. 20 new unit tests (1437 total) and **6 browser tests that pass against the real cluster** — including every one of the 58 hrefs answering 200 |
+| P3-22b | **The nine screens behind the menu's new items**: My tasks and the firm dashboard as two pages; Billing as four tabs over the invoice list, the unbilled list, the ageing and a new TDS list; the accounts desk; the monthly GST board; the audit studio's front door and the SA 700 board; the logins vault; leave and cover | 🟡 | Built 28-10-2026. **Nothing new is stored and no new rule is written**: all nine read helpers that already existed, which is why the step is screens rather than a model. Three screens that existed moved — `/today` split into `/my-day` and `/dashboard`, and `/invoices` and `/invoices/receivables` became tabs of `/billing` — with the old addresses left as redirects that carry their filters, so the ten in-app links and any bookmark still land right (D72). **The TDS tab is the first screen `setTds26AS` has ever had**: the action was written at Step 8b and nothing called it, so a receipt short-paid by TDS could not be ticked off as credited. **A latent bug in the audit transaction was found and fixed, and it was not about payments**: `lib/audit/context.js` keeps its `AsyncLocalStorage` at module scope, Next.js duplicates that module into four route bundles, and the Mongoose model is registered once by whichever route touches it first — so after this step opened `/billing`, recording a payment from the client page wrote its audit entry against a different store and the plugin refused the change. The store now lives on `globalThis`, like the database connection. 10 new unit tests (1447 total) and **8 browser tests that pass against the real cluster, on a laptop and a phone**; six older specs were repaired on the way (see the notes) |
+| P3-22c | **To-dos**: the small things that are not jobs — a line with a date and a name on it, kept in a collection of its own, with the firm's list, a panel on My tasks and a badge on the menu | 🟡 | Built 28-10-2026. **The first thing in Phase 3 that a person types in and finishes**, rather than a reading of records — so it is deliberately neither an engagement (one service, one client, one period, a fee and a reviewer) nor an Issue (computed live, with nothing to tick off, which is what P3-6 exists to be). A new `todos` area in the matrix is what decides whose list you can read, so the scoping is spec §2's and not the page's. **An undated to-do is kept and shown last rather than refused**: half of what anybody writes down has no date, and a list that demands one is a list people keep on paper. Ticking from My tasks and from the list is the same component and the same action, so the two screens cannot disagree about what finished means. **Two bugs found in the writing, both in the tick**: it read `event.target.checked` inside the transition, by which time React had reset a controlled checkbox — so a to-do ticked off saved itself as unfinished; and the confirmation disappeared with the row when the last to-do in a bucket went. 15 new unit tests (1462 total) and 4 browser tests that pass against the real cluster, on a laptop and a phone |
+| P3-22d | **The settings screens that describe the system to itself**: new-firm setup, the coverage map, and what's new — three of the five the menu names | 🟡 | Built 28-10-2026, **three of five: `/settings/customise` and `/settings/modules` still need the owner** (custom fields and the firm's own words change the data model; modules were recommended against and that recommendation was accepted, so the screen should say so rather than offer switches). The three built are pure reads and share one rule: **nothing on them is a second record**. Setup reads the eight conditions from the records — six of them the very checks the "Needs attention" strip reads, by key, so the two screens cannot disagree — because a checklist with its own state is the copy that goes stale, on the screen whose whole job is to say what is missing. The coverage map **counts the menu** rather than keeping a list of features, and its "not built" half is written out with the reason and the decision behind each one, kept honest by a test that fails if it names a route with no page. What's new is **the firm's own change history, not release notes** (D76): every change already writes an audit entry, so it is a lens on the Portal log narrowed to the eight records that are *how the firm works*, and to changes rather than events. `lib/audit/describe.js` gained words for the twenty collections added since Step 2, which were printing as `firmsettings` and `docrequest` on the Portal log too. 8 new unit tests (1470 total) and 3 browser tests on a laptop and a phone; **`tests/e2e/settings.spec.js` had never run at all** — its fixture missed a field the due-date rule gained at step 7b — and two of its older tests were repaired (see the notes) |
+| P3-23 | **The browser suite, made to tell the truth**: one sign-in helper instead of forty, a time budget that fits an audited write to Atlas, and the first real inventory of what is red | 🟡 | Started 28-10-2026, **not finished**. The suite had never run: `88 green / 60 red` on the first complete pass, and by the end of the day the specs that were worked on are green (registers 6/6, issues 3/3, keyboard 5/5, todos 4/4, screens 8/8, settings 9/10, access 3/5, engagements 2/3). **Four causes account for most of it**, and three were the product's, not the tests': the top bar's button was labelled "Search clients, PAN, GSTIN", so `getByLabel("Client")`, `getByLabel("PAN")` and `getByLabel("GSTIN")` all matched it (now just "Search" — better for a screen reader too); P3-8 deliberately **shows a refused control disabled with its reason** rather than hiding it, which two tests still asserted the old way; P3-5's filing gate means a fixture must start from approved work; and Playwright's 5-second assertion budget was **timing out on screens that were still working**, because every change here is a transaction to Mumbai. The suite takes **5.6 hours** against Atlas, which is why nobody ran it — a local replica set for tests is the recommendation (D77). **One finding may be a real bug on the most-used form in the system**: on `/clients/new`, with the form valid, clicking "Create client" does nothing at all — no request, no message, no row — while submitting the same form from JavaScript runs the action and returns its validation message. Reproduced five times in a real browser; see the notes |
+
 **Group 4 — the interface.**
 
 | Step | What | Status |
@@ -141,6 +153,22 @@ whose cost grows every week it waits.
 
 | Date | Decision | By |
 | --- | --- | --- |
+| 29-10-2026 | D78: **the look leaves the prototype behind.** The owner's verdict on the v6.2 look was that it read cheap, and the design study names its exact shape — an off-white ground, white cards, one stock blue on every button, tab and link — as what makes a screen read as a kit rather than a product. D35 is reversed **on the look only**; the prototype's product model, screens, data and words are untouched. The replacement is the `achromatic-ledger` direction (seed 1094860545), whose one move is that **colour leaves the chrome entirely**: the primary action is near-black, the secondary a grey pill, every active row and focus ring is ink, and the single hue `--data` is kept for data and for a figure that has moved. Token *names* are unchanged, so sixty routes took the new palette without being edited. | Owner, asked |
+| 29-10-2026 | D79: **every figure is set in the mono face.** Rupees, PAN, GSTIN, UDIN, invoice numbers and dates all land on one character grid, so a column of them reads as a column. This is the firm's one piece of visual identity and the thing no template does — a Chartered Accountancy practice is a ledger. It cost no new dependency: `.num` was already on 179 figures across 71 screens doing tabular numerals, and IBM Plex Mono was already loaded. Tables keep tabular figures without the mono face, because a table holds names as well as figures. | Owner, asked |
+| 29-10-2026 | D80: **one canvas width, capped in the app shell.** Sixty pages each named their own — 760, 860, 900, 1000, 1100, 1200, 1400 and 1600 — so the application changed shape from screen to screen, and at 1920px the widest stretched a filter row to 1550px. `app/(app)/layout.jsx` now caps the canvas at 1280 and centres it beside the rail. A page may still be narrower (a settings form at 760 is right); none may be wider. One edit instead of seventy-seven. | Agent, on the measured range of 1100-1250 for a data screen |
+| 29-10-2026 | D81: **Fraunces comes back, for the sign-in screen and nothing else.** It was dropped with the ledger language in D35. Display type on a screen worked in for eight hours is a page's habit, so the application behind the sign-in stays one grotesk; the sign-in is the one screen that is looked at rather than worked in, and it is where the firm's own name is set. | Agent, with the login direction the owner chose |
+| 29-10-2026 | D82: **the dealt typeface was redrawn, with a reason.** The `achromatic-ledger` sheet deals Geist; `CLAUDE.md` fixes this project's fonts to IBM Plex Sans, IBM Plex Mono and Fraunces. The brand constraint wins, which the skill's own rule for an existing brand allows, and `inspect.mjs` is run with `--allow font-not-dealt` so the gate records the exemption rather than hiding it. Plex is in any case the less generic face: the study's complaint is against stock Geist and Inter. | Agent |
+| 28-10-2026 | D77: **the browser suite should run against a local MongoDB replica set, not Atlas** — recommended, owner to decide. A full pass takes **5.6 hours** against the cluster, because every write is a transaction to Mumbai over a home connection, and a suite nobody can re-run is a suite nobody fixes: that is precisely how 60 stale tests accumulated while every report said "waiting on Atlas". `mongodb-memory-server` (a dev dependency, one replica, transactions supported) or a docker container would make it minutes and would let it run in CI. Atlas stays where it belongs: the acceptance pass and go-live, where the point is the real cluster | Agent, to confirm |
+| 28-10-2026 | D76: **"What's new" is the firm's own change history, not release notes about the software.** A page somebody remembers to update is a page nobody updates, and the prototype's own description of this screen rejects it. What a firm needs to know is what changed *here*: who confirmed a due-date rule, who approved a template, who added a service, who corrected the firm's record. All of it is already written down, so the screen is a lens on the Portal log narrowed to the records that are how the firm works, and to changes rather than events — a sign-in is not a change. Release notes about the product, if they are ever wanted, belong in a file in the repository that ships with the version it describes | Agent |
+| 28-10-2026 | D75: **a to-do is a line with a date and a name, and anybody may write one for anybody they can see.** Owner's answer to the three questions put with the plan, 28-10-2026: a to-do can be made for a colleague (the row keeps both names, so one that turns up on your list says who put it there); a partner reads the firm's, a CA their branch's, everybody else their own plus the ones they wrote for somebody else; and ticking needs no review, because a maker-checker rule on a phone call would mean nobody uses the list at all. The intern is included on purpose: chasing a challan is exactly their work | Owner |
+| 28-10-2026 | D74: **the accounts desk is four lists and performs nothing.** Money received and not applied, promises that have come round, drafts not issued, and fee waivers waiting on a partner — chosen as the four things an accounts person does every morning, and every row links to the screen where that action already lives rather than repeating the button (P3-8's rule). The owner said "go" without picking, so these four are the agent's reading of the brief's "receipts to enter, allocations to make, and what a partner has to approve"; a fifth panel is a dozen lines | Agent, to confirm |
+| 28-10-2026 | D73: **"TDS credit to match" means a receipt the client paid short, which nobody has yet found in Form 26AS.** That is the only TDS the system holds: `Payment.tdsPaise` with `tdsSeenIn26AS` unticked (spec §7 says the reconciliation is manual in v1). The list is grouped by the quarter the receipt falls in, because 26AS is filed and read a quarter at a time, and the tick is reversible from a second list — ticking the wrong receipt is the likeliest mistake on that screen. Asked of the owner with the plan; they said "go" without answering, so this is the agent's reading | Agent, to confirm |
+| 28-10-2026 | D72: **a screen that moved leaves a redirect, not a copy.** `/today` → `/my-day`, `/invoices` → `/billing?tab=invoices`, `/invoices/receivables` → `/billing?tab=collections` (and `?tab=unbilled` → `?tab=ready`), with the query string carried across. Two copies of the ageing report would be two places to fix when the ageing is wrong, and ten in-app links plus every bookmark the firm has made would otherwise have to be found and changed. `/invoices/[id]`, `/invoices/new` and the Excel export stay where they are: it is the list that moved, not the invoice. The in-app links were pointed at the new addresses anyway, so a click does not bounce; the redirects are for what is already written down | Agent, raised with the plan |
+| 28-10-2026 | D71: **the shell carries three things and the profile menu carries the rest.** Out-of-band polish on the rail and the top bar, asked for by the owner. The rail is now three zones — a fixed head, a scrolling list, a fixed foot — because with a group open the list is taller than a laptop screen and the firm's name, the find box and the signed-in line all scrolled away with it. A hairline splits the ten groups into the eight that are work and the two that run the firm. The narrow/wide button is present in **both** states; before, it vanished once the rail was narrow and the only way back was to click a group and hope. The drawer on a phone is never narrow, whatever the desktop rail is set to. In the top bar the theme, density and flourishes toggles moved into the profile menu, captioned: as seven equal-weight glyphs in a row they were the loudest thing on a screen whose job is to be quiet, and **on a 390px phone they pushed the profile button clean off the right-hand edge** — one change, two problems. The bar's gutters now line up with the page's, and its icon buttons are 36px so a thumb can find them | Agent, owner asked for the polish |
+| 27-10-2026 | D70: **the group icons are the ones already in the project, until the prototype arrives.** The brief says to copy the prototype's inline SVG paths exactly, and `docs/design/CA-Firm-OS-v6.2.html` **is not in the repository** — there is no `docs/design/` at all. Rather than stall the whole sub-step on a file, the ten group icons are Phosphor glyphs chosen to mean the same thing, and `components/shell/navIcons.jsx` is the only file that names one: eleven entries in a map, swapped in a single edit when the HTML lands. Everything else in the brief was buildable from the brief itself, which specifies all 58 links, the routes, the badges and every CSS value | Agent, **the owner still owes the prototype file** |
+| 27-10-2026 | D69: **eight working screens the prototype's menu has no group for stay reachable.** `NAV13` has no item for the firm audit log, the client portal log, the client import, the two practice books (statutory and tax), the recycle bin, users, ICAI, security, the job runner or bringing data in. Spec §11 *requires* the audit log to be reachable, and the rest are daily work somebody built. They are in the command bar now, and the settings hub's "More" section in P3-22d. Nothing working was removed to make the menu match a picture of it — and note the trap in the words: the prototype's "Statutory" and "Tax audit" under Audit are *audit categories*, not this app's company-law and tax-filing books | Agent, finding |
+| 27-10-2026 | D68: **the brand stays the firm's own.** The prototype's rail says "CA Firm OS" over the firm's name. This is PHMG's own system, not a product with a name of its own, so the rail keeps "PHMG" with `FirmSettings.name` underneath. The brief said to use the prototype's text unless the owner said otherwise; the owner left it to me | Agent, owner left it to me |
+| 27-10-2026 | D67: **partners, CAs and the billing desk get the partner menu; employees and interns get the staff menu.** The prototype has two menus and this app has five roles. Accounts gets the partner layout because their work is in it — ready to bill, collections, TDS — and `can()` then takes away the Jobs and Audit groups they cannot open, which a test asserts. So the mapping costs nothing and nobody sees a group with nothing in it | Agent, owner left it to me |
 | 27-10-2026 | D66: **the data lab reads a file and keeps nothing.** Spec §1 puts the accounting ledger out of scope and this keeps it there: the firm's own software does the accounting, and the lab reads a file somebody exported from it, inside one request. No upload is stored — a second store of clients' transaction data is not a thing to create for a convenience tool, and the file nobody kept is the file nobody has to protect. What *can* be kept is the summary of what was read and what was found, posted to a job's internal thread, so a check run in March is on the record in June. The other half of the decision: **it profiles rather than interprets.** A person maps which column is the amount before a single check runs, and nothing tax-specific is checked at all — a rule I invented would be exactly what CLAUDE.md rule 8 forbids, and wrong in a way nobody could see | Agent |
 | 27-10-2026 | D65: **the learning library ships empty, and says so.** The prototype has a written procedure for every screen and five playbooks with worked examples; none of that text is in this build. A procedure is followed, so one written by the system — or by me, from a design file — would have PHMG's staff doing what somebody outside the firm guessed. The same stance as D48 on the notice-law table and D54 on certificate wording: the structure is the system's, the words are the firm's. An unwritten screen is a state with words — "nobody at the firm has written this up yet", and who could — never a blank and never a plausible filler. **The owner should know what this costs**: the panel is worth nothing until somebody writes the first few, and the ones worth writing are the ones a partner explains out loud most often | Agent, **the owner must write the content** |
 | 27-10-2026 | D64: **a kept draft never holds a PAN or an Aadhaar, and says so.** They are encrypted on the client record and redacted in the audit log (CLAUDE.md rule 7); leaving them in plain text in a half-finished form, in a collection with no audit trail, would undo all of that to save somebody ten seconds of typing. The banner names what was left out, because a form handed back with an empty PAN box and no explanation is worse than one that admits it. The same reasoning made the draft a **button rather than an autosave**: saving as you type would write a partly-typed identity to the database every few seconds, which is the same problem with a faster clock | Agent |
@@ -1842,6 +1870,276 @@ From spec §18 — none answered yet. These block later steps, not Step 0:
 
 ## Left over / known gaps
 
+> **A correction, 27-10-2026.** Many step notes below say nothing has ever
+> run against a database. **That is out of date.** The Atlas cluster exists
+> and always did: `npm run doctor` connects, transactions work, the audit
+> chain is intact. What actually kept the end-to-end suite skipping for
+> twenty steps was that **Playwright never loaded `.env`** — three lines in
+> `playwright.config.mjs`, now fixed. The suite runs; 36 of 135 passed on
+> the first real run and the number is climbing as each stale expectation
+> and each real bug is dealt with. Treat "needs Atlas" in an older note as
+> "needs its own test fixed", not as a missing cluster.
+
+**From the shell pass (28-10-2026)**
+
+- **`tests/e2e/keyboard.spec.js:124` fails, and it is a real conflict, not a stale test.** It asserts spec §15's login scene is in the page; D52 parked all eight signature moments, and `app/(auth)/login/page.jsx` wraps the scene in `.moments-only`, which `globals.css` sets to `display: none`. A hidden element is not in the accessibility tree, so the `img` role the test looks for does not exist and `/login` renders the form alone. **The owner has to choose**: exempt the login scene from the moments switch — it is the one of the eight that is a first impression rather than a flourish on a working screen — or change the test to assert the scene is present but parked. Neither is a thing to guess at.
+- The rail's **Find in menu** does what Ctrl-K already does, against the same tree. Kept rather than removed, because removing a working control is the owner's call; worth revisiting if nobody uses it.
+- **Page widths are per page** — 760 / 900 / 1100 / 1400 / 1600px across sixty files. At 1920 the client filter row stretches to 1550px, which is the worst-looking view in the application. Out of scope for a shell pass; a deliberate pass over the page containers would fix it.
+- `AUTH_SKIP_2FA=true` is set in `.env` for the trial. `playwright.config.mjs` forces it off for the suite, so the tests still exercise the real sign-in. **Vercel has its own environment**: the deployed trial keeps asking for a code until the variable is set there too, and `npm run doctor` refuses go-live while it is on, by design.
+
+**From P3-23**
+
+- **Clicking "Create client" does nothing, and this needs a human to try
+  it.** On `/clients/new`, with the form valid (`checkValidity()` true on
+  all four required fields), clicking the submit button produces **no
+  server action call, no message, no row, no console error and no
+  navigation** — five times, in a real browser, including after waiting for
+  the on-blur duplicate check to finish. The same form submitted with
+  `form.requestSubmit()` from JavaScript runs `createClient` and returns its
+  validation message, so the action and the wiring are fine. Either
+  Playwright's click is being swallowed by something (a disabled flicker
+  from the duplicate check's transition, an overlay) **or client creation is
+  broken for anybody using a mouse** — and those two have very different
+  consequences. Thirty seconds by hand settles it: open the form, fill it,
+  press Create. Six `clients.spec.js` tests are red behind this.
+- **The suite's 5.6 hours is the reason it rotted.** Nobody re-runs a suite
+  that takes most of a working day, so each step's "2 Playwright tests
+  waiting on Atlas" went unverified until they were all waiting together.
+  D77 is the recommendation; until it is taken, the working loop is one
+  spec file at a time (one to three minutes each).
+- **Three of the four big causes were the product's, not the tests'.** The
+  top bar's label collided with every form field called Client, PAN or
+  GSTIN; P3-8 changed a refused control from hidden to disabled-with-reason;
+  P3-5 put a review gate before filing. Each was a deliberate decision that
+  nothing propagated to the tests, because the tests could not be run.
+- **One sign-in helper now** (`tests/e2e/signin.js`), where there were forty
+  copies. It also does two things no copy did: it handles both second steps
+  (enrolment and code) and the `AUTH_SKIP_2FA` case, and it **retries a
+  refused code in the next time step** — the replay guard refuses a step
+  already used, which is right in production and wrong for a suite that
+  signs the same person in ten times a minute. The two client-portal specs
+  keep their own helper: a client signs in on a different screen.
+- **`gotoForm()` waits for hydration**, because Playwright types faster than
+  a browser hydrates and a `fill()` before hydration is invisible to React.
+  Worth knowing beyond the suite: **these forms have no no-JavaScript
+  fallback** — before hydration the submit reloads the page and loses what
+  was typed. A person takes half a minute to type a client's name, so it is
+  the suite's race and not theirs, but it is a real property of the forms.
+- **Playwright's budget is now 60s per test and 15s per assertion**, raised
+  once in the config rather than per assertion. It must not become a way to
+  stop noticing slowness: an audited write is one or two seconds, and a
+  single click that needs more than a few is worth reading the query for.
+- **Two fixture bugs, found only because the specs finally ran**: the UDIN
+  in `registers.spec.js` was 16 characters where the form demands 18, so
+  every test in that file failed on a validation message rather than on its
+  subject; and `settings.spec.js` built a `DueDateRule` without the
+  `formula` the model has required since step 7b, so its `beforeAll` threw
+  and all ten of its tests counted as "waiting on Atlas".
+- **The specs share one database and interfere.** `screens.spec.js` passes
+  alone and failed inside the full run, because another spec had registered
+  a branch GSTIN and a third had confirmed the due-date rules. `workers: 1`
+  is not enough; real isolation means a branch and a firm record per spec,
+  or a database per spec. It is the next structural job after D77.
+- **`settings.spec.js`'s last failure is its own and destructive**: it
+  confirms *every* due-date rule on screen to prove the warning goes, which
+  also writes a partner's confirmation onto the firm's real statutory rules.
+  It wants rethinking as much as fixing.
+- **What is still red, by cause**: the clients form (above, 6 tests), books
+  and milestones around filing after P3-1 (4), docs templates (5),
+  due-dates including an off-by-one on an extension date that looks real
+  (4), team, portal-pages, icai, automation, documents, docs, lab,
+  round-trip, cover, checklist, client-360, permissions, tiers, view,
+  signin-flow, portal (1-3 each).
+
+**From P3-22d**
+
+- **Two of the five screens are not built, and both need the owner.**
+  `/settings/customise` would let the firm rename what the system calls
+  things and add fields of its own — both change the data model, so the
+  decision comes first. `/settings/modules` is stranger: switching modules
+  off was proposed by the prototype and recommended against on 27-10-2026,
+  and that recommendation was accepted — so the honest screen says that,
+  and offering switches would contradict a decision already taken. Say
+  which of the two you want and it is a short step; left alone, both keep
+  their stub, which names the sub-step and does not pretend.
+- **The coverage map's "not built" list is written by hand**, because a
+  thing that does not exist leaves no trace to derive it from. A test keeps
+  the half it can: every entry that names a route must name one that
+  exists. Nothing stops the *reasons* going stale, so it is worth reading
+  through whenever a phase closes — it is ten entries, not a hundred.
+- **The coverage map counts screens, it does not list them.** A reader who
+  wants to know whether something exists has to open the menu; the page
+  answers "how much is there" and "what is deliberately missing". Listing
+  all 58 labels again would be the second inventory this step exists to
+  avoid.
+- **What's new reads eight record types** — the firm's record, branches,
+  services, due-date rules, document templates, reminder rules, team
+  accounts and procedures. A ninth kind of settings record added later will
+  not appear until it is added to that list; the alternative was to exclude
+  the day's work by type, which breaks the other way round the moment a new
+  *work* collection arrives.
+- **It shows changes, not events.** A sign-in is recorded against a team
+  member and is excluded on purpose: it is on the Portal log and the
+  security screen. So is a failed one.
+- **Setup's two own counts are "is there anybody but the partner" and "is
+  there a real client".** Neither is a warning anywhere else, because
+  neither is a *problem* — a firm that has not added its staff yet is not
+  broken, it is new. That is why they are not in `attention.js`.
+- **Setup is partner-only** (`usersSettings` edit). It is a page about the
+  firm's own readiness and every step links to a screen only a partner can
+  use.
+- The setup page says a step is done when nothing is left to count, which
+  means **a step can tick itself without anybody looking at it** — a branch
+  created with a GSTIN already on it, for instance. That is the honest
+  reading of "read from the records", and it is why each step keeps a link
+  that says "Open it anyway".
+- **`tests/e2e/settings.spec.js` had never run**: its fixture built a
+  `DueDateRule` without the `formula` the model has required since step 7b,
+  so `beforeAll` threw and all of its tests were counted as "waiting on
+  Atlas". It runs now, 9 of 10 pass, and the two stale rail tests were
+  rewritten against P3-22a's menu (the group is "Audit and certificates",
+  not "Practice"). **The one still failing is P2-10b's own**: it confirms
+  every due-date rule on screen and expects the warning to go, which also
+  means it writes a confirmation onto the firm's real statutory rules —
+  worth rethinking as well as fixing.
+- The sign-in helper that forty specs share **gets flaky after several
+  sign-ins in one file**, which is why a spec can pass alone and fail in
+  company. It is a suite-wide problem, not this step's, and it wants one
+  pass of its own.
+
+**From P3-22c**
+
+- **Nothing reminds anybody.** A to-do that is late sits on the list, on My
+  tasks and in the badge, and no email is sent — spec §12's events are about
+  engagements and invoices, and a daily "you have three to-dos" message is
+  the fastest way to teach people to ignore the firm's email. Worth adding
+  to the digest (P3-9b) rather than as a mail of its own, and it is a few
+  lines when the owner wants it.
+- **A to-do does not repeat.** "Reconcile the bank every Monday" has to be
+  written again each week. Recurrence is a real feature with a real cost
+  (the job runner would have to generate them, and generated to-dos nobody
+  ticks pile up) and a firm of five is better served by writing the line
+  again.
+- **It cannot be attached to a job**, only to a client. `engagementId` is
+  deliberately not on the model: nothing links to a to-do from an engagement
+  yet, so the field would have been a column nobody fills. One line in the
+  model and one select when the engagement screen wants it.
+- **A CA reaches a colleague's to-do only if that person reports to them**,
+  because that is what the `team` scope means in `inScope()`. A CA who wants
+  to re-date somebody else's writes their own instead. If a CA should be
+  able to work the whole branch's list, the matrix row changes to `branch`
+  and nothing else does.
+- **The tick is believed.** Anybody who may change a row can say it is done,
+  and the audit entry names them and the moment — which is the whole record.
+  There is no "are you sure" and no second person, by the owner's decision
+  (D75).
+- **The badge counts late and today only**, so it reaches zero. A to-do due
+  on Friday is on the list but not on the badge, which means the badge
+  cannot be used to see "what is coming" — that is the list's job.
+- The list reads at most 500 open and 100 finished rows and says nothing
+  when it hits that, like the other caps in the system. Far above a firm of
+  five keeping a working list; worth revisiting only if to-dos are being
+  written and never ticked, which is its own problem.
+- **`/todos` is the ninth screen with its own collection and the first since
+  P3-11's notices.** Everything in P3-22b was a reading of records; this one
+  adds rows, so the seed script (`--sample`) does not know about it and a
+  fresh database shows an empty list with the add box, which is the right
+  first impression.
+
+**From P3-22b**
+
+- **Nine screens, nothing new stored.** Every figure on them is read off
+  fields earlier steps already write, so there is no second record of a
+  month, a file or an absence that could disagree with the job itself. The
+  cost of that choice is that a screen is only as good as what was recorded:
+  the GST board says "waiting for data" for a client nobody has asked yet,
+  because asking is not a thing the system keeps.
+- **The audit-store bug was latent before today and is worth understanding.**
+  Four route bundles each had their own copy of `lib/audit/context.js`, and
+  the Mongoose model is registered once per process by whichever route is hit
+  first — so which pairs of routes worked depended on the order the first
+  requests arrived in. Opening `/billing` and then recording a payment was
+  simply the first pair anybody had tried. It is fixed at the root (the store
+  is on `globalThis`), and the same hazard applies to any other
+  module-scope singleton that the plugin side reads: there is only this one
+  today, and `lib/db.js` was already doing it the right way.
+- **Six older browser specs were repaired on the way, and two of them were
+  broken fixtures rather than stale selectors.** `registers.spec.js` tried to
+  create two engagements for one client, one service and one period, which
+  the unique index forbids, so its whole suite died in `beforeAll`; three
+  specs picked a `<select>` option by a regex label, which Playwright has
+  never accepted and `tests/e2e/alerts.js` exists to work around. The
+  selector repairs were P3-22a's and D71's doing: the rail now has its own
+  "Overdue" link and the top bar's search button is labelled "Search
+  clients, PAN, GSTIN", both of which older specs matched by accident.
+- **Two browser specs are still red, and neither is this step's.**
+  `registers.spec.js` (6 tests) asserts on a UDIN panel that P2-13 rebuilt —
+  `getByLabel("UDIN")` now matches three controls — and
+  `issues.spec.js:286` depends on the test before it not having accepted the
+  one document that put a row on an employee's Issues. Both are stale tests
+  over working screens, and both want a pass of their own; say the word and
+  it is a short step.
+- **The five rail tests skip on the phone project** (`nav.spec.js`), because
+  at 390px the menu is a drawer and the drawer has a test of its own that
+  makes its own phone context. The nine new screens are tested at both
+  widths.
+- **`/billing`'s group filter narrows the rows, not the figures of the
+  firm.** Collections, Ready to bill and Invoices all honour `?group=`, and
+  the heading says which group — but the five ageing buckets above the table
+  are that group's, not the firm's, which is right for the page and worth
+  knowing before reading a figure out loud.
+- **The firm dashboard is the same boards as before**, moved. No tile was
+  added, and the five reports that wait on time tracking (Phase 2) are still
+  absent rather than empty.
+- **The GST board opens on the most recent month that has GST work**, which
+  is a query rather than a rule: October's return is filed in November, so
+  "this month" would be the wrong default half the year. Pick any of six
+  months from the selector.
+- **The audit studio's two boards show every audit engagement**, including
+  the ones with no file opened yet — a file is created the first time
+  somebody opens the studio on the job, so "Not opened" is the honest first
+  group and not a gap.
+- **The logins vault shows what is held and never reveals it.** No reveal
+  button, and the ciphertext is `select: false` on the model, so the page
+  never had a password in memory to leak. It also lists clients with no login
+  at all, which is new information the firm has not had.
+- **Leave and cover reads 30 days ahead** and lists what falls due inside
+  each absence — the warning spec §9 asks for. It cannot warn about a cover
+  who is themselves away on the day, because `coveringOn()` allows one hop
+  by design (P3-16); the overlap check at recording time is what stops that.
+- **The TDS tick has no second gate.** Anybody who may edit invoices can say
+  a credit has appeared in 26AS, and the audit entry names them. If that
+  should be the accounts person only, or need a partner, it is one line in
+  the matrix.
+- The accounts desk reads at most 200 rows per panel and the vault 5,000
+  logins — far above this firm, and both say nothing when they hit it, which
+  is the one place on these screens where a cap is silent.
+
+**From P3-22a**
+
+- **The prototype file is still missing** (D70), so the icons are
+  stand-ins and nothing here has been compared with `NAV13` itself. The
+  fixture was generated from `lib/nav/tree.js`, which makes the browser
+  test a drift test between the rail and the tree — not proof that the
+  labels match the prototype.
+- **Nineteen routes are real pages that do nothing yet**, each naming its
+  sub-step. They are honest, not finished.
+- **Compact mode and the drawer were built, the compact dot is untested**:
+  the browser tests cover the drawer, the accordion and find-in-menu, and
+  the 7px badge dot at a group's icon in compact mode is only checked by
+  eye.
+- The group badge shows **only while the group is closed**, which is the
+  prototype's rule; the counts behind it are recomputed on every page load
+  (about fifteen bounded queries). Cache per user for a minute if it ever
+  shows in the slow log.
+- `/calendar?freq=annual` **takes the half-yearly services with it**, since
+  a client asking for the annual filings means those too. One-time work
+  belongs to no recurrence and appears under none of the three.
+- The five audit categories match on the **words in `auditType`**, which is
+  free text the firm typed. An audit whose type says nothing appears under
+  "All files" and under none of the five.
+
+
 **From P3-20a**
 
 - **Nothing has run against a database** — though the lab is the one screen
@@ -2585,3 +2883,98 @@ From spec §18 — none answered yet. These block later steps, not Step 0:
 - The left rail links to `/clients`, `/engagements`, `/calendar`, `/invoices`, `/reports`, `/settings`, which 404 until their steps build them.
 - `MONGODB_URI` is not set anywhere yet, so `connectDB()` has never actually opened a connection. First real use is Step 1.
 - No GitHub remote; commits are local only.
+
+## What P3-24 built — the achromatic ledger (29-10-2026)
+
+The owner's verdict on 29-10-2026: the colour theme, the type and the
+layout read cheap. **They did, and for a reason that was recorded rather
+than accidental** — D35, on 26-10-2026, replaced spec §15's design
+language with the v6.2 prototype's at the owner's instruction ("keep
+everything exact like prototype"), and parked eight hand-built details
+behind a switch that is off by default (D52).
+
+The prototype's palette is an off-white ground, white cards and one stock
+blue on every button, tab and link. The design study behind this step
+names that exact combination as what makes a screen read as "a
+well-applied kit, not a product with its own identity". So the look was
+doing precisely what it had been told to.
+
+**The direction is `achromatic-ledger`**, seed 1094860545, dealt for the
+brief "practice management for an Indian Chartered Accountancy firm, used
+in eight-hour sessions". Its one move: colour leaves the chrome
+completely. Measured on real finance screens, a screen of this kind is
+under 1% coloured pixels, and 12 of 23 carry no filled coloured button at
+all.
+
+**What changed**
+
+- **The token layer** (`app/globals.css`). A blue-grey ledger ground, a
+  near-black primary, a grey-pill secondary, ink focus rings, neutral
+  active rows, and one hue — `--data` — reserved for data and for a figure
+  that has moved. Four panel radii became two and a pill. The resting
+  shadow became none: a border or a tone step, never both. **Not one
+  token name changed**, so sixty routes took the new palette without being
+  edited.
+- **`--faint` moved from #687080 to #666e7e.** The ledger ground is two
+  levels deeper than the old one, which cost the 12px label text 0.02 and
+  put it under 4.5:1. This is the least-darkened value that clears the bar
+  on both the ground and a card. Everything else that already passed was
+  left alone.
+- **Every figure is mono** (D79), through the `.num` class that was already
+  on 179 figures across 71 screens.
+- **39 table headers across 35 files** stopped shouting: one repeated class
+  string carried `uppercase`, `tracking-wide` and a `bg-sunk` header band,
+  all three of which the study flags as louder than the data. The header
+  words were already sentence case in the markup; only the CSS was
+  capitalising them.
+- **35 more uppercase section labels** went the same way, and the rail's
+  group labels came up from 10.5px tracked capitals to 12px sentence case
+  — 10.5px is under the floor at which a label is read rather than seen.
+- **10 filter-bar buttons stopped competing with the screen's primary.**
+  Filter, Apply, Search and Show were all wearing the filled near-black of
+  the one primary action; they are the grey pill now. The other 44 uses of
+  that class are genuine primaries and were left.
+- **One canvas width** (D80), capped once in the app shell.
+- **The sign-in screen** was rebuilt as a plate and a sheet: the firm's
+  name in Fraunces on deep ink with its particulars as a ledger block in
+  mono, the form on white beside it. Every word on the plate is read from
+  `firmProfile()`; a particular the firm has not entered is left out
+  rather than printed as a gap. The two lines that are always true — the
+  financial year and today's date in IST — are computed, so the plate holds
+  its shape on a firm that has never opened Settings.
+
+**`scripts/shots.mjs` is new.** The design tools can only reach `/login`;
+everything else is behind a session, so a change to the token layer — which
+restyles sixty routes at once — was being judged on the one screen that
+needs no password. It signs in with the suite's own helper and photographs
+eight screens in both themes. It makes and removes its own account, exactly
+as every spec does, so nobody's real password is in a screenshot script.
+
+**Checks:** lint clean, 1470 Vitest tests pass, `next build` succeeds,
+`inspect.mjs --app` on the production build reports 0 FAIL, and
+`impeccable detect` reports nothing on the seven files touched by hand.
+
+**Left over**
+
+- **`inspect.mjs` needs `--allow font-not-dealt`** (D82). The sheet deals
+  Geist; `CLAUDE.md` fixes the fonts. The exemption is passed explicitly
+  rather than the rule being switched off.
+- **Two warnings are defended, not fixed.** `app-title-size` reads the
+  sign-in's 68px name as a landing-page title — it is the one screen in the
+  product that is looked at rather than worked in. `panel-void` reads the
+  two full-height halves as cards and their centred blocks as holes.
+- **The eight signature moments are still parked** (D52), the login scene
+  among them. It stays inside `.moments-only` in the new page, so the
+  switch still works and `keyboard.spec.js` can still turn it on — but the
+  plate's particulars, not the scene, are what the screen is built around
+  now. **This settles the choice `keyboard.spec.js:124` was waiting on**
+  only in the sense that the scene is no longer load-bearing; the test
+  still asserts §15's wording and still needs the owner's answer.
+- **`bg-carbon` is on 141 elements.** Ten were demonstrably wrong and were
+  fixed. A screen-by-screen pass for "one filled primary per screen" is a
+  separate job from a token pass and was not attempted.
+- **The empty cards on My tasks keep ~160px of blank.** Keeping an empty
+  section's frame is right; the height is more than the content needs. It
+  closes itself the moment the account has work in it.
+- **Only light was checked at 1920.** The shots script takes a width; dark
+  at 1920 was not looked at.

@@ -24,7 +24,7 @@ export function TileRow({ tiles }) {
           href={tile.href}
           className="hover:bg-carbon-wash focus-visible:outline-brass flex flex-1 items-baseline justify-between gap-3 px-4 py-3 focus-visible:outline-2 sm:flex-col sm:items-start sm:justify-start sm:gap-1"
         >
-          <span className="text-12 text-ink-muted tracking-wide uppercase">
+          <span className="text-12 text-ink-muted">
             {tile.label}
           </span>
           <Figure
@@ -54,7 +54,7 @@ export function MoneyTile({ label, paise, note, href, tone }) {
       href={href}
       className="rounded-ledger border-rule bg-surface hover:bg-carbon-wash focus-visible:outline-brass flex flex-col gap-1 border px-4 py-3 focus-visible:outline-2"
     >
-      <span className="text-12 text-ink-muted tracking-wide uppercase">
+      <span className="text-12 text-ink-muted">
         {label}
       </span>
       <Figure
@@ -74,7 +74,7 @@ export function CountTile({ label, value, note, href, tone }) {
       href={href}
       className="rounded-ledger border-rule bg-surface hover:bg-carbon-wash focus-visible:outline-brass flex flex-col gap-1 border px-4 py-3 focus-visible:outline-2"
     >
-      <span className="text-12 text-ink-muted tracking-wide uppercase">
+      <span className="text-12 text-ink-muted">
         {label}
       </span>
       <Figure

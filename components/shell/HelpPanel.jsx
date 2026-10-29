@@ -55,7 +55,7 @@ export default function HelpPanel() {
         aria-label="How we do this"
         aria-expanded={open}
         onClick={() => setOpen((was) => !was)}
-        className="rounded-ledger text-ink-muted hover:bg-carbon-wash hover:text-ink grid size-8 place-items-center"
+        className="rounded-control text-ink-muted hover:bg-carbon-wash hover:text-ink grid size-9 place-items-center transition-colors duration-150"
       >
         <Question size={18} />
       </button>
@@ -67,7 +67,7 @@ export default function HelpPanel() {
         >
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-12 text-ink-muted tracking-wide uppercase">
+              <p className="text-12 text-ink-muted">
                 How we do this
               </p>
               <h2 className="font-display text-15 font-semibold">

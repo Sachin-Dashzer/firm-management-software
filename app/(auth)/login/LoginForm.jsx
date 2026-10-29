@@ -96,12 +96,14 @@ export default function LoginForm() {
         arriving ? "opacity-0" : "opacity-100"
       }`}
     >
-      <h1 className="font-display text-24 font-bold tracking-tight">
-        PHMG &amp; Associates
-      </h1>
-      <p className="text-13 text-ink-muted mt-1">
+      {/* The firm's name is the page's h1, on the plate beside this. This
+          heading names the task, which is all the form side has to say. */}
+      <h2 className="text-24 font-bold tracking-tight">
+        {stage === "password" ? "Sign in" : "Two-factor"}
+      </h2>
+      <p className="text-14 text-ink-muted mt-1.5">
         {stage === "password"
-          ? "Sign in to the practice management system."
+          ? "Your practice management account."
           : stage === "setup"
             ? "Set up two-factor authentication to finish signing in."
             : "Enter the code from your authenticator app."}
@@ -187,11 +189,11 @@ export default function LoginForm() {
 
 function Field({ label, name, className = "", ...rest }) {
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-13 text-ink-muted font-medium">{label}</span>
+    <label className="flex flex-col gap-2">
+      <span className="text-14 text-ink font-medium">{label}</span>
       <input
         name={name}
-        className={`rounded-control border-rule bg-paper text-16 text-ink h-10 border px-3 ${className}`}
+        className={`rounded-control border-rule bg-surface text-16 text-ink focus-visible:border-carbon h-11 border px-3 transition-colors duration-150 ${className}`}
         {...rest}
       />
     </label>
@@ -203,7 +205,7 @@ function Submit({ busy, children }) {
     <button
       type="submit"
       disabled={busy}
-      className="rounded-control bg-carbon text-14 text-on-carbon h-10 px-4 font-medium disabled:opacity-60"
+      className="rounded-control bg-carbon text-14 text-on-carbon hover:bg-carbon-ink mt-2 h-11 px-4 font-medium transition-colors duration-150 disabled:opacity-60"
     >
       {busy ? "Please wait…" : children}
     </button>

@@ -126,7 +126,7 @@ export default function UdinRegister({
         </label>
         <button
           type="submit"
-          className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium"
+          className="rounded-control border-rule bg-sunk text-14 text-ink h-9 border px-3 font-medium"
         >
           Show
         </button>
@@ -279,7 +279,7 @@ export default function UdinRegister({
             UDINs generated in {fyStart}–{String(fyStart + 1).slice(2)}
           </caption>
           <thead>
-            <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+            <tr className="border-rule text-12 text-faint border-b text-left font-normal">
               <th scope="col" className="px-3 py-2 font-medium">
                 UDIN
               </th>

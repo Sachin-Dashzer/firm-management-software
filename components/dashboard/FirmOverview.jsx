@@ -33,7 +33,7 @@ export default function FirmOverview({
           <div className="rounded-table border-rule bg-surface overflow-x-auto border">
             <table className="text-14 w-full">
               <thead>
-                <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+                <tr className="border-rule text-12 text-faint border-b text-left font-normal">
                   <th className="px-3 py-2 font-medium">Branch</th>
                   <th className="px-3 py-2 text-right font-medium">Open</th>
                   <th className="px-3 py-2 text-right font-medium">Overdue</th>
@@ -122,7 +122,7 @@ export default function FirmOverview({
         </div>
 
         <div className="rounded-ledger border-rule bg-surface mt-1 border p-4">
-          <h3 className="text-13 text-ink-muted mb-3 tracking-wide uppercase">
+          <h3 className="text-13 text-ink-muted mb-3">
             Ageing
           </h3>
           <div className="divide-rule grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-5 sm:divide-x">

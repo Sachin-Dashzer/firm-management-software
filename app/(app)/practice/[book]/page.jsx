@@ -8,6 +8,7 @@ import Client from "@/models/Client";
 import Udin from "@/models/Udin";
 import User from "@/models/User";
 import { engagementQuery } from "@/lib/engagements/filter";
+import { AUDIT_CATEGORIES } from "@/lib/nav/counts";
 import { STATUSES } from "@/lib/engagements/status";
 import { BOOKS, BOOK_KEYS, COLUMNS, bookRow } from "@/lib/practice/books";
 import {
@@ -60,6 +61,13 @@ export default async function PracticeBookPage({ params, searchParams }) {
       ? asked
       : thisYear;
   const onlyState = String(query.state ?? "");
+  /**
+   * The five audit categories the menu links to (P3-22a). `auditType` is
+   * the firm's own words for the audit, so the match is on the word rather
+   * than an enum nobody has agreed — the same rule `navCounts` uses, so the
+   * badge and the rows agree.
+   */
+  const cat = String(query.cat ?? "");
 
   await connectDB();
 
@@ -71,6 +79,7 @@ export default async function PracticeBookPage({ params, searchParams }) {
    */
   const mongo = engagementQuery(actor, { ...query, closed: "1" });
   mongo["templateSnapshot.category"] = { $in: definition.categories };
+  if (cat && AUDIT_CATEGORIES[cat]) mongo.auditType = AUDIT_CATEGORIES[cat];
   mongo.$and = [
     ...(mongo.$and ?? []),
     {

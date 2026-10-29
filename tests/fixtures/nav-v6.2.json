@@ -1,0 +1,185 @@
+{
+  "partner": [
+    {
+      "label": "Today",
+      "items": [
+        "Issues",
+        "Inbox",
+        "My tasks",
+        "To-dos",
+        "Firm dashboard"
+      ]
+    },
+    {
+      "label": "Jobs",
+      "items": [
+        "All open jobs",
+        "Overdue",
+        "Waiting on client",
+        "In review",
+        "Weekly planning"
+      ]
+    },
+    {
+      "label": "Compliance calendar",
+      "items": [
+        "Monthly returns",
+        "Quarterly returns",
+        "Annual filings",
+        "Monthly GST cycle"
+      ]
+    },
+    {
+      "label": "Clients",
+      "items": [
+        "All clients",
+        "Groups",
+        "New client",
+        "Bulk client data",
+        "— Client experience",
+        "WhatsApp assistant",
+        "Monthly health report",
+        "Business pulse"
+      ]
+    },
+    {
+      "label": "Notices",
+      "items": [
+        "All open matters",
+        "Due in 7 days, no draft",
+        "GST",
+        "Income tax",
+        "Closed"
+      ]
+    },
+    {
+      "label": "Audit and certificates",
+      "items": [
+        "Audit studio",
+        "— Audit files",
+        "All files",
+        "Statutory",
+        "Tax audit",
+        "Internal",
+        "Concurrent",
+        "Stock audit",
+        "— Working tools",
+        "TB to financials",
+        "Sampling and vouching",
+        "— Certificates and reports",
+        "Certificate studio",
+        "Certificate register",
+        "Auditor's report (SA 700)",
+        "UDIN register"
+      ]
+    },
+    {
+      "label": "Billing",
+      "items": [
+        "Ready to bill",
+        "Invoices",
+        "Collections",
+        "TDS credit to match",
+        "Accounts desk"
+      ]
+    },
+    {
+      "label": "Documents",
+      "items": [
+        "All files",
+        "Awaited from clients",
+        "DSC register",
+        "Logins vault"
+      ]
+    },
+    {
+      "label": "Team",
+      "items": [
+        "Leave and cover",
+        "Team and time"
+      ]
+    },
+    {
+      "label": "Firm",
+      "items": [
+        "Management reports",
+        "Email and WhatsApp",
+        "Automation runs and approvals",
+        "— Tools",
+        "Templates",
+        "Data lab (Excel to MIS)",
+        "— Learning",
+        "Learning library",
+        "How we work here",
+        "— Set up",
+        "Settings and customisation"
+      ]
+    }
+  ],
+  "staff": [
+    {
+      "label": "Today",
+      "items": [
+        "Issues",
+        "Inbox",
+        "My tasks",
+        "To-dos"
+      ]
+    },
+    {
+      "label": "My jobs",
+      "items": [
+        "All open jobs",
+        "Overdue",
+        "Waiting on client",
+        "In review",
+        "Monthly GST cycle"
+      ]
+    },
+    {
+      "label": "My clients",
+      "items": [
+        "Client list",
+        "Bulk client data"
+      ]
+    },
+    {
+      "label": "Notices",
+      "items": [
+        "Open matters",
+        "GST",
+        "Income tax"
+      ]
+    },
+    {
+      "label": "Audit",
+      "items": [
+        "Sampling and vouching",
+        "Certificate studio"
+      ]
+    },
+    {
+      "label": "Documents",
+      "items": [
+        "All files",
+        "Awaited from clients"
+      ]
+    },
+    {
+      "label": "Team",
+      "items": [
+        "Leave and cover",
+        "Timesheet"
+      ]
+    },
+    {
+      "label": "Tools and learning",
+      "items": [
+        "Templates",
+        "Data lab",
+        "Learning library",
+        "How we work here"
+      ]
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { alertBox } from "./alerts.js";
-import { TOTP, Secret } from "otpauth";
+import { signIn } from "./signin.js";
+import { alertBox, pick } from "./alerts.js";
 import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
 import Branch from "../../models/Branch.js";
@@ -9,7 +9,7 @@ import ServiceTemplate from "../../models/ServiceTemplate.js";
 import Engagement from "../../models/Engagement.js";
 import DocTemplate from "../../models/DocTemplate.js";
 import GeneratedDoc from "../../models/GeneratedDoc.js";
-import { hashPassword, decryptField } from "../../lib/crypto.js";
+import { hashPassword } from "../../lib/crypto.js";
 import { systemAudit } from "../../lib/audit/system.js";
 import { buildEngagement } from "../../lib/engagements/create.js";
 import { periodFor } from "../../lib/engagements/period.js";
@@ -99,7 +99,7 @@ test.beforeAll(async ({}, testInfo) => {
           passwordHash: await hashPassword(PASSWORD),
         },
       ],
-      { session },
+      { session, ordered: true },
     );
 
     const [client] = await Client.create(
@@ -131,7 +131,7 @@ test.beforeAll(async ({}, testInfo) => {
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
 
     // L3: A tier, so only a partner issues its letters
@@ -151,7 +151,7 @@ test.beforeAll(async ({}, testInfo) => {
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
 
     const fields = buildEngagement({
@@ -170,7 +170,7 @@ test.beforeAll(async ({}, testInfo) => {
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
     ids.engagement = String(engagement._id);
 
@@ -187,7 +187,7 @@ test.beforeAll(async ({}, testInfo) => {
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
     ids.template = String(template._id);
   });
@@ -203,44 +203,12 @@ test.afterAll(async ({}, testInfo) => {
    */
 });
 
-async function signIn(page, email) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByLabel("6-digit code").waitFor();
-
-  const user = await User.findOne({ email }).select("+totpSecret");
-  /**
-   * An authenticator shows one code per 30 seconds, and the app refuses a
-   * code it has already accepted — replay protection, working as spec §16
-   * asks. A suite that signs in a dozen times inside one window hits it
-   * every time, so the counter is cleared to stand for time having
-   * passed. The rule itself is tested in tests/security.test.js.
-   */
-  await User.updateOne({ email }, { $set: { lastTotpCounter: 0 } });
-  const code = new TOTP({
-    issuer: "PHMG & Associates",
-    label: email,
-    algorithm: "SHA1",
-    digits: 6,
-    period: 30,
-    secret: Secret.fromBase32(decryptField(user.totpSecret)),
-  }).generate();
-
-  await page.getByLabel("6-digit code").fill(code);
-  await page.getByRole("button", { name: /Sign in|Turn on 2FA/ }).click();
-  await expect(page).toHaveURL(/\/issues$/);
-}
-
 test("a draft fills itself in from the record", async ({ page }, testInfo) => {
   const fx = names(testInfo.project.name);
   await signIn(page, fx.ca);
   await page.goto(`/engagements/${ids.engagement}`);
 
-  await page
-    .getByLabel("Start a draft from")
-    .selectOption({ label: /not approved yet/ });
+  await pick(page.getByLabel("Start a draft from"), /not approved yet/);
   await page.getByRole("button", { name: "Start the draft" }).click();
   await expect(page.getByRole("status")).toContainText("Draft");
 

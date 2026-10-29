@@ -50,7 +50,7 @@ export default async function NewInvoicePage({ searchParams }) {
     <div className="mx-auto flex max-w-[900px] flex-col gap-6 p-4 md:p-6">
       <div>
         <Link
-          href="/invoices"
+          href="/billing?tab=invoices"
           className="text-13 text-ink-muted underline underline-offset-4"
         >
           Billing

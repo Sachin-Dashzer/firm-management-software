@@ -185,7 +185,7 @@ export default function LedgerPanel({
             <div className="overflow-x-auto">
               <table className="text-14 w-full">
                 <thead>
-                  <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+                  <tr className="border-rule text-12 text-faint border-b text-left font-normal">
                     <th className="px-2 py-2 font-medium">Invoice</th>
                     <th className="px-2 py-2 text-right font-medium">Owed</th>
                     <th className="px-2 py-2 text-right font-medium">
@@ -265,7 +265,7 @@ export default function LedgerPanel({
         <div className="rounded-table border-rule bg-surface overflow-x-auto border">
           <table className="text-14 w-full">
             <thead>
-              <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+              <tr className="border-rule text-12 text-faint border-b text-left font-normal">
                 <th className="px-3 py-2 font-medium">Date</th>
                 <th className="px-3 py-2 font-medium">What</th>
                 <th className="px-3 py-2 font-medium">Reference</th>
