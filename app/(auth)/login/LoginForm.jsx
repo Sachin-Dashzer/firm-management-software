@@ -13,7 +13,7 @@ import { ARRIVE_EVENT, ARRIVE_MS } from "@/components/login/capability";
  * code box, because 2FA is mandatory (spec section 16).
  */
 export default function LoginForm() {
-  const next = useSearchParams().get("next") || "/issues";
+  const next = useSearchParams().get("next") || "/dashboard";
 
   const [stage, setStage] = useState("password"); // password | setup | code
   const [challenge, setChallenge] = useState("");
