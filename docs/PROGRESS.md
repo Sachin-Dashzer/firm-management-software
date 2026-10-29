@@ -153,6 +153,8 @@ whose cost grows every week it waits.
 
 | Date | Decision | By |
 | --- | --- | --- |
+| 29-10-2026 | D83: **the accent is teal, and it is back on the chrome.** The owner supplied a reference CRM on 29-10-2026 and asked for its colour theme across the application. Its values, sampled rather than guessed: ground `#f2f3f5`, cards white, ink all but black, and an action colour between `#42a0a0` and `#61bdbe` used on row buttons and behind the active nav item. The reference's own teal reads 2.79:1 on its ground, so it is taken down to `#177979`, which clears 4.5:1 on both the ground (4.67) and a card (5.19) — `carbon` is the link colour as well as the button fill. **This reverses D78's one move**, which kept colour off the chrome; what is kept is the discipline under it: one hue and no second, status colours still meaning status, no gradient, no tinted icon chips. The two devices the reference uses that `CLAUDE.md` rule 10 forbids — the gradient KPI card and the icon-in-a-tinted-square — were not copied. | Owner, with the reference |
+| 29-10-2026 | D84: **four things move, and nothing performs an entrance.** Press feedback (`scale(0.97)`, 160ms), hover colour on rows, links and controls (120ms, gated behind a real pointer), the theme crossfade (220ms), and the two signature keyframes that already existed. No panel fades up on load and no list staggers in: this is a screen somebody is inside for eight hours, and an entrance is charming once and a tax every time after. The theme transition is **switched on for the length of the fade and off again** by the toggle rather than declared permanently — a standing `transition: background-color` on every surface also runs on first paint and on every route change, which is how a theme transition usually ends up making an application feel slow. Verified in a browser: 7 live transitions on a page, none using `transition: all`, nothing running on load. | Agent |
 | 29-10-2026 | D78: **the look leaves the prototype behind.** The owner's verdict on the v6.2 look was that it read cheap, and the design study names its exact shape — an off-white ground, white cards, one stock blue on every button, tab and link — as what makes a screen read as a kit rather than a product. D35 is reversed **on the look only**; the prototype's product model, screens, data and words are untouched. The replacement is the `achromatic-ledger` direction (seed 1094860545), whose one move is that **colour leaves the chrome entirely**: the primary action is near-black, the secondary a grey pill, every active row and focus ring is ink, and the single hue `--data` is kept for data and for a figure that has moved. Token *names* are unchanged, so sixty routes took the new palette without being edited. | Owner, asked |
 | 29-10-2026 | D79: **every figure is set in the mono face.** Rupees, PAN, GSTIN, UDIN, invoice numbers and dates all land on one character grid, so a column of them reads as a column. This is the firm's one piece of visual identity and the thing no template does — a Chartered Accountancy practice is a ledger. It cost no new dependency: `.num` was already on 179 figures across 71 screens doing tabular numerals, and IBM Plex Mono was already loaded. Tables keep tabular figures without the mono face, because a table holds names as well as figures. | Owner, asked |
 | 29-10-2026 | D80: **one canvas width, capped in the app shell.** Sixty pages each named their own — 760, 860, 900, 1000, 1100, 1200, 1400 and 1600 — so the application changed shape from screen to screen, and at 1920px the widest stretched a filter row to 1550px. `app/(app)/layout.jsx` now caps the canvas at 1280 and centres it beside the rail. A page may still be narrower (a settings form at 760 is right); none may be wider. One edit instead of seventy-seven. | Agent, on the measured range of 1100-1250 for a data screen |
@@ -2978,3 +2980,53 @@ as every spec does, so nobody's real password is in a screenshot script.
   closes itself the moment the account has work in it.
 - **Only light was checked at 1920.** The shots script takes a width; dark
   at 1920 was not looked at.
+
+## What P3-25 built — the teal theme and the motion layer (29-10-2026)
+
+The owner gave a reference CRM screenshot and asked for its colour theme
+across the application, plus light and dark mode and "some smooth
+animation effect".
+
+**Light and dark already existed** and were not rebuilt: the toggle is in
+the profile menu under "How this looks", `data-theme` is written to
+`<html>`, the choice is kept in `localStorage`, and an inline script in
+the root layout applies it before first paint so the page never flashes
+the wrong theme. What this step did was make the new palette work in both,
+which `tests/contrast.test.js` proves — 32 assertions, including that the
+two copies of the dark theme say the same thing.
+
+**The palette was sampled, not guessed.** The reference was decoded in a
+browser and read region by region: ground `#f2f3f5`, cards `#ffffff`, ink
+`#000002`, the action colour between `#42a0a0` and `#61bdbe`. It is a
+teal, not the green it looks like at a glance. `#177979` is that teal
+taken down until it clears the contrast bar (D83).
+
+**Two devices in the reference were deliberately not copied**, because
+`CLAUDE.md` rule 10 forbids them and the owner wrote that rule: the
+teal-to-green gradient on its "Overdue" card, and the icon in a tinted
+square on each KPI tile. Say the word and either is a small change.
+
+**The motion layer is four things** (D84), all under 300ms, all on strong
+curves rather than the browser's weak built-ins, and all reversible by
+`prefers-reduced-motion` — which now means *gentler*, not *off*. The old
+rule flattened every duration in the document to 0.01ms, which also killed
+the colour crossfades that help comprehension rather than hurting it.
+
+**Checks:** lint clean, 1470 Vitest tests pass, `next build` succeeds,
+`inspect.mjs --app` 0 FAIL, and a browser check confirming the motion
+claims rather than asserting them.
+
+**Left over**
+
+- **The theme toggle is two clicks deep**, inside the profile menu. That
+  is where P3-21b put it on purpose, with a caption, because three bare
+  glyphs in the top bar read as nothing. If the owner wants it on the bar
+  itself it is a two-line move.
+- **`--data` is now the same teal as the chrome.** With the accent back on
+  buttons there is no second hue to give the data, and inventing one would
+  put two unrelated colours on a screen. The cost is that a chart no
+  longer stands out from the controls around it by colour alone.
+- **The 500ms opacity fade on the sign-in form** is over the 300ms bar. It
+  is the departure fade tied to the parked 3D scene's arrival, and with
+  the scene parked the branch is never taken — so it never runs. It should
+  go with the scene whenever that decision is made.

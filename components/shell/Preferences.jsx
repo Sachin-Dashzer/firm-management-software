@@ -18,14 +18,49 @@ function set(attr, key, value) {
   }
 }
 
+/**
+ * How long the theme crossfade in `globals.css` runs, and the only place
+ * the number is written down twice — keep the two in step.
+ */
+const THEME_FADE_MS = 220;
+
+/**
+ * Switch the theme with a crossfade instead of a flash.
+ *
+ * The transition is **not** declared on the elements themselves: a
+ * standing `transition: background-color` on every surface in the
+ * application would run on first paint, on every hover that changes a
+ * fill, and on every route change. Instead the attribute is set for the
+ * length of the fade and taken off again, so the crossfade costs nothing
+ * for the rest of the session.
+ *
+ * A second press inside the window restarts the clock rather than
+ * stacking a timer, so a double-click cannot leave the attribute on.
+ */
+let fadeTimer = null;
+function setTheme(value) {
+  const root = document.documentElement;
+  const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  if (!still) {
+    root.dataset.themeFading = "";
+    clearTimeout(fadeTimer);
+    fadeTimer = setTimeout(() => {
+      delete root.dataset.themeFading;
+    }, THEME_FADE_MS);
+  }
+
+  set("theme", "phmg-theme", value);
+}
+
 export function ThemeToggle() {
-  const [theme, setTheme] = useState("light");
+  const [theme, setThemeState] = useState("light");
 
   useEffect(() => {
     const systemDark = window.matchMedia(
       "(prefers-color-scheme: dark)",
     ).matches;
-    setTheme(current("theme", systemDark ? "dark" : "light"));
+    setThemeState(current("theme", systemDark ? "dark" : "light"));
   }, []);
 
   const next = theme === "dark" ? "light" : "dark";
@@ -33,8 +68,8 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={() => {
-        set("theme", "phmg-theme", next);
         setTheme(next);
+        setThemeState(next);
       }}
       title={next === "dark" ? "Night shift" : "Paper"}
       aria-label={`Switch to ${next === "dark" ? "Night shift" : "Paper"} theme`}

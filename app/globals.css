@@ -29,30 +29,49 @@
    --------------------------------------------------------------- */
 
 :root {
-  --paper: #f1f3f7;
+  --paper: #f2f3f5;
   --surface: #ffffff;
-  --sunk: #e8ebf1;
-  --ink: #10141b;
+  --sunk: #e9eaee;
+  --ink: #121317;
   --ink-muted: #566070;
-  --rule: #dce0e8;
-  --rule-soft: #e7eaf0;
-  --carbon: #161b24;
-  --carbon-ink: #000000;
-  --carbon-soft: #e4e8ee;
+  --rule: #e3e5ea;
+  --rule-soft: #eceef1;
+
+  /**
+   * Teal, and it is on the chrome (D83).
+   *
+   * Sampled from the reference the owner gave on 29-10-2026: its ground is
+   * #f2f3f5, its cards are white, its ink is all but black, and its action
+   * colour — the small buttons on every row, the tint behind the active
+   * nav item — is a teal between #42a0a0 and #61bdbe.
+   *
+   * #177979 is that teal taken down until it clears 4.5:1 as text on both
+   * the ground (4.67) and a card (5.19), which it must, because `carbon`
+   * is the link colour as well as the button fill. The reference's own
+   * #42a0a0 reads 2.79 on its ground and would have failed on the smallest
+   * text in the product.
+   *
+   * **This reverses D78's one move**, which kept colour off the chrome
+   * entirely. The owner asked for the reference's theme across the CRM and
+   * the reference puts its colour on buttons and on the active row. What
+   * is kept from D78 is the discipline underneath: one hue and no second,
+   * status colours still meaning status, no gradient, no tinted icon
+   * chips.
+   */
+  --carbon: #177979;
+  --carbon-ink: #0f6060;
+  --carbon-soft: #e6f4f4;
   --on-carbon: #ffffff;
 
   /**
-   * The one hue, and the only one on a screen.
+   * The chart hue is the same teal, one step brighter.
    *
-   * It goes on data and on nothing else: the series a chart is about, the
-   * bar of the period in question, the figure that moved. It is never a
-   * button, a tab, a link or an active row — those are all `carbon` now,
-   * which is ink. A screen whose only colour is its chrome reads as a
-   * template; a screen whose only colour is its data reads as an
-   * instrument.
+   * With the accent back on the chrome there is no second hue to give the
+   * data, and inventing one would put two unrelated colours on a screen —
+   * which the study flags every time. One subject, one hue.
    */
-  --data: #1d5fbf;
-  --data-soft: #e4ecf9;
+  --data: #1f8383;
+  --data-soft: #e6f4f4;
 
   --filed: #1d7a4b;
   --filed-soft: #e5f4ec;
@@ -92,9 +111,9 @@
      sheet laid beside it, and on a dark theme a #11161f plate against a
      #141a22 sheet was one flat field with a seam in it. The plate goes
      deeper there so the sheet still reads as lifted off it. */
-  --plate: #11161f;
-  --plate-ink: #f1f3f7;
-  --plate-rule: #2f3744;
+  --plate: #0b1f20;
+  --plate-ink: #eef4f4;
+  --plate-rule: #24413f;
 
   /* Washes: the three status tints keep their hue, because a wash on a
      row *is* status. `carbon-wash` — the selected row, the active cell —
@@ -102,7 +121,7 @@
   --filed-wash: #1d7a4b1f;
   --waiting-wash: #8a42061f;
   --redpen-wash: #b423181f;
-  --carbon-wash: #10141b0f;
+  --carbon-wash: #1779791f;
 
   /* the prototype has no paper grain and no ledger ruling */
   --grain-opacity: 0;
@@ -145,16 +164,16 @@
     --ink-muted: #a3adbd;
     --rule: #272f3b;
     --rule-soft: #212834;
-    --carbon: #eef1f6;
-    --carbon-ink: #ffffff;
-    --carbon-soft: #272f3b;
-    --plate: #07090e;
-    --plate-rule: #262d39;
+    --carbon: #4cc4c4;
+    --carbon-ink: #6fd0d0;
+    --carbon-soft: #11302f;
+    --plate: #061617;
+    --plate-rule: #1d3634;
     --on-carbon: #0d1117;
 
     /* the one hue, lifted for a dark ground; data only, as on light */
-    --data: #6f9bea;
-    --data-soft: #1a2435;
+    --data: #4cc4c4;
+    --data-soft: #11302f;
 
     --filed: #5cc48e;
     --filed-soft: #15291f;
@@ -173,7 +192,7 @@
     --filed-wash: #5cc48e24;
     --waiting-wash: #f0a55e24;
     --redpen-wash: #f2877b24;
-    --carbon-wash: #e9edf314;
+    --carbon-wash: #4cc4c424;
 
     --grain-opacity: 0;
     --shadow: none;
@@ -188,16 +207,16 @@
   --ink-muted: #a3adbd;
   --rule: #272f3b;
   --rule-soft: #212834;
-  --carbon: #eef1f6;
-  --carbon-ink: #ffffff;
-  --carbon-soft: #272f3b;
-  --plate: #07090e;
-  --plate-rule: #262d39;
+  --carbon: #4cc4c4;
+  --carbon-ink: #6fd0d0;
+  --carbon-soft: #11302f;
+  --plate: #061617;
+  --plate-rule: #1d3634;
   --on-carbon: #0d1117;
 
   /* the one hue, lifted for a dark ground; data only, as on light */
-  --data: #6f9bea;
-  --data-soft: #1a2435;
+  --data: #4cc4c4;
+  --data-soft: #11302f;
 
   --filed: #5cc48e;
   --filed-soft: #15291f;
@@ -216,7 +235,7 @@
   --filed-wash: #5cc48e24;
   --waiting-wash: #f0a55e24;
   --redpen-wash: #f2877b24;
-  --carbon-wash: #e9edf314;
+  --carbon-wash: #4cc4c424;
 
   --grain-opacity: 0;
   --shadow: none;
@@ -392,19 +411,110 @@ input[type="number"] {
   );
 }
 
-/* Focus is the accent, like the prototype; brass is an alias for it. */
+/* Focus is the accent; brass is an alias for it. */
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
   outline: 2px solid var(--brass);
   outline-offset: 2px;
   border-radius: 2px;
 }
 
+/* ---------------------------------------------------------------------------
+   Motion (D84)
+
+   Four things move, and nothing else. The rule that decided the list is
+   how often a person sees each one: the more often, the less there is to
+   see. This is an application somebody is inside for eight hours, so
+   **nothing performs an entrance** — no panel fades up on load, no list
+   staggers in. An entrance is charming once and a tax every time after.
+
+   Durations are all under 300ms and the curves are the strong ones; the
+   browser's own `ease-out` is too weak to read as deliberate.
+   --------------------------------------------------------------------------- */
+
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --press: 160ms;
+  --hover: 120ms;
+  --fade: 220ms;
+}
+
+/**
+ * 1. Press. Feedback — the one thing a control owes the person who
+ *    clicked it. 3% for 160ms, which is felt and not seen. `:disabled` is
+ *    excluded: a control that refuses must not appear to respond, and
+ *    P3-8 means a lot of controls in this product are visibly disabled.
+ */
+:where(button, [role="button"], summary):not(:disabled):active {
+  transform: scale(0.97);
+}
+
+:where(button, [role="button"], summary):not(:disabled) {
+  transition: transform var(--press) var(--ease-out);
+}
+
+/**
+ * 2. Hover, on the things a hover actually changes: a row in a table, an
+ *    item in the rail, a link, a control. Colour only — nothing moves,
+ *    because these are seen hundreds of times a day.
+ *
+ *    Gated behind a real pointer. A touch device fires hover on tap, so
+ *    without this a row stays "hovered" after a finger has left it.
+ */
+@media (hover: hover) and (pointer: fine) {
+  :where(tbody tr, a, button, [role="button"], summary, label) {
+    transition:
+      background-color var(--hover) ease,
+      border-color var(--hover) ease,
+      color var(--hover) ease,
+      transform var(--press) var(--ease-out);
+  }
+}
+
+/**
+ * 3. The theme crossfade. Occasional, and the one change jarring enough to
+ *    be worth bridging: every surface in the window inverts at once.
+ *
+ *    It is switched on for the length of the fade by the toggle in
+ *    `components/shell/Preferences.jsx` and off again, rather than being
+ *    declared permanently — a standing transition on every surface would
+ *    also run on first paint and on every route change, which is how a
+ *    theme transition usually ends up making an application feel slow.
+ *
+ *    `background-color`, `border-color` and `color` are named one by one.
+ *    `transition: all` here would drag every layout property in the
+ *    document through 220ms of interpolation.
+ */
+:root[data-theme-fading] *,
+:root[data-theme-fading] *::before,
+:root[data-theme-fading] *::after {
+  transition:
+    background-color var(--fade) var(--ease-in-out),
+    border-color var(--fade) var(--ease-in-out),
+    color var(--fade) var(--ease-in-out),
+    fill var(--fade) var(--ease-in-out) !important;
+}
+
+/**
+ * 4. Reduced motion means gentler, not none.
+ *
+ *    The colour transitions above stay — they carry meaning and they do
+ *    not move. What goes is everything that travels: the press scale, the
+ *    two signature keyframes. The previous rule here flattened every
+ *    duration in the document to 0.01ms, which also killed the
+ *    crossfades that help rather than hurt.
+ */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+
+  :where(button, [role="button"], summary):not(:disabled):active {
+    transform: none;
   }
 }
 
