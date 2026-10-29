@@ -80,7 +80,7 @@ export default function TopBar({
      * profile button clean off the right-hand edge.
      */
     <header className="border-rule bg-paper relative z-20 shrink-0 border-b">
-      <div className="flex h-12 items-center gap-2 px-4 md:px-6">
+      <div className="flex h-15 items-center gap-2 px-4 md:px-6">
         {/* the rail is a drawer on a phone (P3-22a), and a hamburger belongs
             at the left edge where a thumb already expects it */}
         <button
@@ -101,7 +101,7 @@ export default function TopBar({
               id="branch"
               value={view}
               onChange={(event) => chooseView(event.target.value)}
-              className="rounded-control border-rule bg-paper text-13 text-ink h-8 max-w-[7.5rem] min-w-0 shrink border px-2 sm:max-w-none sm:shrink-0"
+              className="rounded-control border-rule bg-paper text-13 text-ink h-10 max-w-[7.5rem] min-w-0 shrink border px-2 sm:max-w-none sm:shrink-0"
             >
               <option value="all">All my branches</option>
               {branches.map((b) => (
@@ -146,7 +146,7 @@ export default function TopBar({
            * the icon still says what can be typed.
            */
           aria-label="Search"
-          className="rounded-control text-ink-muted hover:border-carbon hover:text-ink sm:border-rule sm:bg-paper sm:text-13 grid size-9 shrink-0 place-items-center transition-colors duration-150 sm:flex sm:h-8 sm:w-auto sm:min-w-0 sm:flex-1 sm:items-center sm:gap-2 sm:border sm:px-2 md:max-w-md"
+          className="rounded-control text-ink-muted hover:border-carbon hover:text-ink sm:border-rule sm:bg-paper sm:text-13 grid size-9 shrink-0 place-items-center transition-colors duration-150 sm:flex sm:h-10 sm:w-auto sm:min-w-0 sm:flex-1 sm:items-center sm:gap-2 sm:border sm:px-2 md:max-w-md"
         >
           <MagnifyingGlass size={18} className="shrink-0" />
           <span className="hidden truncate sm:inline">
