@@ -153,6 +153,7 @@ whose cost grows every week it waits.
 
 | Date | Decision | By |
 | --- | --- | --- |
+| 29-10-2026 | D86: **the strip tiles get icons too**, at the owner's instruction after the agent argued against it. The concern was that six tinted squares in one row is the grid of identical tiles rule 10 is actually about; built at 28px rather than the money tiles' 36px, which keeps the row from becoming the loudest thing on the screen. The icon is chosen **by label, in `Tiles.jsx`**, because the four places that build these tiles do not agree on a shape — only `headlines.js` carries a `key` — and threading a React component through four server functions to avoid a lookup table would put a presentation decision inside the counting code. `Circle` is the fallback, so a label added later renders a neutral mark rather than a hole in the row. | Owner, reaffirmed |
 | 29-10-2026 | D85: **the icon square and the feature card are in, and `CLAUDE.md` rule 10 is amended for them.** Both come from the owner's reference; the agent left them out of D83 on the grounds of rule 10 ("no purple gradients, glass panels, emoji icons or grids of identical shadowed cards") and spec §15, and the owner — who wrote that rule — overrode it. What is kept is the part of those rules that was load-bearing: **a tint carries meaning, never decoration** (the square takes its colour from the tile's `tone`, so red means late and amber means waiting; there is no per-tile palette), **one feature card per screen** (`FeatureTile` is a separate export, so a second one takes a deliberate second import, and it only appears while there is something actually overdue — a gradient panel saying everything is fine teaches people to stop reading the dashboard), and **every pairing clears 4.5:1**. The reference's own gradient gives white about 3:1; these are its hues taken down until the figure is readable (4.85 and 7.62). Rule 10's other three clauses stand. | Owner, reaffirmed after the concern was raised |
 | 29-10-2026 | D83: **the accent is teal, and it is back on the chrome.** The owner supplied a reference CRM on 29-10-2026 and asked for its colour theme across the application. Its values, sampled rather than guessed: ground `#f2f3f5`, cards white, ink all but black, and an action colour between `#42a0a0` and `#61bdbe` used on row buttons and behind the active nav item. The reference's own teal reads 2.79:1 on its ground, so it is taken down to `#177979`, which clears 4.5:1 on both the ground (4.67) and a card (5.19) — `carbon` is the link colour as well as the button fill. **This reverses D78's one move**, which kept colour off the chrome; what is kept is the discipline under it: one hue and no second, status colours still meaning status, no gradient, no tinted icon chips. The two devices the reference uses that `CLAUDE.md` rule 10 forbids — the gradient KPI card and the icon-in-a-tinted-square — were not copied. | Owner, with the reference |
 | 29-10-2026 | D84: **four things move, and nothing performs an entrance.** Press feedback (`scale(0.97)`, 160ms), hover colour on rows, links and controls (120ms, gated behind a real pointer), the theme crossfade (220ms), and the two signature keyframes that already existed. No panel fades up on load and no list staggers in: this is a screen somebody is inside for eight hours, and an entrance is charming once and a tax every time after. The theme transition is **switched on for the length of the fade and off again** by the toggle rather than declared permanently — a standing `transition: background-color` on every surface also runs on first paint and on every route change, which is how a theme transition usually ends up making an application feel slow. Verified in a browser: 7 live transitions on a page, none using `transition: all`, nothing running on load. | Agent |
@@ -3085,3 +3086,39 @@ it on the flagged line.
   tone, so three of the four squares are usually the same teal. If the
   owner wants the reference's variety instead, it is a one-line map from
   label to hue — and it would mean a colour that says nothing.
+
+## What P3-27 built — icons on the strip tiles (29-10-2026)
+
+P3-26 put icons on the four money tiles and left the six-across strip
+without them, on the grounds that six tinted squares in a row is the grid
+of identical tiles rule 10 is about. The owner asked for them anyway
+(D86), so they are in, at 28px rather than 36.
+
+**The icon is chosen by label**, from a map in `Tiles.jsx`. The four
+builders behind these tiles — `workTiles` and `dscExpiringTile` in
+`lib/reports/figures.js`, `reviewTiles` in `components/dashboard/
+RoleDashboard.jsx`, and `lib/reports/headlines.js` — do not agree on a
+shape, and only one of them carries a `key`. Threading a React component
+back through four server functions to avoid a lookup table would put a
+presentation decision inside the counting code, which is the wrong side
+of that line. `Circle` is the fallback.
+
+**Checks:** lint clean, 1470 Vitest tests pass, `next build` succeeds,
+`lint.mjs --app` 0 FAIL and 0 WARN on the dashboard components.
+
+**Left over**
+
+- **A latent quirk, found while wiring the tint and deliberately not
+  changed.** The strip's figure takes its colour from `tile.value > 0`.
+  For a count that is a string of digits (`"5" > 0`) the comparison works;
+  for a tile whose value is a formatted amount (`"₹51,840" > 0`) it is
+  always false, so the money tiles in `headlines()` never colour their
+  figure even when they carry `tone: "late"`. The new icon tint uses the
+  **same** expression on purpose, so the square and the number it sits
+  over cannot disagree — a correct square over an uncoloured figure would
+  be worse than two consistent ones. Fixing it properly means deciding
+  whether `headlines()` should pass paise alongside the formatted string,
+  which is a change to four builders and not a design job.
+- **Fifteen labels are mapped.** A label reworded in any of the four
+  builders falls back to `Circle` rather than breaking; nothing warns that
+  it happened, which is the cost of mapping by label rather than by key.

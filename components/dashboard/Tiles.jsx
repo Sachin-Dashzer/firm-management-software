@@ -26,6 +26,21 @@
  */
 
 import Link from "next/link";
+import {
+  Bank,
+  CalendarDots,
+  Certificate,
+  Circle,
+  ClockCounterClockwise,
+  Eye,
+  FolderOpen,
+  HourglassMedium,
+  MagnifyingGlass,
+  Receipt,
+  ShieldWarning,
+  Warning,
+  WarningCircle,
+} from "@phosphor-icons/react/dist/ssr";
 import { formatPaise } from "@/lib/money";
 import Figure from "./Figure";
 
@@ -42,19 +57,56 @@ const TONE_TINT = {
   good: "bg-filed-soft text-filed",
 };
 
-function IconSquare({ icon: Icon, tone }) {
+function IconSquare({ icon: Icon, tone, small = false }) {
   if (!Icon) return null;
   return (
     <span
       aria-hidden="true"
-      className={`rounded-ledger grid size-9 shrink-0 place-items-center ${
-        TONE_TINT[tone] ?? "bg-carbon-soft text-carbon"
-      }`}
+      className={`rounded-ledger grid shrink-0 place-items-center ${
+        small ? "size-7" : "size-9"
+      } ${TONE_TINT[tone] ?? "bg-carbon-soft text-carbon"}`}
     >
-      <Icon size={18} />
+      <Icon size={small ? 15 : 18} />
     </span>
   );
 }
+
+/**
+ * Which icon a strip tile gets, by its label (D86).
+ *
+ * The labels are the hook because the four places that build these tiles
+ * — `workTiles` and `dscExpiringTile` in `lib/reports/figures.js`,
+ * `reviewTiles` in this folder, and `lib/reports/headlines.js` — do not
+ * agree on a shape: only one of them carries a `key`. Mapping here keeps
+ * the icon a presentation decision and leaves the counting code as data,
+ * which is where the line belongs; the alternative was to thread a React
+ * component through four server functions.
+ *
+ * `Circle` is the fallback, so a label added later renders a tile with a
+ * neutral mark rather than a hole in the row.
+ */
+const TILE_ICONS = {
+  // the firm's work, from workTiles()
+  Open: FolderOpen,
+  "Open work": FolderOpen,
+  Overdue: WarningCircle,
+  "Overdue in my scope": WarningCircle,
+  "Due this week": CalendarDots,
+  "Awaiting documents": HourglassMedium,
+  "Under review": MagnifyingGlass,
+  "Under review, anyone": MagnifyingGlass,
+  "Waiting for me": Eye,
+  "At risk": Warning,
+  "Filed late this year": ClockCounterClockwise,
+
+  // money, from headlines()
+  Outstanding: Bank,
+  Unbilled: Receipt,
+
+  // the two registers
+  "DSCs expiring": ShieldWarning,
+  "Certificates expiring": Certificate,
+};
 
 /** @param {{tiles: Array<{label: string, value: number, href: string, tone?: string}>}} props */
 export function TileRow({ tiles }) {
@@ -64,8 +116,20 @@ export function TileRow({ tiles }) {
         <Link
           key={tile.label}
           href={tile.href}
-          className="hover:bg-carbon-wash focus-visible:outline-brass flex flex-1 items-baseline justify-between gap-3 px-4 py-3 focus-visible:outline-2 sm:flex-col sm:items-start sm:justify-start sm:gap-1"
+          className="hover:bg-carbon-wash focus-visible:outline-brass flex flex-1 items-center justify-between gap-3 px-4 py-3 focus-visible:outline-2 sm:flex-col sm:items-start sm:justify-start sm:gap-1.5"
         >
+          {/* 28px here against 36 on the money tiles: six of these sit in
+              one strip, and at the larger size the row of squares became
+              the loudest thing on the dashboard. */}
+          <IconSquare
+            icon={TILE_ICONS[tile.label] ?? Circle}
+            /* deliberately the same test the figure below uses, so the
+               square and the number it sits over cannot disagree — see
+               the note in PROGRESS about what that test does to a tile
+               whose value is a formatted amount rather than a count */
+            tone={tile.value > 0 ? tile.tone : undefined}
+            small
+          />
           <span className="text-12 text-ink-muted">{tile.label}</span>
           <Figure
             value={tile.value}
