@@ -272,7 +272,13 @@ test("TDS credit can be ticked off against 26AS, and unticked", async ({
   await expect(page.getByText("Unticked.")).toBeVisible();
 });
 
-test("the accounts desk says what is waiting, and links to where it is done", async ({
+/**
+ * The desk used to be four lists that linked to where the work was done
+ * (D74). Since P3-31 it performs those decisions itself (D92), so this
+ * test now checks the sections and the honest note about the two things it
+ * still does not do; the actions themselves are driven in `desk.spec.js`.
+ */
+test("the accounts desk says what is waiting, in the order the work runs", async ({
   page,
 }, testInfo) => {
   const fx = names(testInfo.project.name);
@@ -286,12 +292,15 @@ test("the accounts desk says what is waiting, and links to where it is done", as
     "Money to apply",
     "Promises that have come round",
     "Drafts not issued",
+    "TDS to find in Form 26AS",
   ]) {
     await expect(
       page.getByRole("heading", { name: new RegExp(panel) }),
     ).toBeVisible();
   }
-  await expect(page.getByRole("link", { name: "open the list" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /still does not do/ }),
+  ).toBeVisible();
 });
 
 test("the logins vault lists what is held and reveals nothing", async ({
