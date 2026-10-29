@@ -1,17 +1,11 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useActionState } from "react";
 import { startSample } from "./actions";
 
 /** A working paper, started on an audit that already has a file (P3-30). */
 export default function StartSample({ engagements }) {
-  const router = useRouter();
   const [state, action, pending] = useActionState(startSample, null);
-
-  useEffect(() => {
-    if (state?.id) router.push(`/practice/sampling/${state.id}`);
-  }, [state, router]);
 
   return (
     <form

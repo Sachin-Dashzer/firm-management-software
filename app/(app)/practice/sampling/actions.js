@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireUser } from "@/auth";
 import { assertCan, can } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
@@ -130,7 +131,10 @@ export async function startSample(_prev, formData) {
   });
 
   revalidatePath("/practice/sampling");
-  return { ok: "Working paper started.", id: String(sample._id) };
+  /* Redirected from the action rather than pushed from an effect: the
+     revalidation of the list and the push race, and the race is
+     winnable either way. */
+  redirect(`/practice/sampling/${sample._id}`);
 }
 
 /**

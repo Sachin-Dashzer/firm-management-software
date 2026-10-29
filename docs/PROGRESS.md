@@ -153,6 +153,7 @@ whose cost grows every week it waits.
 
 | Date | Decision | By |
 | --- | --- | --- |
+| 29-10-2026 | D93: **the Schedule III head list is a confirmed table, and no mapping is ever invented.** The 27 Division I summary heads live in code so nobody can edit them into something plausible-looking, and a partner's confirmation is a `ruleConfirmations` row — the same shape as the due-date master and the notice limitation periods (rule 8). Nothing is refused while it is unconfirmed, because a firm mid-audit should not be stopped by a settings task, but every screen says so and the export puts it in the title line of every sheet. **Every head on every ledger carries where it came from**: unmapped, suggested from the client's own Tally group, remembered from the same ledger name last year, or confirmed by a person on this set — only the last means somebody decided, so the firm can always say who put a figure where. The journal has **three** states, and the third is the point: only an entry passed in the books moves a figure, and one the client would not pass goes to the audit file's misstatement summary to be weighed against materiality. The notes step **lists the notes and does not write them** — their wording is the firm's own judgement about this company, and this application does not draft sentences for a statement somebody will sign. The statements cannot be locked while the two sides differ. | Agent |
 | 29-10-2026 | D92: **the accounts desk performs its own decisions, reversing D74 — and no new server action was written to do it.** D74 made the desk four lists that performed nothing, on the reasoning that the desk shows what needs doing and the doing belongs on the record; the owner asked for the prototype's behaviour instead. What was load-bearing in D74 is kept: every button calls the same action the record's own screen calls, so a decision cannot be allowed from one screen and refused from another, and the audit entry is written once. Refusals are shown rather than hidden, which matters most here because the firm's own branch GSTINs are not entered yet and most drafts therefore cannot be issued — the desk says so in the invoice rules' own words instead of looking broken. The one-click apply of unallocated money shows where the money will go **before** it is pressed and then applies exactly that: the firm's own oldest-invoice-first suggestion, not a second policy invented for this screen. Two of the prototype's eighteen actions stay off it with the reason on the screen — billing a job with its fee is one decision taken together on Ready to bill, and a manual "remind now" would be a second, unrecorded cadence beside the rule-driven one. | Owner asked; agent kept D74's reasoning where it held |
 | 29-10-2026 | D91: **a sample is drawn from a stored seed, and the firm says how big it is.** The selection runs off a seeded generator so the same population and the same seed give the same rows for ever — a selection made with `Math.random()` cannot answer the only question a peer reviewer asks about a sample. **No sample size is computed:** SA 530 gives no formula, a size comes from the firm's own table weighing risk against what other procedures cover, and deriving one from a confidence level would be inventing a professional rule (rule 8). The confidence, the tolerable misstatement and the reasoning are recorded beside the size instead, the way `materialityBasis` is. In monetary-unit selection anything worth a whole sampling interval is **promoted to a key item**, which is the method and not a refinement: without it one large entry absorbs several hits, they collapse to one row, and a draw asked for twelve returns four while looking like a smaller sample rather than a bug. Two refusals carry the professional rule: a sample cannot be locked until somebody has said whether the population agrees to the trial balance, and it cannot be redrawn once a single cell is marked. Unlocking needs a CA or partner and a written, audited reason. | Agent |
 | 29-10-2026 | D90: **the left rail reads the design tokens again, and the menu landmark is back.** The 28-10 panel rewrite had hardcoded Tailwind slate and white into `LeftRail.jsx`, `CommandBar.jsx` and `TodoLines.jsx` — so the three loudest pieces of chrome ignored the token layer entirely and stayed white in dark mode, which contradicts what P3-25 reported. The same rewrite renamed the navigation landmark to "Main navigation", renamed the filter box to "Search navigation" and moved it outside the `nav`, which broke six of `nav.spec.js` silently: the browser suite takes hours and had not been run since. Repaired by mapping every slate class onto its token, restoring the landmark name and the label, and putting the filter box back inside the landmark, where a screen reader and the drawer test both expect it. | Agent |
@@ -3469,3 +3470,116 @@ succeeds, 6 Playwright tests pass at laptop and phone widths.
 - **A declined waiver's reason is a single-line input.** Long enough for
   the sentence the person who asked will read, not long enough for a
   paragraph; the engagement's own screen takes more.
+
+## What P3-32 built — the trial balance to the financial statements (29-10-2026)
+
+The fifth and largest of the prototype-gap screens. `/practice/tb` was a
+stub; it is now five steps that take a trial balance out of the client's
+books and produce a balance sheet, a profit and loss and a workbook.
+
+**Rule 8 governs this one, and it is handled the way the firm already
+handles statutory tables.** The 27 Schedule III Division I summary heads
+live in `lib/practice/scheduleIII.js` so nobody can edit them into
+something plausible-looking, and the **confirmation** is a row in
+`ruleConfirmations` — a fact about a person and a date, exactly as for the
+due-date master and the notice limitation periods. Nothing is refused while
+it is unconfirmed (a firm mid-audit should not be stopped by a settings
+task) but every screen that reads the list says no partner has looked at
+it, and the Excel export puts it in the title line of every sheet.
+
+**Nothing invents a mapping.** The head on each ledger carries where it
+came from: `unmapped`, `suggested` from the client's own Tally group names,
+`remembered` from the same ledger name on this client's previous year, or
+`confirmed` by a person on this set. Only confirmed means somebody decided,
+and the firm can always say who — which matters because a wrong head moves
+money between the balance sheet and the profit and loss. "Confirm all" is
+the one bulk action, and it is safe to be one because every suggestion is
+on the screen beside the ledger it is for.
+
+**The memory is the feature that pays for the rest.** Last year's
+confirmed mapping for the same ledger name comes across on import, which
+is what turns the second year's work from an afternoon into ten minutes.
+Only lines a person settled are remembered: a suggestion nobody confirmed
+last year is not evidence of anything this year.
+
+**The import keeps the books' own convention** — debits positive, credits
+negative — all the way through, and the sign is turned once, at the head's
+side. A mapping mistake then shows up as a figure in the wrong place
+rather than as a figure with the wrong sign. A credit written with a minus,
+in brackets, or with "Cr" after it reads the same three ways; total rows
+and nil balances are left out; and **every refused row is named with its
+line number**, because a trial balance that quietly loses three ledgers
+produces a balance sheet that does not balance and gives no hint why.
+
+**An out-of-balance trial balance is reported, not refused.** That is the
+client's problem to explain and the firm needs the figure to point at.
+
+**The journal has three states and the third is the point.** Proposed,
+passed in books, unadjusted. Only *passed* moves a figure. An entry the
+firm proposed and the client would not pass is a misstatement the firm has
+decided to live with, and it goes to the audit file's misstatement
+summary where it is weighed against materiality — not into the statements.
+An entry passed in the books needs both heads, because a one-sided journal
+would put the balance sheet out by its own amount and the screen would
+then report that the mapping is wrong.
+
+**The notes step lists the notes and does not write them.** Nine standard
+ones always, plus one per question answered yes, each with its authority —
+AS 18, AS 15, AS 19, MSMED s.22, Companies Act s.135. An unanswered
+question is not a no: it is left off and said to be unanswered, because a
+note missed because nobody was asked is the commonest hole in a small
+company's accounts. The wording of a note is the firm's own judgement, and
+this application will not draft sentences for a statement somebody is
+going to sign. Said on the screen and in the workbook.
+
+**The statements are drawn only once every ledger has a head**, and they
+cannot be locked while the two sides differ — a set that does not balance
+is not a set of statements. The profit for the year is shown going into
+reserves, with the note that a trial balance is struck before that entry
+is passed, which is the single commonest reason two sides appear not to
+agree.
+
+**The export is five sheets, and the last three are why it is worth
+having**: the balance sheet, the profit and loss, the **mapped trial
+balance** with where every head came from and who confirmed it, the
+**journal** with which entries moved the figures, and the list of notes
+needed. A reviewer, a banker or next year's team needs those, not just the
+totals. Every sheet carries a provenance line saying whether the head list
+was confirmed, whether the set is locked, and whether it balances.
+
+**Checks:** lint clean, 1578 Vitest tests pass (24 new), `next build`
+succeeds, 2 Playwright tests pass at laptop and phone widths — one long
+test through all five steps, because each step depends on the one before
+and setting up step four's state directly would test a state the
+application cannot reach.
+
+**Two bugs found while testing, both fixed**
+
+- **A credit written with a plain minus came back positive.** The suffix
+  stripping handled "Cr" and brackets, and then `Math.abs` threw away the
+  minus sign. The test for the three forms is what caught it.
+- **A redirect after creating a record raced its own revalidation.**
+  Starting a set of statements created the row and then left the person
+  on the list: `revalidatePath` plus a `router.push` from an effect race
+  each other. Both this and the sampling screen now redirect from the
+  server action instead.
+
+**Left over**
+
+- **No cash flow statement.** AS 3 is a different computation from the two
+  statements here — it needs the opening balance sheet as well as the
+  closing one, and this stores one year. A real step of its own.
+- **No ratios, and no reasons for a change above 25%.** Schedule III asks
+  for them; they need the prior year's figures alongside, which means
+  reading the previous set rather than only its mapping.
+- **No ageing schedules.** Trade receivables and payables ageing, and the
+  MSME split, need invoice-level data the trial balance does not carry.
+  For the firm's own clients that data is in this application, so this is
+  reachable later; for others it is a second import.
+- **One trial balance per engagement.** Correct for a statutory audit, and
+  it means a revised set replaces rather than versions. A locked set can
+  be unlocked by a CA or partner with a written reason, which is the
+  escape hatch.
+- **The heads are the Division I summary, not every line of it.** Division
+  II (Ind AS) and Division III (NBFCs) are not here, and a company on
+  either would need its own list confirmed.
