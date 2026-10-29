@@ -99,6 +99,7 @@ async function targetOf(actor, engagement, client, clientId) {
  * @param {string} [input.engagementId]
  * @param {string} [input.clientId]
  * @param {string} [input.checklistItemId]
+ * @param {string} [input.sampleItemId] the sample row a voucher proves
  * @param {string} input.filename
  * @param {string} input.mime
  * @param {number} input.size
@@ -219,6 +220,8 @@ export async function confirmUpload(input) {
           clientId: client._id,
           engagementId: engagement?._id ?? null,
           checklistItemId: input.checklistItemId || null,
+          /* the sample row a voucher photograph proves (P3-30) */
+          sampleItemId: input.sampleItemId || null,
           udinId,
           branchId: engagement?.branchId ?? client.branchId,
           uploadedBy: actor.id,
