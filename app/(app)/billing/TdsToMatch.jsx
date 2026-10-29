@@ -19,14 +19,21 @@ import TdsRows from "./TdsRows";
  * Grouped by the quarter the receipt falls in, because 26AS is filed and
  * read a quarter at a time.
  */
-export default async function TdsToMatch({ actor, scope, showMatched }) {
+export default async function TdsToMatch({
+  actor,
+  scope,
+  showMatched,
+  /** The accounts desk shows the oldest few; the tab shows them all. */
+  limit = 500,
+  intro = true,
+}) {
   const payments = await Payment.find({
     ...scope,
     tdsPaise: { $gt: 0 },
     tdsSeenIn26AS: Boolean(showMatched),
   })
     .sort({ date: -1 })
-    .limit(500)
+    .limit(limit)
     .lean();
 
   const [clients, invoices] = await Promise.all([
@@ -71,7 +78,7 @@ export default async function TdsToMatch({ actor, scope, showMatched }) {
 
   return (
     <>
-      <p className="text-14 max-w-[75ch]">
+      <p className={`text-14 max-w-[75ch] ${intro ? "" : "sr-only"}`}>
         {showMatched
           ? "TDS already ticked off against Form 26AS. Untick one if it turns out not to be there."
           : "TDS a client deducted, which has not been found in Form 26AS yet. Read the quarter in the traces portal, then tick what is there."}{" "}

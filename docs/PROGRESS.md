@@ -153,6 +153,7 @@ whose cost grows every week it waits.
 
 | Date | Decision | By |
 | --- | --- | --- |
+| 29-10-2026 | D92: **the accounts desk performs its own decisions, reversing D74 — and no new server action was written to do it.** D74 made the desk four lists that performed nothing, on the reasoning that the desk shows what needs doing and the doing belongs on the record; the owner asked for the prototype's behaviour instead. What was load-bearing in D74 is kept: every button calls the same action the record's own screen calls, so a decision cannot be allowed from one screen and refused from another, and the audit entry is written once. Refusals are shown rather than hidden, which matters most here because the firm's own branch GSTINs are not entered yet and most drafts therefore cannot be issued — the desk says so in the invoice rules' own words instead of looking broken. The one-click apply of unallocated money shows where the money will go **before** it is pressed and then applies exactly that: the firm's own oldest-invoice-first suggestion, not a second policy invented for this screen. Two of the prototype's eighteen actions stay off it with the reason on the screen — billing a job with its fee is one decision taken together on Ready to bill, and a manual "remind now" would be a second, unrecorded cadence beside the rule-driven one. | Owner asked; agent kept D74's reasoning where it held |
 | 29-10-2026 | D91: **a sample is drawn from a stored seed, and the firm says how big it is.** The selection runs off a seeded generator so the same population and the same seed give the same rows for ever — a selection made with `Math.random()` cannot answer the only question a peer reviewer asks about a sample. **No sample size is computed:** SA 530 gives no formula, a size comes from the firm's own table weighing risk against what other procedures cover, and deriving one from a confidence level would be inventing a professional rule (rule 8). The confidence, the tolerable misstatement and the reasoning are recorded beside the size instead, the way `materialityBasis` is. In monetary-unit selection anything worth a whole sampling interval is **promoted to a key item**, which is the method and not a refinement: without it one large entry absorbs several hits, they collapse to one row, and a draw asked for twelve returns four while looking like a smaller sample rather than a bug. Two refusals carry the professional rule: a sample cannot be locked until somebody has said whether the population agrees to the trial balance, and it cannot be redrawn once a single cell is marked. Unlocking needs a CA or partner and a written, audited reason. | Agent |
 | 29-10-2026 | D90: **the left rail reads the design tokens again, and the menu landmark is back.** The 28-10 panel rewrite had hardcoded Tailwind slate and white into `LeftRail.jsx`, `CommandBar.jsx` and `TodoLines.jsx` — so the three loudest pieces of chrome ignored the token layer entirely and stayed white in dark mode, which contradicts what P3-25 reported. The same rewrite renamed the navigation landmark to "Main navigation", renamed the filter box to "Search navigation" and moved it outside the `nav`, which broke six of `nav.spec.js` silently: the browser suite takes hours and had not been run since. Repaired by mapping every slate class onto its token, restoring the landmark name and the label, and putting the filter box back inside the landmark, where a screen reader and the drawer test both expect it. | Agent |
 | 29-10-2026 | D89: **the firm can rename four nouns, and nothing else.** Client, job, matter and invoice, singular and plural separately — English pluralisation is the trap this feature is built around, so "party" and "parties" are both given rather than one guessed from the other, and giving one without the other is refused. The substitution is applied **in one place, on the way out of `menuFor`**, after the permission and module filtering: `area`, `module` and `href` are what the router and `can()` read, so a renamed label cannot reach any of them, and clearing the boxes puts every word back. Page headings and status values keep the application's own words, and the screen says so — they are written into each of ninety screens rather than produced from one list, so renaming them is a job of its own and not a setting. Custom fields and portal branding stay unbuilt with the reason on the screen: a custom field is a change to the data model, and a second palette means a second set of contrast checks on every screen a client sees. | Agent |
@@ -3396,3 +3397,75 @@ succeeds, 2 Playwright tests pass at laptop and phone widths.
   actually needs is probably one item per screen with five big buttons,
   which is a different component and should be decided by somebody who has
   used this at a client's office.
+
+## What P3-31 built — the accounts desk acts (29-10-2026)
+
+The fourth of the five prototype-gap screens, and the one that reverses a
+recorded decision. D74 made `/billing/desk` four lists that performed
+nothing, on the reasoning that the desk shows what needs doing and the
+doing belongs on the record. The owner asked for the prototype's
+behaviour, so the desk now performs its own decisions.
+
+**What was load-bearing in D74 is kept: nothing is reimplemented.** Every
+button calls the same server action the record's own screen calls —
+`issueInvoice`, `decideFeeWaiver`, `recordPromise`, `clearPromise`,
+`reallocatePayment`, `setTds26AS` — so the permission check, the refusal,
+the audit entry and the arithmetic stay in one place and cannot be allowed
+from one screen and refused from another. **No new server action was
+written for this step.** What changed is only where the click happens, and
+for an accounts person working a list of eleven things that is the whole
+difference between a screen and a report.
+
+**Five sections, each now acting.** Unapplied money applied; a promise
+moved or taken off; a draft issued; a waiver approved or declined with the
+reason; TDS ticked against Form 26AS — that last one by dropping the
+billing tab's own `TdsToMatch` component straight in, limited to the
+oldest ten, so there is one tick and not two.
+
+**Refusals are shown, not hidden** (P3-8, through the existing `Action`
+component and `whyNot()`). This matters more here than anywhere: the
+firm's own branch GSTINs are still not entered and several services have
+no SAC code, so most drafts **cannot** be issued yet. The desk says which
+and why, in the invoice rules' own words, rather than looking broken.
+There is a test for exactly that.
+
+**The money arithmetic moved into `lib/billing/allocation.js` with
+tests**, rather than living in the page. Two ways a one-click apply loses
+money, and both are now covered: two receipts offered the same invoice —
+the first clears it and the second is offered an invoice with nothing
+owing — and a top-up that forgets where the receipt already sits, because
+`reallocatePayment` replaces every allocation on the payment, so the old
+lines have to be sent back with the new ones, merged per invoice rather
+than appended.
+
+**The suggestion is computed on the server and the button applies exactly
+it.** Oldest invoice first, TDS against the invoice it was withheld from —
+the firm's own `suggestAllocation`, the same one the client ledger offers.
+A one-click apply that worked out its own order would be a second
+allocation policy nobody had agreed to, and the person can read where the
+money is going before pressing anything. A receipt bigger than everything
+outstanding stays as credit, said in words, because that is ordinary.
+
+**Two of the prototype's eighteen actions are deliberately still not
+here, with the reason on the screen.** Billing a finished job and setting
+its fee stay on Ready to bill, because the fee, whether the work is
+chargeable at all, and any waiver on it are one decision taken together
+and splitting it across two screens is how a job gets billed at a fee
+nobody agreed. And there is no "remind now": reminders are planned by rule
+and deduplicated by a unique index, so a button would either be refused as
+a duplicate or become a second, unrecorded cadence beside the firm's own.
+
+**Checks:** lint clean, 1554 Vitest tests pass (10 new), `next build`
+succeeds, 6 Playwright tests pass at laptop and phone widths.
+
+**Left over**
+
+- **Issuing is one invoice at a time.** It takes the next number in the
+  branch's gapless series, and a button that issues eleven invoices on one
+  click numbers eleven before anybody has read one.
+- **Splitting a receipt differently still means opening the ledger.** The
+  desk applies what it shows; anything else is a form, and the ledger
+  already has it.
+- **A declined waiver's reason is a single-line input.** Long enough for
+  the sentence the person who asked will read, not long enough for a
+  paragraph; the engagement's own screen takes more.
