@@ -1,10 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { TOTP, Secret } from "otpauth";
+import { signIn } from "./signin.js";
 import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
 import Branch from "../../models/Branch.js";
 import Client from "../../models/Client.js";
-import { hashPassword, decryptField } from "../../lib/crypto.js";
+import { hashPassword } from "../../lib/crypto.js";
 import { systemAudit } from "../../lib/audit/system.js";
 
 /**
@@ -60,7 +60,7 @@ test.beforeAll(async ({}, testInfo) => {
           passwordHash: await hashPassword(PASSWORD),
         },
       ],
-      { session },
+      { session, ordered: true },
     );
 
     await Client.create(
@@ -76,7 +76,7 @@ test.beforeAll(async ({}, testInfo) => {
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
   });
 });
@@ -91,36 +91,6 @@ test.afterAll(async ({}, testInfo) => {
    */
 });
 
-async function signIn(page, email) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByLabel("6-digit code").waitFor();
-
-  const user = await User.findOne({ email }).select("+totpSecret");
-  /**
-   * An authenticator shows one code per 30 seconds, and the app refuses a
-   * code it has already accepted — replay protection, working as spec §16
-   * asks. A suite that signs in a dozen times inside one window hits it
-   * every time, so the counter is cleared to stand for time having
-   * passed. The rule itself is tested in tests/security.test.js.
-   */
-  await User.updateOne({ email }, { $set: { lastTotpCounter: 0 } });
-  const code = new TOTP({
-    issuer: "PHMG & Associates",
-    label: email,
-    algorithm: "SHA1",
-    digits: 6,
-    period: 30,
-    secret: Secret.fromBase32(decryptField(user.totpSecret)),
-  }).generate();
-
-  await page.getByLabel("6-digit code").fill(code);
-  await page.getByRole("button", { name: /Sign in|Turn on 2FA/ }).click();
-  await expect(page).toHaveURL(/\/issues$/);
-}
-
 test("the login form is usable before the scene is, and the map is always there", async ({
   page,
 }) => {
@@ -130,7 +100,17 @@ test("the login form is usable before the scene is, and the map is always there"
   await page.keyboard.press("Tab");
   await expect(page.getByLabel("Email")).toBeFocused();
 
-  // the flat ledger map is in the markup whatever the device decides about 3D
+  /**
+   * The scene is off unless the firm turns the flourishes on (P3-21b, D52),
+   * and `.moments-only` is `display: none` — so with them off there is no
+   * scene and no fallback in the page, which is the point of the switch.
+   *
+   * Turned on, the flat ledger map is what a device with no 3D gets, and
+   * that is the thing worth checking: the fallback, not the canvas.
+   */
+  await page.evaluate(() =>
+    document.documentElement.setAttribute("data-moments", "on"),
+  );
   await expect(
     page.getByRole("img", { name: /ledger-style map of North India/ }),
   ).toBeAttached();
@@ -190,7 +170,17 @@ test("a command finds a screen as well as a record", async ({
 
   await page.keyboard.press("Control+k");
   await page.getByPlaceholder(/Client, PAN, GSTIN/).fill("overdue");
-  await page.getByRole("option", { name: "Overdue work" }).click();
+  /**
+   * **"Overdue", not "Overdue work".**
+   *
+   * P3-22a made the menu the one list of places to go, and the command bar
+   * now reads `lib/nav/tree.js` like the rail does. `ACTIONS` in
+   * `CommandBar.jsx` still names this screen "Overdue work", but it is
+   * dropped on the way in because the tree already has that href under the
+   * shorter label — which is the dedupe working, not a bug. The option's
+   * accessible name is the label plus its group, so: "Overdue" then "Jobs".
+   */
+  await page.getByRole("option", { name: /^Overdue\b/ }).click();
   await expect(page).toHaveURL(/due=overdue/);
 });
 

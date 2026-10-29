@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { TOTP, Secret } from "otpauth";
+import { signIn } from "./signin.js";
+import { pick } from "./alerts.js";
 import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
 import Branch from "../../models/Branch.js";
@@ -7,7 +8,7 @@ import Client from "../../models/Client.js";
 import Certificate from "../../models/Certificate.js";
 import RuleConfirmation from "../../models/RuleConfirmation.js";
 import Udin from "../../models/Udin.js";
-import { hashPassword, decryptField } from "../../lib/crypto.js";
+import { hashPassword } from "../../lib/crypto.js";
 import { systemAudit } from "../../lib/audit/system.js";
 
 /**
@@ -81,7 +82,7 @@ test.beforeAll(async ({}, testInfo) => {
           passwordHash: await hashPassword(PASSWORD),
         },
       ],
-      { session },
+      { session, ordered: true },
     );
 
     await Client.create(
@@ -96,7 +97,7 @@ test.beforeAll(async ({}, testInfo) => {
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
   });
 });
@@ -122,36 +123,6 @@ async function write(page, title, text) {
   await expect(page.getByRole("status")).toContainText(title);
 }
 
-async function signIn(page, email) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByLabel("6-digit code").waitFor();
-
-  const user = await User.findOne({ email }).select("+totpSecret");
-  /**
-   * An authenticator shows one code per 30 seconds, and the app refuses a
-   * code it has already accepted — replay protection, working as spec §16
-   * asks. A suite that signs in a dozen times inside one window hits it
-   * every time, so the counter is cleared to stand for time having
-   * passed. The rule itself is tested in tests/security.test.js.
-   */
-  await User.updateOne({ email }, { $set: { lastTotpCounter: 0 } });
-  const code = new TOTP({
-    issuer: "PHMG & Associates",
-    label: email,
-    algorithm: "SHA1",
-    digits: 6,
-    period: 30,
-    secret: Secret.fromBase32(decryptField(user.totpSecret)),
-  }).generate();
-
-  await page.getByLabel("6-digit code").fill(code);
-  await page.getByRole("button", { name: /Sign in|Turn on 2FA/ }).click();
-  await expect(page).toHaveURL(/\/issues$/);
-}
-
 test("a certificate is not signed over unconfirmed wording, unheld evidence or somebody else's UDIN", async ({
   page,
 }, testInfo) => {
@@ -159,9 +130,7 @@ test("a certificate is not signed over unconfirmed wording, unheld evidence or s
   await signIn(page, fx.partner);
 
   await page.goto("/practice/certificates/new");
-  await page
-    .getByLabel("Client")
-    .selectOption({ label: new RegExp(fx.clientName) });
+  await pick(page.locator('select[name="clientId"]'), fx.clientName);
   await page
     .getByLabel("What kind of certificate")
     .selectOption({ label: "Net worth certificate" });

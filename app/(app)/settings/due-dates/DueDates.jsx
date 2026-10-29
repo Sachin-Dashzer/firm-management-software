@@ -156,7 +156,7 @@ export default function DueDates({ rows, unverified }) {
 
           {rule.overrides.length > 0 && (
             <div className="flex flex-col gap-1">
-              <h3 className="text-12 text-ink-muted font-medium tracking-wide uppercase">
+              <h3 className="text-12 text-ink-muted font-medium">
                 Extensions recorded
               </h3>
               <ul className="flex flex-col">

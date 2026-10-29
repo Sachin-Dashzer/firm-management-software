@@ -89,7 +89,7 @@ const GROUPS = [
         what: "Every unpaid invoice, what is left on it and how late.",
       },
       {
-        href: "/invoices/receivables",
+        href: "/billing?tab=collections",
         area: "invoices",
         name: "Receivables ageing",
         what: "The same money in 30-day buckets, with the unbilled tab beside it.",
@@ -253,10 +253,21 @@ export default async function ReportsPage() {
         </section>
       ))}
 
+      {/*
+        Time tracking exists now (P3-28), so the reason these are missing
+        has changed and so has the sentence. They are figures on a screen
+        and not yet reports, which means they do not export — and saying
+        that is better than leaving the old reason standing.
+      */}
       <p className="text-12 text-ink-muted">
-        Timesheets, utilisation, realisation, client profitability and the
-        intern exposure report all need time tracking, which is Phase 2 (spec
-        section 9). They are not here rather than here and empty.
+        Utilisation, realisation, client profitability and the days nobody
+        has filled in are on{" "}
+        <Link href="/team/time" className="underline underline-offset-4">
+          the timesheet
+        </Link>{" "}
+        (P3-28). They are not reports yet, so they do not export to Excel or
+        PDF; the intern exposure report still needs time by tier, which
+        nothing records.
       </p>
     </div>
   );

@@ -1,6 +1,19 @@
 import Link from "next/link";
+import {
+  Receipt,
+  Bank,
+  HourglassMedium,
+  WarningCircle,
+} from "@phosphor-icons/react/dist/ssr";
 import { formatPaise } from "@/lib/money";
-import { TileRow, MoneyTile, CountTile, BarRows, Panel } from "./Tiles";
+import {
+  TileRow,
+  MoneyTile,
+  CountTile,
+  FeatureTile,
+  BarRows,
+  Panel,
+} from "./Tiles";
 import DeadlineHeatmap from "./DeadlineHeatmap";
 
 /**
@@ -33,7 +46,7 @@ export default function FirmOverview({
           <div className="rounded-table border-rule bg-surface overflow-x-auto border">
             <table className="text-14 w-full">
               <thead>
-                <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+                <tr className="border-rule text-12 text-faint border-b text-left font-normal">
                   <th className="px-3 py-2 font-medium">Branch</th>
                   <th className="px-3 py-2 text-right font-medium">Open</th>
                   <th className="px-3 py-2 text-right font-medium">Overdue</th>
@@ -78,19 +91,39 @@ export default function FirmOverview({
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MoneyTile
             label="Unbilled, finished work"
+            icon={Receipt}
             paise={unbilled.paise}
             note={`${unbilled.count} ${unbilled.count === 1 ? "job" : "jobs"} waiting to be invoiced`}
             href={unbilled.href}
           />
-          <MoneyTile
-            label="Owed to the firm"
-            paise={receivables.ageing.total}
-            note={`${formatPaise(receivables.overduePaise)} of it past due`}
-            href={receivables.href}
-            tone={receivables.overduePaise > 0 ? "late" : undefined}
-          />
+          {/*
+            The screen's one feature card, and only while there is
+            something to raise the alarm about (D85). With nothing past
+            due it is an ordinary tile, because a gradient panel saying
+            everything is fine is the kind of decoration that teaches
+            people to stop reading the dashboard.
+          */}
+          {receivables.overduePaise > 0 ? (
+            <FeatureTile
+              label="Past due"
+              icon={WarningCircle}
+              paise={receivables.overduePaise}
+              note={`of ${formatPaise(receivables.ageing.total)} owed to the firm`}
+              href={receivables.href}
+              cta="Chase these"
+            />
+          ) : (
+            <MoneyTile
+              label="Owed to the firm"
+              icon={Bank}
+              paise={receivables.ageing.total}
+              note="nothing past its due date"
+              href={receivables.href}
+            />
+          )}
           <MoneyTile
             label="Collected this month"
+            icon={Bank}
             paise={collections.thisMonth}
             note={
               /*
@@ -114,6 +147,7 @@ export default function FirmOverview({
           />
           <CountTile
             label="Waiting on a client"
+            icon={HourglassMedium}
             value={pendingDocuments.value}
             note="jobs held up for documents"
             href={pendingDocuments.href}
@@ -122,9 +156,7 @@ export default function FirmOverview({
         </div>
 
         <div className="rounded-ledger border-rule bg-surface mt-1 border p-4">
-          <h3 className="text-13 text-ink-muted mb-3 tracking-wide uppercase">
-            Ageing
-          </h3>
+          <h3 className="text-13 text-ink-muted mb-3">Ageing</h3>
           <div className="divide-rule grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-5 sm:divide-x">
             {[
               ["Not yet due", receivables.ageing.current],

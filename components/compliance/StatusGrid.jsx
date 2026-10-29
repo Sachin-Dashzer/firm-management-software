@@ -97,7 +97,7 @@ export default function StatusGrid({
             one.
           </caption>
           <thead>
-            <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+            <tr className="border-rule text-12 text-faint border-b text-left font-normal">
               <th
                 scope="col"
                 className="bg-surface sticky left-0 px-3 py-2 font-medium"

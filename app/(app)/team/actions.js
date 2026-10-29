@@ -323,6 +323,8 @@ export async function updateTeamMember(userId, formData) {
   const branchIds = formData.getAll("branchIds").map(String);
   const reportingTo = String(formData.get("reportingTo") ?? "");
   const capacityHours = Number(formData.get("capacityHours") ?? 8);
+  /* Rupees on the form, paise in the record (CLAUDE.md rule 5). */
+  const chargeRate = Number(formData.get("chargeRate") ?? 0);
   const skills = String(formData.get("skills") ?? "")
     .split(",")
     .map((s) => s.trim())
@@ -337,6 +339,9 @@ export async function updateTeamMember(userId, formData) {
     capacityHours > 24
   ) {
     return { error: "Capacity is hours in a day, so 0 to 24." };
+  }
+  if (!Number.isFinite(chargeRate) || chargeRate < 0) {
+    return { error: "A charge rate is rupees an hour, so nothing negative." };
   }
   if (reportingTo && reportingTo === userId) {
     return { error: "Nobody reports to themselves." };
@@ -363,6 +368,7 @@ export async function updateTeamMember(userId, formData) {
           branchIds,
           reportingTo: reportingTo || null,
           capacityHours,
+          chargeRatePaise: Math.round(chargeRate * 100),
           skills,
           updatedBy: actor.id,
         },

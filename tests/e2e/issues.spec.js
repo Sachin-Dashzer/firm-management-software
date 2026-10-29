@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { TOTP, Secret } from "otpauth";
+import { signIn } from "./signin.js";
 import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
 import Branch from "../../models/Branch.js";
@@ -7,7 +7,7 @@ import Client from "../../models/Client.js";
 import Invoice from "../../models/Invoice.js";
 import ServiceTemplate from "../../models/ServiceTemplate.js";
 import Engagement from "../../models/Engagement.js";
-import { hashPassword, decryptField } from "../../lib/crypto.js";
+import { hashPassword } from "../../lib/crypto.js";
 import { systemAudit } from "../../lib/audit/system.js";
 import { buildEngagement } from "../../lib/engagements/create.js";
 import { periodFor } from "../../lib/engagements/period.js";
@@ -89,7 +89,7 @@ test.beforeAll(async ({}, testInfo) => {
           passwordHash: await hashPassword(PASSWORD),
         },
       ],
-      { session },
+      { session, ordered: true },
     );
 
     const [client] = await Client.create(
@@ -104,7 +104,7 @@ test.beforeAll(async ({}, testInfo) => {
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
     ids.client = String(client._id);
 
@@ -130,7 +130,7 @@ test.beforeAll(async ({}, testInfo) => {
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
 
     const period = periodFor("monthly", new Date());
@@ -149,9 +149,27 @@ test.beforeAll(async ({}, testInfo) => {
           code: `PWI-${service.code}`,
           status: "In progress",
           // a client upload nobody has checked: one row, with a real button
+          /**
+           * **Two** uploads nobody has checked, not one.
+           *
+           * The test below accepts the first, which is what it is for — and
+           * with a single item that left the employee test after it with an
+           * empty Issues page, so it failed on test order rather than on
+           * scoping. The second item is the control: their own work is
+           * there, so the money being absent means scoping and not emptiness.
+           */
           checklist: [
             {
               name: "Sales register for the period",
+              side: "client",
+              mandatory: true,
+              status: "Received",
+              requestedAt: new Date(Date.now() - 5 * DAY),
+              receivedAt: new Date(),
+              submissionCount: 1,
+            },
+            {
+              name: "Purchase register for the period",
               side: "client",
               mandatory: true,
               status: "Received",
@@ -171,7 +189,7 @@ test.beforeAll(async ({}, testInfo) => {
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
     ids.engagement = String(row._id);
 
@@ -201,7 +219,7 @@ test.beforeAll(async ({}, testInfo) => {
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
     ids.invoice = String(invoice._id);
   });
@@ -216,36 +234,6 @@ test.afterAll(async ({}, testInfo) => {
    * that worker down with it. The worker exiting closes it.
    */
 });
-
-async function signIn(page, email) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByLabel("6-digit code").waitFor();
-
-  const user = await User.findOne({ email }).select("+totpSecret");
-  /**
-   * An authenticator shows one code per 30 seconds, and the app refuses a
-   * code it has already accepted — replay protection, working as spec §16
-   * asks. A suite that signs in a dozen times inside one window hits it
-   * every time, so the counter is cleared to stand for time having
-   * passed. The rule itself is tested in tests/security.test.js.
-   */
-  await User.updateOne({ email }, { $set: { lastTotpCounter: 0 } });
-  const code = new TOTP({
-    issuer: "PHMG & Associates",
-    label: email,
-    algorithm: "SHA1",
-    digits: 6,
-    period: 30,
-    secret: Secret.fromBase32(decryptField(user.totpSecret)),
-  }).generate();
-
-  await page.getByLabel("6-digit code").fill(code);
-  await page.getByRole("button", { name: /Sign in|Turn on 2FA/ }).click();
-  await expect(page).toHaveURL(/\/issues$/);
-}
 
 const upload = (page) =>
   page
@@ -290,8 +278,11 @@ test("an employee's Issues has none of the firm's money on it", async ({
   await signIn(page, fx.maker);
   await page.getByRole("button", { name: "Everyone" }).click();
 
-  // their own work is there
-  await expect(page.getByText(/Playwright Issues GST/).first()).toBeVisible();
+  // their own work is there — the second upload, which the test above
+  // leaves alone
+  await expect(
+    page.getByText("Upload to check: Purchase register"),
+  ).toBeVisible();
 
   // the overdue invoice is not, on either view, and neither is the group
   await expect(page.getByText(fx.invoice)).toHaveCount(0);

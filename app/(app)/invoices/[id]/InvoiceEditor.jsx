@@ -190,7 +190,7 @@ export default function InvoiceEditor({
         <div className="overflow-x-auto">
           <table className="text-14 w-full">
             <thead>
-              <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+              <tr className="border-rule text-12 text-faint border-b text-left font-normal">
                 <th className="px-2 py-2 font-medium">Description</th>
                 <th className="px-2 py-2 font-medium">SAC</th>
                 <th className="px-2 py-2 text-right font-medium">Amount</th>

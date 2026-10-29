@@ -149,7 +149,7 @@ export default async function InvoicePage({ params }) {
     <div className="mx-auto flex max-w-[1000px] flex-col gap-6 p-4 md:p-6">
       <div>
         <Link
-          href="/invoices"
+          href="/billing?tab=invoices"
           className="text-13 text-ink-muted underline underline-offset-4"
         >
           Billing

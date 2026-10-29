@@ -9,6 +9,12 @@ import {
 } from "../lib/gst/template.js";
 import { readGstWorkbook } from "../lib/gst/read.js";
 import { buildWorkbook } from "../lib/excel.js";
+import {
+  GST_CYCLE_STAGES,
+  cycleStage,
+  cycleTally,
+  isGstWork,
+} from "../lib/gst/cycle.js";
 
 /**
  * The monthly GST cycle's arithmetic and checking (P3-12).
@@ -417,5 +423,87 @@ describe("reading back what the client actually sends", () => {
     // the sheets exist in the template even when empty, so nothing is missing
     expect(workbook.missing).toEqual([]);
     expect(workbook.sheets.purchases).toEqual([]);
+  });
+});
+
+/**
+ * Where a month stands, firm-wide (P3-22b).
+ *
+ * The board at `/gst-cycle` stores nothing: every stage is read off fields
+ * P3-12, P3-5 and P3-1 already write. So the thing worth testing is that
+ * the reading is honest about the awkward cases — a sheet re-sent after it
+ * was pushed back, a month with one return in and one owing, and work that
+ * jumped a step because that is how the day went.
+ */
+describe("the stage a GST month has reached", () => {
+  const filed = (name) => ({ name, filedOn: new Date("2026-11-11T00:00:00Z") });
+  const owing = (name) => ({ name, filedOn: null, dueDate: null });
+
+  it("is waiting for data when nothing has come in", () => {
+    expect(cycleStage({}).key).toBe("awaiting-data");
+    expect(cycleStage({ gstPrep: {} }).key).toBe("awaiting-data");
+  });
+
+  it("is with the client when the sheet was sent back after the last upload", () => {
+    const engagement = {
+      gstPrep: {
+        uploadedAt: new Date("2026-11-02T00:00:00Z"),
+        sentBackAt: new Date("2026-11-03T00:00:00Z"),
+      },
+    };
+    expect(cycleStage(engagement).key).toBe("corrections");
+  });
+
+  it("is back with us once they answer", () => {
+    const engagement = {
+      gstPrep: {
+        sentBackAt: new Date("2026-11-03T00:00:00Z"),
+        uploadedAt: new Date("2026-11-04T00:00:00Z"),
+      },
+    };
+    expect(cycleStage(engagement).key).toBe("data-in");
+  });
+
+  it("reads the furthest point reached, not the next step in the chain", () => {
+    // approved inside the firm although nothing was ever computed here
+    const engagement = {
+      gstPrep: { uploadedAt: new Date("2026-11-02T00:00:00Z") },
+      review: { approvedAt: new Date("2026-11-05T00:00:00Z") },
+    };
+    expect(cycleStage(engagement).key).toBe("reviewed");
+  });
+
+  it("distinguishes one return in from both", () => {
+    const one = { milestones: [filed("GSTR-1"), owing("GSTR-3B")] };
+    const both = { milestones: [filed("GSTR-1"), filed("GSTR-3B")] };
+    expect(cycleStage(one).key).toBe("part-filed");
+    expect(cycleStage(both).key).toBe("filed");
+  });
+
+  it("puts a filing ahead of a confirmation, however late the confirmation", () => {
+    const engagement = {
+      clientConfirmation: { when: new Date("2026-11-09T00:00:00Z") },
+      milestones: [filed("GSTR-1"), owing("GSTR-3B")],
+    };
+    expect(cycleStage(engagement).key).toBe("part-filed");
+  });
+
+  it("counts every stage, including the empty ones", () => {
+    const tally = cycleTally([
+      {},
+      {},
+      { milestones: [filed("GSTR-1"), filed("GSTR-3B")] },
+    ]);
+    expect(tally).toHaveLength(GST_CYCLE_STAGES.length);
+    expect(tally.find((row) => row.key === "awaiting-data").count).toBe(2);
+    expect(tally.find((row) => row.key === "filed").count).toBe(1);
+    expect(tally.find((row) => row.key === "computed").count).toBe(0);
+  });
+
+  it("knows GST work from the service code, as the engagement screen does", () => {
+    expect(isGstWork({ templateSnapshot: { code: "GSTR-3B-M" } })).toBe(true);
+    expect(isGstWork({ templateSnapshot: { code: "gst-annual" } })).toBe(true);
+    expect(isGstWork({ templateSnapshot: { code: "ITR-6" } })).toBe(false);
+    expect(isGstWork({})).toBe(false);
   });
 });

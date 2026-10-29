@@ -48,7 +48,10 @@ describe("a URL finds its screen, or nothing at all", () => {
 
   it("finds the screen a deeper page sits under", () => {
     expect(screenKeyFor("/practice/notices/new")).toBe("practice.notices");
-    expect(screenKeyFor("/invoices/receivables")).toBe("invoices.receivables");
+    // chasing money moved from /invoices/receivables to /billing in P3-22b,
+    // and the accounts desk under it keeps the same procedure
+    expect(screenKeyFor("/billing")).toBe("invoices.receivables");
+    expect(screenKeyFor("/billing/desk")).toBe("invoices.receivables");
   });
 
   it("answers nothing for a screen nobody listed, rather than guessing", () => {

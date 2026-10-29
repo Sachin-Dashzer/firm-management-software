@@ -241,7 +241,7 @@ export default async function ClientPage({ params, searchParams }) {
            */}
           {money && (
             <div className="flex items-center gap-2">
-              <dt className="text-12 text-ink-muted tracking-wide uppercase">
+              <dt className="text-12 text-ink-muted">
                 Outstanding
               </dt>
               <dd className="num text-13">
@@ -1266,7 +1266,7 @@ function Chip({ label, value, mono }) {
   if (!value) return null;
   return (
     <div className="flex items-center gap-2">
-      <dt className="text-12 text-ink-muted tracking-wide uppercase">
+      <dt className="text-12 text-ink-muted">
         {label}
       </dt>
       <dd className={`${mono ? "font-mono" : ""} text-13`}>{value}</dd>

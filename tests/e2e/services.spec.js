@@ -1,12 +1,12 @@
 import { test, expect } from "@playwright/test";
+import { signIn, gotoForm } from "./signin.js";
 import { alertBox } from "./alerts.js";
-import { TOTP, Secret } from "otpauth";
 import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
 import Branch from "../../models/Branch.js";
 import ServiceTemplate from "../../models/ServiceTemplate.js";
 import AuditLog from "../../models/AuditLog.js";
-import { hashPassword, decryptField } from "../../lib/crypto.js";
+import { hashPassword } from "../../lib/crypto.js";
 import { systemAudit } from "../../lib/audit/system.js";
 
 /**
@@ -55,7 +55,7 @@ test.beforeAll(async () => {
           passwordHash: await hashPassword(PASSWORD),
         },
       ],
-      { session },
+      { session, ordered: true },
     );
   });
 });
@@ -70,42 +70,12 @@ test.afterAll(async () => {
    */
 });
 
-async function signIn(page, email = EMAIL) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByLabel("6-digit code").waitFor();
-
-  const user = await User.findOne({ email }).select("+totpSecret");
-  /**
-   * An authenticator shows one code per 30 seconds, and the app refuses a
-   * code it has already accepted — replay protection, working as spec §16
-   * asks. A suite that signs in a dozen times inside one window hits it
-   * every time, so the counter is cleared to stand for time having
-   * passed. The rule itself is tested in tests/security.test.js.
-   */
-  await User.updateOne({ email }, { $set: { lastTotpCounter: 0 } });
-  const code = new TOTP({
-    issuer: "PHMG & Associates",
-    label: email,
-    algorithm: "SHA1",
-    digits: 6,
-    period: 30,
-    secret: Secret.fromBase32(decryptField(user.totpSecret)),
-  }).generate();
-
-  await page.getByLabel("6-digit code").fill(code);
-  await page.getByRole("button", { name: /Sign in|Turn on 2FA/ }).click();
-  await expect(page).toHaveURL(/\/issues$/);
-}
-
 test("add a service, edit it, and archive it", async ({ page }) => {
-  await signIn(page);
+  await signIn(page, EMAIL);
 
-  await page.goto("/settings/services/new");
+  await gotoForm(page, "/settings/services/new");
   await page.getByLabel("Name").fill("Playwright test service");
-  await page.getByLabel("Code").fill(CODE);
+  await page.getByLabel("Code", { exact: true }).fill(CODE);
   await page.getByLabel("Category").selectOption("Direct Tax");
   await page.getByLabel("Tier").selectOption("L2");
   await page.getByLabel("Recurrence").selectOption("quarterly");
@@ -117,14 +87,18 @@ test("add a service, edit it, and archive it", async ({ page }) => {
     .filter({ hasText: "Checklist" })
     .getByRole("button", { name: "Add a row" })
     .click();
-  await page.getByLabel("Checklist item 1").fill("Bank statements");
+  await page
+    .getByRole("textbox", { name: "Checklist item 1", exact: true })
+    .fill("Bank statements");
 
   await page
     .locator("section")
     .filter({ hasText: "Steps" })
     .getByRole("button", { name: "Add a row" })
     .click();
-  await page.getByLabel("Steps item 1").fill("Collect data");
+  await page
+    .getByRole("textbox", { name: "Steps item 1", exact: true })
+    .fill("Collect data");
 
   await page.getByRole("button", { name: "Add service" }).click();
   await expect(page).toHaveURL(/\/settings\/services$/);
@@ -159,7 +133,9 @@ test("add a service, edit it, and archive it", async ({ page }) => {
     .filter({ hasText: "Checklist" })
     .getByRole("button", { name: "Add a row" })
     .click();
-  await page.getByLabel("Checklist item 2").fill("Purchase register");
+  await page
+    .getByRole("textbox", { name: "Checklist item 2", exact: true })
+    .fill("Purchase register");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page).toHaveURL(/\/settings\/services$/);
   expect((await ServiceTemplate.findOne({ code: CODE })).version).toBe(2);
@@ -174,16 +150,18 @@ test("add a service, edit it, and archive it", async ({ page }) => {
 });
 
 test("a duplicate code is refused", async ({ page }) => {
-  await signIn(page);
-  await page.goto("/settings/services/new");
+  await signIn(page, EMAIL);
+  await gotoForm(page, "/settings/services/new");
   await page.getByLabel("Name").fill("Another service");
-  await page.getByLabel("Code").fill(CODE);
+  await page.getByLabel("Code", { exact: true }).fill(CODE);
   await page
     .locator("section")
     .filter({ hasText: "Steps" })
     .getByRole("button", { name: "Add a row" })
     .click();
-  await page.getByLabel("Steps item 1").fill("Do the work");
+  await page
+    .getByRole("textbox", { name: "Steps item 1", exact: true })
+    .fill("Do the work");
   await page.getByRole("button", { name: "Add service" }).click();
 
   await expect(alertBox(page)).toContainText("already used");
@@ -203,6 +181,6 @@ test("an employee can read the catalog but cannot change it", async ({
   );
 
   // and the screen behind the button is closed too
-  await page.goto("/settings/services/new");
+  await gotoForm(page, "/settings/services/new");
   await expect(page).toHaveURL(/\/settings\/services$/);
 });

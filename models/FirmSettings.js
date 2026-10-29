@@ -46,6 +46,52 @@ const firmSettingsSchema = new mongoose.Schema(
      * the sending without switching rules off one by one, and without
      * anybody editing an environment variable on Vercel.
      */
+    /**
+     * Which modules are switched on (P3-22a). Absent means on, so a
+     * database written before this field existed behaves as it always did.
+     * Switching one off hides its menu group and makes its pages answer
+     * "switched off" on the server — it never deletes anything.
+     */
+    modules: {
+      type: new mongoose.Schema(
+        {
+          audit: { type: Boolean, default: true },
+          notices: { type: Boolean, default: true },
+          lab: { type: Boolean, default: true },
+          learning: { type: Boolean, default: true },
+          cx: { type: Boolean, default: true },
+        },
+        { _id: false },
+      ),
+      default: () => ({}),
+    },
+
+    /**
+     * The firm's own words (P3-29).
+     *
+     * Labels only: no field, status, URL or audit entry is renamed, so a
+     * vocabulary cannot break a query and clearing it puts every word
+     * back. Blank means the application's own word, and singular and
+     * plural are separate because a firm that renames "client" to "party"
+     * does not want "partys". The list lives in `lib/firm/words.js`.
+     */
+    vocabulary: {
+      type: new mongoose.Schema(
+        {
+          client: { type: String, trim: true, default: "", maxlength: 40 },
+          clients: { type: String, trim: true, default: "", maxlength: 40 },
+          job: { type: String, trim: true, default: "", maxlength: 40 },
+          jobs: { type: String, trim: true, default: "", maxlength: 40 },
+          matter: { type: String, trim: true, default: "", maxlength: 40 },
+          matters: { type: String, trim: true, default: "", maxlength: 40 },
+          invoice: { type: String, trim: true, default: "", maxlength: 40 },
+          invoices: { type: String, trim: true, default: "", maxlength: 40 },
+        },
+        { _id: false },
+      ),
+      default: () => ({}),
+    },
+
     automationPaused: { type: Boolean, default: false },
     automationPausedBy: { type: String, default: null },
     automationPausedAt: { type: Date, default: null },

@@ -32,9 +32,26 @@ const ACTIONS = [
   { title: "New client", href: "/clients/new", area: "clients" },
   { title: "New invoice", href: "/invoices/new", area: "invoices" },
   { title: "Issues", href: "/issues", area: null },
+  // D69: working screens the prototype's menu has no group for. They stay
+  // reachable here (and from the settings hub) rather than being deleted.
+  { title: "Audit log", href: "/audit", area: "auditLog" },
+  { title: "Client portal log", href: "/portal-log", area: "auditLog" },
+  { title: "Import clients", href: "/clients/import", area: "clients" },
+  { title: "Changes waiting", href: "/clients/changes", area: "clients" },
+  { title: "Statutory book", href: "/practice/statutory", area: "practice" },
+  { title: "Tax book", href: "/practice/tax", area: "practice" },
+  { title: "Recycle bin", href: "/documents/bin", area: "documents" },
+  { title: "Users", href: "/settings/users", area: "usersSettings" },
+  { title: "ICAI and the firm", href: "/settings/icai", area: "icai" },
+  { title: "Security", href: "/settings/security", area: "auditLog" },
+  { title: "Jobs and the runner", href: "/settings/jobs", area: "firmProfile" },
+  {
+    title: "Bringing data in",
+    href: "/settings/migration",
+    area: "usersSettings",
+  },
   { title: "How we do things", href: "/learning", area: null },
   { title: "Data lab", href: "/lab", area: "engagementsWork" },
-  { title: "Today", href: "/today", area: null },
   { title: "Notices", href: "/practice/notices", area: "practice" },
   {
     title: "Open a notice matter",
@@ -61,12 +78,6 @@ const ACTIONS = [
     href: "/calendar?view=grid",
     area: "engagementsWork",
   },
-  { title: "Receivables", href: "/invoices/receivables", area: "invoices" },
-  {
-    title: "Unbilled work",
-    href: "/invoices/receivables?tab=unbilled",
-    area: "invoices",
-  },
   { title: "Reports", href: "/reports", area: null },
   { title: "Recycle bin", href: "/documents/bin", area: "documents" },
   { title: "Portal log", href: "/portal-log", area: "auditLog" },
@@ -81,7 +92,7 @@ const ACTIONS = [
   { title: "Due dates", href: "/settings/due-dates", area: "serviceCatalog" },
 ];
 
-export default function CommandBar({ allowed = [] }) {
+export default function CommandBar({ allowed = [], menu = [] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState("");
@@ -89,9 +100,28 @@ export default function CommandBar({ allowed = [] }) {
   const [searching, setSearching] = useState(false);
   const latest = useRef(0);
 
-  const actions = ACTIONS.filter(
-    (action) => !action.area || allowed.includes(action.area),
+  /**
+   * "Go to" is the menu (P3-22a), labelled by its group — the same tree the
+   * rail reads, already filtered on the server by role, permission and
+   * module. `ACTIONS` keeps only what is **not** on the menu: the handful
+   * of screens the prototype's 58 links leave out, which must stay
+   * reachable (D69).
+   */
+  const fromMenu = menu.flatMap((group) =>
+    group.items
+      .filter((item) => typeof item !== "string")
+      .map((item) => ({
+        title: item.label,
+        href: item.href,
+        group: group.label,
+      })),
   );
+
+  const extras = ACTIONS.filter(
+    (action) => !action.area || allowed.includes(action.area),
+  ).filter((action) => !fromMenu.some((item) => item.href === action.href));
+
+  const actions = [...fromMenu, ...extras];
 
   // Ctrl/Cmd + K from anywhere, and Escape out of it. Bound on the window
   // because the point of a command bar is that it works without first
@@ -221,6 +251,11 @@ export default function CommandBar({ allowed = [] }) {
                 .map((action) => (
                   <Item key={action.href} onSelect={() => go(action.href)}>
                     <span className="text-14 text-ink">{action.title}</span>
+                    {action.group && (
+                      <span className="text-12 text-ink-muted">
+                        {action.group}
+                      </span>
+                    )}
                   </Item>
                 ))}
             </Command.Group>

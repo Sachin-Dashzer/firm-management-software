@@ -227,8 +227,7 @@ export async function importOpeningBalances(csvText) {
     );
   });
 
-  revalidatePath("/invoices");
-  revalidatePath("/invoices/receivables");
+  revalidatePath("/billing");
 
   return {
     ok: `${count} opening ${count === 1 ? "balance" : "balances"} carried in. They appear on the receivables and ageing reports straight away, marked as carried forward.`,

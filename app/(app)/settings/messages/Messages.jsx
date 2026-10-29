@@ -105,7 +105,7 @@ export default function Messages({
       <div className="rounded-table border-rule bg-surface overflow-x-auto border">
         <table className="text-14 w-full">
           <thead>
-            <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+            <tr className="border-rule text-12 text-faint border-b text-left font-normal">
               <th className="px-3 py-2 font-medium">When</th>
               <th className="px-3 py-2 font-medium">To</th>
               <th className="px-3 py-2 font-medium">Subject</th>

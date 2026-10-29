@@ -94,7 +94,7 @@ export default function DataRights({ clientId, clientName, redactedAt }) {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <h3 className="text-12 text-redpen mb-1 font-medium tracking-wide uppercase">
+              <h3 className="text-12 text-redpen mb-1 font-medium">
                 Gone for good
               </h3>
               <ul className="text-13 flex flex-col gap-0.5">
@@ -106,7 +106,7 @@ export default function DataRights({ clientId, clientName, redactedAt }) {
               </ul>
             </div>
             <div>
-              <h3 className="text-12 text-filed mb-1 font-medium tracking-wide uppercase">
+              <h3 className="text-12 text-filed mb-1 font-medium">
                 Kept, because the law requires it
               </h3>
               <ul className="text-13 flex flex-col gap-0.5">

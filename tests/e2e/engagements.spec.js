@@ -1,13 +1,13 @@
 import { test, expect } from "@playwright/test";
-import { alertBox } from "./alerts.js";
-import { TOTP, Secret } from "otpauth";
+import { signIn } from "./signin.js";
+import { alertBox, pick } from "./alerts.js";
 import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
 import Branch from "../../models/Branch.js";
 import Client from "../../models/Client.js";
 import ServiceTemplate from "../../models/ServiceTemplate.js";
 import Engagement from "../../models/Engagement.js";
-import { hashPassword, decryptField } from "../../lib/crypto.js";
+import { hashPassword } from "../../lib/crypto.js";
 import { formatISTDate } from "../../lib/dates.js";
 import { systemAudit } from "../../lib/audit/system.js";
 
@@ -92,7 +92,7 @@ test.beforeAll(async ({}, testInfo) => {
           passwordHash: await hashPassword(PASSWORD),
         },
       ],
-      { session },
+      { session, ordered: true },
     );
 
     await Client.create(
@@ -107,7 +107,7 @@ test.beforeAll(async ({}, testInfo) => {
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
 
     await ServiceTemplate.create(
@@ -130,7 +130,7 @@ test.beforeAll(async ({}, testInfo) => {
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
   });
 });
@@ -144,36 +144,6 @@ test.afterAll(async ({}, testInfo) => {
    * that worker down with it. The worker exiting closes it.
    */
 });
-
-async function signIn(page, email) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByLabel("6-digit code").waitFor();
-
-  const user = await User.findOne({ email }).select("+totpSecret");
-  /**
-   * An authenticator shows one code per 30 seconds, and the app refuses a
-   * code it has already accepted — replay protection, working as spec §16
-   * asks. A suite that signs in a dozen times inside one window hits it
-   * every time, so the counter is cleared to stand for time having
-   * passed. The rule itself is tested in tests/security.test.js.
-   */
-  await User.updateOne({ email }, { $set: { lastTotpCounter: 0 } });
-  const code = new TOTP({
-    issuer: "PHMG & Associates",
-    label: email,
-    algorithm: "SHA1",
-    digits: 6,
-    period: 30,
-    secret: Secret.fromBase32(decryptField(user.totpSecret)),
-  }).generate();
-
-  await page.getByLabel("6-digit code").fill(code);
-  await page.getByRole("button", { name: /Sign in|Turn on 2FA/ }).click();
-  await expect(page).toHaveURL(/\/issues$/);
-}
 
 async function signOut(page) {
   await page.getByRole("button", { name: "Your profile" }).click();
@@ -189,15 +159,18 @@ test("an engagement goes out for review, comes back, and is completed", async ({
   // --- a partner creates it ------------------------------------------------
   await signIn(page, fx.partner);
   await page.goto("/engagements/new");
-  await page.getByLabel("Client").selectOption({ label: /Playwright Works/ });
+  await pick(page.locator('select[name="clientId"]'), /Playwright Works/);
+  await pick(page.getByLabel("Service"), fx.serviceCode);
+  /**
+   * By name, not by label: the reviewer's field carries the hint "Must be
+   * someone other than the person doing the work", which is part of its
+   * label — so `getByLabel("Doing the work")` matches both selects.
+   */
   await page
-    .getByLabel("Service")
-    .selectOption({ label: new RegExp(fx.serviceCode) });
-  await page
-    .getByLabel("Doing the work")
+    .locator('select[name="assigneeId"]')
     .selectOption({ label: "Playwright Maker" });
   await page
-    .getByLabel("Reviewing")
+    .locator('select[name="reviewerId"]')
     .selectOption({ label: "Playwright Reviewer" });
 
   // the target date is prefilled from the service's turnaround, and the date
@@ -315,16 +288,21 @@ test("the person who did the work cannot sign it off", async ({
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
     return doc;
   });
 
   await signIn(page, fx.ca);
   await page.goto(`/engagements/${engagement._id}`);
-
-  // the button is not offered, and the server refuses it too
-  await expect(page.getByRole("button", { name: "Completed" })).toHaveCount(0);
+  /**
+   * Since P3-8 the control is **shown disabled with the reason** rather
+   * than hidden: a button you are not allowed to press should say so
+   * before you press it, and hiding it leaves somebody unable to tell a
+   * rule from a bug. The server refuses it either way, which is the
+   * protection; this is manners.
+   */
+  await expect(page.getByRole("button", { name: "Completed" })).toBeDisabled();
 
   await Engagement.deleteOne({ _id: engagement._id }, { withDeleted: true });
 });
@@ -377,7 +355,7 @@ test("filters, the board, the calendar and a bulk action", async ({
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     ),
   );
 

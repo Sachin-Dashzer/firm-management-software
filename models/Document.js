@@ -82,6 +82,19 @@ const documentSchema = new mongoose.Schema(
       ref: "Udin",
       default: null,
     },
+    /**
+     * The sample row this is the voucher for (P3-30).
+     *
+     * A photograph taken on a phone at the client's office belongs to the
+     * row it proves, not to the engagement in general: "show me the
+     * voucher for item 17" is the question a reviewer asks, and a folder
+     * of forty photographs does not answer it. It is a subdocument id
+     * inside a `Sample`, so there is no `ref` to give it.
+     */
+    sampleItemId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+    },
     branchId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Branch",
@@ -118,6 +131,7 @@ documentSchema.plugin(auditPlugin, {
 documentSchema.index({ clientId: 1, isPermanent: 1, createdAt: -1 });
 documentSchema.index({ engagementId: 1, checklistItemId: 1 });
 documentSchema.index({ udinId: 1, createdAt: -1 });
+documentSchema.index({ sampleItemId: 1 });
 documentSchema.index({ fileKey: 1 });
 documentSchema.index({ name: "text" });
 // the recycle bin asks for recently deleted files

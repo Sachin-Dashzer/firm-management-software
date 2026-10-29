@@ -211,7 +211,7 @@ export default async function PortalLogPage({ searchParams }) {
         <div className="flex items-end gap-2">
           <button
             type="submit"
-            className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium"
+            className="rounded-control border-rule bg-sunk text-14 text-ink h-9 border px-3 font-medium"
           >
             Filter
           </button>

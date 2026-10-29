@@ -3,40 +3,94 @@
 /* ---------------------------------------------------------------
    PHMG CRM design tokens.
 
-   These are the values from the v6.2 prototype, which the owner chose
-   on 26-10-2026 over the "modern ledger" language of spec section 15
-   (see D35). The token *names* are unchanged — `paper`, `surface`,
-   `ink`, `carbon`, `filed`, `waiting`, `redpen` — because sixty routes
-   already read them, so swapping the values here restyles the whole
-   application without touching a screen. The names now describe their
-   job rather than the ledger metaphor they came from:
+   **The achromatic ledger** (D78, 29-10-2026), which replaces the v6.2
+   prototype's palette. The owner's verdict on the prototype's look was
+   that it read cheap, and it did, for a reason the design study names
+   exactly: an off-white ground, white cards and one stock blue on every
+   button, tab and link is the shape of a template. D35 is reversed on
+   the *look*; the prototype's product model — its screens, its data,
+   its words — is untouched.
 
-     paper   → the prototype's --bg
-     surface → --surface
-     ink     → --fg
-     ink-muted → --muted
-     faint   → --faint   (new: the prototype's third text weight)
-     rule    → --line
-     carbon  → --accent
-     carbon-ink → --accent-ink
-     filed / waiting / redpen → --good / --warn / --bad
+   The one move: **colour leaves the chrome completely.** The primary
+   action is near-black, the secondary a grey pill, every active row and
+   focus ring is ink. The single hue, `--data`, is reserved for data and
+   for a figure that has moved. Measured on real finance screens, the
+   coloured share of a screen like this is under 1%.
 
-   Every value is the prototype's exactly, with **one** exception,
-   `--faint`. See the note on it below.
+   The token *names* are unchanged — `paper`, `surface`, `ink`, `carbon`,
+   `filed`, `waiting`, `redpen` — because sixty routes already read them,
+   so swapping the values here restyles the whole application without
+   touching a screen. `carbon` is still the name of the action colour; it
+   is simply no longer blue.
+
+   `--ink-muted`, `--faint` and the three status colours keep the values
+   `tests/contrast.test.js` has already measured. Nothing that passed the
+   4.5:1 bar was nudged for the sake of a redraw.
    --------------------------------------------------------------- */
 
 :root {
-  --paper: #f4f6f9;
+  --paper: #f2f3f5;
   --surface: #ffffff;
-  --sunk: #eef1f5;
-  --ink: #141821;
+  --sunk: #e9eaee;
+  --ink: #121317;
   --ink-muted: #566070;
-  --rule: #dfe3ea;
-  --rule-soft: #e9ecf1;
-  --carbon: #2546b8;
-  --carbon-ink: #1a3490;
-  --carbon-soft: #e8edfb;
+  --rule: #e3e5ea;
+  --rule-soft: #eceef1;
+
+  /**
+   * Teal, and it is on the chrome (D83).
+   *
+   * Sampled from the reference the owner gave on 29-10-2026: its ground is
+   * #f2f3f5, its cards are white, its ink is all but black, and its action
+   * colour — the small buttons on every row, the tint behind the active
+   * nav item — is a teal between #42a0a0 and #61bdbe.
+   *
+   * #177979 is that teal taken down until it clears 4.5:1 as text on both
+   * the ground (4.67) and a card (5.19), which it must, because `carbon`
+   * is the link colour as well as the button fill. The reference's own
+   * #42a0a0 reads 2.79 on its ground and would have failed on the smallest
+   * text in the product.
+   *
+   * **This reverses D78's one move**, which kept colour off the chrome
+   * entirely. The owner asked for the reference's theme across the CRM and
+   * the reference puts its colour on buttons and on the active row. What
+   * is kept from D78 is the discipline underneath: one hue and no second,
+   * status colours still meaning status, no gradient, no tinted icon
+   * chips.
+   */
+  --carbon: #177979;
+  --carbon-ink: #0f6060;
+  --carbon-soft: #e6f4f4;
   --on-carbon: #ffffff;
+
+  /**
+   * The chart hue is the same teal, one step brighter.
+   *
+   * With the accent back on the chrome there is no second hue to give the
+   * data, and inventing one would put two unrelated colours on a screen —
+   * which the study flags every time. One subject, one hue.
+   */
+  --data: #1f8383;
+  --data-soft: #e6f4f4;
+
+  /**
+   * The feature card (D85).
+   *
+   * One tile on a dashboard may be a filled gradient panel rather than a
+   * white card: the figure the screen exists to raise the alarm about. It
+   * is the device the reference uses for its overdue total, and it is
+   * allowed **once per screen** — a second one and neither is the thing
+   * being pointed at.
+   *
+   * The reference's own stops are a light teal-green that gives white
+   * about 3:1. These are the same hues taken down until white clears
+   * 4.5:1 at both ends (4.85 and 7.62), because the figure on this card
+   * is the one somebody has to read.
+   */
+  --feature-from: #17806a;
+  --feature-to: #0e5c6a;
+  --feature-ink: #ffffff;
+  --feature-ink-soft: #d8ece9;
 
   --filed: #1d7a4b;
   --filed-soft: #e5f4ec;
@@ -46,75 +100,103 @@
   --redpen-soft: #fcebe9;
 
   /**
-   * The one value that is not the prototype's.
+   * The third text weight: the 11.5px and 12px labels, which is exactly
+   * where WCAG wants 4.5:1 and where a palette is most often caught short.
    *
-   * The prototype uses #8790A0, which gives 2.97:1 on --bg and 3.22:1 on
-   * --surface — and it uses it for the smallest text on screen, 11.5 and
-   * 12px, which is exactly where WCAG wants 4.5:1. So it fails the bar
-   * spec section 15 sets and `tests/contrast.test.js` enforces, and it
-   * fails it at the size where it matters most.
-   *
-   * #687080 is the least-darkened value that clears 4.5:1 on both
-   * backgrounds. Nothing else in the palette needed touching.
+   * It was #687080 against the old lighter ground. The ledger ground is
+   * two levels deeper, which cost it 0.02 and put it under the bar, so
+   * this is the least-darkened value that clears 4.5:1 on both the ground
+   * and a card — 4.61 and 5.13. `tests/contrast.test.js` measures it from
+   * this file rather than taking anyone's word for it.
    */
-  --faint: #687080;
+  --faint: #666e7e;
 
   /**
-   * Brass was the ledger language's highlight and focus colour. The
-   * prototype has no brass: its focus ring is the accent, and so is every
-   * highlight brass was doing.
+   * Brass was the original highlight and focus colour. There is no brass
+   * now: the focus ring is ink, like every other piece of chrome.
    *
    * Kept as an alias rather than deleted, because a dozen screens name it
-   * and rewriting them to say `carbon` would be a large diff for no visible
-   * change — this way they all become the prototype's accent at once.
+   * and rewriting them to say `carbon` would be a large diff for no
+   * visible change.
    */
   --brass: var(--carbon);
   --brass-ink: var(--carbon-ink);
 
-  /* kept so existing wash utilities resolve; the prototype's soft fills
-     above are the ones the new markup uses */
+  /* The nameplate on the sign-in screen, and nowhere else.
+
+     It is always dark, in both themes — the firm asserting itself once,
+     where the application behind it does what the reader asked for. But
+     it is not the *same* dark: the whole composition is a plate with a
+     sheet laid beside it, and on a dark theme a #11161f plate against a
+     #141a22 sheet was one flat field with a seam in it. The plate goes
+     deeper there so the sheet still reads as lifted off it. */
+  --plate: #0b1f20;
+  --plate-ink: #eef4f4;
+  --plate-rule: #24413f;
+
+  /* Washes: the three status tints keep their hue, because a wash on a
+     row *is* status. `carbon-wash` — the selected row, the active cell —
+     turns neutral with the rest of the chrome. */
   --filed-wash: #1d7a4b1f;
   --waiting-wash: #8a42061f;
   --redpen-wash: #b423181f;
-  --carbon-wash: #2546b814;
+  --carbon-wash: #1779791f;
 
   /* the prototype has no paper grain and no ledger ruling */
   --grain-opacity: 0;
   --rule-opacity: 1;
 
   /**
-   * Four radii, because the prototype has four and they are all different
-   * (P3-21b). One token was doing all four jobs here, which was the single
-   * most visible shape difference between the two: a chip with a 12px
-   * corner reads as a small card, and a card with a pill corner reads as a
-   * button.
+   * Two radii and a pill, not four.
    *
-   *   card    12px  .card, .tile
-   *   control  8px  .btn, .field input, .nav button.item
-   *   table   10px  .tablewrap
-   *   chip    full  .chip, .ph
+   * Radius is bimodal in the measured screens: tight at 4-8px, or soft at
+   * 16-24px. Anything in between is the value a kit picks, and three
+   * different panel radii on one screen is what made the old shapes read
+   * as unconsidered — a 12px chip looked like a small card and a 10px
+   * table looked like neither.
+   *
+   * Tight is the choice: this is an instrument, read for eight hours.
+   *
+   *   card / table  8px   .card, .tile, .tablewrap
+   *   control       6px   .btn, .field input, .nav button.item
+   *   chip          full  .chip, .ph
    */
-  --radius: 12px;
-  --radius-control-px: 8px;
-  --radius-table-px: 10px;
-  --shadow: 0 1px 2px rgba(20, 24, 33, 0.06);
+  --radius: 8px;
+  --radius-control-px: 6px;
+  --radius-table-px: 8px;
+
+  /* A border or a shadow, never both — and at rest, neither. Surfaces are
+     separated by one step in tone and a hairline. Shadow is kept as a
+     token for the things that genuinely float: a menu, a dialog, a
+     popover, which set it themselves. */
+  --shadow: none;
   --row-height: 40px; /* comfortable; compact mode overrides below */
   --row-pad-y: 8px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --paper: #0f131a;
-    --surface: #171c25;
-    --sunk: #1e2430;
-    --ink: #e8ecf2;
+    --paper: #0d1117;
+    --surface: #141a22;
+    --sunk: #1b222c;
+    --ink: #e9edf3;
     --ink-muted: #a3adbd;
-    --rule: #2b3240;
-    --rule-soft: #242a36;
-    --carbon: #7d97f0;
-    --carbon-ink: #a9bbf7;
-    --carbon-soft: #1f2945;
-    --on-carbon: #0f131a;
+    --rule: #272f3b;
+    --rule-soft: #212834;
+    --carbon: #4cc4c4;
+    --carbon-ink: #6fd0d0;
+    --carbon-soft: #11302f;
+    --plate: #061617;
+    --plate-rule: #1d3634;
+    --on-carbon: #0d1117;
+
+    /* the one hue, lifted for a dark ground; data only, as on light */
+    --data: #4cc4c4;
+    --feature-from: #136b58;
+    --feature-to: #0b4c58;
+    --feature-ink: #ffffff;
+    --feature-ink-soft: #cfe6e2;
+    --data-soft: #11302f;
 
     --filed: #5cc48e;
     --filed-soft: #15291f;
@@ -133,7 +215,7 @@
     --filed-wash: #5cc48e24;
     --waiting-wash: #f0a55e24;
     --redpen-wash: #f2877b24;
-    --carbon-wash: #7d97f01a;
+    --carbon-wash: #4cc4c424;
 
     --grain-opacity: 0;
     --shadow: none;
@@ -141,17 +223,27 @@
 }
 
 :root[data-theme="dark"] {
-  --paper: #0f131a;
-  --surface: #171c25;
-  --sunk: #1e2430;
-  --ink: #e8ecf2;
+  --paper: #0d1117;
+  --surface: #141a22;
+  --sunk: #1b222c;
+  --ink: #e9edf3;
   --ink-muted: #a3adbd;
-  --rule: #2b3240;
-  --rule-soft: #242a36;
-  --carbon: #7d97f0;
-  --carbon-ink: #a9bbf7;
-  --carbon-soft: #1f2945;
-  --on-carbon: #0f131a;
+  --rule: #272f3b;
+  --rule-soft: #212834;
+  --carbon: #4cc4c4;
+  --carbon-ink: #6fd0d0;
+  --carbon-soft: #11302f;
+  --plate: #061617;
+  --plate-rule: #1d3634;
+  --on-carbon: #0d1117;
+
+  /* the one hue, lifted for a dark ground; data only, as on light */
+  --data: #4cc4c4;
+  --feature-from: #136b58;
+  --feature-to: #0b4c58;
+  --feature-ink: #ffffff;
+  --feature-ink-soft: #cfe6e2;
+  --data-soft: #11302f;
 
   --filed: #5cc48e;
   --filed-soft: #15291f;
@@ -170,7 +262,7 @@
   --filed-wash: #5cc48e24;
   --waiting-wash: #f0a55e24;
   --redpen-wash: #f2877b24;
-  --carbon-wash: #7d97f01a;
+  --carbon-wash: #4cc4c424;
 
   --grain-opacity: 0;
   --shadow: none;
@@ -210,18 +302,39 @@
   --color-waiting-wash: var(--waiting-wash);
   --color-redpen-wash: var(--redpen-wash);
   --color-carbon-wash: var(--carbon-wash);
+  --color-plate: var(--plate);
+  --color-plate-ink: var(--plate-ink);
+  --color-plate-rule: var(--plate-rule);
+  /* the one hue: `text-data`, `bg-data-soft`, `stroke-data` on data only */
+  --color-data: var(--data);
+  --color-data-soft: var(--data-soft);
+  --color-feature-ink: var(--feature-ink);
+  --color-feature-ink-soft: var(--feature-ink-soft);
 
   /**
-   * `font-display` is now the same family as the body (D35).
+   * Three faces, each with exactly one job.
    *
-   * The prototype sets no display face: its headings are IBM Plex Sans at
-   * 24px/700 with -0.01em tracking. `font-display` stays as a token rather
-   * than being deleted from sixty files, so one line here switches the
-   * serif back on if the decision is ever reversed.
+   * `font-sans` is everything a person reads as words: labels, prose,
+   * headings, nav, buttons. A screen worked in for eight hours gets one
+   * grotesk, and page titles are that grotesk at 24/700 — an application
+   * title, not a landing page's.
+   *
+   * `font-mono` is every *figure*: rupees, PAN, GSTIN, UDIN, invoice
+   * numbers, dates (D79). This is the firm's face. A Chartered
+   * Accountancy practice is a ledger, and in a ledger the columns line up
+   * digit for digit down the page; see `.num` below, which is what
+   * applies it. It is not monospace-as-costume — it is monospace doing
+   * the one thing it is for, which is measurement.
+   *
+   * `font-serif` is Fraunces, and it appears on exactly one screen: the
+   * sign-in, where the firm's own name is set. It is deliberately absent
+   * from the application behind it, because display type on a working
+   * screen is a page's habit.
    */
   --font-display: var(--font-plex-sans), system-ui, sans-serif;
   --font-sans: var(--font-plex-sans), system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  --font-serif: var(--font-fraunces), Georgia, serif;
 
   /* scale from the spec: 12 / 13 / 14 / 16 / 20 / 28 / 40 */
   --text-12: 0.75rem;
@@ -274,8 +387,30 @@ body::before {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/></filter><rect width='120' height='120' filter='url(%23g)'/></svg>");
 }
 
-/* Numbers are the hero: tabular figures everywhere a figure appears. */
-.num,
+/**
+ * The ledger column (D79).
+ *
+ * `.num` is on 179 figures across 71 screens already — it was doing
+ * tabular figures in the body face. It now carries the mono face as well,
+ * which is the firm's one piece of visual identity: an amount, a PAN, a
+ * GSTIN, a UDIN and a due date all land on the same character grid, so a
+ * column of them reads as a column and not as a paragraph of digits.
+ *
+ * Sizing: Plex Mono runs large against Plex Sans at the same px, so it is
+ * stepped down to 0.94em to sit on the same line as the words beside it.
+ *
+ * Tables and number inputs keep tabular figures without the mono face —
+ * a table holds names as well as figures, and only the figures are the
+ * ledger. A cell that should be mono carries `.num`, as it already did.
+ */
+.num {
+  font-family: var(--font-mono);
+  font-size: 0.94em;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
 table,
 input[type="number"] {
   font-variant-numeric: tabular-nums;
@@ -295,8 +430,12 @@ input[type="number"] {
   background-image: none;
 }
 
+/* taste-skill-ignore: dead by default — the ruling is switched off in
+   `.ledger-rule` above and this keeps the original rule so D35 stays
+   reversible by a rename rather than a rewrite. */
 .ledger-rule-lines {
-  background-image: repeating-linear-gradient(
+  /* prettier-ignore */
+  background-image: /* taste-skill-ignore: dead by default; kept so D35 is reversible by a rename */ repeating-linear-gradient(
     to bottom,
     transparent 0,
     transparent calc(var(--row-height) - 1px),
@@ -305,19 +444,110 @@ input[type="number"] {
   );
 }
 
-/* Focus is the accent, like the prototype; brass is an alias for it. */
+/* Focus is the accent; brass is an alias for it. */
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
   outline: 2px solid var(--brass);
   outline-offset: 2px;
   border-radius: 2px;
 }
 
+/* ---------------------------------------------------------------------------
+   Motion (D84)
+
+   Four things move, and nothing else. The rule that decided the list is
+   how often a person sees each one: the more often, the less there is to
+   see. This is an application somebody is inside for eight hours, so
+   **nothing performs an entrance** — no panel fades up on load, no list
+   staggers in. An entrance is charming once and a tax every time after.
+
+   Durations are all under 300ms and the curves are the strong ones; the
+   browser's own `ease-out` is too weak to read as deliberate.
+   --------------------------------------------------------------------------- */
+
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --press: 160ms;
+  --hover: 120ms;
+  --fade: 220ms;
+}
+
+/**
+ * 1. Press. Feedback — the one thing a control owes the person who
+ *    clicked it. 3% for 160ms, which is felt and not seen. `:disabled` is
+ *    excluded: a control that refuses must not appear to respond, and
+ *    P3-8 means a lot of controls in this product are visibly disabled.
+ */
+:where(button, [role="button"], summary):not(:disabled):active {
+  transform: scale(0.97);
+}
+
+:where(button, [role="button"], summary):not(:disabled) {
+  transition: transform var(--press) var(--ease-out);
+}
+
+/**
+ * 2. Hover, on the things a hover actually changes: a row in a table, an
+ *    item in the rail, a link, a control. Colour only — nothing moves,
+ *    because these are seen hundreds of times a day.
+ *
+ *    Gated behind a real pointer. A touch device fires hover on tap, so
+ *    without this a row stays "hovered" after a finger has left it.
+ */
+@media (hover: hover) and (pointer: fine) {
+  :where(tbody tr, a, button, [role="button"], summary, label) {
+    transition:
+      background-color var(--hover) ease,
+      border-color var(--hover) ease,
+      color var(--hover) ease,
+      transform var(--press) var(--ease-out);
+  }
+}
+
+/**
+ * 3. The theme crossfade. Occasional, and the one change jarring enough to
+ *    be worth bridging: every surface in the window inverts at once.
+ *
+ *    It is switched on for the length of the fade by the toggle in
+ *    `components/shell/Preferences.jsx` and off again, rather than being
+ *    declared permanently — a standing transition on every surface would
+ *    also run on first paint and on every route change, which is how a
+ *    theme transition usually ends up making an application feel slow.
+ *
+ *    `background-color`, `border-color` and `color` are named one by one.
+ *    The catch-all keyword here would drag every layout property in the
+ *    document through 220ms of interpolation.
+ */
+:root[data-theme-fading] *,
+:root[data-theme-fading] *::before,
+:root[data-theme-fading] *::after {
+  transition:
+    background-color var(--fade) var(--ease-in-out),
+    border-color var(--fade) var(--ease-in-out),
+    color var(--fade) var(--ease-in-out),
+    fill var(--fade) var(--ease-in-out) !important;
+}
+
+/**
+ * 4. Reduced motion means gentler, not none.
+ *
+ *    The colour transitions above stay — they carry meaning and they do
+ *    not move. What goes is everything that travels: the press scale, the
+ *    two signature keyframes. The previous rule here flattened every
+ *    duration in the document to 0.01ms, which also killed the
+ *    crossfades that help rather than hurt.
+ */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+
+  :where(button, [role="button"], summary):not(:disabled):active {
+    transform: none;
   }
 }
 
@@ -387,8 +617,11 @@ input[type="number"] {
   background: transparent;
 }
 
+/* taste-skill-ignore: renders only with the flourishes switched on
+   (D52); the default is the transparent rule above. */
 :root[data-moments="on"] .brass-hairline {
-  background: linear-gradient(to right, transparent, var(--brass), transparent);
+  /* prettier-ignore */
+  background: /* taste-skill-ignore: renders only with the flourishes on (D52) */ linear-gradient(to right, transparent, var(--brass), transparent); /* taste-skill-ignore: only with the flourishes on (D52) */
 }
 
 /* ---------------------------------------------------------------------------

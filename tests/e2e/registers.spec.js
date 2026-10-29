@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { alertBox } from "./alerts.js";
-import { TOTP, Secret } from "otpauth";
+import { signIn } from "./signin.js";
+import { alertBox, pick } from "./alerts.js";
 import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
 import Branch from "../../models/Branch.js";
@@ -9,7 +9,7 @@ import ServiceTemplate from "../../models/ServiceTemplate.js";
 import Engagement from "../../models/Engagement.js";
 import Udin from "../../models/Udin.js";
 import Dsc from "../../models/Dsc.js";
-import { hashPassword, decryptField } from "../../lib/crypto.js";
+import { hashPassword } from "../../lib/crypto.js";
 import { systemAudit } from "../../lib/audit/system.js";
 import { buildEngagement } from "../../lib/engagements/create.js";
 import { periodFor } from "../../lib/engagements/period.js";
@@ -37,11 +37,16 @@ function names(project) {
     ca: `pw-reg-ca-${tag}@phmgindia.test`,
     serviceCode: `PWR-${tag.slice(0, 6).toUpperCase()}`,
     clientName: `Playwright Registers ${tag} Private Limited`,
-    // 18 characters, unique per project so the two runs cannot collide
-    udin: `26${tag.slice(0, 4).toUpperCase().padEnd(4, "X")}ABCDEF7890`.slice(
-      0,
-      18,
-    ),
+    /**
+     * **Exactly** 18 characters, unique per project so the two runs cannot
+     * collide. It was 16 before — "26" plus four of the project name plus
+     * ten — and the form refuses anything but 18, which is why every test
+     * in this file failed on a validation message rather than on what it
+     * was testing.
+     */
+    udin: `26${tag.slice(0, 4).toUpperCase().padEnd(4, "X")}ABCDEF7890`
+      .padEnd(18, "0")
+      .slice(0, 18),
   };
 }
 
@@ -61,7 +66,7 @@ async function wipe(fx) {
     await Client.deleteOne({ _id: client._id }, { withDeleted: true });
   }
   await ServiceTemplate.deleteMany(
-    { code: fx.serviceCode },
+    { code: new RegExp(`^${fx.serviceCode}`) },
     { withDeleted: true },
   );
   await User.deleteMany({ email: { $in: [fx.partner, fx.ca] } });
@@ -97,7 +102,7 @@ test.beforeAll(async ({}, testInfo) => {
           passwordHash: await hashPassword(PASSWORD),
         },
       ],
-      { session },
+      { session, ordered: true },
     );
 
     const [client] = await Client.create(
@@ -112,35 +117,44 @@ test.beforeAll(async ({}, testInfo) => {
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
 
-    const [service] = await ServiceTemplate.create(
-      [
-        {
-          name: `Playwright certificate ${testInfo.project.name}`,
-          code: fx.serviceCode,
-          category: "Certification",
-          level: "L3",
-          minExecRole: "ca",
-          minReviewRole: "partner",
-          recurrence: "one-time",
-          udinRequired: true,
-          turnaroundDays: null,
-          checklist: [],
-          steps: [{ name: "Issue the certificate" }],
-          createdBy: "test",
-          updatedBy: "test",
-        },
-      ],
-      { session },
-    );
-
-    /** Two jobs for the same client, so one UDIN can be tried on both. */
+    /**
+     * Two jobs for the same client, so one UDIN can be tried on both — and
+     * **two services**, one each.
+     *
+     * One service twice could not be created at all: spec section 5 is "one
+     * service for one client for one period", and the unique index on
+     * `clientId + serviceTemplateId + period` enforces it, so the second
+     * `create` failed with a duplicate key and took the whole fixture with
+     * it. Two certificates for one client is the realistic shape anyway.
+     */
     for (const [key, suffix] of [
       ["first", "A"],
       ["second", "B"],
     ]) {
+      const [service] = await ServiceTemplate.create(
+        [
+          {
+            name: `Playwright certificate ${testInfo.project.name} ${suffix}`,
+            code: `${fx.serviceCode}${suffix}`,
+            category: "Certification",
+            level: "L3",
+            minExecRole: "ca",
+            minReviewRole: "partner",
+            recurrence: "one-time",
+            udinRequired: true,
+            turnaroundDays: null,
+            checklist: [],
+            steps: [{ name: "Issue the certificate" }],
+            createdBy: "test",
+            updatedBy: "test",
+          },
+        ],
+        { session, ordered: true },
+      );
+
       const fields = buildEngagement({
         template: service.toObject(),
         client,
@@ -157,7 +171,7 @@ test.beforeAll(async ({}, testInfo) => {
             updatedBy: "test",
           },
         ],
-        { session },
+        { session, ordered: true },
       );
       ids[key] = String(row._id);
     }
@@ -174,36 +188,6 @@ test.afterAll(async ({}, testInfo) => {
    */
 });
 
-async function signIn(page, email) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByLabel("6-digit code").waitFor();
-
-  const user = await User.findOne({ email }).select("+totpSecret");
-  /**
-   * An authenticator shows one code per 30 seconds, and the app refuses a
-   * code it has already accepted — replay protection, working as spec §16
-   * asks. A suite that signs in a dozen times inside one window hits it
-   * every time, so the counter is cleared to stand for time having
-   * passed. The rule itself is tested in tests/security.test.js.
-   */
-  await User.updateOne({ email }, { $set: { lastTotpCounter: 0 } });
-  const code = new TOTP({
-    issuer: "PHMG & Associates",
-    label: email,
-    algorithm: "SHA1",
-    digits: 6,
-    period: 30,
-    secret: Secret.fromBase32(decryptField(user.totpSecret)),
-  }).generate();
-
-  await page.getByLabel("6-digit code").fill(code);
-  await page.getByRole("button", { name: /Sign in|Turn on 2FA/ }).click();
-  await expect(page).toHaveURL(/\/issues$/);
-}
-
 test("a UDIN saved on an engagement lands in the register", async ({
   page,
 }, testInfo) => {
@@ -211,7 +195,13 @@ test("a UDIN saved on an engagement lands in the register", async ({
   await signIn(page, fx.ca);
 
   await page.goto(`/engagements/${ids.first}`);
-  await page.getByLabel("UDIN").fill(fx.udin);
+  // by name: "UDIN" also labels the checklist tick and the Signed-by select
+  // since P2-13, and a UDIN cannot be saved without naming who signed it
+  await page.locator('input[name="udin"]').fill(fx.udin);
+  await pick(
+    page.locator('select[name="udinMemberId"]'),
+    /Playwright Register CA/,
+  );
   await page.getByRole("button", { name: /Save filing/ }).click();
   await expect(page.getByText("Filing details saved")).toBeVisible();
 
@@ -233,7 +223,13 @@ test("the same number cannot be recorded against other work", async ({
   await signIn(page, fx.ca);
 
   await page.goto(`/engagements/${ids.second}`);
-  await page.getByLabel("UDIN").fill(fx.udin);
+  // by name: "UDIN" also labels the checklist tick and the Signed-by select
+  // since P2-13, and a UDIN cannot be saved without naming who signed it
+  await page.locator('input[name="udin"]').fill(fx.udin);
+  await pick(
+    page.locator('select[name="udinMemberId"]'),
+    /Playwright Register CA/,
+  );
   await page.getByRole("button", { name: /Save filing/ }).click();
 
   await expect(alertBox(page)).toContainText("already recorded");
@@ -260,7 +256,8 @@ test("a revoked UDIN stays in the register, struck through", async ({
   await page.getByRole("button", { name: "Mark revoked" }).click();
 
   await expect(page.getByRole("status")).toContainText("marked revoked");
-  await expect(page.getByText(/Revoked/)).toBeVisible();
+  // the row's own line, not the "Revoked?" button that opened the box
+  await expect(page.getByText(/^Revoked \d{2}-/)).toBeVisible();
 
   const row = await Udin.findOne({ udin: fx.udin }).lean();
   expect(row.revokedAt).toBeTruthy();
@@ -275,9 +272,9 @@ test("a certificate expiring soon is on the register and on the dashboard", asyn
 
   await page.goto("/practice/dsc");
   await page.getByRole("button", { name: "Add a certificate" }).click();
-  await page
-    .getByLabel("Client")
-    .selectOption({ label: /Playwright Registers/ });
+  // by name: the top bar's search button is labelled "Search clients…"
+  // since D71, and "Where it is" is another select on this form
+  await pick(page.locator('select[name="clientId"]'), /Playwright Registers/);
   await page.getByLabel("Whose certificate").fill("Vikram Jaiswal");
   await page.getByLabel("Their role").fill("Director");
 
@@ -293,18 +290,17 @@ test("a certificate expiring soon is on the register and on the dashboard", asyn
 
   // the same person and expiry again is somebody entering it twice
   await page.getByRole("button", { name: "Add a certificate" }).click();
-  await page
-    .getByLabel("Client")
-    .selectOption({ label: /Playwright Registers/ });
+  // by name: the top bar's search button is labelled "Search clients…"
+  // since D71, and "Where it is" is another select on this form
+  await pick(page.locator('select[name="clientId"]'), /Playwright Registers/);
   await page.getByLabel("Whose certificate").fill("Vikram Jaiswal");
   await page.getByLabel("Expires").fill(soon);
   await page.getByRole("button", { name: "Add to the register" }).click();
-  await expect(alertBox(page)).toContainText(
-    "already in the register",
-  );
+  await expect(alertBox(page)).toContainText("already in the register");
 
   // and the dashboard says so, counting what the register counted
-  await page.goto("/today");
+  // (the boards moved from /today to /dashboard in P3-22b)
+  await page.goto("/dashboard");
   const tile = page.getByRole("link", { name: /DSCs expiring/ });
   await expect(tile).toBeVisible();
   await tile.click();
@@ -328,19 +324,18 @@ test("the register names the partner who signed, and filters by them", async ({
   );
   await page.getByRole("button", { name: "Cancel" }).click();
 
-  // the one already recorded was signed by the CA who filed it
-  await expect(page.getByText("Playwright Register CA")).toBeVisible();
+  // the one already recorded was signed by the CA who filed it — in the
+  // table, not in the filter's own list of names
+  await expect(
+    page.getByRole("cell", { name: /Playwright Register CA/ }).first(),
+  ).toBeVisible();
 
-  await page
-    .getByLabel("Signed by")
-    .selectOption({ label: /Playwright Register CA/ });
+  await pick(page.getByLabel("Signed by"), /Playwright Register CA/);
   await page.getByRole("button", { name: "Show" }).click();
   await expect(page.getByText(fx.udin)).toBeVisible();
 
   // filtered to the partner, who signed nothing, the register is empty
-  await page
-    .getByLabel("Signed by")
-    .selectOption({ label: /Playwright Register Partner/ });
+  await pick(page.getByLabel("Signed by"), /Playwright Register Partner/);
   await page.getByRole("button", { name: "Show" }).click();
   await expect(page.getByText(fx.udin)).toHaveCount(0);
 });
@@ -352,10 +347,9 @@ test("a UDIN row opens the papers behind the certificate", async ({
   await signIn(page, fx.partner);
   await page.goto("/practice/udin");
 
-  await page
-    .getByRole("button", { name: /None yet|file/ })
-    .first()
-    .click();
+  // our own row, not whichever row happens to be first in the register
+  const row = page.getByRole("row").filter({ hasText: fx.udin });
+  await row.getByRole("button", { name: /None yet|files?$/ }).click();
   await expect(page.getByText("Attached to this UDIN")).toBeVisible();
   await expect(
     page.getByText("the signed certificate belongs here"),

@@ -80,7 +80,7 @@ export default async function GroupsPage({ searchParams }) {
         </label>
         <button
           type="submit"
-          className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium"
+          className="rounded-control border-rule bg-sunk text-14 text-ink h-9 border px-3 font-medium"
         >
           Search
         </button>
@@ -97,7 +97,7 @@ export default async function GroupsPage({ searchParams }) {
       <div className="rounded-table border-rule bg-surface overflow-x-auto border">
         <table className="text-14 w-full">
           <thead>
-            <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+            <tr className="border-rule text-12 text-faint border-b text-left font-normal">
               <th className="px-3 py-2 font-medium">Group</th>
               <th className="px-3 py-2 font-medium">Businesses</th>
               <th className="px-3 py-2 text-right font-medium">Open work</th>

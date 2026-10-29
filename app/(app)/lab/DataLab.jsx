@@ -138,7 +138,7 @@ export default function DataLab() {
                 The columns in the file, and what they look like
               </caption>
               <thead>
-                <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+                <tr className="border-rule text-12 text-faint border-b text-left font-normal">
                   <th className="px-3 py-2 font-medium">Column</th>
                   <th className="px-3 py-2 font-medium">Looks like</th>
                   <th className="px-3 py-2 font-medium">Filled</th>

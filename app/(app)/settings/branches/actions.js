@@ -48,7 +48,7 @@ export async function updateBranch(id, formData) {
   });
 
   revalidatePath("/settings/branches");
-  revalidatePath("/invoices");
+  revalidatePath("/billing");
 
   if (gstin && gstin !== before) {
     return {

@@ -172,6 +172,38 @@ const SECTIONS = [
     area: "deleteRecord",
     action: "approve",
   },
+  // --- the three reading screens from P3-22d -------------------------------
+  {
+    href: "/settings/setup",
+    group: "firm",
+    title: "Setting the firm up",
+    body: "The eight things to do once, each read from the records rather than ticked off by hand.",
+    area: "usersSettings",
+    action: "edit",
+  },
+  {
+    href: "/settings/whats-new",
+    group: "firm",
+    title: "What's new",
+    body: "What has changed about the way this firm's system works, from the log itself.",
+    area: "auditLog",
+    action: "view",
+  },
+  {
+    href: "/settings/coverage",
+    group: "data",
+    title: "What this covers",
+    body: "What the system does, counted off your own menu — and what it does not, with why.",
+    /**
+     * Listed for the people who read this group, not for everybody: the
+     * page itself is open to anyone who may see the firm's record (it shows
+     * the reader's own menu), but putting it here under `firmProfile` made
+     * the whole "Data and security" group appear on an employee's Settings
+     * for the sake of one link.
+     */
+    area: "usersSettings",
+    action: "edit",
+  },
 ];
 
 export default async function SettingsPage() {

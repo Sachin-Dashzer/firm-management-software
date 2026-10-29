@@ -21,24 +21,47 @@ import ReviewQueue from "./ReviewQueue";
 import BillingBoard from "./BillingBoard";
 
 /**
- * The dashboard the signed-in role needs (spec section 10), fetched on the
- * server and chosen here so `/today` stays one page rather than four.
+ * Which boards a person gets: a partner's firm overview, a CA's review
+ * queue, an accounts billing board. An accounts person who is also allowed
+ * to see work gets both, in the order their job runs.
  *
- * Everything it shows is already scoped by `engagementQuery` and
- * `branchFilter`, so a CA in Ludhiana sees Ludhiana's figures without this
- * file knowing anything about branches. An accounts person who is also
- * allowed to see work gets both boards, in the order their job runs.
+ * Exported because `/dashboard` has to know whether there is anything to
+ * draw *before* it draws the heading (P3-22b) — an employee has no board,
+ * and a heading over nothing is the page lying about itself.
+ *
+ * @param {import("@/lib/permissions").Actor} actor
  */
-export default async function RoleDashboard({ actor, now }) {
+export function dashboardsFor(actor) {
   const role = actor.role;
-
   const seesWork = can(actor, "view", "engagementsWork");
   const seesMoney = can(actor, "view", "invoices");
 
-  // a partner's overview, a CA's review queue, an accounts billing board
-  const wantsFirm = role === "partner" && seesWork;
-  const wantsReview = role === "ca" && seesWork;
-  const wantsBilling = (role === "accounts" || role === "partner") && seesMoney;
+  return {
+    firm: role === "partner" && seesWork,
+    review: role === "ca" && seesWork,
+    billing: (role === "accounts" || role === "partner") && seesMoney,
+  };
+}
+
+/** @param {import("@/lib/permissions").Actor} actor */
+export function hasRoleDashboard(actor) {
+  return Object.values(dashboardsFor(actor)).some(Boolean);
+}
+
+/**
+ * The dashboard the signed-in role needs (spec section 10), fetched on the
+ * server and chosen here so `/dashboard` stays one page rather than four.
+ *
+ * Everything it shows is already scoped by `engagementQuery` and
+ * `branchFilter`, so a CA in Ludhiana sees Ludhiana's figures without this
+ * file knowing anything about branches.
+ */
+export default async function RoleDashboard({ actor, now }) {
+  const {
+    firm: wantsFirm,
+    review: wantsReview,
+    billing: wantsBilling,
+  } = dashboardsFor(actor);
 
   if (!wantsFirm && !wantsReview && !wantsBilling) return null;
 

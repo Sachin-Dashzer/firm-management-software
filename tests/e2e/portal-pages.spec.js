@@ -89,7 +89,7 @@ test.beforeAll(async ({}, testInfo) => {
           passwordHash: await hashPassword("test-password-not-real"),
         },
       ],
-      { session },
+      { session, ordered: true },
     );
 
     const made = await Client.create(
@@ -124,7 +124,7 @@ test.beforeAll(async ({}, testInfo) => {
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
     ids.client = String(made[0]._id);
     ids.other = String(made[1]._id);
@@ -143,7 +143,7 @@ test.beforeAll(async ({}, testInfo) => {
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
 
     const documents = await DocumentModel.create(
@@ -171,7 +171,7 @@ test.beforeAll(async ({}, testInfo) => {
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
     ids.shared = String(documents[0]._id);
     ids.secret = String(documents[1]._id);
@@ -234,7 +234,7 @@ test.beforeAll(async ({}, testInfo) => {
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
     ids.issued = String(invoices[0]._id);
     ids.draft = String(invoices[1]._id);

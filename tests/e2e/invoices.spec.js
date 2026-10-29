@@ -1,12 +1,13 @@
 import { test, expect } from "@playwright/test";
-import { TOTP, Secret } from "otpauth";
+import { signIn } from "./signin.js";
+import { pick } from "./alerts.js";
 import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
 import Branch from "../../models/Branch.js";
 import Client from "../../models/Client.js";
 import Invoice from "../../models/Invoice.js";
 import Counter from "../../models/Counter.js";
-import { hashPassword, decryptField } from "../../lib/crypto.js";
+import { hashPassword } from "../../lib/crypto.js";
 import { systemAudit } from "../../lib/audit/system.js";
 
 /**
@@ -63,7 +64,7 @@ test.beforeAll(async ({}, testInfo) => {
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
 
     await User.create(
@@ -76,7 +77,7 @@ test.beforeAll(async ({}, testInfo) => {
           passwordHash: await hashPassword(PASSWORD),
         },
       ],
-      { session },
+      { session, ordered: true },
     );
 
     await Client.create(
@@ -93,7 +94,7 @@ test.beforeAll(async ({}, testInfo) => {
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
   });
 });
@@ -108,36 +109,6 @@ test.afterAll(async ({}, testInfo) => {
    */
 });
 
-async function signIn(page, email) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByLabel("6-digit code").waitFor();
-
-  const user = await User.findOne({ email }).select("+totpSecret");
-  /**
-   * An authenticator shows one code per 30 seconds, and the app refuses a
-   * code it has already accepted — replay protection, working as spec §16
-   * asks. A suite that signs in a dozen times inside one window hits it
-   * every time, so the counter is cleared to stand for time having
-   * passed. The rule itself is tested in tests/security.test.js.
-   */
-  await User.updateOne({ email }, { $set: { lastTotpCounter: 0 } });
-  const code = new TOTP({
-    issuer: "PHMG & Associates",
-    label: email,
-    algorithm: "SHA1",
-    digits: 6,
-    period: 30,
-    secret: Secret.fromBase32(decryptField(user.totpSecret)),
-  }).generate();
-
-  await page.getByLabel("6-digit code").fill(code);
-  await page.getByRole("button", { name: /Sign in|Turn on 2FA/ }).click();
-  await expect(page).toHaveURL(/\/issues$/);
-}
-
 test("a branch with no GSTIN can draft but not issue", async ({
   page,
 }, testInfo) => {
@@ -145,9 +116,8 @@ test("a branch with no GSTIN can draft but not issue", async ({
   await signIn(page, fx.partner);
 
   await page.goto("/invoices/new");
-  await page
-    .getByLabel("Client")
-    .selectOption({ label: new RegExp("Playwright Billing") });
+  // by name: "Client" also labels the top bar's search button (D71)
+  await pick(page.locator('select[name="clientId"]'), /Playwright Billing/);
   await page.getByRole("button", { name: /Start an empty draft/ }).click();
   await expect(page).toHaveURL(/\/invoices\/[a-f0-9]{24}/);
 
@@ -180,14 +150,18 @@ test("once registered, an invoice issues with tax and a gapless number", async (
   await card.getByRole("button", { name: "Edit" }).click();
   await card.getByLabel("GSTIN").fill(UP_GSTIN);
   await card.getByRole("button", { name: "Save" }).click();
-  await expect(page.getByText(/Uttar Pradesh/)).toBeVisible();
+  // on this branch's own card: the head office is in Noida, so the firm has
+  // a second Uttar Pradesh branch of its own
+  await expect(card.getByText(/Uttar Pradesh/)).toBeVisible();
 
   // draft an invoice with one line
   await page.goto("/invoices/new");
-  await page
-    .getByLabel("Client")
-    .selectOption({ label: new RegExp("Playwright Billing") });
+  // by name: "Client" also labels the top bar's search button (D71)
+  await pick(page.locator('select[name="clientId"]'), /Playwright Billing/);
   await page.getByRole("button", { name: /Start an empty draft/ }).click();
+  // wait for the draft before reading the address: without this the URL
+  // captured is still /invoices/new, and the test reopens that later on
+  await expect(page).toHaveURL(/\/invoices\/[a-f0-9]{24}/);
   const url = page.url();
 
   await page.getByRole("button", { name: "Add a line" }).click();
@@ -223,9 +197,8 @@ test("once registered, an invoice issues with tax and a gapless number", async (
 
   // --- a second invoice takes the next number, with no gap ---------------
   await page.goto("/invoices/new");
-  await page
-    .getByLabel("Client")
-    .selectOption({ label: new RegExp("Playwright Billing") });
+  // by name: "Client" also labels the top bar's search button (D71)
+  await pick(page.locator('select[name="clientId"]'), /Playwright Billing/);
   await page.getByRole("button", { name: /Start an empty draft/ }).click();
   await page.getByRole("button", { name: "Add a line" }).click();
   await page.getByLabel("Description 1").fill("Second job");
@@ -298,7 +271,7 @@ test("a payment settles an invoice, TDS and all", async ({
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
     return doc;
   });

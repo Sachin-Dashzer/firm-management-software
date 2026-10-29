@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/auth";
-import { can, branchFilter } from "@/lib/permissions";
+import { can } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import Notice from "@/models/Notice";
 import Client from "@/models/Client";
@@ -11,6 +11,7 @@ import { formatISTDate } from "@/lib/dates";
 import { formatPaise } from "@/lib/money";
 import {
   NOTICE_KINDS,
+  NOTICE_LAWS,
   NOTICE_STAGES,
   allLawRules,
 } from "@/lib/practice/noticeLaw";
@@ -19,6 +20,7 @@ import {
   isOverdue,
   adjournments,
   lawClocks,
+  noticeQuery,
 } from "@/lib/practice/notices";
 import NoticeList from "./NoticeList";
 
@@ -39,17 +41,19 @@ export default async function NoticesPage({ searchParams }) {
 
   const params = (await searchParams) ?? {};
   const stage = NOTICE_STAGES.includes(params.stage) ? params.stage : "";
+  /** The menu's own filters (P3-22a): one law, or the ones with no draft. */
+  const law = NOTICE_LAWS.includes(params.law) ? params.law : "";
+  const show = params.show === "nodraft" ? "nodraft" : "";
 
   await connectDB();
-  const scope = branchFilter(actor, "practice") ?? {};
-  const mine = ["employee", "intern"].includes(actor.role);
 
+  /**
+   * `noticeQuery` is the one definition of what each notices link means,
+   * shared with the badge beside it (P3-22a) — a badge that counts
+   * differently from the page it opens is a number nobody trusts twice.
+   */
   const [notices, confirmations] = await Promise.all([
-    Notice.find({
-      ...scope,
-      ...(stage ? { stage } : { stage: { $ne: "Closed" } }),
-      ...(mine ? { assigneeId: actor.id } : {}),
-    })
+    Notice.find(noticeQuery(actor, { stage, law, show }))
       .sort({ createdAt: -1 })
       .limit(500)
       .lean(),
@@ -141,7 +145,13 @@ export default async function NoticesPage({ searchParams }) {
         </p>
       )}
 
-      <NoticeList rows={rows} stage={stage} stages={NOTICE_STAGES} />
+      <NoticeList
+        rows={rows}
+        stage={stage}
+        stages={NOTICE_STAGES}
+        law={law}
+        show={show}
+      />
     </div>
   );
 }

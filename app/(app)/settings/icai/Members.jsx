@@ -109,7 +109,7 @@ function Member({ member, firm }) {
             {member.name}&rsquo;s CPE hours by year
           </caption>
           <thead>
-            <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+            <tr className="border-rule text-12 text-faint border-b text-left font-normal">
               <th scope="col" className="py-1 font-medium">
                 Year
               </th>

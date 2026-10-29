@@ -206,7 +206,7 @@ export async function recordPayment(input) {
   const unallocated =
     amountPaise - allocations.reduce((s, a) => s + a.amountPaise, 0);
 
-  revalidatePath("/invoices");
+  revalidatePath("/billing");
   revalidatePath(`/clients/${input.clientId}`);
   return {
     ok:
@@ -281,7 +281,7 @@ export async function reallocatePayment(id, allocations) {
     await applyToInvoices(payment, session, actor.id);
   });
 
-  revalidatePath("/invoices");
+  revalidatePath("/billing");
   revalidatePath(`/clients/${payment.clientId}`);
   return { ok: "Payment reallocated." };
 }
@@ -318,7 +318,7 @@ export async function deletePayment(id, reason) {
     await payment.softDelete(actor.id, { session });
   });
 
-  revalidatePath("/invoices");
+  revalidatePath("/billing");
   revalidatePath(`/clients/${payment.clientId}`);
   return { ok: "Payment removed and the invoices put back." };
 }
@@ -340,6 +340,6 @@ export async function setTds26AS(id, seen) {
     await payment.save({ session });
   });
 
-  revalidatePath("/invoices/payments");
+  revalidatePath("/billing");
   return { ok: seen ? "Marked as seen in 26AS." : "Unticked." };
 }

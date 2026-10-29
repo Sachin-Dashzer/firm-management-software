@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { TOTP, Secret } from "otpauth";
+import { signIn } from "./signin.js";
 import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
 import Branch from "../../models/Branch.js";
@@ -7,7 +7,7 @@ import Client from "../../models/Client.js";
 import ServiceTemplate from "../../models/ServiceTemplate.js";
 import Engagement from "../../models/Engagement.js";
 import SavedView from "../../models/SavedView.js";
-import { hashPassword, decryptField } from "../../lib/crypto.js";
+import { hashPassword } from "../../lib/crypto.js";
 import { systemAudit } from "../../lib/audit/system.js";
 
 /**
@@ -79,7 +79,7 @@ test.beforeAll(async ({}, testInfo) => {
           passwordHash: await hashPassword(PASSWORD),
         },
       ],
-      { session },
+      { session, ordered: true },
     );
 
     const [client] = await Client.create(
@@ -95,7 +95,7 @@ test.beforeAll(async ({}, testInfo) => {
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
 
     const [template] = await ServiceTemplate.create(
@@ -114,7 +114,7 @@ test.beforeAll(async ({}, testInfo) => {
           updatedBy: "test",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
 
     const day = 86_400_000;
@@ -147,7 +147,7 @@ test.beforeAll(async ({}, testInfo) => {
         createdBy: "test",
         updatedBy: "test",
       })),
-      { session },
+      { session, ordered: true },
     );
   });
 });
@@ -162,44 +162,34 @@ test.afterAll(async ({}, testInfo) => {
    */
 });
 
-async function signIn(page, email) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByLabel("6-digit code").waitFor();
-
-  const user = await User.findOne({ email }).select("+totpSecret");
-  /**
-   * An authenticator shows one code per 30 seconds, and the app refuses a
-   * code it has already accepted — replay protection, working as spec §16
-   * asks. A suite that signs in a dozen times inside one window hits it
-   * every time, so the counter is cleared to stand for time having
-   * passed. The rule itself is tested in tests/security.test.js.
-   */
-  await User.updateOne({ email }, { $set: { lastTotpCounter: 0 } });
-  const code = new TOTP({
-    issuer: "PHMG & Associates",
-    label: email,
-    algorithm: "SHA1",
-    digits: 6,
-    period: 30,
-    secret: Secret.fromBase32(decryptField(user.totpSecret)),
-  }).generate();
-
-  await page.getByLabel("6-digit code").fill(code);
-  await page.getByRole("button", { name: /Sign in|Turn on 2FA/ }).click();
-  await expect(page).toHaveURL(/\/issues$/);
-}
-
 test("the overdue figure on the dashboard matches the list behind it", async ({
   page,
 }, testInfo) => {
   const fx = names(testInfo.project.name);
   await signIn(page, fx.partner);
 
-  const tile = page.getByRole("link").filter({ hasText: "Overdue" }).first();
-  const shown = Number((await tile.textContent()).replace(/\D/g, ""));
+  // the boards moved from /today to /dashboard in P3-22b, and the rail has
+  // an Overdue link of its own since P3-22a — so the tile is looked for on
+  // the dashboard, inside the page
+  await page.goto("/dashboard");
+  // found by its own link rather than by the word "Overdue", which the
+  // billing board also uses for a money figure
+  const tile = page
+    .getByRole("main")
+    .locator('a[href="/engagements?due=overdue"]')
+    .first();
+
+  /**
+   * Read through the accessible name, not `textContent`.
+   *
+   * The figure is a `NumberFlow` odometer (spec section 15), and it inlines
+   * its own stylesheet inside the link — so the text of the element holds
+   * `0.25em` and `1px` as well as the number, and scraping every digit out
+   * of it returns a nine-digit answer that has nothing to do with the data.
+   */
+  const shown = Number(
+    /Overdue ([\d,]+)/.exec(await tile.ariaSnapshot())[1].replace(/,/g, ""),
+  );
   expect(shown).toBeGreaterThanOrEqual(3);
 
   await tile.click();
@@ -210,7 +200,11 @@ test("the overdue figure on the dashboard matches the list behind it", async ({
     .locator("p", { hasText: /jobs? open/ })
     .first()
     .textContent();
-  const listed = Number(heading.replace(/\D/g, ""));
+  // the count, not every digit in the line: the same paragraph carries a
+  // money figure beside it
+  const listed = Number(
+    /(\d[\d,]*)\s+jobs?/.exec(heading)[1].replace(/,/g, ""),
+  );
   expect(listed).toBe(shown);
 });
 
@@ -227,7 +221,8 @@ test("a report filters, exports and remembers a saved view", async ({
 
   // --- the spreadsheet is a real xlsx, not csv with a new name ----------
   const download = page.waitForEvent("download");
-  await page.getByRole("link", { name: "Excel" }).click();
+  // exact: the rail has a "Data lab (Excel to MIS)" link since P3-22a
+  await page.getByRole("link", { name: "Excel", exact: true }).click();
   const file = await download;
   expect(file.suggestedFilename()).toMatch(
     /^phmg-overdue-\d{4}-\d{2}-\d{2}\.xlsx$/,

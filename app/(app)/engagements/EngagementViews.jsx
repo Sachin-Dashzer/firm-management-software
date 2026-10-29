@@ -406,7 +406,7 @@ function ListView({
       <div className="rounded-table border-rule bg-surface overflow-x-auto border">
         <table className="text-14 w-full">
           <thead>
-            <tr className="border-rule bg-sunk text-12 text-ink-muted border-b text-left tracking-wide uppercase">
+            <tr className="border-rule text-12 text-faint border-b text-left font-normal">
               {selectable && (
                 <th className="px-3 py-2">
                   <input
@@ -632,7 +632,7 @@ function BoardColumn({
             : "border-rule"
       }`}
     >
-      <h2 className="border-rule text-12 text-ink-muted flex items-baseline justify-between border-b px-3 py-2 font-medium tracking-wide uppercase">
+      <h2 className="border-rule text-12 text-ink-muted flex items-baseline justify-between border-b px-3 py-2 font-medium">
         {status}
         <span className="num">{cards.length}</span>
       </h2>
@@ -767,7 +767,7 @@ function CalendarView({ rows, params }) {
         {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
           <div
             key={d}
-            className="bg-surface text-12 text-ink-muted px-2 py-1 font-medium tracking-wide uppercase"
+            className="bg-surface text-12 text-ink-muted px-2 py-1 font-medium"
           >
             {d}
           </div>

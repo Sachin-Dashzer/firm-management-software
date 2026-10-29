@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
+import { signIn } from "./signin.js";
 import { alertBox } from "./alerts.js";
-import { TOTP, Secret } from "otpauth";
 import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
 import Branch from "../../models/Branch.js";
@@ -8,7 +8,7 @@ import Client from "../../models/Client.js";
 import Engagement from "../../models/Engagement.js";
 import ServiceTemplate from "../../models/ServiceTemplate.js";
 import ClientAccess from "../../models/ClientAccess.js";
-import { hashPassword, decryptField } from "../../lib/crypto.js";
+import { hashPassword } from "../../lib/crypto.js";
 import { systemAudit } from "../../lib/audit/system.js";
 import { buildEngagement } from "../../lib/engagements/create.js";
 
@@ -58,7 +58,7 @@ test.beforeAll(async () => {
           passwordHash: await hashPassword(PASSWORD),
         },
       ],
-      { session },
+      { session, ordered: true },
     );
     ids.partner = String(partner._id);
 
@@ -73,7 +73,7 @@ test.beforeAll(async () => {
           passwordHash: await hashPassword(PASSWORD),
         },
       ],
-      { session },
+      { session, ordered: true },
     );
     ids.ca = String(ca._id);
 
@@ -90,7 +90,7 @@ test.beforeAll(async () => {
           passwordHash: await hashPassword(PASSWORD),
         },
       ],
-      { session },
+      { session, ordered: true },
     );
     ids.employee = String(employee._id);
 
@@ -107,7 +107,7 @@ test.beforeAll(async () => {
           mustChangePassword: true,
         },
       ],
-      { session },
+      { session, ordered: true },
     );
     ids.leaver = String(leaver._id);
 
@@ -123,7 +123,7 @@ test.beforeAll(async () => {
           branchId: branch._id,
         },
       ],
-      { session },
+      { session, ordered: true },
     );
     ids.client = String(client._id);
 
@@ -141,7 +141,7 @@ test.beforeAll(async () => {
           grantedByName: "Praveen Mehrotra",
         },
       ],
-      { session },
+      { session, ordered: true },
     );
 
     // one open engagement on the leaver, which must block offboarding
@@ -167,7 +167,7 @@ test.beforeAll(async () => {
             status: "In progress",
           },
         ],
-        { session },
+        { session, ordered: true },
       );
       ids.engagement = String(engagement._id);
     }
@@ -195,35 +195,6 @@ test.afterAll(async () => {
 });
 
 /** @param {import("@playwright/test").Page} page */
-async function signIn(page, email, password = PASSWORD, land = /\/issues$/) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByLabel("6-digit code").waitFor();
-
-  const user = await User.findOne({ email }).select("+totpSecret");
-  /**
-   * An authenticator shows one code per 30 seconds, and the app refuses a
-   * code it has already accepted — replay protection, working as spec §16
-   * asks. A suite that signs in a dozen times inside one window hits it
-   * every time, so the counter is cleared to stand for time having
-   * passed. The rule itself is tested in tests/security.test.js.
-   */
-  await User.updateOne({ email }, { $set: { lastTotpCounter: 0 } });
-  const code = new TOTP({
-    issuer: "PHMG & Associates",
-    label: email,
-    algorithm: "SHA1",
-    digits: 6,
-    period: 30,
-    secret: Secret.fromBase32(decryptField(user.totpSecret)),
-  }).generate();
-
-  await page.getByLabel("6-digit code").fill(code);
-  await page.getByRole("button", { name: /Sign in|Turn on 2FA/ }).click();
-  await expect(page).toHaveURL(land);
-}
 
 // --- acceptance 4 ----------------------------------------------------------
 
@@ -266,7 +237,7 @@ test("a one-time password gets you no further than the change screen", async ({
   page,
 }) => {
   // the leaver still has mustChangePassword set
-  await signIn(page, LEAVER, PASSWORD, /\/change-password/);
+  await signIn(page, LEAVER, { land: /\/change-password/ });
 
   // every other page bounces back to it
   await page.goto("/today");

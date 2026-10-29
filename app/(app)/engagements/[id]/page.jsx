@@ -34,6 +34,7 @@ import {
   versionOf,
 } from "@/lib/engagements/gates";
 import { atRisk } from "@/lib/engagements/risk";
+import { isGstWork } from "@/lib/gst/cycle";
 import { nextStep } from "@/lib/issues/next";
 import { outsideViewNote } from "@/lib/access/view";
 import { OutsideView } from "@/components/shell/ViewNote";
@@ -280,7 +281,7 @@ export default async function EngagementPage({ params }) {
      * The monthly GST cycle (P3-12). Only on GST work: every other
      * service would get a panel asking for sheets it does not need.
      */
-    isGst: /GSTR|GST/i.test(engagement.templateSnapshot?.code ?? ""),
+    isGst: isGstWork(engagement),
     gst: engagement.gstPrep
       ? {
           fileName: engagement.gstPrep.fileName ?? "",

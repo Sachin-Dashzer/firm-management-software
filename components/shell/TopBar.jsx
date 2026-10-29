@@ -1,10 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { MagnifyingGlass, Plus, Bell, UserCircle } from "@phosphor-icons/react";
+import {
+  MagnifyingGlass,
+  Plus,
+  Bell,
+  UserCircle,
+  List,
+} from "@phosphor-icons/react";
 import { ThemeToggle, DensityToggle, MomentsToggle } from "./Preferences";
 import HelpPanel from "./HelpPanel";
 import { ROLE_LABELS } from "@/lib/permissions";
@@ -24,7 +30,23 @@ export default function TopBar({
   view = "all",
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
   const router = useRouter();
+
+  /** A menu that only closes on mouse-leave is a menu a keyboard cannot shut. */
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (event) => event.key === "Escape" && setMenuOpen(false);
+    const onDown = (event) => {
+      if (!menuRef.current?.contains(event.target)) setMenuOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", onDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onDown);
+    };
+  }, [menuOpen]);
 
   /**
    * Remember what this person is looking at, and re-read the page (P3-7).
@@ -48,61 +70,80 @@ export default function TopBar({
      * In the prototype the rail is white, the canvas is grey and the bar is
      * the canvas colour with a rule under it — so the bar reads as the top
      * of the work rather than as a third surface floating above it.
+     *
+     * What it carries is three things and no more: **where you are looking**
+     * (the branch), **what you are looking for** (search), and **you**. The
+     * theme, the density and the ledger flourishes moved into the profile
+     * menu below — they are settled once and then never touched again, and
+     * as seven equal-weight icons in a row they were the loudest thing on a
+     * screen whose job is to be quiet. On a 390px phone they also pushed the
+     * profile button clean off the right-hand edge.
      */
     <header className="border-rule bg-paper relative z-20 shrink-0 border-b">
-      <div className="flex h-12 items-center gap-2 px-3">
-        {branches.length > 1 && (
-          <>
-            <label className="sr-only" htmlFor="branch">
-              What you are looking at
-            </label>
-            <select
-              id="branch"
-              value={view}
-              onChange={(event) => chooseView(event.target.value)}
-              className="rounded-control border-rule bg-paper text-13 text-ink h-8 border px-2"
-            >
-              <option value="all">All my branches</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-              {/*
-                The view that is not a branch at all (P3-7): the jobs you
-                prepare or review, wherever the client sits. A manager
-                covering a review in another branch has no other way to see
-                it next to their own work.
-              */}
-              <option value="mine">My work across branches</option>
-            </select>
-          </>
-        )}
-        {branches.length === 1 && (
-          <span className="text-13 text-ink-muted">{branches[0].name}</span>
-        )}
+      <div className="flex h-15 items-center gap-2 px-4 md:px-6">
+        {/* the rail is a drawer on a phone (P3-22a), and a hamburger belongs
+            at the left edge where a thumb already expects it */}
+        <button
+          type="button"
+          aria-label="Menu"
+          onClick={() => window.dispatchEvent(new Event("phmg:nav-drawer"))}
+          className="rounded-control text-ink-muted hover:bg-carbon-wash hover:text-ink -ml-2 grid size-9 shrink-0 place-items-center transition-colors duration-150 md:hidden"
+        >
+          <List size={18} />
+        </button>
 
-        {/* the command bar lives at the window level; this opens it */}
+
         <button
           type="button"
           onClick={() => window.dispatchEvent(new Event("phmg:command-bar"))}
-          className="rounded-control border-rule bg-paper text-13 text-ink-muted hover:border-brass hover:text-ink flex h-8 min-w-0 flex-1 items-center gap-2 border px-2 md:max-w-md"
+          aria-label="Search"
+          className="rounded-control text-ink-muted hover:border-carbon hover:text-ink sm:border-rule sm:bg-paper sm:text-13 grid size-9 shrink-0 place-items-center transition-colors duration-150 sm:flex sm:h-10 sm:w-auto sm:min-w-0 sm:flex-1 sm:items-center sm:gap-2 sm:border sm:px-2 md:max-w-md"
         >
-          <MagnifyingGlass size={16} />
-          <span className="truncate">Search clients, PAN, GSTIN…</span>
+          <MagnifyingGlass size={18} className="shrink-0" />
+          <span className="hidden truncate sm:inline">
+            Search clients, PAN, GSTIN…
+          </span>
           <kbd className="text-12 ml-auto hidden font-mono sm:inline">
             Ctrl K
           </kbd>
         </button>
 
-        <div className="ml-auto flex items-center gap-1">
-          {/* quick-add opens the command bar rather than a second menu of
-              the same links: one list of things you can do, not two */}
+
+
+
+        <div className="-mr-2 ml-auto flex shrink-0 items-center gap-0.5">
+          {branches.length > 1 && (
+            <>
+              <label className="sr-only" htmlFor="branch">
+                What you are looking at
+              </label>
+              <select
+                id="branch"
+                value={view}
+                onChange={(event) => chooseView(event.target.value)}
+                className="rounded-control border-rule bg-paper text-13 text-ink h-10 max-w-[7.5rem] min-w-0 shrink border px-2 sm:max-w-none sm:shrink-0"
+              >
+                <option value="all">All my branches</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+
+                <option value="mine">My work across branches</option>
+              </select>
+            </>
+          )}
+          {branches.length === 1 && (
+            <span className="text-13 text-ink-muted hidden truncate sm:block">
+              {branches[0].name}
+            </span>
+          )}
           <button
             type="button"
             aria-label="Quick add — opens the command bar"
             onClick={() => window.dispatchEvent(new Event("phmg:command-bar"))}
-            className="rounded-ledger text-ink-muted hover:bg-carbon-wash hover:text-ink grid size-8 place-items-center"
+            className="rounded-control ml-2 text-ink-muted hover:bg-carbon-wash hover:text-ink hidden size-9 place-items-center transition-colors duration-150 sm:grid"
           >
             <Plus size={18} />
           </button>
@@ -111,46 +152,78 @@ export default function TopBar({
             aria-label={
               unreadCount > 0 ? `Inbox, ${unreadCount} unread` : "Inbox"
             }
-            className="rounded-ledger text-ink-muted hover:bg-carbon-wash hover:text-ink relative grid size-8 place-items-center"
+            className="rounded-control text-ink-muted hover:bg-carbon-wash hover:text-ink relative grid size-9 place-items-center transition-colors duration-150"
           >
             <Bell size={18} />
             {unreadCount > 0 && (
-              <span className="bg-redpen absolute top-1 right-1 size-2 rounded-full" />
+              <span className="bg-redpen ring-paper absolute top-1.5 right-1.5 size-2 rounded-full ring-2" />
             )}
           </Link>
           {/* how the firm does whatever screen you are on (P3-19) */}
           <HelpPanel />
-          <MomentsToggle />
-          <DensityToggle />
-          <ThemeToggle />
 
-          <div className="relative">
+          <div className="relative" ref={menuRef}>
             <button
               type="button"
               aria-label="Your profile"
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen((v) => !v)}
-              className="rounded-ledger text-ink-muted hover:bg-carbon-wash hover:text-ink grid size-8 place-items-center"
+              className={`rounded-control hover:bg-carbon-wash hover:text-ink grid size-9 place-items-center transition-colors duration-150 ${menuOpen ? "bg-carbon-wash text-ink" : "text-ink-muted"}`}
             >
               <UserCircle size={20} />
             </button>
             {menuOpen && (
-              <div
-                className="rounded-ledger border-rule bg-surface text-14 absolute right-0 mt-1 w-56 border p-2"
-                onMouseLeave={() => setMenuOpen(false)}
-              >
-                <p className="px-2 pt-1 font-medium">{user.name}</p>
-                <p className="text-13 text-ink-muted px-2">{user.email}</p>
-                <p className="text-13 text-ink-muted px-2 pb-2">
-                  {ROLE_LABELS[user.role] ?? user.role}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => signOut({ redirectTo: "/login" })}
-                  className="rounded-control border-rule hover:bg-carbon-wash w-full border px-2 py-1 text-left"
-                >
-                  Sign out
-                </button>
+              <div className="rounded-ledger border-rule bg-surface absolute right-0 z-30 mt-1.5 w-64 border p-1.5 shadow-lg">
+                <div className="px-2 py-1.5">
+                  <p className="text-14 truncate font-semibold">{user.name}</p>
+                  <p className="text-12 text-ink-muted truncate">
+                    {user.email}
+                  </p>
+                  <p className="text-12 text-ink-muted">
+                    {ROLE_LABELS[user.role] ?? user.role}
+                  </p>
+                </div>
+
+                {/*
+                  The three reading preferences, in the one place somebody
+                  goes looking for "how this looks to me" (P3-21b, D52).
+
+                  Each is captioned. In the bar they were three bare glyphs
+                  and nobody could have told you which was which; a moon, a
+                  row of lines and a rubber stamp only read as theme,
+                  density and flourishes once something says so.
+                */}
+                <div className="border-rule mt-1 border-t px-2 pt-2 pb-1">
+                  <p className="text-12 text-faint mb-1.5">How this looks</p>
+                  <div className="flex items-start gap-4">
+                    <Setting label="Theme">
+                      <ThemeToggle />
+                    </Setting>
+                    <Setting label="Rows">
+                      <DensityToggle />
+                    </Setting>
+                    <Setting label="Flourishes">
+                      <MomentsToggle />
+                    </Setting>
+                  </div>
+                </div>
+
+                <div className="border-rule mt-1 border-t pt-1.5">
+                  <Link
+                    href="/me"
+                    onClick={() => setMenuOpen(false)}
+                    className="rounded-control text-14 hover:bg-carbon-wash block px-2 py-1.5"
+                  >
+                    Your account
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => signOut({ redirectTo: "/login" })}
+                    className="rounded-control text-14 hover:bg-carbon-wash block w-full px-2 py-1.5 text-left"
+                  >
+                    Sign out
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -165,5 +238,17 @@ export default function TopBar({
       */}
       <div aria-hidden className="brass-hairline h-px" />
     </header>
+  );
+}
+
+/** An icon toggle with its name under it, so the glyph is not the only clue. */
+function Setting({ label, children }) {
+  return (
+    <span className="flex flex-col items-center gap-0.5">
+      {children}
+      {/* 11px is the floor for a label: under it, text stops being read
+          and starts being a texture. */}
+      <span className="text-faint text-[11px] leading-none">{label}</span>
+    </span>
   );
 }

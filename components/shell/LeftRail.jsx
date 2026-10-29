@@ -1,437 +1,455 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
-  House,
-  Warning,
-  Users,
-  UsersThree,
-  Buildings,
-  UserCircle,
-  Briefcase,
-  CalendarCheck,
-  FolderOpen,
-  Receipt,
-  ChartBar,
-  ClipboardText,
-  Gear,
-  Stamp,
   CaretDown,
-  CaretLeft,
-  DotsThree,
+  X,
+  SidebarSimple,
+  MagnifyingGlass,
+  SignOut,
 } from "@phosphor-icons/react";
-import { can, scopeOf, seesOnlyOwnRecords } from "@/lib/permissions";
 
-/**
- * Phase 1 destinations. `area` is the permission area from spec section 2, so
- * a link only appears for a role that may open it — the page itself checks
- * again, because hiding a link is not security.
- */
-const LINKS = [
-  /**
-   * Issues is the landing page (P3-6, owner decision D43): everything that
-   * needs attention, worked out live. Today stays below it — it answers a
-   * different question (what is on *today*) and nothing is gained by
-   * deleting a screen that works.
-   */
-  { href: "/issues", label: "Issues", icon: Warning, area: null },
-  { href: "/today", label: "Today", icon: House, area: "dashboards" },
-  {
-    href: "/clients",
-    label: "Clients",
-    // An employee or an intern reaches clients one at a time, through work on
-    // their desk or a grant (owner decision D3), so "Clients" would promise a
-    // list of the firm's clients that they will never see.
-    narrowLabel: "My clients",
-    icon: Users,
-    area: "clients",
-  },
-  /**
-   * Groups (P2-11): one owner, several businesses. Its own entry rather than
-   * a tab inside Clients, because the question it answers — what is going on
-   * across this family — is asked before any one business is chosen.
-   */
-  { href: "/groups", label: "Groups", icon: Buildings, area: "clients" },
-  {
-    href: "/engagements",
-    label: "Engagements",
-    icon: Briefcase,
-    area: "engagementsWork",
-  },
-  {
-    href: "/calendar",
-    label: "Compliance",
-    icon: CalendarCheck,
-    area: "engagementsWork",
-  },
-  {
-    href: "/documents",
-    label: "Documents",
-    icon: FolderOpen,
-    area: "documents",
-  },
-  { href: "/invoices", label: "Billing", icon: Receipt, area: "invoices" },
-  {
-    href: "/team",
-    label: "Team",
-    icon: UsersThree,
-    area: "team",
-    children: [
-      { href: "/team", label: "Everyone", area: "team" },
-      // the workload board spec section 9 asks for, by week (P3-16)
-      { href: "/team/plan", label: "The week", area: "team" },
-    ],
-  },
-  { href: "/reports", label: "Reports", icon: ChartBar, area: "dashboards" },
-  /**
-   * The practice registers (P2-10d). They were reachable only through
-   * Settings, where they never belonged: an audit book and a UDIN register
-   * are daily work, not configuration. One rail entry that opens into the
-   * five, so the rail gains a line rather than five.
-   */
-  {
-    href: "/practice",
-    label: "Practice",
-    icon: Stamp,
-    area: "practice",
-    children: [
-      { href: "/practice/audits", label: "Audits", area: "practice" },
-      { href: "/practice/statutory", label: "Statutory", area: "practice" },
-      { href: "/practice/tax", label: "Tax", area: "practice" },
-      // a notice is a matter rather than a job (P3-11), so it sits beside
-      // the registers rather than inside the engagement list
-      { href: "/practice/notices", label: "Notices", area: "practice" },
-      // a certificate is a thing the firm signed, so it lives with the
-      // register of what the firm has signed rather than on an engagement (P3-15)
-      {
-        href: "/practice/certificates",
-        label: "Certificates",
-        area: "udin",
-      },
-      { href: "/practice/udin", label: "UDIN", area: "udin" },
-      { href: "/practice/dsc", label: "DSC", area: "dsc" },
-    ],
-  },
-  {
-    href: "/portal-log",
-    label: "Portal log",
-    icon: ClipboardText,
-    area: "auditLog",
-  },
-  // everyone can read the service catalog, which lives under Settings;
-  // the sections inside are filtered by role
-  { href: "/settings", label: "Settings", icon: Gear, area: "serviceCatalog" },
-  // everybody has one of these, which is the point of it
-  { href: "/me", label: "Me", icon: UserCircle, area: null },
-];
+import NavIcon from "./navIcons";
+import { activeIn } from "@/lib/nav/active";
 
-/**
- * What this role may open, with the labels that tell the truth for it.
- *
- * `/team` appears for everybody — a Partner and a CA get the list, and an
- * employee or an intern has `team: view/own`, which the page turns into a
- * redirect to `/me`. So the rail drops it for them and shows "Me" instead.
- *
- * @param {string} role
- */
-function linksFor(role) {
-  const actor = { id: "", role, branchIds: [] };
-  return LINKS.filter((link) => {
-    if (link.area === null) return true;
-    if (link.href === "/team" && scopeOf(actor, "team") === "own") return false;
-    /**
-     * A group is worth showing when any one of its registers is: an intern
-     * may open none of the five, so for them the Practice entry is absent
-     * rather than present and empty.
-     */
-    if (link.children) {
-      return link.children.some((child) => can(actor, "view", child.area));
-    }
-    return can(actor, "view", link.area);
-  }).map((link) => ({
-    ...link,
-    // after `...link`, not before it: spread the other way round and the
-    // unfiltered `children` from the link won the overwrite, so a register
-    // an intern may not open was still listed under Practice
-    ...(link.children
-      ? {
-          children: link.children.filter((child) =>
-            can(actor, "view", child.area),
-          ),
-        }
-      : {}),
-    label:
-      link.narrowLabel && seesOnlyOwnRecords(actor, link.area)
-        ? link.narrowLabel
-        : link.label,
-  }));
-}
+const ADMIN_GROUPS = new Set(["team", "firm", "tools"]);
 
-export default function LeftRail({ role = "partner", issueCount = 0 }) {
+export default function LeftRail({
+  menu = [],
+  counts = {},
+  userName = "",
+  roleLabel = "",
+  firmName = "",
+}) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
-  // the Practice group's own state; it also opens itself when you are inside
-  const [practiceOpen, setPracticeOpen] = useState(false);
-  const links = linksFor(role);
+  const searchParams = useSearchParams();
+  const query = searchParams.toString();
 
+  const current = useMemo(
+    () => activeIn(menu, pathname, query ? `?${query}` : ""),
+    [menu, pathname, query],
+  );
+
+  const [open, setOpen] = useState(current?._group_ ?? null);
+  const [find, setFind] = useState("");
+  const [compact, setCompact] = useState(false);
+  const [drawer, setDrawer] = useState(false);
+
+  const drawerRef = useRef(null);
+  const searchRef = useRef(null);
+
+  // Restore the user's sidebar preference.
   useEffect(() => {
     try {
-      setCollapsed(localStorage.getItem("phmg-rail") === "collapsed");
+      setCompact(localStorage.getItem("phmg-rail") === "compact");
     } catch {
-      // ignore: the rail just starts expanded
+      // Continue with the expanded sidebar.
     }
   }, []);
 
-  function toggle() {
-    const next = !collapsed;
-    setCollapsed(next);
+  useEffect(() => {
     try {
-      localStorage.setItem("phmg-rail", next ? "collapsed" : "open");
+      localStorage.setItem("phmg-rail", compact ? "compact" : "wide");
     } catch {
-      // ignore
+      // Storage may be unavailable.
     }
-  }
+  }, [compact]);
 
-  return (
-    <nav
-      aria-label="Main"
-      data-collapsed={collapsed}
-      className="border-rule bg-surface relative z-10 flex shrink-0 flex-col gap-1 border-r p-2 transition-[width] duration-150 max-md:hidden"
-      style={{ width: collapsed ? 56 : 232 }}
-    >
-      <div className="flex h-12 items-center gap-2 px-2">
-        <span
-          aria-hidden
-          className="bg-carbon text-on-carbon font-display text-14 grid size-[34px] shrink-0 place-items-center rounded-[9px] font-bold"
-        >
+  // Keep the current page's group expanded.
+  useEffect(() => {
+    if (current?._group_) {
+      setOpen(current._group_);
+    }
+
+    setDrawer(false);
+  }, [pathname, query, current?._group_]);
+
+  // Support the existing mobile menu event.
+  useEffect(() => {
+    const showDrawer = () => setDrawer(true);
+
+    window.addEventListener("phmg:nav-drawer", showDrawer);
+
+    return () => {
+      window.removeEventListener("phmg:nav-drawer", showDrawer);
+    };
+  }, []);
+
+  // Close the mobile drawer using Escape.
+  useEffect(() => {
+    if (!drawer) return;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setDrawer(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    drawerRef.current?.querySelector("a, button, input")?.focus();
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [drawer]);
+
+  const shown = useMemo(() => {
+    const term = find.trim().toLowerCase();
+
+    if (!term) return menu;
+
+    return menu
+      .map((group) => ({
+        ...group,
+        items: (group.items || []).filter(
+          (item) =>
+            typeof item !== "string" &&
+            `${item.label} ${group.label}`.toLowerCase().includes(term),
+        ),
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [menu, find]);
+
+  const navigate = useCallback(() => {
+    setFind("");
+    setDrawer(false);
+  }, []);
+
+  const renderSidebar = (isCompact) => (
+    <div className="text-ink-muted flex h-full min-h-0 flex-col">
+      {/* Brand */}
+      <div
+        className={`border-rule flex h-[62px] shrink-0 items-center border-b px-3 ${
+          isCompact ? "justify-center" : "gap-3"
+        }`}
+      >
+        <div className="bg-plate text-plate-ink grid size-10 shrink-0 place-items-center rounded-xl text-lg font-extrabold shadow-sm">
           P
-        </span>
-        {!collapsed && (
-          <span className="font-display text-16 truncate font-semibold">
-            PHMG
-          </span>
+        </div>
+
+        {!isCompact && (
+          <div className="min-w-0 flex-1">
+            <p className="text-ink truncate text-sm font-bold tracking-tight">
+              {firmName || "PHMG & Associates"}
+            </p>
+            <p className="text-faint mt-0.5 text-[10px] font-semibold tracking-[0.16em] uppercase">
+              Firm management
+            </p>
+          </div>
         )}
+
+        <button
+          type="button"
+          onClick={() => setCompact(!isCompact)}
+          title={isCompact ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={isCompact ? "Expand sidebar" : "Collapse sidebar"}
+          className="text-ink-muted hover:bg-carbon-wash hover:text-ink hidden size-8 shrink-0 items-center justify-center rounded-lg transition md:flex"
+        >
+          <SidebarSimple size={19} />
+        </button>
       </div>
 
-      {links.map(({ href, label, icon: Icon, children }) => {
-        const active = pathname === href || pathname.startsWith(`${href}/`);
+      {/*
+        One landmark over the search and the list together (P3-29 repair).
 
-        /**
-         * A group opens in place rather than navigating: `/practice` is not
-         * a page of its own, and sending somebody to an index that only
-         * lists five links they can already see would be a click for
-         * nothing. It opens itself when they are inside it.
-         */
-        if (children) {
-          const open = practiceOpen || active;
-          return (
-            <div key={href} className="flex flex-col">
-              <button
-                type="button"
-                onClick={() => setPracticeOpen((v) => !v)}
-                aria-expanded={open}
-                title={collapsed ? label : undefined}
-                className={`rounded-control text-14 flex h-9 items-center gap-3 px-2 ${
-                  active
-                    ? "bg-carbon-soft text-carbon-ink font-semibold"
-                    : "text-ink-muted hover:bg-carbon-wash hover:text-ink"
-                }`}
-              >
-                <Icon size={20} weight={active ? "duotone" : "regular"} />
-                {!collapsed && (
-                  <>
-                    <span className="truncate">{label}</span>
-                    <CaretDown
-                      size={14}
-                      className={`ml-auto transition-transform ${open ? "" : "-rotate-90"}`}
-                    />
-                  </>
-                )}
-              </button>
-              {open && !collapsed && (
-                <ul className="border-rule ml-5 flex flex-col border-l pl-2">
-                  {children.map((child) => {
-                    const here = pathname === child.href;
-                    return (
-                      <li key={child.href}>
-                        <Link
-                          href={child.href}
-                          aria-current={here ? "page" : undefined}
-                          className={`rounded-control text-13 flex h-8 items-center px-2 ${
-                            here
-                              ? "text-carbon font-medium"
-                              : "text-ink-muted hover:bg-carbon-wash hover:text-ink"
-                          }`}
-                        >
-                          {child.label}
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
+        The box that filters the menu belongs inside the menu: a screen
+        reader jumping to the navigation lands on the search, and the
+        suite's drawer test tells the two rails apart by which one holds
+        it. The redesign had the input outside the `nav`, so the drawer had
+        no way to be identified and the filter had no landmark at all.
+      */}
+      <nav aria-label="Main" className="flex min-h-0 flex-1 flex-col">
+        {/* Search */}
+        {!isCompact && (
+          <div className="shrink-0 px-3 pt-4 pb-3">
+            <div className="relative">
+              <MagnifyingGlass
+                size={17}
+                className="text-faint pointer-events-none absolute top-1/2 left-3 -translate-y-1/2"
+              />
+
+              <input
+                ref={searchRef}
+                value={find}
+                onChange={(event) => setFind(event.target.value)}
+                placeholder="Find in menu…"
+                aria-label="Find in menu"
+                className="border-rule bg-sunk text-ink placeholder:text-faint focus:border-carbon focus:bg-surface focus:ring-carbon-soft h-10 w-full rounded-xl border pr-9 pl-9 text-sm transition outline-none focus:ring-4"
+              />
+
+              {find && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFind("");
+                    searchRef.current?.focus();
+                  }}
+                  aria-label="Clear search"
+                  className="text-faint hover:text-ink absolute top-1/2 right-2 -translate-y-1/2 rounded-md p-1"
+                >
+                  <X size={15} />
+                </button>
               )}
             </div>
-          );
-        }
+          </div>
+        )}
 
-        return (
-          <Link
-            key={href}
-            href={href}
-            title={collapsed ? label : undefined}
-            aria-current={active ? "page" : undefined}
-            className={`rounded-control text-14 flex h-9 items-center gap-3 px-2 ${
-              active
-                ? "bg-carbon-soft text-carbon-ink font-semibold"
-                : "text-ink-muted hover:bg-carbon-wash hover:text-ink"
-            }`}
-          >
-            <Icon size={20} weight={active ? "duotone" : "regular"} />
-            {!collapsed && <span className="truncate">{label}</span>}
-            {href === "/issues" && issueCount > 0 && (
-              <span
-                className="rounded-chip border-waiting bg-waiting-wash text-waiting num text-12 ml-auto border px-1.5"
-                aria-label={`${issueCount} needing attention`}
-              >
-                {issueCount}
-              </span>
-            )}
-          </Link>
-        );
-      })}
+        {/* The groups themselves */}
+        <div className="min-h-0 flex-1 [scrollbar-width:thin] [scrollbar-color:var(--rule)_transparent] overflow-y-auto px-2 pb-3">
+          {shown.length === 0 ? (
+            <div className="px-3 py-8 text-center">
+              <MagnifyingGlass size={25} className="text-faint mx-auto mb-2" />
+              <p className="text-14 text-ink-muted font-medium">
+                No menu item matches.
+              </p>
+              <p className="text-12 text-faint mt-1">
+                Try a shorter word, or clear the box.
+              </p>
+            </div>
+          ) : (
+            <ul className="space-y-1">
+              {shown.map((group) => {
+                const isOpen = Boolean(find) || open === group.id;
 
-      <button
-        type="button"
-        onClick={toggle}
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        aria-expanded={!collapsed}
-        className="rounded-control text-14 text-ink-muted hover:bg-carbon-wash hover:text-ink mt-auto flex h-9 items-center gap-3 px-2"
+                const isCurrentGroup = current?._group_ === group.id;
+
+                const groupCount = group.count ? counts[group.count] || 0 : 0;
+
+                const isAdminGroup = ADMIN_GROUPS.has(group.id);
+
+                return (
+                  <li
+                    key={group.id}
+                    className={
+                      isAdminGroup ? "border-rule mt-3 border-t pt-3" : ""
+                    }
+                  >
+                    <button
+                      type="button"
+                      title={isCompact ? group.label : undefined}
+                      aria-expanded={isOpen}
+                      onClick={() => {
+                        if (isCompact) {
+                          setCompact(false);
+                          setOpen(group.id);
+                          return;
+                        }
+
+                        setOpen(isOpen && !find ? null : group.id);
+                      }}
+                      className={`group flex min-h-10 w-full items-center rounded-xl px-3 py-2 text-left transition-all duration-150 ${
+                        isCompact ? "justify-center px-0" : "gap-3"
+                      } ${
+                        isCurrentGroup
+                          ? "bg-carbon-wash text-ink"
+                          : "text-ink-muted hover:bg-carbon-wash hover:text-ink"
+                      }`}
+                    >
+                      <span className="relative grid size-5 shrink-0 place-items-center">
+                        <NavIcon
+                          name={group.icon}
+                          className={
+                            isCurrentGroup
+                              ? "text-ink"
+                              : "text-ink-muted group-hover:text-ink"
+                          }
+                        />
+
+                        {isCompact && groupCount > 0 && (
+                          <span
+                            className={`absolute -top-1 -right-1 size-2 rounded-full ring-2 ring-white ${
+                              group.tone === "bad"
+                                ? "bg-rose-500"
+                                : "bg-amber-500"
+                            }`}
+                          />
+                        )}
+                      </span>
+
+                      {!isCompact && (
+                        <>
+                          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
+                            {group.label}
+                          </span>
+
+                          {!isOpen && groupCount > 0 && (
+                            <Badge value={groupCount} tone={group.tone} />
+                          )}
+
+                          <CaretDown
+                            size={14}
+                            className={`text-faint shrink-0 transition-transform duration-200 ${
+                              isOpen ? "rotate-180" : ""
+                            }`}
+                          />
+                        </>
+                      )}
+                    </button>
+
+                    {/* Group links */}
+                    {!isCompact && isOpen && (
+                      <ul className="border-rule mt-1 ml-[21px] space-y-0.5 border-l pb-1 pl-3">
+                        {group.items.map((item, index) => {
+                          if (typeof item === "string") {
+                            return (
+                              <li
+                                key={`${group.id}-label-${index}`}
+                                className="text-faint px-2 pt-3 pb-1 text-[10px] font-bold tracking-[0.12em] uppercase"
+                              >
+                                {item}
+                              </li>
+                            );
+                          }
+
+                          const active = current?._href_ === item.href;
+
+                          const itemCount = item.count
+                            ? counts[item.count] || 0
+                            : 0;
+
+                          return (
+                            <li key={item.href}>
+                              <Link
+                                href={item.href}
+                                onClick={navigate}
+                                aria-current={active ? "page" : undefined}
+                                className={`relative flex min-h-9 items-center gap-2 rounded-lg px-3 py-2 text-[12.5px] transition-all duration-150 ${
+                                  active
+                                    ? "bg-carbon text-on-carbon font-semibold shadow-sm"
+                                    : "text-ink-muted hover:bg-carbon-wash hover:text-ink"
+                                }`}
+                              >
+                                <span className="min-w-0 flex-1 truncate">
+                                  {item.label}
+                                </span>
+
+                                {itemCount > 0 && (
+                                  <Badge
+                                    value={itemCount}
+                                    tone={item.tone}
+                                    active={active}
+                                  />
+                                )}
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </nav>
+
+      {/* Signed-in user */}
+      <div
+        className={`border-rule bg-surface shrink-0 border-t p-3 ${
+          isCompact ? "flex justify-center" : ""
+        }`}
       >
-        <CaretLeft
-          size={20}
-          className={
-            collapsed
-              ? "rotate-180 transition-transform"
-              : "transition-transform"
-          }
-        />
-        {!collapsed && <span>Collapse</span>}
-      </button>
-    </nav>
+        <div
+          className={`flex items-center gap-3 ${
+            isCompact ? "justify-center" : ""
+          }`}
+        >
+          <div
+            title={isCompact ? `${userName} — ${roleLabel}` : undefined}
+            className="grid size-10 shrink-0 place-items-center rounded-xl bg-indigo-50 text-xs font-bold text-indigo-700 ring-1 ring-indigo-100"
+          >
+            {initials(userName)}
+          </div>
+
+          {!isCompact && (
+            <div className="min-w-0 flex-1">
+              <p className="text-ink truncate text-[13px] font-bold">
+                {userName || "User"}
+              </p>
+              <p className="text-ink-muted mt-0.5 truncate text-[11px]">
+                {roleLabel || "Team member"}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
-}
-
-/**
- * Phone layout (spec section 15: works at 390 px).
- *
- * Four links and a More sheet. Every link used to be rendered as a bottom
- * bar, which already filled the width for a Partner at nine of them — and
- * the rail is still growing. The current page is always one of the four, so
- * wherever somebody is, the bar shows where they are.
- */
-const MOBILE_SHOWN = 4;
-
-export function MobileNav({ role = "partner" }) {
-  const pathname = usePathname();
-  const [moreOpen, setMoreOpen] = useState(false);
-  /**
-   * A group has no page of its own, so on a phone it is flattened into its
-   * registers and they fall into the More sheet like everything else. An
-   * expandable tree inside a bottom sheet is two taps where one will do.
-   */
-  const links = linksFor(role).flatMap((link) =>
-    link.children
-      ? link.children.map((child) => ({ ...child, icon: link.icon }))
-      : [link],
-  );
-
-  const isActive = (href) =>
-    pathname === href || pathname.startsWith(`${href}/`);
-
-  // whichever page they are on comes to the front, so it is never hidden
-  const current = links.findIndex((link) => isActive(link.href));
-  const shown =
-    current >= MOBILE_SHOWN
-      ? [...links.slice(0, MOBILE_SHOWN - 1), links[current]]
-      : links.slice(0, MOBILE_SHOWN);
-  const rest = links.filter((link) => !shown.includes(link));
 
   return (
     <>
-      {moreOpen && rest.length > 0 && (
+      {/* Desktop sidebar */}
+      <aside
+        data-compact={compact ? "yes" : "no"}
+        className={`border-rule bg-surface hidden h-dvh shrink-0 flex-col overflow-hidden border-r transition-[width] duration-200 md:sticky md:top-0 md:flex ${
+          compact ? "w-[76px]" : "w-[272px]"
+        }`}
+      >
+        {renderSidebar(compact)}
+      </aside>
+
+      {/* Mobile menu drawer */}
+      {drawer && (
         <>
-          {/* tapping anywhere else closes it */}
           <button
             type="button"
-            aria-label="Close"
-            onClick={() => setMoreOpen(false)}
-            className="bg-ink/20 fixed inset-0 z-20 md:hidden"
+            aria-label="Close navigation"
+            onClick={() => setDrawer(false)}
+            className="bg-ink/40 fixed inset-0 z-40 backdrop-blur-[2px] md:hidden"
           />
-          <div
-            role="dialog"
-            aria-label="More places"
-            className="border-rule bg-surface fixed inset-x-0 bottom-12 z-30 border-t p-2 md:hidden"
+
+          <aside
+            ref={drawerRef}
+            className="border-rule bg-surface fixed inset-y-0 left-0 z-50 flex w-[288px] max-w-[85vw] flex-col overflow-hidden border-r shadow-2xl md:hidden"
           >
-            <ul className="flex flex-col">
-              {rest.map(({ href, label, icon: Icon }) => (
-                <li key={href}>
-                  <Link
-                    href={href}
-                    onClick={() => setMoreOpen(false)}
-                    aria-current={isActive(href) ? "page" : undefined}
-                    className={`rounded-control text-14 flex h-11 items-center gap-3 px-3 ${
-                      isActive(href)
-                        ? "bg-carbon-soft text-carbon-ink font-semibold"
-                        : "text-ink"
-                    }`}
-                  >
-                    <Icon size={22} />
-                    {label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
+            <div className="flex min-h-0 flex-1 flex-col">
+              {renderSidebar(false)}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setDrawer(false)}
+              aria-label="Close menu"
+              className="bg-surface text-ink-muted hover:bg-carbon-wash absolute top-4 right-3 grid size-8 place-items-center rounded-lg"
+            >
+              <X size={18} />
+            </button>
+          </aside>
         </>
       )}
-
-      <nav
-        aria-label="Main"
-        className="border-rule bg-surface relative z-10 flex h-12 shrink-0 items-center justify-between gap-1 border-t px-2 md:hidden"
-      >
-        {shown.map(({ href, label, icon: Icon }) => {
-          const active = isActive(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              aria-label={label}
-              aria-current={active ? "page" : undefined}
-              className={`rounded-control grid size-10 place-items-center ${
-                active ? "bg-carbon-wash text-carbon" : "text-ink-muted"
-              }`}
-            >
-              <Icon size={22} weight={active ? "duotone" : "regular"} />
-            </Link>
-          );
-        })}
-
-        {rest.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setMoreOpen((v) => !v)}
-            aria-expanded={moreOpen}
-            aria-label={`More — ${rest.length} more places`}
-            className={`rounded-control grid size-10 place-items-center ${
-              moreOpen ? "bg-carbon-wash text-carbon" : "text-ink-muted"
-            }`}
-          >
-            <DotsThree size={22} weight="bold" />
-          </button>
-        )}
-      </nav>
     </>
   );
+}
+
+function Badge({ value, tone = "", active = false }) {
+  if (!value) return null;
+
+  const styles = active
+    ? "bg-on-carbon/20 text-on-carbon"
+    : tone === "bad"
+      ? "bg-rose-50 text-rose-600"
+      : tone === "warn"
+        ? "bg-amber-50 text-amber-700"
+        : "bg-sunk text-ink-muted";
+
+  return (
+    <span
+      className={`inline-flex min-w-5 shrink-0 items-center justify-center rounded-md px-1.5 py-0.5 text-[10px] font-bold tabular-nums ${styles}`}
+    >
+      {value}
+    </span>
+  );
+}
+
+function initials(name) {
+  const parts = String(name).trim().split(/\s+/).filter(Boolean);
+
+  if (!parts.length) return "?";
+
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : ""))
+    .toUpperCase()
+    .slice(0, 2);
 }

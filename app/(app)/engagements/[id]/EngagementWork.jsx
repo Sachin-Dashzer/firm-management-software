@@ -130,7 +130,7 @@ export default function EngagementWork({
       {engagement.next && engagement.next.stance !== "done" && (
         <section className="rounded-ledger border-carbon bg-carbon-wash flex flex-wrap items-center justify-between gap-3 border p-3">
           <div>
-            <p className="text-12 text-ink-muted font-medium tracking-wide uppercase">
+            <p className="text-12 text-ink-muted font-medium">
               Next
             </p>
             <p className="text-14">{engagement.next.text}</p>
@@ -489,7 +489,7 @@ export default function EngagementWork({
 
           {loose.length > 0 && (
             <div className="flex flex-col gap-1">
-              <h3 className="text-12 text-ink-muted font-medium tracking-wide uppercase">
+              <h3 className="text-12 text-ink-muted font-medium">
                 Other files on this engagement
               </h3>
               <DocumentList
@@ -1057,7 +1057,7 @@ function ChecklistGroup({
   if (items.length === 0) return null;
   return (
     <div className="flex flex-col gap-1">
-      <h3 className="text-12 text-ink-muted font-medium tracking-wide uppercase">
+      <h3 className="text-12 text-ink-muted font-medium">
         {title}
       </h3>
       <ul className="flex flex-col">
