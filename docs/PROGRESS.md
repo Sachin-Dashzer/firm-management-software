@@ -153,6 +153,8 @@ whose cost grows every week it waits.
 
 | Date | Decision | By |
 | --- | --- | --- |
+| 29-10-2026 | D88: **time is stored in minutes, and chargeable means it has a job on it.** Minutes rather than decimal hours for the same reason money is paise (rule 5): 2.5 hours stored as a float adds up wrong often enough to matter, and a timesheet's whole purpose is that the week's total is the sum of its lines. Chargeable is **derived from `engagementId` on save, never offered as a choice** — a person who could tick "not chargeable" on a GSTR-1 could flatter their own utilisation, and the figure would then measure nothing. A line with no job must say what it was instead, so an unexplained hour cannot be saved. **A running timer is a row of the same collection** with `startedAt` set and `minutes` still zero, rather than a second collection holding one row per person, which would be the same thing with twice the code and a way for the two to disagree. | Agent |
+| 29-10-2026 | D87: **partner and CA may edit time entries, not only read them.** The matrix had both at `view`, which meant the two roles doing most of the firm's chargeable work could not record their own hours — the timesheet would have been a report on everybody except the people who need it most. A CA reaches their own reports' sheets as well, because the commonest correction to a timesheet is a senior fixing a line an article put on the wrong job; every such correction is audited. **Accounts stays at `none`**: they bill the firm's work, they do not do it, so the Timesheet item does not appear in their menu. | Agent |
 | 29-10-2026 | D86: **the strip tiles get icons too**, at the owner's instruction after the agent argued against it. The concern was that six tinted squares in one row is the grid of identical tiles rule 10 is actually about; built at 28px rather than the money tiles' 36px, which keeps the row from becoming the loudest thing on the screen. The icon is chosen **by label, in `Tiles.jsx`**, because the four places that build these tiles do not agree on a shape — only `headlines.js` carries a `key` — and threading a React component through four server functions to avoid a lookup table would put a presentation decision inside the counting code. `Circle` is the fallback, so a label added later renders a neutral mark rather than a hole in the row. | Owner, reaffirmed |
 | 29-10-2026 | D85: **the icon square and the feature card are in, and `CLAUDE.md` rule 10 is amended for them.** Both come from the owner's reference; the agent left them out of D83 on the grounds of rule 10 ("no purple gradients, glass panels, emoji icons or grids of identical shadowed cards") and spec §15, and the owner — who wrote that rule — overrode it. What is kept is the part of those rules that was load-bearing: **a tint carries meaning, never decoration** (the square takes its colour from the tile's `tone`, so red means late and amber means waiting; there is no per-tile palette), **one feature card per screen** (`FeatureTile` is a separate export, so a second one takes a deliberate second import, and it only appears while there is something actually overdue — a gradient panel saying everything is fine teaches people to stop reading the dashboard), and **every pairing clears 4.5:1**. The reference's own gradient gives white about 3:1; these are its hues taken down until the figure is readable (4.85 and 7.62). Rule 10's other three clauses stand. | Owner, reaffirmed after the concern was raised |
 | 29-10-2026 | D83: **the accent is teal, and it is back on the chrome.** The owner supplied a reference CRM on 29-10-2026 and asked for its colour theme across the application. Its values, sampled rather than guessed: ground `#f2f3f5`, cards white, ink all but black, and an action colour between `#42a0a0` and `#61bdbe` used on row buttons and behind the active nav item. The reference's own teal reads 2.79:1 on its ground, so it is taken down to `#177979`, which clears 4.5:1 on both the ground (4.67) and a card (5.19) — `carbon` is the link colour as well as the button fill. **This reverses D78's one move**, which kept colour off the chrome; what is kept is the discipline under it: one hue and no second, status colours still meaning status, no gradient, no tinted icon chips. The two devices the reference uses that `CLAUDE.md` rule 10 forbids — the gradient KPI card and the icon-in-a-tinted-square — were not copied. | Owner, with the reference |
@@ -3122,3 +3124,80 @@ of that line. `Circle` is the fallback.
 - **Fifteen labels are mapped.** A label reworded in any of the four
   builders falls back to `Circle` rather than breaking; nothing warns that
   it happened, which is the cost of mapping by label rather than by key.
+
+## What P3-28 built — the timesheet, and what time was worth (29-10-2026)
+
+The first of the five screens the v6.2 gap left (`docs/GAP-SCREENS.md`),
+built in the order the owner approved. `/team/time` was a stub; it is now
+a working timesheet with the firm's three time figures over it.
+
+**A new collection, `timeEntries`.** Minutes rather than decimal hours
+(D88), the day held at IST midnight, `chargeable` derived from whether
+there is an engagement on the line, and `startedAt` set only while a
+timer runs — so the running clock is a row of this collection and not a
+second place for the same fact to live. Soft delete and the audit plugin
+like everything else: a removed hour is exactly what a fee argument turns
+on a year later.
+
+**The clock is on My tasks as well as on the timesheet.** The one moment
+anybody will remember to start a timer is the moment they start work, and
+My tasks is the page they are already on. The jobs it offers are the ones
+already on that screen, not every open engagement in the firm. The
+elapsed figure counts up in the browser off `startedAt`; **the minutes are
+counted on the server**, so a tab left open overnight or a laptop that
+slept cannot put an hour on the sheet that nobody worked. A timer stopped
+under a minute records nothing rather than a row of zeros.
+
+**Typing a line in is the plain path and the clock is the convenience.**
+Nobody starts a stopwatch before a phone call, and a sheet filled in on
+Friday afternoon is still a sheet. Hours read as `2.5` or `2:30`; a day in
+the future is refused, because a timesheet that can hold intentions is not
+a record of anything.
+
+**Two permission scopes are checked separately on every write** — whose
+sheet (the `timeEntries` scope) and which job (the `engagements` scope).
+A line on an engagement names a client, so somebody who may not see that
+client may not learn about it by booking an hour to it either.
+
+**The three figures.** Utilisation is chargeable minutes over each
+person's own capacity across the *working* days of the window, so a week
+with a holiday in it does not read as a week somebody slacked. Days
+nobody has filled in are named before any money is, because a
+profitability figure built on half a timesheet is worse than no figure.
+Realisation and client profitability come last, worst client first —
+sorting by name buries exactly the clients the screen exists to find.
+
+**Nothing on it invents a rate.** Time value needs an hourly rate per
+person, which is a partner's decision about what the firm's work is worth
+(rules 8 and 9). `chargeRatePaise` is new on the user record, set in
+rupees on each person's page, zero by default. With every rate at zero the
+money half of the screen says so and shows hours instead; with some set,
+it names the people who have none and says plainly that every figure
+below understates the cost.
+
+**Checks:** lint clean, 1494 + 24 Vitest tests pass, `next build`
+succeeds, 4 Playwright tests pass at laptop and phone widths.
+
+**The owner has to do one thing**
+
+Set an hourly charge rate for each person: **Team → the person → Charge
+rate (₹ an hour) → Save.** Until at least one is set, utilisation and the
+unrecorded-days list work and the three money figures do not. There is no
+default and there will not be one.
+
+**Left over**
+
+- **A line cannot be edited, only removed and re-added.** Correcting
+  "2.5" to "3" is two actions. An edit action is a third write path to
+  audit for a correction that takes four seconds as it stands.
+- **No approval step on a timesheet.** Spec §9 does not ask for one and
+  the firm is five people. If weekly sign-off is wanted later it is a
+  status field on the week, not on the line.
+- **Utilisation ignores leave.** Somebody on approved leave reads as
+  somebody who recorded nothing. `Leave` is already a collection, so this
+  is a join away, but a leave-aware denominator is a decision about what
+  utilisation means and not a bug.
+- **The time-based reports deferred since Step 10 are now possible and
+  not yet built.** Timesheet, utilisation, realisation and profitability
+  all exist as panels on this screen; none of them is in
+  `lib/reports/standard.js`, so none exports to Excel or PDF yet.

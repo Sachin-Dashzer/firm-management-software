@@ -92,59 +92,10 @@ export default function TopBar({
           <List size={18} />
         </button>
 
-        {branches.length > 1 && (
-          <>
-            <label className="sr-only" htmlFor="branch">
-              What you are looking at
-            </label>
-            <select
-              id="branch"
-              value={view}
-              onChange={(event) => chooseView(event.target.value)}
-              className="rounded-control border-rule bg-paper text-13 text-ink h-10 max-w-[7.5rem] min-w-0 shrink border px-2 sm:max-w-none sm:shrink-0"
-            >
-              <option value="all">All my branches</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-              {/*
-                The view that is not a branch at all (P3-7): the jobs you
-                prepare or review, wherever the client sits. A manager
-                covering a review in another branch has no other way to see
-                it next to their own work.
-              */}
-              <option value="mine">My work across branches</option>
-            </select>
-          </>
-        )}
-        {branches.length === 1 && (
-          <span className="text-13 text-ink-muted hidden truncate sm:block">
-            {branches[0].name}
-          </span>
-        )}
 
-        {/*
-          The command bar lives at the window level; this opens it. On a
-          phone it is the magnifier alone — the placeholder, the field and
-          the Ctrl-K hint together need 280px that a phone has already spent.
-        */}
         <button
           type="button"
           onClick={() => window.dispatchEvent(new Event("phmg:command-bar"))}
-          /**
-           * Named "Search", not "Search clients, PAN, GSTIN".
-           *
-           * The long version read the visible placeholder out loud, which
-           * sounds thorough and is not: a screen reader announces the
-           * button's name on every focus, and three field names is a
-           * mouthful for a control that does one thing. It also made the
-           * button answer to "Client", "PAN" and "GSTIN" — the names of the
-           * commonest fields in the app — so anything looking for a field
-           * by its label found this button as well. The placeholder beside
-           * the icon still says what can be typed.
-           */
           aria-label="Search"
           className="rounded-control text-ink-muted hover:border-carbon hover:text-ink sm:border-rule sm:bg-paper sm:text-13 grid size-9 shrink-0 place-items-center transition-colors duration-150 sm:flex sm:h-10 sm:w-auto sm:min-w-0 sm:flex-1 sm:items-center sm:gap-2 sm:border sm:px-2 md:max-w-md"
         >
@@ -157,15 +108,42 @@ export default function TopBar({
           </kbd>
         </button>
 
+
+
+
         <div className="-mr-2 ml-auto flex shrink-0 items-center gap-0.5">
-          {/* quick-add opens the command bar rather than a second menu of
-              the same links: one list of things you can do, not two. The
-              phone reaches it through the magnifier beside it. */}
+          {branches.length > 1 && (
+            <>
+              <label className="sr-only" htmlFor="branch">
+                What you are looking at
+              </label>
+              <select
+                id="branch"
+                value={view}
+                onChange={(event) => chooseView(event.target.value)}
+                className="rounded-control border-rule bg-paper text-13 text-ink h-10 max-w-[7.5rem] min-w-0 shrink border px-2 sm:max-w-none sm:shrink-0"
+              >
+                <option value="all">All my branches</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+
+                <option value="mine">My work across branches</option>
+              </select>
+            </>
+          )}
+          {branches.length === 1 && (
+            <span className="text-13 text-ink-muted hidden truncate sm:block">
+              {branches[0].name}
+            </span>
+          )}
           <button
             type="button"
             aria-label="Quick add — opens the command bar"
             onClick={() => window.dispatchEvent(new Event("phmg:command-bar"))}
-            className="rounded-control text-ink-muted hover:bg-carbon-wash hover:text-ink hidden size-9 place-items-center transition-colors duration-150 sm:grid"
+            className="rounded-control ml-2 text-ink-muted hover:bg-carbon-wash hover:text-ink hidden size-9 place-items-center transition-colors duration-150 sm:grid"
           >
             <Plus size={18} />
           </button>

@@ -135,6 +135,31 @@ export default function AdminActions({
                 className="rounded-control border-rule bg-paper text-14 h-9 w-24 border px-2 font-mono"
               />
             </label>
+
+            {/*
+              What an hour of their time is worth (P3-28).
+
+              Rupees in the box, paise in the database, like every other
+              amount in the application. Left at zero it stays zero: the
+              timesheet screen then says the firm has set no rate rather
+              than showing a profitability figure built on a guess.
+            */}
+            <label className="flex flex-col gap-1">
+              <span className="text-13 text-ink-muted">
+                Charge rate (₹ an hour)
+              </span>
+              <input
+                type="number"
+                name="chargeRate"
+                min={0}
+                step={1}
+                defaultValue={current.chargeRate}
+                className="rounded-control border-rule bg-paper text-14 h-9 w-28 border px-2 font-mono"
+              />
+              <span className="text-12 text-faint">
+                0 means the firm has not set one.
+              </span>
+            </label>
           </div>
 
           <label className="flex flex-col gap-1">

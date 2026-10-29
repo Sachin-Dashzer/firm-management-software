@@ -104,6 +104,19 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
     capacityHours: { type: Number, default: 8, min: 0, max: 24 },
+
+    /**
+     * What an hour of this person's time is worth to the firm, in paise
+     * (P3-28). It is what turns a timesheet into a profitability figure:
+     * time value is minutes times this rate.
+     *
+     * **Zero means the firm has not said**, and every screen that would
+     * show a time value says so plainly rather than guessing. A rate card
+     * is a partner's decision about what the firm's work is worth, and
+     * inventing one would stand a made-up figure beside a real fee
+     * (CLAUDE.md rules 8 and 9).
+     */
+    chargeRatePaise: { type: Number, default: 0, min: 0 },
     skills: { type: [String], default: [] },
     joiningDate: Date,
     active: { type: Boolean, default: true },

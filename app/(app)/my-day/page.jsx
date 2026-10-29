@@ -18,6 +18,8 @@ import TierBadge from "@/components/ledger/TierBadge";
 import Todo from "@/models/Todo";
 import { bucketOf } from "@/lib/todos/list";
 import TodoLines from "../todos/TodoLines";
+import Timer from "../team/time/Timer";
+import { runningTimer } from "../team/time/actions";
 
 export const metadata = { title: "My tasks · PHMG" };
 export const dynamic = "force-dynamic";
@@ -119,6 +121,25 @@ export default async function MyDayPage() {
     .limit(20)
     .lean();
 
+  /**
+   * The clock (P3-28).
+   *
+   * Here and not only on the timesheet, because the one moment anybody
+   * will ever remember to start a timer is the moment they start work, and
+   * this is the page they are already on. The jobs offered are the ones
+   * already on this screen — a dropdown of every open engagement in the
+   * firm is a dropdown nobody scrolls.
+   */
+  const mayRecordTime = can(actor, "edit", "timeEntries", { userId: actor.id });
+  const timerJobs = mayRecordTime
+    ? [...due, ...waiting, ...toReview].map((e) => ({
+        id: String(e._id),
+        client: clientName.get(String(e.clientId)) ?? "Client",
+        label: `${e.templateSnapshot?.name ?? "Job"} · ${e.periodLabel || e.period}`,
+      }))
+    : [];
+  const running = mayRecordTime ? await runningTimer() : null;
+
   const byDate = new Map();
   for (const engagement of weekAhead) {
     const key = formatISTDate(engagement.statutoryDue);
@@ -205,6 +226,22 @@ export default async function MyDayPage() {
           </ul>
         )}
       </section>
+
+      {mayRecordTime && (
+        <section aria-label="Time" className="flex flex-col gap-2">
+          <h2 className="text-13 text-ink-muted font-medium">
+            Time
+            {" · "}
+            <Link
+              href="/team/time"
+              className="text-ink-muted font-normal underline underline-offset-4"
+            >
+              my timesheet
+            </Link>
+          </h2>
+          <Timer jobs={timerJobs} running={running} />
+        </section>
+      )}
 
       {todos.length > 0 && (
         <section className="rounded-ledger border-rule bg-surface flex flex-col gap-2 border px-4 py-3">

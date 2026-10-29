@@ -63,7 +63,7 @@ export default async function TeamMemberPage({ params, searchParams }) {
   const person = await User.findById(id)
     .lean({ withDeleted: true })
     .select(
-      "name email mobile role branchIds reportingTo capacityHours skills joiningDate isIntern articleship totpEnabledAt lastLoginAt active deletedAt",
+      "name email mobile role branchIds reportingTo capacityHours chargeRatePaise skills joiningDate isIntern articleship totpEnabledAt lastLoginAt active deletedAt",
     );
   if (!person) notFound();
 
@@ -236,6 +236,7 @@ export default async function TeamMemberPage({ params, searchParams }) {
             branchIds: (person.branchIds ?? []).map(String),
             reportingTo: String(person.reportingTo ?? ""),
             capacityHours: person.capacityHours ?? 8,
+            chargeRate: Math.round((person.chargeRatePaise ?? 0) / 100),
             skills: (person.skills ?? []).join(", "),
           }}
         />
