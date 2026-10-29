@@ -45,6 +45,8 @@ const SCREENS = [
   ["clients", "/clients"],
   ["engagements", "/engagements"],
   ["invoices", "/invoices"],
+  ["dashboard", "/dashboard"],
+  ["desk", "/billing/desk"],
   ["reports", "/reports"],
   ["settings", "/settings"],
 ];

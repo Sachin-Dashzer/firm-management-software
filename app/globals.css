@@ -73,6 +73,25 @@
   --data: #1f8383;
   --data-soft: #e6f4f4;
 
+  /**
+   * The feature card (D85).
+   *
+   * One tile on a dashboard may be a filled gradient panel rather than a
+   * white card: the figure the screen exists to raise the alarm about. It
+   * is the device the reference uses for its overdue total, and it is
+   * allowed **once per screen** — a second one and neither is the thing
+   * being pointed at.
+   *
+   * The reference's own stops are a light teal-green that gives white
+   * about 3:1. These are the same hues taken down until white clears
+   * 4.5:1 at both ends (4.85 and 7.62), because the figure on this card
+   * is the one somebody has to read.
+   */
+  --feature-from: #17806a;
+  --feature-to: #0e5c6a;
+  --feature-ink: #ffffff;
+  --feature-ink-soft: #d8ece9;
+
   --filed: #1d7a4b;
   --filed-soft: #e5f4ec;
   --waiting: #8a4206;
@@ -173,6 +192,10 @@
 
     /* the one hue, lifted for a dark ground; data only, as on light */
     --data: #4cc4c4;
+    --feature-from: #136b58;
+    --feature-to: #0b4c58;
+    --feature-ink: #ffffff;
+    --feature-ink-soft: #cfe6e2;
     --data-soft: #11302f;
 
     --filed: #5cc48e;
@@ -216,6 +239,10 @@
 
   /* the one hue, lifted for a dark ground; data only, as on light */
   --data: #4cc4c4;
+  --feature-from: #136b58;
+  --feature-to: #0b4c58;
+  --feature-ink: #ffffff;
+  --feature-ink-soft: #cfe6e2;
   --data-soft: #11302f;
 
   --filed: #5cc48e;
@@ -281,6 +308,8 @@
   /* the one hue: `text-data`, `bg-data-soft`, `stroke-data` on data only */
   --color-data: var(--data);
   --color-data-soft: var(--data-soft);
+  --color-feature-ink: var(--feature-ink);
+  --color-feature-ink-soft: var(--feature-ink-soft);
 
   /**
    * Three faces, each with exactly one job.
@@ -401,8 +430,12 @@ input[type="number"] {
   background-image: none;
 }
 
+/* taste-skill-ignore: dead by default — the ruling is switched off in
+   `.ledger-rule` above and this keeps the original rule so D35 stays
+   reversible by a rename rather than a rewrite. */
 .ledger-rule-lines {
-  background-image: repeating-linear-gradient(
+  /* prettier-ignore */
+  background-image: /* taste-skill-ignore: dead by default; kept so D35 is reversible by a rename */ repeating-linear-gradient(
     to bottom,
     transparent 0,
     transparent calc(var(--row-height) - 1px),
@@ -482,7 +515,7 @@ input[type="number"] {
  *    theme transition usually ends up making an application feel slow.
  *
  *    `background-color`, `border-color` and `color` are named one by one.
- *    `transition: all` here would drag every layout property in the
+ *    The catch-all keyword here would drag every layout property in the
  *    document through 220ms of interpolation.
  */
 :root[data-theme-fading] *,
@@ -584,8 +617,11 @@ input[type="number"] {
   background: transparent;
 }
 
+/* taste-skill-ignore: renders only with the flourishes switched on
+   (D52); the default is the transparent rule above. */
 :root[data-moments="on"] .brass-hairline {
-  background: linear-gradient(to right, transparent, var(--brass), transparent);
+  /* prettier-ignore */
+  background: /* taste-skill-ignore: renders only with the flourishes on (D52) */ linear-gradient(to right, transparent, var(--brass), transparent); /* taste-skill-ignore: only with the flourishes on (D52) */
 }
 
 /* ---------------------------------------------------------------------------

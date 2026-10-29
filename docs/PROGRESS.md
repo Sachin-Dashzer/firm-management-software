@@ -153,6 +153,7 @@ whose cost grows every week it waits.
 
 | Date | Decision | By |
 | --- | --- | --- |
+| 29-10-2026 | D85: **the icon square and the feature card are in, and `CLAUDE.md` rule 10 is amended for them.** Both come from the owner's reference; the agent left them out of D83 on the grounds of rule 10 ("no purple gradients, glass panels, emoji icons or grids of identical shadowed cards") and spec §15, and the owner — who wrote that rule — overrode it. What is kept is the part of those rules that was load-bearing: **a tint carries meaning, never decoration** (the square takes its colour from the tile's `tone`, so red means late and amber means waiting; there is no per-tile palette), **one feature card per screen** (`FeatureTile` is a separate export, so a second one takes a deliberate second import, and it only appears while there is something actually overdue — a gradient panel saying everything is fine teaches people to stop reading the dashboard), and **every pairing clears 4.5:1**. The reference's own gradient gives white about 3:1; these are its hues taken down until the figure is readable (4.85 and 7.62). Rule 10's other three clauses stand. | Owner, reaffirmed after the concern was raised |
 | 29-10-2026 | D83: **the accent is teal, and it is back on the chrome.** The owner supplied a reference CRM on 29-10-2026 and asked for its colour theme across the application. Its values, sampled rather than guessed: ground `#f2f3f5`, cards white, ink all but black, and an action colour between `#42a0a0` and `#61bdbe` used on row buttons and behind the active nav item. The reference's own teal reads 2.79:1 on its ground, so it is taken down to `#177979`, which clears 4.5:1 on both the ground (4.67) and a card (5.19) — `carbon` is the link colour as well as the button fill. **This reverses D78's one move**, which kept colour off the chrome; what is kept is the discipline under it: one hue and no second, status colours still meaning status, no gradient, no tinted icon chips. The two devices the reference uses that `CLAUDE.md` rule 10 forbids — the gradient KPI card and the icon-in-a-tinted-square — were not copied. | Owner, with the reference |
 | 29-10-2026 | D84: **four things move, and nothing performs an entrance.** Press feedback (`scale(0.97)`, 160ms), hover colour on rows, links and controls (120ms, gated behind a real pointer), the theme crossfade (220ms), and the two signature keyframes that already existed. No panel fades up on load and no list staggers in: this is a screen somebody is inside for eight hours, and an entrance is charming once and a tax every time after. The theme transition is **switched on for the length of the fade and off again** by the toggle rather than declared permanently — a standing `transition: background-color` on every surface also runs on first paint and on every route change, which is how a theme transition usually ends up making an application feel slow. Verified in a browser: 7 live transitions on a page, none using `transition: all`, nothing running on load. | Agent |
 | 29-10-2026 | D78: **the look leaves the prototype behind.** The owner's verdict on the v6.2 look was that it read cheap, and the design study names its exact shape — an off-white ground, white cards, one stock blue on every button, tab and link — as what makes a screen read as a kit rather than a product. D35 is reversed **on the look only**; the prototype's product model, screens, data and words are untouched. The replacement is the `achromatic-ledger` direction (seed 1094860545), whose one move is that **colour leaves the chrome entirely**: the primary action is near-black, the secondary a grey pill, every active row and focus ring is ink, and the single hue `--data` is kept for data and for a figure that has moved. Token *names* are unchanged, so sixty routes took the new palette without being edited. | Owner, asked |
@@ -3030,3 +3031,57 @@ claims rather than asserting them.
   is the departure fade tied to the parked 3D scene's arrival, and with
   the scene parked the branch is never taken — so it never runs. It should
   go with the scene whenever that decision is made.
+
+## What P3-26 built — the two devices from the reference (29-10-2026)
+
+P3-25 copied the reference's colours and deliberately left out two of its
+devices, on the grounds of `CLAUDE.md` rule 10. The owner overrode that
+and asked for both. They are in (D85).
+
+**The icon square.** `MoneyTile` and `CountTile` take an `icon` and draw
+it in a 36px tinted square. The tint is the tile's own `tone`, so it
+cannot disagree with the figure beside it: red for late, amber for
+waiting, green for good, teal otherwise. A count tile at zero drops back
+to the neutral tint, because a red square over a `0` is an alarm about
+nothing. The square is `aria-hidden`: the label already says what the
+tile is.
+
+**The feature card.** `FeatureTile` is the filled gradient panel the
+reference uses for its overdue total. It is a separate export rather than
+a `tone`, so a second one on a screen takes a deliberate second import,
+and on both dashboards it is **conditional** — with nothing past due the
+tile reverts to an ordinary white one. The two screens that have it are
+the firm dashboard and the accounts desk, and on each it is the one
+figure that screen exists to raise the alarm about.
+
+**Contrast.** The reference's own gradient is a light teal-green that
+gives white about 3:1. These are the same hues taken down until white
+clears 4.5:1 at both ends — 4.85 at `#17806a` and 7.62 at `#0e5c6a` —
+because the figure on that card is the one somebody has to read. The four
+icon tints clear 4.6 to 6.5 against their own glyph colour in light, and
+6.5 to 7.6 in dark.
+
+**The three gradients in the codebase now carry `taste-skill-ignore`**
+with a reason each, so the skill's linter reports 0 FAIL honestly rather
+than being switched off: this card (the owner's call), `.ledger-rule-lines`
+(dead by default, kept so D35 reverses by a rename) and `.brass-hairline`
+(only with the flourishes on). Each marker is placed where Prettier keeps
+it on the flagged line.
+
+**Checks:** lint clean, 1470 Vitest tests pass, `next build` succeeds,
+`lint.mjs --app` 0 FAIL. Both dashboards photographed in both themes.
+
+**Left over**
+
+- **Rule 10's other three clauses stand** — no glass panels, no emoji
+  icons, no grids of identical shadowed cards. Only the gradient and the
+  icon-in-a-tinted-square were overridden.
+- **`TileRow` has no icons.** It is the six-across ruled strip at the top
+  of the dashboard, where a square per cell would be six squares in a row
+  — which is the grid of identical tiles rule 10 is actually about. The
+  icons are on the four money tiles only.
+- **The reference gives each KPI a different hue** (a yellow star, a blue,
+  a red) with no relation to what the figure means. Here the hue is the
+  tone, so three of the four squares are usually the same teal. If the
+  owner wants the reference's variety instead, it is a one-line map from
+  label to hue — and it would mean a colour that says nothing.
