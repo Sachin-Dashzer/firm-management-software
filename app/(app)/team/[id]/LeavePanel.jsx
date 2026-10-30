@@ -91,9 +91,7 @@ export default function LeavePanel({
                     {withdrawing === row.id ? (
                       <form
                         action={(formData) =>
-                          run(() =>
-                            cancelLeave(row.id, formData.get("reason")),
-                          )
+                          run(() => cancelLeave(row.id, formData.get("reason")))
                         }
                         className="flex flex-wrap items-end gap-2"
                       >
@@ -148,8 +146,8 @@ export default function LeavePanel({
             a copy of the reminders addressed to {first}, for as long as the
             leave lasts. It does <strong>not</strong> give them access to a
             client they could not already open, and it does not move the work:
-            the engagements stay {first}&rsquo;s on the record. To change who
-            is responsible, use{" "}
+            the engagements stay {first}&rsquo;s on the record. To change who is
+            responsible, use{" "}
             <Link
               href={`/team/${id}/takeover`}
               className="underline underline-offset-4"

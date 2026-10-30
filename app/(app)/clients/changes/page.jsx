@@ -44,8 +44,8 @@ export default async function ChangesPage({ searchParams }) {
         </h1>
         <p className="text-13 text-ink-muted max-w-[70ch]">
           A legal name, a PAN, a GSTIN, the office, the group or the status,
-          changed by somebody who is not a partner — usually from a
-          spreadsheet. Each one is decided on its own.
+          changed by somebody who is not a partner — usually from a spreadsheet.
+          Each one is decided on its own.
         </p>
       </div>
 
@@ -71,4 +71,3 @@ export default async function ChangesPage({ searchParams }) {
     </div>
   );
 }
-

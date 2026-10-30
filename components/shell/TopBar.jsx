@@ -4,15 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import {
-  MagnifyingGlass,
-  Plus,
-  Bell,
-  UserCircle,
-  List,
-} from "@phosphor-icons/react";
+import { MagnifyingGlass, Bell, UserCircle, List } from "@phosphor-icons/react";
 import { ThemeToggle, DensityToggle, MomentsToggle } from "./Preferences";
 import HelpPanel from "./HelpPanel";
+import NewMenu from "./NewMenu";
 import { ROLE_LABELS } from "@/lib/permissions";
 
 /**
@@ -22,12 +17,15 @@ import { ROLE_LABELS } from "@/lib/permissions";
  *   branches this user is assigned to, already filtered on the server
  * @param {string} props.view what they are currently looking at inside that
  *   access: "all", one branch id, or "mine" (P3-7)
+ * @param {Array<{label: string, href: string}>} [props.canCreate] what this
+ *   person may start, decided on the server
  */
 export default function TopBar({
   user,
   branches,
   unreadCount = 0,
   view = "all",
+  canCreate = [],
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
@@ -92,7 +90,6 @@ export default function TopBar({
           <List size={18} />
         </button>
 
-
         <button
           type="button"
           onClick={() => window.dispatchEvent(new Event("phmg:command-bar"))}
@@ -100,16 +97,13 @@ export default function TopBar({
           className="rounded-control text-ink-muted hover:border-carbon hover:text-ink sm:border-rule sm:bg-paper sm:text-13 grid size-9 shrink-0 place-items-center transition-colors duration-150 sm:flex sm:h-10 sm:w-auto sm:min-w-0 sm:flex-1 sm:items-center sm:gap-2 sm:border sm:px-2 md:max-w-md"
         >
           <MagnifyingGlass size={18} className="shrink-0" />
-          <span className="hidden truncate sm:inline">
-            Search clients, PAN, GSTIN…
+          <span className="text-faint hidden truncate sm:inline">
+            Client, PAN, GSTIN, notice DIN, invoice no.
           </span>
-          <kbd className="text-12 ml-auto hidden font-mono sm:inline">
+          <kbd className="text-12 border-rule bg-sunk rounded-chip text-ink-muted ml-auto hidden border px-1.5 py-0.5 font-mono sm:inline">
             Ctrl K
           </kbd>
         </button>
-
-
-
 
         <div className="-mr-2 ml-auto flex shrink-0 items-center gap-0.5">
           {branches.length > 1 && (
@@ -123,7 +117,7 @@ export default function TopBar({
                 onChange={(event) => chooseView(event.target.value)}
                 className="rounded-control border-rule bg-paper text-13 text-ink h-10 max-w-[7.5rem] min-w-0 shrink border px-2 sm:max-w-none sm:shrink-0"
               >
-                <option value="all">All my branches</option>
+                <option value="all">All branches</option>
                 {branches.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name}
@@ -139,14 +133,6 @@ export default function TopBar({
               {branches[0].name}
             </span>
           )}
-          <button
-            type="button"
-            aria-label="Quick add — opens the command bar"
-            onClick={() => window.dispatchEvent(new Event("phmg:command-bar"))}
-            className="rounded-control ml-2 text-ink-muted hover:bg-carbon-wash hover:text-ink hidden size-9 place-items-center transition-colors duration-150 sm:grid"
-          >
-            <Plus size={18} />
-          </button>
           <Link
             href="/inbox"
             aria-label={
@@ -155,8 +141,16 @@ export default function TopBar({
             className="rounded-control text-ink-muted hover:bg-carbon-wash hover:text-ink relative grid size-9 place-items-center transition-colors duration-150"
           >
             <Bell size={18} />
+            {/*
+              The count rather than a dot (P3-34 phase 2). A dot says
+              "something"; a figure says whether it is worth opening now.
+              Capped at 9+, because past that the exact number stops being
+              a decision and the bubble starts pushing the bar about.
+            */}
             {unreadCount > 0 && (
-              <span className="bg-redpen ring-paper absolute top-1.5 right-1.5 size-2 rounded-full ring-2" />
+              <span className="bg-redpen text-on-carbon ring-paper num absolute -top-0.5 -right-0.5 min-w-5 rounded-full px-1 text-[11px] leading-[1.45] font-semibold ring-2">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
             )}
           </Link>
           {/* how the firm does whatever screen you are on (P3-19) */}
@@ -227,6 +221,8 @@ export default function TopBar({
               </div>
             )}
           </div>
+
+          <NewMenu items={canCreate} />
         </div>
       </div>
       {/*

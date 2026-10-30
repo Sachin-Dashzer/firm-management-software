@@ -1,10 +1,4 @@
-# PHMG CRM — Progre| 30-10-2026 | D94: **one invoice series for the whole firm, not one per branch.** `NOI/26-27/0087` becomes `PHMG/26-27/0087`: the prefix comes from the firm's own record rather than the branch the invoice was raised at. The owner's reason is the one that matters — the firm wants one running number to reconcile against, and four parallel series means four places a gap can hide. The branch stays on the invoice as a field, so every branch report still works; it simply no longer decides the number. | Owner (answering spec §18) |
-| 30-10-2026 | D95: **Tally is the export target.** Step 8c's open choice is settled: invoices and receipts export as Tally XML vouchers, not Zoho and not a generic CSV. | Owner (answering spec §18) |
-| 30-10-2026 | D96: **an intern never sees a fee or an amount.** The `invoices` and `feeWriteOff` matrix rows already said `none` for the role, but a fee is printed in a dozen other places — the engagement header, Ready to bill, the unbilled list, the client's outstanding balance, the time value and realisation figures. Those are a *field* rule, not an area rule, so one helper decides it and every screen asks the helper. | Owner (answering spec §18) |
-| 30-10-2026 | D97: **a separate Accounts role is wanted, and it already exists.** `accounts` has been in `ROLES` since P2-1 with its own column in every matrix area. Confirmed rather than built. | Owner (answering spec §18) |
-| 30-10-2026 | D98: **the old data is in Excel and two financial years are migrated.** 2024-25 and 2025-26 come across; anything older stays in the spreadsheets as the firm's own archive. Clients, engagement history and invoice history, in that order, because each needs the one before it. | Owner (answering spec §18) |
-| 30-10-2026 | D99: **BigRock is reported as unlimited, and the mail queue's rate limit stays anyway.** The owner's answer is that there are no caps. Shared cPanel hosting always has a real hourly email limit and a real inode count whatever the plan says, and the cost of discovering them by having a day's notices silently dropped is far higher than the cost of a limit nobody hits. The limit is kept as a setting, with the owner's figure as the default. | Agent, on the owner's answer |
-ss
+# PHMG CRM — Progress
 
 Source of truth for what is done. Updated at the end of every step.
 Status: ⬜ not started · 🟡 in progress · ✅ done
@@ -167,6 +161,7 @@ statement.
 | P3-44 | **The time figures as reports**: timesheet, utilisation, realisation and client profitability through the existing report and Excel export framework | ⬜ |
 | P3-45 | **GST QRMP**: the quarterly return, the monthly payment and the IFF. Flagged as uncovered since P3-1 | ⬜ |
 | P3-46 | **To-dos repeat, and chase**: recurrence, and a line in the daily digest rather than a mail of its own (P3-22c's own recommendation) | ⬜ |
+| P3-34 (redesign) | **Dashboard, Compliance and Clients redrawn** from the owner's 7-page design reference, in eight phases. Phase 1 (shared blocks and the motion layer) done 30-10-2026; phases 2–8 ⬜. **The number clashes** — the row above it already calls P3-34 the firm-wide invoice series (D94). The owner's brief is titled P3-34, so both carry it until the owner says which keeps it | 🟡 |
 
 **Still unanswered from spec §18**, and none of Group 6 waits on them: the
 user count and client count at launch, the client-portal question (overtaken
@@ -190,8 +185,17 @@ whose cost grows every week it waits.
 
 | Date | Decision | By |
 | --- | --- | --- |
+| 30-10-2026 | D104: **the five working screens get the register language, and the canvas goes to 1440.** My tasks, Inbox, Issues, To-dos and Notices were the screens P3-34 never reached: five widths between 860 and 1600, four private copies of the same filter chip, no counts, no search and no stat tiles. They now open the same way — a noun title at 24, one grey line about the data, a row of four tiles that are also the filter, a chip row with its counts, a search that narrows what is already on screen, and the rows under a header that stays. **Only the rows scroll**, down to 768px, below which the page scrolls as a page: a scrolling region inside a scrolling page is the thing a thumb gets caught in. The canvas cap in `app/(app)/layout.jsx` goes from 1280 to 1440, which widens all sixty screens — the owner's call, and what the notice register needs to put its diary beside a six-column table rather than inside its width. | Owner asked; agent chose the shape |
+| 30-10-2026 | D102: **a stat tile's label is uppercase**, which overrides D78's sentence case for that one component and nothing else. The owner asked for it, and at 11px over a 28px figure it reads as a caption on an exhibit rather than as a sentence somebody left unfinished. `components/ui/StatTile.jsx` is the only place it applies. | Owner |
+| 30-10-2026 | D103: **six things may now perform an entrance**, which narrows D84's "nothing performs an entrance" rather than dropping it. A bar fills, a grid cell lands with its neighbours on a diagonal, a popover rises 4px, a skeleton shimmers, a card lifts 1px under a real pointer, and a disclosure opens by growing its rows. Each states something a still picture of it cannot — a proportion, a page being drawn, a layer above the page. All of it lives inside `prefers-reduced-motion: no-preference`, so the reduce branch is not a list of switches but an absence of rules. The owner asked for "some extra animation"; the list is what that was allowed to mean. | Owner asked; agent drew the line |
 | 30-10-2026 | D101: **a sign-in now lands on the firm dashboard, and where it lands lives in one place.** The owner moved it from Issues to `/dashboard` on 29-10-2026, which reverses D43 (P3-6 made Issues the landing page because it is the list of everything needing somebody's attention). The move is kept, and it is **recorded rather than agreed** — worth the owner's confirmation, because the two screens answer different questions on opening the application. What is settled is that the path is `LANDING` in `lib/nav/landing.js`, read by the login form and by the test helper: it was a literal in both, they drifted, and the drift took the entire browser suite down. | Owner changed it; agent recorded it and asks |
 | 30-10-2026 | D100: **the WhatsApp provider is the firm's own, so the driver is generic.** The owner's answer to the question open since Step 0 is "custom" — not Meta's Cloud API and not a named BSP. `lib/whatsapp/` therefore takes the shape `lib/storage/` already has: one adapter, two drivers. `log` composes the message, records it and sends nothing, which is what a demonstration needs and what a firm with no approved number has anyway; `http` posts to an endpoint named in the environment with a bearer token, with the field names configurable, because a custom gateway's payload is not knowable from here. Nothing in the application calls the provider directly, so changing gateways later is one environment variable and not a rewrite. **The provider's API document is still needed before the `http` driver can be finished.** | Owner asked for the screen; agent chose the adapter shape |
+| 30-10-2026 | D94: **one invoice series for the whole firm, not one per branch.** `NOI/26-27/0087` becomes `PHMG/26-27/0087`: the prefix comes from the firm's own record rather than the branch the invoice was raised at. The owner's reason is the one that matters — the firm wants one running number to reconcile against, and four parallel series means four places a gap can hide. The branch stays on the invoice as a field, so every branch report still works; it simply no longer decides the number. | Owner (answering spec §18) |
+| 30-10-2026 | D95: **Tally is the export target.** Step 8c's open choice is settled: invoices and receipts export as Tally XML vouchers, not Zoho and not a generic CSV. | Owner (answering spec §18) |
+| 30-10-2026 | D96: **an intern never sees a fee or an amount.** The `invoices` and `feeWriteOff` matrix rows already said `none` for the role, but a fee is printed in a dozen other places — the engagement header, Ready to bill, the unbilled list, the client's outstanding balance, the time value and realisation figures. Those are a *field* rule, not an area rule, so one helper decides it and every screen asks the helper. | Owner (answering spec §18) |
+| 30-10-2026 | D97: **a separate Accounts role is wanted, and it already exists.** `accounts` has been in `ROLES` since P2-1 with its own column in every matrix area. Confirmed rather than built. | Owner (answering spec §18) |
+| 30-10-2026 | D98: **the old data is in Excel and two financial years are migrated.** 2024-25 and 2025-26 come across; anything older stays in the spreadsheets as the firm's own archive. Clients, engagement history and invoice history, in that order, because each needs the one before it. | Owner (answering spec §18) |
+| 30-10-2026 | D99: **BigRock is reported as unlimited, and the mail queue's rate limit stays anyway.** The owner's answer is that there are no caps. Shared cPanel hosting always has a real hourly email limit and a real inode count whatever the plan says, and the cost of discovering them by having a day's notices silently dropped is far higher than the cost of a limit nobody hits. The limit is kept as a setting, with the owner's figure as the default. | Agent, on the owner's answer |
 | 29-10-2026 | D93: **the Schedule III head list is a confirmed table, and no mapping is ever invented.** The 27 Division I summary heads live in code so nobody can edit them into something plausible-looking, and a partner's confirmation is a `ruleConfirmations` row — the same shape as the due-date master and the notice limitation periods (rule 8). Nothing is refused while it is unconfirmed, because a firm mid-audit should not be stopped by a settings task, but every screen says so and the export puts it in the title line of every sheet. **Every head on every ledger carries where it came from**: unmapped, suggested from the client's own Tally group, remembered from the same ledger name last year, or confirmed by a person on this set — only the last means somebody decided, so the firm can always say who put a figure where. The journal has **three** states, and the third is the point: only an entry passed in the books moves a figure, and one the client would not pass goes to the audit file's misstatement summary to be weighed against materiality. The notes step **lists the notes and does not write them** — their wording is the firm's own judgement about this company, and this application does not draft sentences for a statement somebody will sign. The statements cannot be locked while the two sides differ. | Agent |
 | 29-10-2026 | D92: **the accounts desk performs its own decisions, reversing D74 — and no new server action was written to do it.** D74 made the desk four lists that performed nothing, on the reasoning that the desk shows what needs doing and the doing belongs on the record; the owner asked for the prototype's behaviour instead. What was load-bearing in D74 is kept: every button calls the same action the record's own screen calls, so a decision cannot be allowed from one screen and refused from another, and the audit entry is written once. Refusals are shown rather than hidden, which matters most here because the firm's own branch GSTINs are not entered yet and most drafts therefore cannot be issued — the desk says so in the invoice rules' own words instead of looking broken. The one-click apply of unallocated money shows where the money will go **before** it is pressed and then applies exactly that: the firm's own oldest-invoice-first suggestion, not a second policy invented for this screen. Two of the prototype's eighteen actions stay off it with the reason on the screen — billing a job with its fee is one decision taken together on Ready to bill, and a manual "remind now" would be a second, unrecorded cadence beside the rule-driven one. | Owner asked; agent kept D74's reasoning where it held |
 | 29-10-2026 | D91: **a sample is drawn from a stored seed, and the firm says how big it is.** The selection runs off a seeded generator so the same population and the same seed give the same rows for ever — a selection made with `Math.random()` cannot answer the only question a peer reviewer asks about a sample. **No sample size is computed:** SA 530 gives no formula, a size comes from the firm's own table weighing risk against what other procedures cover, and deriving one from a confidence level would be inventing a professional rule (rule 8). The confidence, the tolerable misstatement and the reasoning are recorded beside the size instead, the way `materialityBasis` is. In monetary-unit selection anything worth a whole sampling interval is **promoted to a key item**, which is the method and not a refinement: without it one large entry absorbs several hits, they collapse to one row, and a draw asked for twelve returns four while looking like a smaller sample rather than a bug. Two refusals carry the professional rule: a sample cannot be locked until somebody has said whether the population agrees to the trial balance, and it cannot be redrawn once a single cell is marked. Unlocking needs a CA or partner and a written, audited reason. | Agent |
@@ -3714,3 +3718,522 @@ application cannot reach.
 - **The heads are the Division I summary, not every line of it.** Division
   II (Ind AS) and Division III (NBFCs) are not here, and a company on
   either would need its own list confirmed.
+
+---
+
+## The sample dataset reaches the rest of the application (out of band, 30-10-2026)
+
+Not a numbered step. The owner asked for data across the whole CRM so the
+screens and features could be walked through and judged.
+
+**What was there already.** `scripts/sample.js` filled the spine — four
+clients, six colleagues, eight service subscriptions, ten engagements across
+every status, four invoices, two receipts, the credentials vault, the DSC and
+UDIN registers, a portal login, notes, files and notifications. It had been
+run before, but the `clients` and `engagements` collections had since been
+emptied by hand, leaving child rows pointing at parents that no longer
+existed. Those orphans are invisible everywhere in the app (every list joins
+through the client) and were left where they are: removing them is a hard
+delete, which rule 3 forbids from the app and the sandbox refused from a
+script.
+
+**What was added.** `scripts/sample-practice.js`, called from `seedSample`
+after the clients and engagements it hangs off are written:
+
+- **The audit file** on the Jaiswal statutory audit: Fieldwork stage with the
+  move history behind it, materiality with its basis in words, the programme
+  about 80% ticked across three areas, four of the sixteen tests recorded as
+  run with one flagging three items, and **three exceptions in three
+  different states** — one Open, one Explained and waiting, one Verified and
+  carried into a CARO clause. That spread is what the screen exists to show.
+- **The trial balance**: 38 ledgers from a plausible steel roller, mostly
+  mapped to Schedule III heads with a few left `suggested`, `remembered` and
+  three `unmapped`, and **three adjustments, one of each state** — Proposed,
+  Passed in books, Unadjusted — so the misstatement summary has something to
+  carry.
+- **Two working papers**: purchases drawn through the real `draw()` from a
+  thirty-row population by monetary-unit selection with a key-item threshold
+  (18 selected), two thirds of the grid vouched with one cut-off failure
+  marked and noted; and a repairs sample **designed but not drawn**, because
+  an empty grid is a state the screen has to survive.
+- **Three notice matters**: a GST s.74 at Hearing with two submissions, three
+  hearings (one adjourned by the department, one still ahead), three grounds,
+  a five-item paper book and the plain-words explanation; a 148A at Reply with
+  its deadline already past; an ASMT-10 closed four months ago.
+- **Two certificates**: a net-worth certificate signed with a UDIN against the
+  partner's membership number, and a turnover certificate still a draft with
+  most of its evidence unticked.
+- **The firm's own day**: 11 to-dos (overdue, due today, done), **168 time
+  entries over three weeks** with gaps where people did not log, and four
+  leave records — one past, one running now and unapproved, one exam leave
+  ahead, one booked.
+- **The registers**: three incidents (Reportable and contained, Serious and
+  open, Low and closed), three announcements (one needing acknowledgement with
+  three given, one branch-only, one expired), five saved views, two client
+  upload requests (one live and half used, one expired with two reminders
+  behind it), four held changes (pending, applied, declined), two compliance
+  cells given a reason, and three handbook entries out of sixteen screens.
+
+**Left deliberately empty**
+
+- **`ruleconfirmations`.** A confirmation is a partner saying a statutory rule
+  is right. Seeding one would tick the gate that rule 8 exists to hold shut,
+  and the doctor's "1 due-date rule not confirmed" would go quiet while
+  nothing had been read.
+- **`generateddocs`, `formdrafts`, `sendbatches`.** Each is the output of a
+  click — generate a letter, start a draft, send a batch. They are better made
+  by making them, which is also the thing worth testing.
+- **`notificationrules`.** Empty means the built-in defaults apply, which is
+  the state the firm will start in.
+
+**How to take it out again.** `npm run seed -- --drop-sample` now removes the
+practice data too, by soft delete, found through the same sample clients and
+colleagues. Incidents are the one exception: the model has no soft delete,
+because an incident register with a delete button is not a register.
+
+## What P3-34 phase 1 built — the shared blocks and the motion layer (30-10-2026)
+
+The first of eight phases against the owner's design reference,
+`docs/design/PHMG_Firm_Dashboard.pdf`. **The PDF was not in the repository**
+— it was in the owner's Downloads folder — so it is now checked in beside
+the document that describes it. All seven pages were read before any of
+this was written.
+
+Nothing in the application looks different yet. Phase 1 is parts, not
+screens: eight components in `components/ui/` and a motion layer, which
+phases 2 to 8 assemble into the six screens.
+
+**The eight blocks.** `StatTile` (a figure, its label, and the list it
+counted), `Panel` (a card with a title and a way out of itself),
+`StackedBar`, `ProgressBar`, `Chip`, `CountBadge`, `Segmented` and
+`CellPopover`. Every class is a token; no new hue, no literal colour, no
+dependency.
+
+**Three of them replace something.**
+
+- `StatTile` does the job of `CountTile` **and** `MoneyTile` in
+  `components/dashboard/Tiles.jsx`, which were one component written twice
+  because one of them happened to hold rupees. `paise` is a prop. The old
+  pair stays until phase 3 migrates their call sites and phase 8 deletes
+  them.
+- `Panel` is a second `Panel` — the one in `Tiles.jsx` is a heading with
+  children under it and no card. The two coexist on different import paths
+  until phase 8 removes `FirmOverview`.
+- `Chip` is the one honest copy of **six** private `Chip` functions found
+  in the inbox, the issues list, the held-changes screen, the notices
+  list, the certificates list and the client page. It does not replace
+  `StatusChip` or `DueChip`, which decide their own colour from an
+  engagement's status and its days remaining — domain logic, which belongs
+  beside the domain.
+
+**Two things the brief asked for were measured and sent back.** This is
+what `tests/contrast.test.js` is for, and it is the first time it has
+caught something before it shipped rather than after.
+
+- The brief proposed `bg-on-carbon/20 text-on-carbon` for a count badge
+  riding on an active accent tab. In the light theme that is white at a
+  fifth over the teal — still teal — with white on it: **3.55:1**. The
+  badge now swaps the pill's own two colours instead (`bg-on-carbon
+  text-carbon`), which is 5.19 light and 9.01 dark and introduces no third
+  value to keep in step.
+- The brief worried that a filled red button would fail and asked for a
+  fallback token. It does not fail: `text-on-carbon` on `bg-redpen` is
+  **6.57 light and 7.68 dark**. The compliance overview's "Create all 16
+  jobs" and the grid's overdue cell can be solid red.
+
+**A failure that was already shipping, found on the way through.** A chip
+filled with a `-wash` — the colour at 12% over whatever is behind it —
+carrying its own colour as text measures **4.41:1 on a card and 3.99:1 on
+the page** for the accent, and 4.09 on the page for `filed`. Both are
+under AA. `components/ui/Chip.jsx` therefore fills with the flat `-soft`
+tints, which were measured once and clear the bar wherever a chip lands.
+
+This is **not** only a new-code problem. `StatusChip` in
+`app/(app)/engagements/chips.jsx` has used `bg-carbon-wash text-carbon`
+for "In progress" and "Under review" since step 5a, and the brief plans
+the same pair for the status grid's "open" cell in phase 5. **The owner
+has a decision to make in phase 5** — see the report. Nothing was changed
+in `StatusChip` here, because changing the look of the engagement screens
+is not what phase 1 was approved to do.
+
+**The motion layer** (D103) adds seven rules to `app/globals.css`, all
+inside `prefers-reduced-motion: no-preference`: `anim-bar`, `anim-cell`,
+`anim-pop`, `.skeleton`, `.lift`, `.collapse-rows` and the keyframes
+behind them. Two departures from the brief's draft, both deliberate:
+
+- **`.lift`'s hover transform is inside the gate.** The brief had it
+  outside. The existing reduced-motion block kills animations and the
+  press scale, but not a transition — so a card would still have travelled
+  for somebody who asked their computer for less movement.
+- **`.collapse-rows`' grid is outside the gate and only its transition is
+  inside.** A closed section has to be closed whatever the preference is;
+  it is the travel between the two states that is motion.
+
+A `.skeleton` with movement switched off keeps its sunk block, because the
+shape of what is coming is the part that does the work.
+
+**One new token**, and it is a size, not a colour: `--text-11`. The mockup
+draws tile labels at 11.5px and section headings at 11. Half a pixel is
+not a distinction anybody can see, and two tokens half a pixel apart is
+how a scale starts to rot.
+
+**How it was checked.** There is no jsdom and no testing-library in this
+repository, and adding both to prove that eight small components return
+what they say they return would have been two dependencies for the owner
+to approve. `tests/ui-blocks.test.jsx` renders them with `react-dom/server`
+instead — 27 assertions, all of them about behaviour rather than
+appearance: a zero drops to plain, an empty bar segment keeps its legend
+line, a progress fill never overflows its track, a `Segmented` shows its
+active choice **before any JavaScript has run**, a `CellPopover` is not in
+the document until it is opened.
+
+Appearance was checked separately and once: the eight blocks were rendered
+to static HTML, the real `app/globals.css` was compiled over that markup
+with the project's own Tailwind, and both themes were photographed. That
+found **two layout bugs the assertions could not**: `ProgressBar`'s root
+had no width, so every team-load bar was invisible, and `Segmented`'s pill
+track stretched across whatever it was dropped into instead of being as
+wide as its choices. Both fixed. The generator was deleted after use; the
+real screenshot pass against the PDF is phase 8.
+
+**Deferred, with reasons**
+
+- **The six `loading.jsx` files.** Five are for `/compliance/*` routes that
+  do not exist yet. The `.skeleton` rule ships now; each `loading.jsx`
+  ships with the page it belongs to.
+- **The general ban on literal Tailwind colours** (`slate-*`, `indigo-*`,
+  `rose-*`, `amber-*`) in `tests/markup-contrast.test.js`. The brief says
+  that test "fails on literals"; it does not — it catches four specific
+  bad pairings. The rule goes in during phase 2, in the same commit that
+  strips those exact literals out of `LeftRail.jsx`. Adding it now would
+  only make the suite red until phase 2 lands.
+
+**Repaired in passing.** This file's own title was broken: six decision
+rows (D94–D99) had been spliced into the middle of the word "Progress",
+which left the heading malformed and those six decisions outside the
+decisions table. They are back in the table, in date order.
+
+**Checks:** `npm run lint`, `npx vitest run` (81 files, 1,621 tests) and
+`next build` all pass. The 27 new component assertions and 10 new contrast
+assertions are included.
+
+## What P3-34 phase 2 built — the rail and the top bar (30-10-2026)
+
+The chrome, redrawn from pages 1 and 3 of the design reference. This is
+the first phase of P3-34 that changes what the owner sees.
+
+**The rail has three bands.** TODAY, WORK and FIRM, from a new `section`
+field on each group in `lib/nav/tree.js`. Ten equal rows made somebody
+read all ten to find one; three headings cut that to a glance at the right
+third. The band list lives in its own file, `lib/nav/sections.js`, with
+**no imports at all** — the rail is a client component, and reading the
+bands from `tree.js` would have pulled `lib/permissions.js` and the
+Mongoose driver behind it into the browser bundle. `lib/nav/active.js` has
+carried that warning at the top of itself since P3-22a; this is the second
+file to need it.
+
+**A group row is a link now.** It was a button that only expanded, so
+reaching "All open jobs" took two clicks and the first one went nowhere.
+The row goes to the group's first item and opens the group on the way,
+which is what a row that looks like a destination should do.
+
+**TODAY renders flat.** Firm dashboard, My tasks, Inbox, Issues and To-dos
+are five destinations, not five children of a sixth thing. The dashboard
+leads, because that is where a sign-in lands (D101).
+
+**The bug this phase was really about.** `LeftRail.jsx` asked `activeIn()`
+for `current._group_` and `current._href_`. That helper returns `group`
+and `href`, and always has — so both were `undefined`, which means
+**nothing in the rail had ever highlighted, and no group had ever opened
+itself on the page it belongs to**. Every active state in the rail is new
+behaviour rather than restyled behaviour. It was invisible because the
+accordion still worked by hand: you clicked a group, it opened, and
+nobody noticed it had not opened by itself.
+
+**Six token leaks closed**, all in the rail: `bg-indigo-50
+text-indigo-700 ring-indigo-100` on the avatar, `bg-rose-500` and
+`bg-amber-500` on the compact dots, `bg-rose-50 text-rose-600` and
+`bg-amber-50 text-amber-700` on the badges, and `ring-white` around a dot
+— a white ring on a rail that is `#141a22` in the dark theme. The badges
+are `components/ui/CountBadge.jsx` now, and the active child's badge no
+longer uses the `bg-on-carbon/20` that phase 1 measured at 3.55:1.
+
+`tests/markup-contrast.test.js` gained **the general rule the brief
+assumed was already there**: no class may name a colour from Tailwind's
+own palette, and nothing may ring or border with plain white or black.
+Phase 1 deferred this because the rail would have made it red; the rail is
+now clean, so the rule is in. It covers `app/` and `components/` — 20
+palette families, every utility prefix.
+
+**Five identical houses.** The TODAY rows inherited their group's icon, so
+the top of the rail was five copies of the same glyph. A repeated icon is
+worse than none: it teaches the eye the column carries nothing. `NavItem`
+takes its own `icon` now, and `navIcons.jsx` has five more entries.
+
+**The top bar** gets the reference's search pill ("Client, PAN, GSTIN,
+notice DIN, invoice no." with a framed `Ctrl K`), "All branches" in the
+view select, and a **`+ New` button** with a real menu. The bare `+` it
+replaces opened the command palette, which is a search box — a poor answer
+to "I want to add a client". The bell's dot became **a count**, capped at
+9+: a dot says "something", a figure says whether it is worth opening now.
+
+**What `+ New` offers is decided on the server**, in `app/(app)/layout.jsx`,
+and with `can(actor, "edit", …)` rather than `"view"` — being allowed to
+read the client list is not being allowed to add a client. Every one of
+those six routes still checks again on arrival; the filtering is manners,
+not protection.
+
+**Deferred to phase 4, deliberately.** The brief puts the Compliance
+group's new items (Overview, Monthly, Quarterly, Annual) in this phase.
+Those routes do not exist until phase 4, and a rail that points at four
+404s for a phase is worse than a rail that waits. The group's items change
+in the same commit as the routes and the `/calendar` redirect.
+
+**Tests.** `tests/fixtures/nav-v6.2.json` is regenerated: the Today band's
+new order, and two renamed groups ("Notices & hearings", "Audit &
+certificates", from the mockup's rail). `tests/nav.test.js` gains five
+assertions about the bands — every group is in one, a partner fills all
+three, each band's groups are contiguous so the rail cannot silently
+reorder the menu, Today is the only flat group, and a partner's day leads
+with `/dashboard`.
+
+`tests/e2e/nav.spec.js` is updated for rows being links rather than
+buttons, with a new test that the Today band's items are reachable without
+opening anything. **It could not be run** — the browser suite needs
+`MONGODB_URI` and `AUTH_SECRET`, so it has been skipping since step 1, and
+that has not changed. What was run instead: the real `LeftRail` was
+rendered with `react-dom/server`, the stylesheet compiled over it, and
+both themes photographed. That is what caught the five houses.
+
+**Checks:** `npm run lint`, `npx vitest run` (81 files, 1,628 tests) and
+`next build` all pass. The browser suite remains unrun and unrunnable
+until the Atlas cluster exists.
+
+## What P3-34 phase 3 built — the firm dashboard (30-10-2026)
+
+Pages 1 and 2 of the design reference, on `/dashboard`. The screen is one
+aggregator, `firmDashboard()` in `lib/reports/dashboard.js`, and eight
+components under `components/dashboard/firm/`.
+
+**Every section is `null` rather than empty when the person may not see
+it.** Empty means "nothing today"; `null` means "not yours". A screen that
+confuses the two tells a CA the firm has no money coming in.
+
+**A CA gets the firm board now.** `dashboardsFor()` used to give a CA
+three tiles and a rework table. It was the thinner of two answers to one
+question: it could not say what fell due next week, or who on their branch
+was over the comfort limit. Both roles get `FirmDashboard`, and the
+aggregator simply never fetches what `can()` would refuse — so a CA's copy
+has no Money band and no Branches table rather than a hole where they
+would be.
+
+**Four pure functions carry the logic that goes wrong quietly**, and all
+four are tested: `wipBuckets` (the stacked bar), `deadlineChips` (the
+header's next three statutory dates), `rebalanceHint` (the one line on the
+screen that tells a partner to do something to a colleague), and
+`lib/reports/heat.js` (the heatmap's shading). `tests/dashboard.test.js`
+is 38 assertions.
+
+### Three bugs found while building it
+
+**A reply somebody was halfway through still counted as "no draft".** The
+`show=nodraft` query asked only whether a submission had been *filed*. The
+`preparedBy` field has existed since P2-9 and nothing read it, so the
+dashboard tile, the rail's badge and the list they both link to
+over-reported together every week — which is exactly why it never looked
+wrong. There is now one rule, `isDrafted()` in `lib/practice/notices.js`,
+and the query uses it.
+
+**The old heatmap put `text-white` on `bg-carbon/65`** — the pairing
+`tests/markup-contrast.test.js` exists to ban. It was missed because the
+ground and the literal sat on different lines and the test matches within
+a line. The new heatmap has no literal colour, and the step-to-text rule
+is measured rather than asserted.
+
+**`collections().unallocated` counts this month's receipts only.** Right
+for the figure it sits beside, wrong for the dashboard's question — a
+receipt from August is still unmatched in October, and the old ones are
+the problem. `unallocatedTotal()` added.
+
+### Three things measured and changed from the brief
+
+**The heatmap ramp.** The brief asked for `/10 /20 /35 /55 /80 /100` with
+`text-on-carbon` from the fourth step. Measured, the band from **55% to
+90% has no text colour that clears 4.5:1 in both themes**: the light
+theme's accent darkens as it fills so it wants white up there, the dark
+theme's lightens so it wants near-black, and `ink` and `on-carbon` swap
+meaning between the two. `text-ink` is safe from 5% to 50% and
+`text-on-carbon` from 95% to 100%, so the ramp is `/10 /20 /30 /40 /50`
+and then the full accent. All twelve pairings are measured in
+`tests/dashboard.test.js`.
+
+**The empty heat cell is `text-ink-muted`, not `text-faint`.** `faint` was
+measured against the page and the card; the sunk fill is a step deeper
+than either, and `faint` on it is 4.26 light and 4.47 dark.
+
+**Quantile shading, not proportional.** The old grid shaded by
+`value / peak`, which on this firm's numbers puts almost every cell in the
+bottom shade — one branch with fourteen filings in a week sets the peak
+and the other twenty-nine cells become one flat tone. Quantile spreads
+whatever spread exists, and where there is none every cell matches, which
+is also correct.
+
+### One query, two screens
+
+`lib/compliance/headsQuery.js` is new: the database half of "where does
+the firm stand by head". `buildHeads()` stays pure. The dashboard's
+"Periods with no job" tile and the compliance screen now run the **same**
+query — two copies would have been two chances for a tile to disagree with
+the screen it opens, which is the one failure spec §17 names by name.
+`app/(app)/calendar/page.jsx` lost about forty lines to it.
+
+### Also
+
+- `billedInMonth()` and `unallocatedTotal()` in `figures.js`; `byBranch()`
+  gained `dueThisWeek` and `owedPaise`, the latter read once for the firm
+  and totalled per branch rather than a query per branch.
+- `formatISTShort()` in `lib/dates.js` — `26 Oct`, for a column where the
+  year is the same on every row. The long `DD-MM-YYYY` stays everywhere a
+  date is a record.
+- `COMFORT_JOB_LIMIT = 10` in `lib/team/workload.js`, **a constant until
+  the owner answers D-C**. When it becomes `FirmSettings.comfortJobLimit`
+  this stays as the default.
+- `app/(app)/dashboard/loading.jsx`, shaped like the screen it stands in
+  for, so nothing jumps when the figures land.
+- The page lost its own heading: the greeting, the date and the deadline
+  chips are the dashboard's top row and depend on the data. A heading
+  printed by the page and a board fetched by the component is how a screen
+  comes to say "Good morning" over nothing.
+
+**"What the system caught this week" shows only detectors that exist.**
+The reference's MSME-creditor card is not there: that check runs inside
+the trial-balance screen and cannot answer a firm-wide question, and no
+sentence was written to fill the space. A panel of plausible findings
+would be the only part of this dashboard a partner has no way to check.
+
+**Three links point at `/calendar` and not at `/compliance`**, which phase
+4 creates: the "Periods with no job" tile, the "Full calendar" link and
+the first insight card. Each carries a comment naming the route it moves
+to. Pointing them at a 404 for a phase would have been worse.
+
+**Left over:** the two heatmap steps the brief wanted at 55% and 80% are
+gone rather than recoloured — getting them back needs a token that flips
+between the themes, which is the owner's call. `FirmOverview.jsx` and
+`ReviewQueue.jsx` are now unimported; phase 8 deletes them after a grep.
+
+**Checks:** `npm run lint`, `npx vitest run` (82 files, 1,666 tests) and
+`next build` all pass. The screen was rendered with real markup and the
+compiled stylesheet and photographed in both themes against pages 1–2 of
+the reference.
+
+## What P3-34 phase 4 built — compliance gets its own routes (30-10-2026)
+
+Page 3 of the design reference, and the move the whole phase hangs on.
+
+**`/calendar` is now `/compliance` (D-E).** The screen was always called
+Compliance on itself and Calendar in the URL, which is the kind of split
+that survives because nobody owns both halves. The old path stays
+**permanently** as a redirect that keeps the query: a URL the firm has
+used for a month is a URL somebody has emailed to somebody, and a
+redirect that drops `?service=…` sends a person who asked about TDS to a
+page about everything — which they would not notice.
+
+Four routes now: `/compliance` (the new overview), and `/monthly`,
+`/quarterly`, `/annual`. The three sub-routes render the **existing**
+grid with their recurrence fixed — working pages, not placeholders.
+Phase 5 redraws monthly and quarterly; phase 6 does annual.
+
+Everything in `app/(app)/calendar/` moved to `app/(app)/compliance/`
+except the redirect. Nothing outside the folder imported any of it, so
+there are no re-exports to maintain. **Nine other links were repointed**
+at the real routes rather than left to take the redirect hop: the command
+bar, the reports index, My tasks, the help panel's screen map, an
+engagement action's `revalidatePath`, the dashboard's three, and the
+rail's own.
+
+### The overview
+
+Four summary cards over one line per head, and between them the figure
+the screen exists for: **periods nobody opened a job for at all**. A job
+list can show work that is late; it cannot show a period with nothing in
+it, because there is nothing to list. That number is the only one here a
+normal list could never produce, and the banner says so.
+
+**On time is a ratio of counts, not an average of percentages.** GSTR-1
+at 157 of 168 and a one-client ROC filing at 0 of 1 are not two numbers
+to average — the firm's monthly figure is 157 of 169. `buildHeads` now
+counts `judged` and `met` per head so a category can total them before
+dividing. It is `null` and prints `—` when nothing can be judged: a firm
+that has filed nothing is not a firm that is nought per cent on time.
+
+**Half-yearly sits under Annual** rather than getting a fourth card. Two
+filings a year is an annual rhythm to the person reading this, and a card
+holding one service teaches nothing.
+
+### `createMissingJobs`
+
+The button that opens every empty closed period. Five rules hold it:
+
+1. **The server recomputes the list.** Nothing arrives from the browser
+   but a financial year and optionally one service. A client that could
+   name which jobs to create could name any jobs to create.
+2. **Permission is asked per client.** A manager who may create work in
+   Noida but not Ludhiana gets the Noida ones opened and the rest
+   reported as skipped — refusing the whole button would be worse.
+3. **It uses the nightly generator's own path** — `buildEngagement`,
+   `nextEngagementCode`, the due-date master, the subscription's people,
+   and `checkAssignment`, so a stale default leaves the job unassigned
+   with the reason written into the status history rather than assigning
+   somebody who may no longer do the work.
+4. **It never invents a date** (rule 8).
+5. **Fifty at a time**, each its own transaction with its own audit entry.
+
+`missingCells()` in `lib/compliance/grid.js` is the pure half, and it is
+tested to ten assertions — including that a **cancelled** job counts as an
+answer (somebody looked), that an explained period (P3-9) is left alone,
+and the **`startPeriod` rule**: nothing before a client signed up is the
+firm's to have filed.
+
+### Two display bugs the screenshot caught
+
+**Annual heads read `7/0`.** `due = clients × periodsElapsed`, and no
+annual period of the year the firm is *in* has closed — so the
+denominator was nought. Those rows now read `7 done · no period has
+closed yet`, with no bar. A bar at 100% there would say the year was
+finished in October; work done early is ahead, not complete. It is also
+a true thing about the screen: the annual returns being filed in October
+belong to **last** financial year, which is why the brief has the Annual
+page default to the previous one.
+
+**Every category heading printed twice** — once as the section's `h2` and
+again as the card's title.
+
+### One query, three screens
+
+`loadHeads()` from phase 3 now serves the dashboard tile, the overview
+and the old heads view. `app/(app)/compliance/screen.jsx` is the former
+page turned into a component that takes a forced `freq` and `view`, so
+`/compliance/monthly` is that screen with the recurrence fixed and the
+URL no longer carrying either.
+
+### Tests
+
+`tests/compliance-overview.test.js` — 15 assertions on the on-time ratio,
+the frequency cards and the missing-cell recomputation.
+`tests/nav.test.js` moves from 58 links to 59 (the compliance group gained
+Overview). The fixture is regenerated.
+
+Three browser tests were repointed and **two added**: the redirect keeps
+its query across all four shapes, and the never-opened banner asks before
+it writes. As ever they **could not be run** — the suite needs
+`MONGODB_URI` and `AUTH_SECRET`.
+
+**A build note worth keeping:** moving files between route folders leaves
+`.next` stale, and the symptom is `Invariant: no direct app page entry
+found for /_not-found`, which names nothing useful. `rm -rf .next` is the
+fix.
+
+**Checks:** `npm run lint`, `npx vitest run` (83 files, 1,681 tests) and
+`next build` all pass; all four compliance routes compile. The overview
+was rendered with real markup and the compiled stylesheet and
+photographed in both themes against page 3 of the reference.

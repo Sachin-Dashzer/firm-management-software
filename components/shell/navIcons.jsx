@@ -10,6 +10,11 @@ import {
   UsersThree,
   Gear,
   BookOpen,
+  SquaresFour,
+  CheckSquare,
+  Tray,
+  WarningCircle,
+  ListChecks,
 } from "@phosphor-icons/react";
 
 /**
@@ -33,6 +38,20 @@ const ICONS = {
   team: UsersThree,
   setup: Gear,
   book: BookOpen,
+
+  /**
+   * The TODAY band (P3-34 phase 2).
+   *
+   * Its rows are items rather than groups, so before this they all
+   * inherited the group's icon — five identical houses down the top of
+   * the rail. A repeated glyph is worse than no glyph: it teaches the eye
+   * that the column carries nothing, and then the eye stops reading it.
+   */
+  dashboard: SquaresFour,
+  tasks: CheckSquare,
+  inbox: Tray,
+  issues: WarningCircle,
+  todos: ListChecks,
 };
 
 /**

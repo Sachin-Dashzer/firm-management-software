@@ -94,6 +94,46 @@ describe("a colour on a themed ground comes from the token, not from a literal",
   }
 });
 
+describe("no screen reaches past the tokens for a colour (P3-34 phase 2)", () => {
+  /**
+   * The four pairings above catch a literal written on a themed ground.
+   * They did not catch a literal written on its own — and the rail was
+   * full of them: `bg-indigo-50 text-indigo-700 ring-indigo-100` on the
+   * avatar, `bg-rose-500` and `bg-amber-500` on the compact dots,
+   * `bg-rose-50 text-rose-600` and `bg-amber-50 text-amber-700` on the
+   * badges, `ring-white` around a dot. Every one of them is a fixed
+   * colour on a surface that inverts between the themes, which is the
+   * same bug the pairings above describe, arrived at from the other side.
+   *
+   * Tailwind's own palette is the thing being banned, not colour: this
+   * application has `redpen`, `waiting`, `filed` and `carbon` for exactly
+   * these jobs, and they are measured.
+   */
+  const PALETTE =
+    /\b(?:bg|text|border|ring|fill|stroke|from|to|via|decoration|outline|shadow|accent|caret|divide|placeholder)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-(?:50|\d00)\b/;
+
+  it("never names a colour from Tailwind's palette", () => {
+    const offenders = LINES.filter((row) => PALETTE.test(row.text)).map(
+      (row) => `${row.file}:${row.line}  ${row.text.trim().slice(0, 90)}`,
+    );
+
+    expect(
+      offenders,
+      `${offenders.length} line(s) use a fixed colour that cannot follow the theme. Use the tokens: redpen, waiting, filed, carbon, ink, faint, rule, sunk, surface, paper.\n${offenders.slice(0, 12).join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("never rings or fills with plain white or black", () => {
+    // `ring-white` on a dot is invisible on a dark rail; the ring wants
+    // the surface it is cut out of, which is `ring-surface`
+    const offenders = LINES.filter((row) =>
+      /\b(?:ring|border|divide|outline)-(?:white|black)\b/.test(row.text),
+    ).map((row) => `${row.file}:${row.line}`);
+
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe("the prototype's four radii stay four", () => {
   /**
    * One token was doing all four jobs before P3-21b, which is how a chip

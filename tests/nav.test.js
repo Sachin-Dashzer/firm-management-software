@@ -6,6 +6,7 @@ import {
   MODULE_DEFAULTS,
   navFor,
   menuFor,
+  SECTIONS,
 } from "../lib/nav/tree.js";
 import { activeIn } from "../lib/nav/active.js";
 import fixture from "./fixtures/nav-v6.2.json" with { type: "json" };
@@ -43,9 +44,11 @@ const labels = (groups) =>
   }));
 
 describe("the menu is the shape the owner asked for", () => {
-  it("has ten groups and 58 links for a partner", () => {
+  it("has ten groups and 59 links for a partner", () => {
     expect(PARTNER_NAV).toHaveLength(10);
-    expect(links(PARTNER_NAV)).toHaveLength(58);
+    // 58 until P3-34 phase 4 split the compliance calendar into an
+    // overview and three frequency routes, which is one link more
+    expect(links(PARTNER_NAV)).toHaveLength(59);
   });
 
   it("has eight groups and 24 links for staff", () => {
@@ -93,9 +96,55 @@ describe("the menu is the shape the owner asked for", () => {
   });
 });
 
+describe("the three bands of the rail (P3-34 phase 2)", () => {
+  const keys = SECTIONS.map((band) => band.key);
+
+  it("puts every group in a band that exists", () => {
+    for (const group of [...PARTNER_NAV, ...STAFF_NAV]) {
+      expect(keys, `${group.label} has no band`).toContain(group.section);
+    }
+  });
+
+  it("fills all three for a partner, so no heading sits over nothing", () => {
+    const used = new Set(menuFor(actor("partner")).map((g) => g.section));
+    expect([...used].sort()).toEqual([...keys].sort());
+  });
+
+  /**
+   * The rail renders the bands in `SECTIONS` order and each band's groups
+   * in menu order. If a group of one band were listed between two of
+   * another, the rail would silently reorder the menu — so the tree is
+   * held to being grouped already.
+   */
+  it("lists each band's groups together, in the menu's own order", () => {
+    for (const nav of [PARTNER_NAV, STAFF_NAV]) {
+      const order = nav.map((group) => group.section);
+      const runs = order.filter((band, i) => band !== order[i - 1]);
+      expect(new Set(runs).size, JSON.stringify(order)).toBe(runs.length);
+    }
+  });
+
+  it("marks Today as the one band whose items are rows, not children", () => {
+    for (const nav of [PARTNER_NAV, STAFF_NAV]) {
+      const flat = nav.filter((group) => group.flat);
+      expect(flat).toHaveLength(1);
+      expect(flat[0].id).toBe("today");
+      // a flat group has no section labels to lose
+      expect(flat[0].items.every((item) => typeof item !== "string")).toBe(
+        true,
+      );
+    }
+  });
+
+  it("leads a partner's day with the page they are signed in to (D101)", () => {
+    const today = PARTNER_NAV.find((group) => group.id === "today");
+    expect(today.items[0].href).toBe("/dashboard");
+  });
+});
+
 describe("what each role is actually shown", () => {
   it("shows a partner everything", () => {
-    expect(links(menuFor(actor("partner")))).toHaveLength(58);
+    expect(links(menuFor(actor("partner")))).toHaveLength(59);
   });
 
   /**
@@ -106,7 +155,7 @@ describe("what each role is actually shown", () => {
     const groups = menuFor(actor("accounts")).map((group) => group.label);
     expect(groups).toContain("Billing");
     expect(groups).not.toContain("Jobs");
-    expect(groups).not.toContain("Audit and certificates");
+    expect(groups).not.toContain("Audit & certificates");
   });
 
   it("leaves an intern their own short menu", () => {
@@ -168,7 +217,7 @@ describe("a switched-off module disappears, and takes its headings with it", () 
   });
 
   it("is all on when nobody has said otherwise", () => {
-    expect(links(menuFor(actor("partner"), {}))).toHaveLength(58);
+    expect(links(menuFor(actor("partner"), {}))).toHaveLength(59);
   });
 });
 

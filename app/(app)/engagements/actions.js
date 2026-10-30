@@ -983,7 +983,7 @@ export async function recordMilestoneFiling(id, formData) {
 
   revalidatePath(`/engagements/${id}`);
   revalidatePath("/engagements");
-  revalidatePath("/calendar");
+  revalidatePath("/compliance");
 
   const tail = result.complete
     ? " Every filing on this work is now recorded."

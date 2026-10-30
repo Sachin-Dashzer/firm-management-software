@@ -316,7 +316,7 @@ test("the grid shows a month nobody filed", async ({ page }, testInfo) => {
   });
 
   await signIn(page, fx.partner);
-  await page.goto(`/calendar?view=grid&service=${template._id}&fy=2026`);
+  await page.goto(`/compliance/monthly?service=${template._id}&fy=2026`);
 
   await expect(page.getByRole("heading", { name: "Compliance" })).toBeVisible();
   await expect(page.getByText("Playwright Deadlines")).toBeVisible();
@@ -382,7 +382,7 @@ test("compliance opens on the heads, grouped by category", async ({
   });
 
   await signIn(page, fx.partner);
-  await page.goto("/calendar?fy=2026");
+  await page.goto("/compliance?fy=2026");
 
   // the head is listed under the category the catalog gives it, with the
   // basis the firm works to
@@ -390,11 +390,82 @@ test("compliance opens on the heads, grouped by category", async ({
   await expect(row).toBeVisible();
   await expect(row).toContainText("Monthly");
 
-  // and it opens the client-by-client grid for that head
+  // and it opens the client-by-client grid for that head, which from
+  // P3-34 phase 4 is a route rather than a query (D-E)
   await row.getByRole("link").first().click();
-  await expect(page).toHaveURL(/view=grid/);
+  await expect(page).toHaveURL(/\/compliance\/monthly/);
   await expect(page.getByText(fx.clientName.slice(0, 20))).toBeVisible();
 
   await Engagement.deleteMany({ clientId: client._id }, { withDeleted: true });
   await ClientService.deleteMany({ clientId: client._id });
+});
+
+/**
+ * `/calendar` moved to `/compliance` (D-E, P3-34 phase 4), and the old URL
+ * stays forever: a path the firm has used for a month is a path somebody
+ * has emailed to somebody.
+ *
+ * What is worth the browser here is that the **query survives**. A
+ * redirect that drops `?service=…` sends a person who asked about TDS to
+ * a page about everything, and they would not notice.
+ */
+test("the old calendar URL still lands, with its filters", async ({
+  page,
+}, testInfo) => {
+  const fx = names(testInfo.project.name);
+  await signIn(page, fx.partner);
+
+  await page.goto("/calendar");
+  await expect(page).toHaveURL(/\/compliance$/);
+
+  await page.goto("/calendar?freq=quarterly&fy=2026");
+  await expect(page).toHaveURL(/\/compliance\/quarterly\?.*fy=2026/);
+
+  await page.goto("/calendar?view=grid&freq=monthly&service=abc123&fy=2026");
+  await expect(page).toHaveURL(/\/compliance\/monthly\?.*service=abc123/);
+  await expect(page).toHaveURL(/fy=2026/);
+
+  await page.goto("/calendar?view=calendar&due=week");
+  await expect(page).toHaveURL(/\/compliance\?.*view=next30/);
+  await expect(page).toHaveURL(/due=week/);
+});
+
+/**
+ * The button that opens every period nobody opened a job for.
+ *
+ * It only appears when there is something for it to do, which is the
+ * assertion that matters: a firm with nothing missing must not be shown a
+ * red banner offering to create nothing.
+ */
+test("the never-opened banner appears only when there is a hole", async ({
+  page,
+}, testInfo) => {
+  const fx = names(testInfo.project.name);
+  await signIn(page, fx.partner);
+  await page.goto("/compliance?fy=2026");
+
+  const banner = page.locator("#never-opened");
+  if ((await banner.count()) === 0) {
+    // nothing is missing in this fixture's year, which is a valid state
+    await expect(
+      page.getByRole("heading", { name: "Compliance" }),
+    ).toBeVisible();
+    return;
+  }
+
+  await expect(banner).toContainText("no job at all");
+  const button = banner.getByRole("button", { name: /Create all \d+ jobs/ });
+  await expect(button).toBeVisible();
+
+  // it asks before it writes
+  await button.click();
+  await expect(banner).toContainText("Periods you have marked");
+  await expect(
+    banner.getByRole("button", { name: "Yes, open them" }),
+  ).toBeVisible();
+
+  await banner.getByRole("button", { name: "Cancel" }).click();
+  await expect(
+    banner.getByRole("button", { name: "Yes, open them" }),
+  ).toHaveCount(0);
 });

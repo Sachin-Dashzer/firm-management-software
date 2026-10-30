@@ -67,9 +67,7 @@ export default function HelpPanel() {
         >
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-12 text-ink-muted">
-                How we do this
-              </p>
+              <p className="text-12 text-ink-muted">How we do this</p>
               <h2 className="font-display text-15 font-semibold">
                 {screen?.label ?? "This screen"}
               </h2>

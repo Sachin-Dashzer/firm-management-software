@@ -246,9 +246,7 @@ export default function FirmForm({ firm, mayEdit }) {
 function Fact({ label, value, mono }) {
   return (
     <div className="flex flex-col">
-      <dt className="text-12 text-ink-muted">
-        {label}
-      </dt>
+      <dt className="text-12 text-ink-muted">{label}</dt>
       <dd className={mono ? "font-mono" : ""}>
         {value || <span className="text-ink-muted">not set</span>}
       </dd>

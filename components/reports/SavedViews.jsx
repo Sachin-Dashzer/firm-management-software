@@ -31,9 +31,7 @@ export default function SavedViews({
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
         {views.length > 0 && (
-          <span className="text-12 text-ink-muted">
-            Saved
-          </span>
+          <span className="text-12 text-ink-muted">Saved</span>
         )}
 
         {views.map((view) => (

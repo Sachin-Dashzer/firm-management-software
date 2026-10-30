@@ -62,7 +62,8 @@ export default function TakeOver({ name, rows, suggestedId, suggestedName }) {
       row.candidates.some((candidate) => candidate.id === suggestedId),
     );
     const cannot = outstanding.filter(
-      (row) => !row.candidates.some((candidate) => candidate.id === suggestedId),
+      (row) =>
+        !row.candidates.some((candidate) => candidate.id === suggestedId),
     );
 
     startTransition(async () => {
@@ -95,8 +96,8 @@ export default function TakeOver({ name, rows, suggestedId, suggestedName }) {
   if (outstanding.length === 0) {
     return (
       <p className="rounded-ledger border-rule bg-surface text-14 text-ink-muted border px-3 py-6 text-center">
-        Nothing open is {first}&rsquo;s. Every engagement they were on is
-        closed or somebody else&rsquo;s now.
+        Nothing open is {first}&rsquo;s. Every engagement they were on is closed
+        or somebody else&rsquo;s now.
       </p>
     );
   }

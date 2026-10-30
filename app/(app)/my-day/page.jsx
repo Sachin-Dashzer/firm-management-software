@@ -15,6 +15,9 @@ import { CLOSED_STATUSES } from "@/lib/engagements/status";
 import { DueChip, PriorityChip } from "../engagements/chips";
 import { hasRoleDashboard } from "@/components/dashboard/RoleDashboard";
 import TierBadge from "@/components/ledger/TierBadge";
+import PageHead from "@/components/ui/PageHead";
+import Screen, { ScrollArea } from "@/components/ui/Screen";
+import StatTile from "@/components/ui/StatTile";
 import Todo from "@/models/Todo";
 import { bucketOf } from "@/lib/todos/list";
 import TodoLines from "../todos/TodoLines";
@@ -163,16 +166,19 @@ export default async function MyDayPage() {
       title: "Due today",
       empty: "Nothing due today.",
       rows: due,
+      href: "/engagements?mine=1&due=today",
     },
     {
       title: "Waiting on clients",
       empty: "No documents pending from clients.",
       rows: waiting,
+      href: "/engagements?mine=1&status=Awaiting+documents",
     },
     {
       title: "Awaiting my review",
       empty: "Nothing waiting for your review.",
       rows: toReview,
+      href: "/engagements?mine=1&status=Under+review",
     },
   ];
 
@@ -180,28 +186,57 @@ export default async function MyDayPage() {
     hasRoleDashboard(actor) && can(actor, "view", "dashboards");
 
   return (
-    <div className="mx-auto flex max-w-[1600px] flex-col gap-6 p-4 md:p-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="font-display text-24 font-bold tracking-tight">
-          My tasks
-        </h1>
-        <p className="num text-13 text-ink-muted">
+    <Screen>
+      <PageHead
+        title="My tasks"
+        sub="Everything on your own desk: what is due, what a client is holding up, and what is waiting for you to check."
+      >
+        <span className="num text-13 text-ink-muted">
           {formatISTDate(now)} · FY {financialYearLabel(now)}
-          {seesDashboard && (
-            <>
-              {" · "}
-              <Link href="/dashboard" className="underline underline-offset-4">
-                Firm dashboard
-              </Link>
-            </>
-          )}
-        </p>
+        </span>
+        {seesDashboard && (
+          <Link
+            href="/dashboard"
+            className="rounded-control border-rule bg-paper text-13 hover:border-carbon h-8 border px-3 leading-8 font-medium"
+          >
+            Firm dashboard
+          </Link>
+        )}
+      </PageHead>
+
+      <div className="grid shrink-0 grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+        <StatTile
+          label="Due today"
+          value={due.length}
+          note="yours, dated today or past"
+          tone="late"
+          href="/engagements?mine=1&due=today"
+        />
+        <StatTile
+          label="Waiting on clients"
+          value={waiting.length}
+          note="nothing you can do until they send it"
+          href="/engagements?mine=1&status=Awaiting+documents"
+        />
+        <StatTile
+          label="Awaiting my review"
+          value={toReview.length}
+          note="somebody is waiting on you"
+          tone="info"
+          href="/engagements?mine=1&status=Under+review"
+        />
+        <StatTile
+          label="To-dos"
+          value={todos.length}
+          note="late or due today"
+          href="/todos"
+        />
       </div>
 
       {/* The week's statutory dates: one ledger line across the top (spec 15). */}
       <section
         aria-label="Statutory dates this week"
-        className="rounded-ledger border-rule bg-surface border px-4 py-3"
+        className="rounded-ledger border-rule bg-surface shrink-0 border px-4 py-2"
       >
         {statutoryWeek.length === 0 ? (
           <p className="text-13 text-ink-muted">
@@ -216,7 +251,7 @@ export default async function MyDayPage() {
                   {entry.services.join(", ")}
                 </span>
                 <Link
-                  href={`/calendar?view=calendar&due=week`}
+                  href={`/compliance?view=next30&due=week`}
                   className="text-ink-muted underline underline-offset-4"
                 >
                   {entry.count} {entry.count === 1 ? "job" : "jobs"}
@@ -227,87 +262,105 @@ export default async function MyDayPage() {
         )}
       </section>
 
-      {mayRecordTime && (
-        <section aria-label="Time" className="flex flex-col gap-2">
-          <h2 className="text-13 text-ink-muted font-medium">
-            Time
-            {" · "}
-            <Link
-              href="/team/time"
-              className="text-ink-muted font-normal underline underline-offset-4"
-            >
-              my timesheet
-            </Link>
-          </h2>
-          <Timer jobs={timerJobs} running={running} />
-        </section>
-      )}
-
-      {todos.length > 0 && (
-        <section className="rounded-ledger border-rule bg-surface flex flex-col gap-2 border px-4 py-3">
-          <h2 className="text-13 text-ink-muted font-medium">
-            My to-dos, late or due today
-            <span className="num"> · {todos.length}</span>
-            {" · "}
-            <Link
-              href="/todos"
-              className="text-ink-muted font-normal normal-case underline underline-offset-4"
-            >
-              the whole list
-            </Link>
-          </h2>
-          <TodoLines
-            rows={todos.map((todo) => ({
-              id: String(todo._id),
-              title: todo.title,
-              note: todo.note ?? "",
-              ownerId: String(todo.ownerId),
-              ownerName: "",
-              clientId: "",
-              client: "",
-              due: formatISTDate(todo.dueDate),
-              dueInput: istInputDate(todo.dueDate),
-              late: bucketOf(todo, now) === "overdue",
-              done: false,
-              doneAt: "",
-              doneByName: "",
-              mayChange: true,
-            }))}
-          />
-        </section>
-      )}
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        {columns.map((col) => (
-          <section
-            key={col.title}
-            className="rounded-ledger border-rule bg-surface flex min-h-56 flex-col border"
-          >
-            <h2 className="border-rule text-13 text-ink-muted border-b px-4 py-2 font-medium">
-              {col.title}
-              {col.rows.length > 0 && (
-                <span className="num text-ink-muted"> · {col.rows.length}</span>
-              )}
+      <ScrollArea className="flex flex-col gap-4">
+        {mayRecordTime && (
+          <section aria-label="Time" className="flex flex-col gap-2">
+            <h2 className="text-12 text-faint font-medium">
+              Time
+              {" · "}
+              <Link
+                href="/team/time"
+                className="text-faint font-normal underline underline-offset-4"
+              >
+                my timesheet
+              </Link>
             </h2>
-            <div className="ledger-rule flex-1 px-4 py-3">
-              {col.rows.length === 0 ? (
-                <p className="text-14 text-ink-muted">{col.empty}</p>
-              ) : (
-                <ul className="flex flex-col gap-3">
-                  {col.rows.map((e) => {
+            <Timer jobs={timerJobs} running={running} />
+          </section>
+        )}
+
+        {todos.length > 0 && (
+          <section className="flex flex-col gap-2">
+            <h2 className="text-12 text-faint font-medium">
+              My to-dos, late or due today
+              <span className="num"> · {todos.length}</span>
+              {" · "}
+              <Link
+                href="/todos"
+                className="text-faint font-normal normal-case underline underline-offset-4"
+              >
+                the whole list
+              </Link>
+            </h2>
+            <TodoLines
+              rows={todos.map((todo) => ({
+                id: String(todo._id),
+                title: todo.title,
+                note: todo.note ?? "",
+                ownerId: String(todo.ownerId),
+                ownerName: "",
+                clientId: "",
+                client: "",
+                due: formatISTDate(todo.dueDate),
+                dueInput: istInputDate(todo.dueDate),
+                late: bucketOf(todo, now) === "overdue",
+                done: false,
+                doneAt: "",
+                doneByName: "",
+                mayChange: true,
+              }))}
+            />
+          </section>
+        )}
+
+        <div className="grid flex-1 gap-4 lg:grid-cols-3">
+          {columns.map((col) => (
+            <section
+              key={col.title}
+              className="rounded-ledger border-rule bg-surface flex min-h-56 flex-col border"
+            >
+              <h2 className="border-rule flex items-baseline justify-between gap-2 border-b px-4 py-2">
+                <span className="text-13 font-semibold">
+                  {col.title}
+                  {col.rows.length > 0 && (
+                    <span className="num text-ink-muted font-normal">
+                      {" "}
+                      · {col.rows.length}
+                    </span>
+                  )}
+                </span>
+                <Link
+                  href={col.href}
+                  className="text-12 text-ink-muted hover:text-carbon"
+                >
+                  See all
+                </Link>
+              </h2>
+              <ul className="flex flex-1 flex-col">
+                {col.rows.length === 0 ? (
+                  <li className="text-13 text-ink-muted px-4 py-6 text-center">
+                    {col.empty}
+                  </li>
+                ) : (
+                  col.rows.map((e) => {
                     const date = e.statutoryDue ?? e.internalDue;
                     return (
-                      <li key={String(e._id)} className="flex flex-col gap-1">
+                      <li
+                        key={String(e._id)}
+                        className="border-rule hover:bg-carbon-wash flex flex-col gap-1 border-b px-4 py-2.5 last:border-0"
+                      >
                         <Link
                           href={`/engagements/${e._id}`}
-                          className="text-14 font-medium underline underline-offset-4"
+                          className="text-14 hover:text-carbon font-medium"
                         >
                           {clientName.get(String(e.clientId)) ?? "Client"}
                         </Link>
                         <span className="text-13 text-ink-muted flex items-center gap-1.5">
                           <TierBadge level={e.templateSnapshot?.level} />
-                          {e.templateSnapshot?.name} ·{" "}
-                          {e.periodLabel || e.period}
+                          <span className="truncate">
+                            {e.templateSnapshot?.name} ·{" "}
+                            {e.periodLabel || e.period}
+                          </span>
                         </span>
                         <span className="flex flex-wrap gap-2">
                           {date && (
@@ -321,13 +374,13 @@ export default async function MyDayPage() {
                         </span>
                       </li>
                     );
-                  })}
-                </ul>
-              )}
-            </div>
-          </section>
-        ))}
-      </div>
-    </div>
+                  })
+                )}
+              </ul>
+            </section>
+          ))}
+        </div>
+      </ScrollArea>
+    </Screen>
   );
 }

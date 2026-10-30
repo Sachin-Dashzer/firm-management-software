@@ -152,6 +152,75 @@ describe("the label on primary buttons", () => {
   });
 });
 
+/**
+ * The pairings P3-34 introduces.
+ *
+ * Each one is a place the six new screens put a colour on a ground that
+ * nothing in the application had put it on before. They are measured here
+ * rather than eyeballed against the mockup, because the mockup is drawn
+ * in one theme and these have to hold in two.
+ */
+describe.each(["light", "dark"])("P3-34's new pairings, %s theme", (name) => {
+  const t = themes[name];
+
+  it("reads a label on a filled red button", () => {
+    // the compliance overview's "Create all 16 jobs", and the overdue `!`
+    // in the status grid. The brief expected this to need a fallback
+    // token; measured, it does not — 6.57 light and 7.68 dark.
+    expect(contrast(t["on-carbon"], t.redpen)).toBeGreaterThanOrEqual(BODY);
+  });
+
+  it("reads every chip tone on the flat tint the chip actually uses", () => {
+    // `components/ui/Chip.jsx` fills with `-soft` and not with `-wash`,
+    // and this is the measurement that decided it: a wash is 12% of the
+    // colour over whatever is behind the chip, which is a card on one
+    // screen and the page on the next. Carbon on its own wash is 4.41 on
+    // a card and 3.99 on the page; filed is 4.09 on the page. The flat
+    // tints are one value each and clear the bar wherever the chip lands.
+    for (const token of ["filed", "waiting", "redpen", "carbon"]) {
+      expect(
+        contrast(t[token], t[`${token}-soft`]),
+        `${token} chip`,
+      ).toBeGreaterThanOrEqual(BODY);
+    }
+  });
+
+  it("holds the line on the wash, which is an ink ground and not a tone one", () => {
+    // a wash tints a row or a hover, and what sits on it is `ink`
+    for (const token of ["filed", "waiting", "redpen", "carbon"]) {
+      expect(
+        contrast(t.ink, over(t[token], t.surface, 0.12)),
+        `ink on the ${token} wash`,
+      ).toBeGreaterThanOrEqual(BODY);
+    }
+  });
+
+  it("reads a muted label on the sunk fill", () => {
+    // the neutral chip, the neutral count badge, and the inactive pills
+    // in a `Segmented` — which sit on a sunk track rather than on a card
+    expect(contrast(t["ink-muted"], t.sunk)).toBeGreaterThanOrEqual(BODY);
+  });
+
+  it("reads a count badge riding on an active accent pill", () => {
+    // `bg-on-carbon text-carbon`: the pill's two colours swapped. The
+    // brief asked for `bg-on-carbon/20`, which is white at a fifth over
+    // the teal — still teal, and white on it measures 3.55 in the light
+    // theme. This is the assertion that sent it back.
+    expect(contrast(t.carbon, t["on-carbon"])).toBeGreaterThanOrEqual(BODY);
+  });
+
+  it("reads a late figure on its own tinted tile", () => {
+    // the "Statutory dates missed" tile: the figure is redpen and the card
+    // behind it is a 12% redpen wash over the page, not over a card
+    expect(
+      contrast(t.redpen, over(t.redpen, t.paper, 0.12)),
+    ).toBeGreaterThanOrEqual(BODY);
+    expect(
+      contrast(t.waiting, over(t.waiting, t.paper, 0.12)),
+    ).toBeGreaterThanOrEqual(BODY);
+  });
+});
+
 /** A colour laid over a background at some opacity. */
 function over(colour, background, alpha) {
   const hex = (value) => parseInt(value, 16);

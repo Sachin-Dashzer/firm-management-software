@@ -7,7 +7,11 @@ import Todo from "@/models/Todo";
 import User from "@/models/User";
 import Client from "@/models/Client";
 import { formatISTDate, formatISTDateTime, istInputDate } from "@/lib/dates";
-import { groupTodos, bucketOf } from "@/lib/todos/list";
+import { groupTodos, bucketOf, BUCKETS } from "@/lib/todos/list";
+import PageHead from "@/components/ui/PageHead";
+import Screen, { ScrollArea } from "@/components/ui/Screen";
+import Segmented from "@/components/ui/Segmented";
+import StatTile from "@/components/ui/StatTile";
 import AddTodo from "./AddTodo";
 import TodoLines from "./TodoLines";
 
@@ -125,57 +129,108 @@ export default async function TodosPage({ searchParams }) {
       scope === "all",
   });
 
-  const buckets = groupTodos(open, now).map((bucket) => ({
+  const all = groupTodos(open, now).map((bucket) => ({
     ...bucket,
     rows: bucket.rows.map(shape),
   }));
   const finished = done.map(shape);
+
+  /**
+   * Which stretch of the list to show (D104). The tiles above it are the
+   * only way to ask, and they are counted over the whole list, not over
+   * what the tile before them left — a tile that counts the filtered set
+   * empties its neighbours the moment anybody uses one.
+   */
+  const due = [...BUCKETS.map((bucket) => bucket.key), "done"].includes(
+    params.due,
+  )
+    ? params.due
+    : "";
+  const buckets =
+    due && due !== "done" ? all.filter((b) => b.key === due) : all;
+  const countOf = (key) =>
+    all.find((bucket) => bucket.key === key)?.rows.length ?? 0;
 
   const team = people.map((person) => ({
     id: String(person._id),
     name: person.name,
   }));
 
+  /** A link that keeps whose list is open, and changes the stretch. */
+  const keep = (next) => {
+    const params = new URLSearchParams();
+    if (!mineOnly) params.set("who", "everyone");
+    if (next) params.set("due", next);
+    const tail = params.toString();
+    return `/todos${tail ? `?${tail}` : ""}`;
+  };
+
   return (
-    <div className="mx-auto flex max-w-[1000px] flex-col gap-5 p-4 md:p-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <div>
-          <h1 className="font-display text-24 font-bold tracking-tight">
-            To-dos
-          </h1>
-          <p className="text-13 text-ink-muted max-w-[70ch]">
+    <Screen>
+      <PageHead
+        title="To-dos"
+        sub={
+          <>
             The small things that are not jobs. What the records say is wrong is
             on{" "}
-            <Link href="/issues" className="underline underline-offset-4">
+            <Link
+              href="/issues"
+              className="hover:text-carbon underline underline-offset-4"
+            >
               Issues
             </Link>{" "}
             instead, and nothing there has to be ticked off.
-          </p>
-        </div>
-
+          </>
+        }
+      >
         {!ownOnly && (
-          <nav className="flex gap-2" aria-label="Whose to-dos">
-            {[
-              ["mine", "Mine"],
-              ["everyone", "Everyone"],
-            ].map(([key, label]) => (
-              <Link
-                key={key}
-                href={key === "mine" ? "/todos" : "/todos?who=everyone"}
-                aria-current={
-                  (key === "mine") === mineOnly ? "page" : undefined
-                }
-                className={`rounded-control text-14 h-9 border px-3 leading-9 ${
-                  (key === "mine") === mineOnly
-                    ? "border-carbon bg-carbon-wash text-carbon"
-                    : "border-rule hover:bg-carbon-wash"
-                }`}
-              >
-                {label}
-              </Link>
-            ))}
-          </nav>
+          <Segmented
+            label="Whose to-dos"
+            value={mineOnly ? "mine" : "everyone"}
+            items={[
+              { key: "mine", label: "Mine", href: "/todos" },
+              {
+                key: "everyone",
+                label: "Everyone",
+                href: "/todos?who=everyone",
+              },
+            ]}
+          />
         )}
+      </PageHead>
+
+      <div className="grid shrink-0 grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+        <StatTile
+          label="Late"
+          value={countOf("overdue")}
+          note="past the day they were set"
+          tone="late"
+          href={keep("overdue")}
+          selected={due === "overdue"}
+        />
+        <StatTile
+          label="Today"
+          value={countOf("today")}
+          note="set for today"
+          tone="soon"
+          href={keep("today")}
+          selected={due === "today"}
+        />
+        <StatTile
+          label="This week"
+          value={countOf("week")}
+          note="the next six days"
+          href={keep("week")}
+          selected={due === "week"}
+        />
+        <StatTile
+          label="Done this week"
+          value={finished.length}
+          note="ticked off, still here"
+          tone="good"
+          href={keep("done")}
+          selected={due === "done"}
+        />
       </div>
 
       <AddTodo
@@ -187,33 +242,48 @@ export default async function TodosPage({ searchParams }) {
         me={actor.id}
       />
 
-      {buckets.length === 0 ? (
-        <p className="rounded-ledger border-rule bg-surface text-14 border px-4 py-3">
-          {mineOnly
-            ? "Nothing on your list."
-            : "Nobody has anything on their list."}
-        </p>
-      ) : (
-        buckets.map((bucket) => (
-          <section key={bucket.key} className="flex flex-col gap-2">
-            <h2 className="text-13 text-ink-muted font-medium">
-              {bucket.label}
-              <span className="num"> · {bucket.rows.length}</span>
-            </h2>
-            <TodoLines rows={bucket.rows} people={team} showOwner={!mineOnly} />
-          </section>
-        ))
-      )}
+      <ScrollArea className="flex flex-col gap-5">
+        {buckets.length === 0 && due !== "done" ? (
+          <p className="rounded-ledger border-rule bg-surface text-14 border px-4 py-3">
+            {due
+              ? "Nothing in this stretch."
+              : mineOnly
+                ? "Nothing on your list."
+                : "Nobody has anything on their list."}
+          </p>
+        ) : (
+          due !== "done" &&
+          buckets.map((bucket) => (
+            <section key={bucket.key} className="flex flex-col gap-2">
+              <h2 className="text-12 text-faint font-medium">
+                {bucket.label}
+                <span className="num"> · {bucket.rows.length}</span>
+              </h2>
+              <TodoLines
+                rows={bucket.rows}
+                people={team}
+                showOwner={!mineOnly}
+              />
+            </section>
+          ))
+        )}
 
-      {finished.length > 0 && (
-        <section className="flex flex-col gap-2">
-          <h2 className="text-13 text-ink-muted font-medium">
-            Done this week
-            <span className="num"> · {finished.length}</span>
-          </h2>
-          <TodoLines rows={finished} people={team} showOwner={!mineOnly} />
-        </section>
-      )}
-    </div>
+        {(due === "done" || (!due && finished.length > 0)) && (
+          <section className="flex flex-col gap-2">
+            <h2 className="text-12 text-faint font-medium">
+              Done this week
+              <span className="num"> · {finished.length}</span>
+            </h2>
+            {finished.length === 0 ? (
+              <p className="rounded-ledger border-rule bg-surface text-14 border px-4 py-3">
+                Nothing has been ticked off this week.
+              </p>
+            ) : (
+              <TodoLines rows={finished} people={team} showOwner={!mineOnly} />
+            )}
+          </section>
+        )}
+      </ScrollArea>
+    </Screen>
   );
 }

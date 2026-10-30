@@ -360,6 +360,17 @@
    * of those that do is 24px. A 28px page title on a screen somebody works
    * in all day is a page's habit, not an application's.
    */
+  /**
+   * The label size, added by P3-34.
+   *
+   * Six screens set a tracked uppercase label above a figure or over a
+   * group of rows — the stat tiles, the rail's TODAY / WORK / FIRM
+   * headings, the clients list's NOT IN A GROUP. The mockup draws the
+   * tile labels at 11.5px and the section headings at 11; half a pixel is
+   * not a distinction anybody can see, and two tokens half a pixel apart
+   * is how a scale starts to rot. One token, at 11.
+   */
+  --text-11: 0.6875rem;
   --text-15: 0.96875rem; /* the prototype's 15.5px h2 */
   --text-24: 1.5rem; /* its h1 */
 }
@@ -548,6 +559,161 @@ input[type="number"] {
 
   :where(button, [role="button"], summary):not(:disabled):active {
     transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   The entrances, narrowed (D103, 30-10-2026)
+
+   D84 just above says nothing performs an entrance, and its reason is
+   still right: an entrance is charming once and a tax every time after.
+   The owner has asked for movement on the six screens P3-34 builds, so
+   the rule is narrowed rather than dropped. Six things move, and each
+   earns it by saying something a static picture of it cannot:
+
+     - **a bar fills**, once, on first paint. A proportion is the one
+       thing motion genuinely states — the bar grows to where it stops,
+       and where it stops is the number.
+     - **a grid cell lands with its neighbours**, on a diagonal. Eight
+       hundred boxes appearing together is a flash; appearing in a sweep
+       reads as a page being drawn, and the stagger is capped so a wide
+       grid never takes seconds to finish.
+     - **a popover rises 4px.** It is the only one of these a person sees
+       more than once in a sitting, which is why it is the shortest.
+     - **a skeleton shimmers.** The one loop in the application, and it
+       runs only while a `loading.jsx` is on screen — by definition never
+       longer than the server takes.
+     - **a card lifts 1px** under a real pointer, never under a finger.
+     - **a section opens by growing its rows**, which is a disclosure
+       describing itself.
+
+   All of it is inside `prefers-reduced-motion: no-preference`, so the
+   reduce branch is not a list of things switched off again. These rules
+   do not exist there at all, and `.lift`'s hover transform — which the
+   reduce block above would not have caught, because it is a transition
+   and not an animation — goes with them.
+   --------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes bar-grow {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  .anim-bar {
+    transform-origin: left center;
+    animation: bar-grow 700ms var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 45ms);
+  }
+
+  @keyframes cell-in {
+    from {
+      opacity: 0;
+      transform: scale(0.85);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .anim-cell {
+    animation: cell-in 320ms var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 18ms);
+  }
+
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .anim-pop {
+    animation: rise-in 160ms var(--ease-out) both;
+  }
+
+  /* taste-skill-ignore: the shimmer is the gradient — a flat block cannot
+     say "still loading", and this is the one loop D103 allows, alive only
+     while a `loading.jsx` is on screen. */
+  .skeleton {
+    /* prettier-ignore */
+    background: /* taste-skill-ignore: the shimmer is the gradient (D103) */ linear-gradient(
+      90deg,
+      var(--sunk) 0%,
+      var(--rule-soft) 50%,
+      var(--sunk) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.4s linear infinite;
+    border-radius: var(--radius-control-px);
+  }
+
+  @keyframes shimmer {
+    from {
+      background-position: -200% 0;
+    }
+    to {
+      background-position: 200% 0;
+    }
+  }
+
+  .lift {
+    transition:
+      border-color var(--hover) ease,
+      transform var(--press) var(--ease-out),
+      background-color var(--hover) ease;
+  }
+
+  /* A finger has no hover. Without this gate a card stays lifted after a
+     tap, which is the same bug the hover rule in D84 guards against. */
+  @media (hover: hover) and (pointer: fine) {
+    .lift:hover {
+      transform: translateY(-1px);
+      border-color: var(--carbon);
+    }
+  }
+
+  .collapse-rows {
+    transition: grid-template-rows 240ms var(--ease-out);
+  }
+}
+
+/**
+ * The disclosure itself is not motion — a closed section must be closed
+ * whatever the person's motion preference is, so the grid lives outside
+ * the gate above and only its transition sits inside.
+ */
+.collapse-rows {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.collapse-rows[data-open="false"] {
+  grid-template-rows: 0fr;
+}
+
+.collapse-rows > * {
+  overflow: hidden;
+}
+
+/**
+ * A skeleton with movement switched off is still a skeleton: the sunk
+ * block is the shape of what is coming, which is the part that does the
+ * work. Only the sweep across it goes.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    background-color: var(--sunk);
+    border-radius: var(--radius-control-px);
   }
 }
 

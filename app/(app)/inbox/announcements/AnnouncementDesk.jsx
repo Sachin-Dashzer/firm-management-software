@@ -11,12 +11,7 @@ import { postAnnouncement, endAnnouncement } from "./actions";
  * name**. A percentage tells a partner nothing they can act on; a list of
  * three names is a conversation at the end of the day.
  */
-export default function AnnouncementDesk({
-  rows,
-  audiences,
-  branches,
-  roles,
-}) {
+export default function AnnouncementDesk({ rows, audiences, branches, roles }) {
   const router = useRouter();
   const [state, action, posting] = useActionState(postAnnouncement, null);
   const [audience, setAudience] = useState("everyone");
@@ -140,9 +135,7 @@ export default function AnnouncementDesk({
               name="from"
               className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
             />
-            <span className="text-12 text-ink-muted">
-              Blank means today.
-            </span>
+            <span className="text-12 text-ink-muted">Blank means today.</span>
           </label>
 
           <label className="flex flex-col gap-1">

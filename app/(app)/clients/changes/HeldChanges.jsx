@@ -2,11 +2,7 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import {
-  usePathname,
-  useRouter,
-  useSearchParams,
-} from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { decideHeldChange } from "../round-trip/actions";
 
 /**
@@ -116,9 +112,7 @@ export default function HeldChanges({ rows, show, mayDecide }) {
                   declining === row.id ? (
                     <form
                       action={(formData) =>
-                        run(() =>
-                          decideHeldChange(row.id, "decline", formData),
-                        )
+                        run(() => decideHeldChange(row.id, "decline", formData))
                       }
                       className="flex flex-wrap items-end gap-2"
                     >

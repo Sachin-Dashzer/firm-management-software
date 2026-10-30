@@ -139,7 +139,7 @@ export default function ComplianceViews({
             Filter
           </button>
           <Link
-            href={view === "heads" ? "/calendar" : `/calendar?view=${view}`}
+            href={view === "grid" ? "/compliance/monthly" : "/compliance"}
             className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
           >
             Clear

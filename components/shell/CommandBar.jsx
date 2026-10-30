@@ -75,7 +75,7 @@ const ACTIONS = [
   },
   {
     title: "Compliance grid",
-    href: "/calendar?view=grid",
+    href: "/compliance/monthly",
     area: "engagementsWork",
   },
   { title: "Reports", href: "/reports", area: null },

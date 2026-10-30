@@ -56,9 +56,7 @@ export default function CatalogList({ rows, categories, editable }) {
         if (group.length === 0) return null;
         return (
           <section key={category} className="flex flex-col gap-2">
-            <h2 className="text-12 text-ink-muted font-medium">
-              {category}
-            </h2>
+            <h2 className="text-12 text-ink-muted font-medium">{category}</h2>
             <div className="rounded-table border-rule bg-surface overflow-x-auto border">
               <table className="text-14 w-full">
                 <thead>

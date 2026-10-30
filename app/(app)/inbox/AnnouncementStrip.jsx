@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Panel from "@/components/ui/Panel";
 import { acknowledge } from "./announcements/actions";
 
 /**
@@ -30,9 +31,11 @@ export default function AnnouncementStrip({ rows }) {
   }
 
   return (
-    <section className="flex flex-col gap-2">
-      <h2 className="text-15 font-bold">From the firm</h2>
-
+    <Panel
+      title="From the firm"
+      count={rows.length > 1 ? `${rows.length} up` : undefined}
+      className="max-h-44 shrink-0 overflow-y-auto"
+    >
       {message?.ok && (
         <p role="status" className="text-13 text-filed">
           {message.ok}
@@ -44,11 +47,11 @@ export default function AnnouncementStrip({ rows }) {
         </p>
       )}
 
-      <ul className="flex flex-col gap-2">
+      <ul className="ledger-rule flex flex-col">
         {rows.map((row) => (
           <li
             key={row.id}
-            className="rounded-ledger border-carbon-soft bg-sunk flex flex-col gap-1 border px-3 py-2"
+            className="border-rule flex flex-col gap-1 border-b pb-2 last:border-0 last:pb-0"
           >
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h3 className="text-14 font-medium">{row.title}</h3>
@@ -83,6 +86,6 @@ export default function AnnouncementStrip({ rows }) {
           </li>
         ))}
       </ul>
-    </section>
+    </Panel>
   );
 }

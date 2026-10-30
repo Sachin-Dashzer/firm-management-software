@@ -42,7 +42,7 @@ const GROUPS = [
         what: "What each client still owes us, and whether we have asked.",
       },
       {
-        href: "/calendar?view=grid",
+        href: "/compliance/monthly",
         area: "engagementsWork",
         name: "Compliance status grid",
         what: "Clients down the side, periods across the top — the fastest way to spot a month nobody filed.",
@@ -260,14 +260,14 @@ export default async function ReportsPage() {
         that is better than leaving the old reason standing.
       */}
       <p className="text-12 text-ink-muted">
-        Utilisation, realisation, client profitability and the days nobody
-        has filled in are on{" "}
+        Utilisation, realisation, client profitability and the days nobody has
+        filled in are on{" "}
         <Link href="/team/time" className="underline underline-offset-4">
           the timesheet
         </Link>{" "}
         (P3-28). They are not reports yet, so they do not export to Excel or
-        PDF; the intern exposure report still needs time by tier, which
-        nothing records.
+        PDF; the intern exposure report still needs time by tier, which nothing
+        records.
       </p>
     </div>
   );

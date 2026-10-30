@@ -130,9 +130,7 @@ export default function EngagementWork({
       {engagement.next && engagement.next.stance !== "done" && (
         <section className="rounded-ledger border-carbon bg-carbon-wash flex flex-wrap items-center justify-between gap-3 border p-3">
           <div>
-            <p className="text-12 text-ink-muted font-medium">
-              Next
-            </p>
+            <p className="text-12 text-ink-muted font-medium">Next</p>
             <p className="text-14">{engagement.next.text}</p>
             {engagement.next.why && (
               <p className="text-12 text-ink-muted">{engagement.next.why}</p>
@@ -1057,9 +1055,7 @@ function ChecklistGroup({
   if (items.length === 0) return null;
   return (
     <div className="flex flex-col gap-1">
-      <h3 className="text-12 text-ink-muted font-medium">
-        {title}
-      </h3>
+      <h3 className="text-12 text-ink-muted font-medium">{title}</h3>
       <ul className="flex flex-col">
         {items.map((item) => {
           const attached = documents.filter(

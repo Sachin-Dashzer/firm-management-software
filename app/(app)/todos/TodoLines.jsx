@@ -58,11 +58,11 @@ export default function TodoLines({ rows, people = [], showOwner = false }) {
         </p>
       )}
 
-      <ul className="ledger-rule flex flex-col empty:hidden">
+      <ul className="rounded-ledger border-rule bg-surface flex flex-col border empty:hidden">
         {rows.map((row) => (
           <li
             key={row.id}
-            className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2"
+            className="border-rule hover:bg-carbon-wash flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b px-3 py-2 last:border-0"
           >
             <label className="flex items-baseline gap-2">
               <input

@@ -104,9 +104,8 @@ export default async function TakeOverPage({ params }) {
             </p>
           ))}
           <p className="text-13 text-ink-muted">
-            The cover already sees their Issues and gets their reminders.
-            Moving a job is for work that needs a different owner on the
-            record.
+            The cover already sees their Issues and gets their reminders. Moving
+            a job is for work that needs a different owner on the record.
           </p>
         </div>
       ) : (

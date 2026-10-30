@@ -51,14 +51,14 @@ export default async function RoundTripPage() {
       {isPartner ? (
         <p className="rounded-ledger border-rule bg-sunk text-13 border px-3 py-2">
           You are a partner, so your own sheet applies in full, including{" "}
-          {heldLabels.join(", ").toLowerCase()}. A sheet from anybody else
-          holds those for you to decide on.
+          {heldLabels.join(", ").toLowerCase()}. A sheet from anybody else holds
+          those for you to decide on.
         </p>
       ) : (
         <p className="rounded-ledger border-waiting bg-waiting-wash text-13 border px-3 py-2">
-          Changes to {heldLabels.join(", ").toLowerCase()} do not apply when
-          you send a sheet: they wait for a partner, one at a time. Everything
-          else applies as soon as you tick it.
+          Changes to {heldLabels.join(", ").toLowerCase()} do not apply when you
+          send a sheet: they wait for a partner, one at a time. Everything else
+          applies as soon as you tick it.
         </p>
       )}
 

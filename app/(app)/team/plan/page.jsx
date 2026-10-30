@@ -85,7 +85,9 @@ export default async function PlanPage({ searchParams }) {
       $in: [
         ...new Set(
           plan.rows.flatMap((row) =>
-            [...row.prepare.jobs, ...row.review.jobs].map((job) => job.clientId),
+            [...row.prepare.jobs, ...row.review.jobs].map(
+              (job) => job.clientId,
+            ),
           ),
         ),
       ],
@@ -102,9 +104,7 @@ export default async function PlanPage({ searchParams }) {
     client: clientName.get(job.clientId) ?? "A client",
   });
 
-  const personName = new Map(
-    people.map((row) => [String(row._id), row.name]),
-  );
+  const personName = new Map(people.map((row) => [String(row._id), row.name]));
 
   /**
    * How much of the catalog has an effort estimate, so the board can say
@@ -142,9 +142,9 @@ export default async function PlanPage({ searchParams }) {
           <strong>
             {services - estimated} of {services}
           </strong>{" "}
-          services have no effort estimate, so lanes containing them are
-          counted in jobs rather than hours. A part-total would read as the
-          whole and say somebody is free when they are not. Set the hours on{" "}
+          services have no effort estimate, so lanes containing them are counted
+          in jobs rather than hours. A part-total would read as the whole and
+          say somebody is free when they are not. Set the hours on{" "}
           <Link
             href="/settings/services"
             className="underline underline-offset-4"
@@ -177,8 +177,7 @@ export default async function PlanPage({ searchParams }) {
         }))}
         warnings={plan.warnings.map((warning) => ({
           ...warning,
-          cover:
-            personName.get(warning.away[0]?.coverId ?? "") ?? "somebody",
+          cover: personName.get(warning.away[0]?.coverId ?? "") ?? "somebody",
         }))}
         unscheduled={plan.unscheduled}
       />

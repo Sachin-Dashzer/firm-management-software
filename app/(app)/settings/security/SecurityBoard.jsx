@@ -263,9 +263,7 @@ export default function SecurityBoard({ signals, counts, since, incidents }) {
             )}
             {incident.action && (
               <div className="border-rule border-l-2 pl-3">
-                <p className="text-12 text-ink-muted">
-                  What was done
-                </p>
+                <p className="text-12 text-ink-muted">What was done</p>
                 <p className="text-13 whitespace-pre-line">{incident.action}</p>
               </div>
             )}

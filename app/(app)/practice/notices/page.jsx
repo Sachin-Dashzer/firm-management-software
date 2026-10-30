@@ -18,10 +18,16 @@ import {
 import {
   nextDue,
   isOverdue,
+  isDrafted,
   adjournments,
   lawClocks,
   noticeQuery,
 } from "@/lib/practice/notices";
+import { noticeDiary } from "@/lib/reports/dashboard";
+import PageHead from "@/components/ui/PageHead";
+import Screen from "@/components/ui/Screen";
+import StatTile from "@/components/ui/StatTile";
+import NoticeDiary from "@/components/dashboard/firm/NoticeDiary";
 import NoticeList from "./NoticeList";
 
 export const metadata = { title: "Notices · PHMG" };
@@ -43,7 +49,16 @@ export default async function NoticesPage({ searchParams }) {
   const stage = NOTICE_STAGES.includes(params.stage) ? params.stage : "";
   /** The menu's own filters (P3-22a): one law, or the ones with no draft. */
   const law = NOTICE_LAWS.includes(params.law) ? params.law : "";
-  const show = params.show === "nodraft" ? "nodraft" : "";
+  /**
+   * `week` and `demand` joined `nodraft` in D104: they are the tiles
+   * above the table, and a tile whose figure cannot be opened is a figure
+   * nobody can check. Neither is a database condition — both are read off
+   * the dates and amounts already on each row — so only `nodraft` reaches
+   * `noticeQuery`.
+   */
+  const show = ["nodraft", "week", "demand"].includes(params.show)
+    ? params.show
+    : "";
 
   await connectDB();
 
@@ -52,7 +67,7 @@ export default async function NoticesPage({ searchParams }) {
    * shared with the badge beside it (P3-22a) — a badge that counts
    * differently from the page it opens is a number nobody trusts twice.
    */
-  const [notices, confirmations] = await Promise.all([
+  const [notices, confirmations, diary] = await Promise.all([
     Notice.find(noticeQuery(actor, { stage, law, show }))
       .sort({ createdAt: -1 })
       .limit(500)
@@ -60,7 +75,24 @@ export default async function NoticesPage({ searchParams }) {
     RuleConfirmation.find({ confirmedAt: { $ne: null } })
       .select("kind key confirmedAt")
       .lean(),
+    /** The rail: what is owed next, in the order it falls due (D104). */
+    noticeDiary(actor, new Date(), 8),
   ]);
+
+  /**
+   * The tiles count every open matter in scope, not what the chips have
+   * left. They are the filter, so counting them after themselves would
+   * empty the other three the first time one was used — and on the
+   * default view this is the same set as `notices`, so no second query
+   * runs for the page everybody opens.
+   */
+  const openSet =
+    stage || show === "demand" || show === "week" || show === "nodraft"
+      ? await Notice.find(noticeQuery(actor, { law }))
+          .select("stage risk stakePaise demandPaise submissions hearings")
+          .limit(500)
+          .lean()
+      : notices;
 
   const [clients, people] = await Promise.all([
     Client.find({ _id: { $in: notices.map((row) => row.clientId) } })
@@ -87,6 +119,12 @@ export default async function NoticesPage({ searchParams }) {
       din: notice.din,
       stage: notice.stage,
       risk: notice.risk,
+      /** What has gone in and what is still owed, which is the matter. */
+      filed: (notice.submissions ?? []).filter((row) => row.filedOn).length,
+      owed: (notice.submissions ?? []).filter(
+        (row) => !row.filedOn && row.dueDate,
+      ).length,
+      hearings: (notice.hearings ?? []).filter((row) => row.heldOn).length,
       stake: notice.stakePaise ? formatPaise(notice.stakePaise) : "",
       demand: notice.demandPaise ? formatPaise(notice.demandPaise) : "",
       assignee: notice.assigneeId
@@ -105,53 +143,133 @@ export default async function NoticesPage({ searchParams }) {
     };
   });
 
+  /** The two cuts that are read off the row rather than asked of Mongo. */
+  const visible = rows.filter((row) =>
+    show === "week"
+      ? row.next && row.next.days <= 7
+      : show === "demand"
+        ? Boolean(row.demand)
+        : true,
+  );
+
+  /** The next submission owed on a matter, drafted or not. */
+  const owedOn = (notice) =>
+    (notice.submissions ?? [])
+      .filter((row) => !row.filedOn && row.dueDate)
+      .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))[0] ?? null;
+
+  const withinWeek = openSet.filter((notice) => {
+    const next = nextDue(notice);
+    return next && next.days <= 7;
+  });
+  const tiles = {
+    open: openSet.length,
+    highRisk: openSet.filter((notice) => notice.risk === "High").length,
+    week: withinWeek.length,
+    noDraft: withinWeek.filter((notice) => {
+      const owed = owedOn(notice);
+      return owed && !isDrafted(owed);
+    }).length,
+    demand: openSet.reduce((sum, n) => sum + (n.demandPaise ?? 0), 0),
+    stake: openSet.reduce((sum, n) => sum + (n.stakePaise ?? 0), 0),
+  };
+
+  /** A link that keeps the law chip, and changes which cut is shown. */
+  const keep = (next) => {
+    const params = new URLSearchParams();
+    if (law) params.set("law", law);
+    if (next) params.set("show", next);
+    const tail = params.toString();
+    return `/practice/notices${tail ? `?${tail}` : ""}`;
+  };
+
   // the whole table, so the strip can say how much of it is still unchecked
   const total = allLawRules().length;
   const confirmed = confirmations.length;
 
   return (
-    <div className="mx-auto flex max-w-[1200px] flex-col gap-5 p-4 md:p-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <div>
-          <h1 className="font-display text-24 font-bold tracking-tight">
-            Notices
-          </h1>
-          <p className="text-13 text-ink-muted max-w-[70ch]">
-            Each one is a matter, not a job: several submissions with their own
-            dates and acknowledgements, hearings that get put off, and limits
-            that come from the statute rather than from the notice.
-          </p>
-        </div>
+    <Screen>
+      <PageHead
+        title="Notices and litigation"
+        sub="Each one is a matter, not a job: several submissions with their own dates and acknowledgements, hearings that get put off, and limits that come from the statute rather than from the notice."
+      >
         {can(actor, "edit", "practice") && (
           <Link
             href="/practice/notices/new"
-            className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 leading-9 font-medium"
+            className="rounded-control bg-carbon text-13 text-on-carbon h-8 px-3 leading-8 font-medium"
           >
             Open a matter
           </Link>
         )}
+      </PageHead>
+
+      <div className="grid shrink-0 grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+        <StatTile
+          label="Open matters"
+          value={tiles.open}
+          note={
+            tiles.highRisk > 0
+              ? `${tiles.highRisk} high risk`
+              : "none high risk"
+          }
+          href={keep("")}
+          selected={!show && !stage}
+        />
+        <StatTile
+          label="Due in 7 days"
+          value={tiles.week}
+          note="replies, submissions or hearings"
+          tone="soon"
+          href={keep("week")}
+          selected={show === "week"}
+        />
+        <StatTile
+          label="Due in 7 days, no draft"
+          value={tiles.noDraft}
+          note="nobody has picked the reply up"
+          tone="late"
+          href={keep("nodraft")}
+          selected={show === "nodraft"}
+        />
+        <StatTile
+          label="Demand in dispute"
+          value={tiles.demand}
+          paise
+          note={`tax at stake ${formatPaise(tiles.stake)}`}
+          href={keep("demand")}
+          selected={show === "demand"}
+        />
       </div>
 
       {confirmed < total && (
-        <p className="rounded-ledger border-waiting bg-waiting-wash text-13 border px-3 py-2">
-          <strong>
+        <p className="rounded-ledger border-waiting/40 bg-waiting-wash text-12 shrink-0 border px-3 py-2">
+          <strong className="num">
             {total - confirmed} of {total}
           </strong>{" "}
-          rules in the notice-law table have not been confirmed by a partner, so
-          no limitation date computed from them is shown anywhere. The wording
-          and the sections are a first draft taken from the design prototype — a
-          partner has to read each one. Open a matter to confirm the rules that
-          apply to it.
+          rules in the notice-law table are still a first draft nobody has
+          confirmed, so no limitation date computed from them is shown anywhere.
+          Open a matter to confirm the rules that apply to it.
         </p>
       )}
 
-      <NoticeList
-        rows={rows}
-        stage={stage}
-        stages={NOTICE_STAGES}
-        law={law}
-        show={show}
-      />
-    </div>
+      {/*
+        Two columns at `xl`, where there is width for a diary beside a
+        seven-column table; one column below it, scrolling as a whole, so
+        the rail is reached by scrolling past the matters rather than
+        being stranded under a region that does not move.
+      */}
+      <div className="flex min-h-0 flex-1 flex-col gap-4 md:overflow-y-auto xl:flex-row xl:overflow-y-visible">
+        <NoticeList
+          rows={visible}
+          stage={stage}
+          stages={NOTICE_STAGES}
+          law={law}
+          show={show}
+        />
+        <aside className="w-full shrink-0 xl:w-[21rem] xl:overflow-y-auto">
+          <NoticeDiary rows={diary} title="Up next" link={null} />
+        </aside>
+      </div>
+    </Screen>
   );
 }

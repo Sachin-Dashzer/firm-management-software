@@ -7,6 +7,9 @@ import { can } from "@/lib/permissions";
 import { formatISTDate, formatISTDateTime, startOfISTDay } from "@/lib/dates";
 import { INBOX_KINDS, kindOf } from "@/lib/inbox";
 import { isLive, reaches } from "@/lib/firm/announcements";
+import PageHead from "@/components/ui/PageHead";
+import Screen from "@/components/ui/Screen";
+import StatTile from "@/components/ui/StatTile";
 import InboxList from "./InboxList";
 import AnnouncementStrip from "./AnnouncementStrip";
 
@@ -31,8 +34,14 @@ export default async function InboxPage({ searchParams }) {
   const params = (await searchParams) ?? {};
 
   const kind = INBOX_KINDS.includes(params.kind) ? params.kind : "";
-  const show =
-    params.show === "all" || params.show === "snoozed" ? params.show : "open";
+  /**
+   * `unread` joined the three in D104, because it is the one cut of this
+   * list anybody asks for by name and it was only ever available as a
+   * count in the corner that could not be clicked.
+   */
+  const show = ["all", "snoozed", "unread"].includes(params.show)
+    ? params.show
+    : "open";
 
   await connectDB();
   const now = new Date();
@@ -92,38 +101,102 @@ export default async function InboxPage({ searchParams }) {
     read: Boolean(row.readAt),
     at: formatISTDateTime(row.createdAt),
     snoozedUntil: row.snoozedUntil ?? null,
-    snoozedLabel: row.snoozedUntil
-      ? formatISTDateTime(row.snoozedUntil)
-      : "",
+    snoozedLabel: row.snoozedUntil ? formatISTDateTime(row.snoozedUntil) : "",
     asleep: Boolean(
       row.snoozedUntil && new Date(row.snoozedUntil).getTime() > now.getTime(),
     ),
   }));
 
-  /** Counts are over everything, so a filter says what it is hiding. */
-  const counts = {};
-  for (const row of withKind) {
-    if (row.asleep && show === "open") continue;
-    counts[row.kind] = (counts[row.kind] ?? 0) + 1;
-  }
+  /**
+   * What this `show` admits, before the group filter. The chips and the
+   * tiles are both counted off it, so a chip says how many it would show
+   * rather than how many exist somewhere behind another filter.
+   */
+  const shown = withKind.filter((row) =>
+    show === "snoozed"
+      ? row.asleep
+      : show === "all"
+        ? true
+        : show === "unread"
+          ? !row.asleep && !row.read
+          : !row.asleep,
+  );
 
-  const visible = withKind
-    .filter((row) =>
-      show === "snoozed" ? row.asleep : show === "all" ? true : !row.asleep,
-    )
-    .filter((row) => (kind ? row.kind === kind : true));
+  const counts = {};
+  for (const row of shown) counts[row.kind] = (counts[row.kind] ?? 0) + 1;
+
+  const visible = shown.filter((row) => (kind ? row.kind === kind : true));
 
   const asleep = withKind.filter((row) => row.asleep).length;
+  const unread = withKind.filter((row) => !row.asleep && !row.read).length;
+
+  /** A link that keeps the filter already on, and changes one of it. */
+  const keep = (extra) => {
+    const next = new URLSearchParams();
+    if (kind) next.set("kind", kind);
+    if (show !== "open") next.set("show", show);
+    for (const [key, value] of Object.entries(extra)) {
+      if (value) next.set(key, value);
+      else next.delete(key);
+    }
+    const tail = next.toString();
+    return tail ? `?${tail}` : "";
+  };
 
   return (
-    <div className="mx-auto flex max-w-[860px] flex-col gap-5 p-4 md:p-6">
-      <div>
-        <h1 className="font-display text-24 font-bold tracking-tight">Inbox</h1>
-        <p className="text-13 text-ink-muted max-w-[70ch]">
-          Mentions, work coming to you, reviews, clients and money — kept for
-          sixty days, then cleared automatically. Nothing here can be deleted:
-          snooze it and it comes back.
-        </p>
+    <Screen>
+      <PageHead
+        title="Inbox"
+        sub="Mentions, work coming to you, reviews, clients and money — kept for sixty days, then cleared. Nothing here is deleted: snooze it and it comes back."
+      >
+        {can(actor, "approve", "feeWriteOff") && (
+          <Link
+            href="/inbox/announcements"
+            className="rounded-control border-rule bg-paper text-13 hover:border-carbon h-8 border px-3 leading-8 font-medium"
+          >
+            Post an announcement
+          </Link>
+        )}
+        <Link
+          href="/settings/messages"
+          className="text-13 text-ink-muted hover:text-carbon px-1"
+        >
+          What was emailed
+        </Link>
+      </PageHead>
+
+      <div className="grid shrink-0 grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
+        <StatTile
+          label="Unread"
+          value={unread}
+          note="waiting to be read"
+          tone="info"
+          href={`/inbox${keep({ show: "unread", kind: "" })}`}
+          selected={show === "unread"}
+        />
+        <StatTile
+          label="Mentions"
+          value={counts["Mentions"] ?? 0}
+          note="somebody named you"
+          tone="soon"
+          href={`/inbox${keep({ kind: "Mentions", show: "" })}`}
+          selected={kind === "Mentions"}
+        />
+        <StatTile
+          label="Review"
+          value={counts["Review"] ?? 0}
+          note="work sent to you to check"
+          tone="info"
+          href={`/inbox${keep({ kind: "Review", show: "" })}`}
+          selected={kind === "Review"}
+        />
+        <StatTile
+          label="Snoozed"
+          value={asleep}
+          note="coming back later"
+          href={`/inbox${keep({ show: "snoozed", kind: "" })}`}
+          selected={show === "snoozed"}
+        />
       </div>
 
       <AnnouncementStrip rows={mine} />
@@ -136,30 +209,6 @@ export default async function InboxPage({ searchParams }) {
         counts={counts}
         asleep={asleep}
       />
-
-      {can(actor, "approve", "feeWriteOff") && (
-        <p className="text-13 text-ink-muted">
-          <Link
-            href="/inbox/announcements"
-            className="underline underline-offset-4"
-          >
-            Post an announcement
-          </Link>{" "}
-          — and see who has read the last one.
-        </p>
-      )}
-
-      <p className="text-13 text-ink-muted">
-        Emails for these go out through the mail queue. What was sent, and what
-        was held back, is on{" "}
-        <Link
-          href="/settings/messages"
-          className="underline underline-offset-4"
-        >
-          Settings → Messages
-        </Link>
-        .
-      </p>
-    </div>
+    </Screen>
   );
 }

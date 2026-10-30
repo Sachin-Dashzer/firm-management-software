@@ -95,29 +95,39 @@ test.afterAll(async ({}, testInfo) => {
 });
 
 /**
+ * A group row is a **link** now (P3-34 phase 2).
+ *
+ * It was a button that only expanded, so reaching the first child took two
+ * clicks and the first went nowhere. The row now goes to the group's first
+ * item and opens the group on the way, which means these helpers look for
+ * a link carrying `aria-expanded` rather than for a button.
+ *
+ * `today` is no longer a group at all: its four items are rows of the rail
+ * under a TODAY heading, so the fixture's first entry is checked by its
+ * items and not by a heading of its own.
+ */
+const FLAT = new Set(["Today"]);
+
+/** @param {import("@playwright/test").Locator} rail @param {string} label */
+function groupRow(rail, label) {
+  return rail.getByRole("link", { name: label, exact: false }).first();
+}
+
+/**
  * Open a group, if it is not already.
  *
- * The group holding the current page opens itself, so clicking its head
- * **closes** it — the accordion doing exactly what it should. A test that
- * clicks blindly tests nothing but its own assumption.
- *
- * @param {import("@playwright/test").Locator} rail
- * @param {string} label
+ * The group holding the current page opens itself, so a test that clicks
+ * blindly tests nothing but its own assumption.
  */
 async function openGroup(rail, label) {
-  const head = rail.getByRole("button", { name: label });
+  if (FLAT.has(label)) return;
+  const head = groupRow(rail, label);
   if ((await head.getAttribute("aria-expanded")) !== "true") await head.click();
 }
 
-/** The group headings on screen, in order. */
+/** The group rows on screen, in order. */
 const groupsOn = (page) =>
-  page
-    .locator('nav[aria-label="Main"]')
-    .first()
-    .getByRole("button")
-    .filter({
-      hasNotText: /Find in menu|Narrow the menu|Clear/,
-    });
+  page.locator('nav[aria-label="Main"]').first().locator("a[aria-expanded]");
 
 test("a partner's menu is the ten groups, in order", async ({
   page,
@@ -127,18 +137,43 @@ test("a partner's menu is the ten groups, in order", async ({
   await signIn(page, fx.partner);
 
   const rail = page.locator('nav[aria-label="Main"]').first();
-  const headings = fixture.partner.map((group) => group.label);
+  const headings = fixture.partner
+    .map((group) => group.label)
+    .filter((label) => !FLAT.has(label));
 
   for (const label of headings) {
-    await expect(rail.getByRole("button", { name: label })).toBeVisible();
+    await expect(groupRow(rail, label)).toBeVisible();
   }
 
-  // and in the fixture's order
+  // the three bands are over them
+  for (const band of ["Today", "Work", "Firm"]) {
+    await expect(rail.getByText(band, { exact: true }).first()).toBeVisible();
+  }
+
+  // and the groups are in the fixture's order
   const onScreen = await groupsOn(page).allInnerTexts();
   const seen = headings.filter((label) =>
     onScreen.some((text) => text.includes(label)),
   );
   expect(seen).toEqual(headings);
+});
+
+test("the Today band's items are rows of the rail, not children", async ({
+  page,
+}, testInfo) => {
+  test.skip(onPhone(testInfo), DRAWER_NOTE);
+  const fx = names(testInfo.project.name);
+  await signIn(page, fx.partner);
+  const rail = page.locator('nav[aria-label="Main"]').first();
+
+  // visible without opening anything, which is the whole point of `flat`
+  for (const label of fixture.partner[0].items) {
+    await expect(rail.getByRole("link", { name: label })).toBeVisible();
+  }
+  // and no group row claims to hold them
+  await expect(
+    rail.locator("a[aria-expanded]", { hasText: "Today" }),
+  ).toHaveCount(0);
 });
 
 test("opening a group closes the others, and the links are the fixture's", async ({
@@ -161,9 +196,11 @@ test("opening a group closes the others, and the links are the fixture's", async
       }
     }
 
+    if (FLAT.has(group.label)) continue;
+
     // the accordion: exactly one group is expanded
     const expanded = await rail
-      .locator('button[aria-expanded="true"]')
+      .locator('a[aria-expanded="true"]')
       .allInnerTexts();
     expect(expanded).toHaveLength(1);
   }
@@ -186,7 +223,7 @@ test("every menu item opens something", async ({ page, request }, testInfo) => {
     }
   }
 
-  expect(hrefs.size).toBeGreaterThanOrEqual(58);
+  expect(hrefs.size).toBeGreaterThanOrEqual(59);
 
   for (const href of hrefs) {
     const response = await request.get(href);
@@ -218,9 +255,14 @@ test("an employee gets the short menu, and not the firm's", async ({
   await signIn(page, fx.employee);
   const rail = page.locator('nav[aria-label="Main"]').first();
 
-  await expect(rail.getByRole("button", { name: "My jobs" })).toBeVisible();
-  await expect(rail.getByRole("button", { name: "Firm" })).toHaveCount(0);
-  await expect(rail.getByRole("button", { name: "Billing" })).toHaveCount(0);
+  await expect(groupRow(rail, "My jobs")).toBeVisible();
+  // "Firm" is a band heading for staff too, so this asks about the group
+  await expect(
+    rail.locator("a[aria-expanded]", { hasText: "Firm" }),
+  ).toHaveCount(0);
+  await expect(
+    rail.locator("a[aria-expanded]", { hasText: "Billing" }),
+  ).toHaveCount(0);
 });
 
 test("on a phone the menu is a drawer", async ({ browser }, testInfo) => {
@@ -241,7 +283,9 @@ test("on a phone the menu is a drawer", async ({ browser }, testInfo) => {
   await page.getByRole("button", { name: "Menu" }).click();
   const drawer = navs.filter({ has: page.getByLabel("Find in menu") }).last();
   await expect(drawer).toBeVisible();
-  await expect(drawer.getByRole("button", { name: "Today" })).toBeVisible();
+  // Today is a band heading now, with its items as rows beneath it
+  await expect(drawer.getByText("Today", { exact: true })).toBeVisible();
+  await expect(drawer.getByRole("link", { name: "My tasks" })).toBeVisible();
 
   await page.keyboard.press("Escape");
   await expect(drawer).toBeHidden();

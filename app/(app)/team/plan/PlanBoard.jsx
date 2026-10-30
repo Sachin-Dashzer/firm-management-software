@@ -35,7 +35,8 @@ export default function PlanBoard({
   }
 
   const busy = rows.filter(
-    (row) => row.prepare.jobs.length || row.review.jobs.length || row.away.length,
+    (row) =>
+      row.prepare.jobs.length || row.review.jobs.length || row.away.length,
   );
 
   return (
@@ -65,10 +66,11 @@ export default function PlanBoard({
           className="rounded-ledger border-waiting bg-waiting-wash text-13 border px-3 py-2"
         >
           <strong>{warning.name}</strong> is away{" "}
-          {warning.away.map((leave) => `${leave.from} – ${leave.to}`).join(", ")}{" "}
-          and has {warning.count}{" "}
-          {warning.count === 1 ? "job due" : "jobs due"} on a day they are not
-          here. {warning.cover} is covering —{" "}
+          {warning.away
+            .map((leave) => `${leave.from} – ${leave.to}`)
+            .join(", ")}{" "}
+          and has {warning.count} {warning.count === 1 ? "job due" : "jobs due"}{" "}
+          on a day they are not here. {warning.cover} is covering —{" "}
           <Link
             href={`/team/${warning.userId}/takeover`}
             className="underline underline-offset-4"
@@ -112,7 +114,8 @@ export default function PlanBoard({
                   {row.covering.length > 0 && (
                     <span>
                       Covering{" "}
-                      {row.covering.map((entry) => entry.name).join(", ")} ·{" "}
+                      {row.covering.map((entry) => entry.name).join(", ")}{" "}
+                      ·{" "}
                     </span>
                   )}
                   <span className="num">{row.capacityHours}</span> hours
@@ -152,8 +155,8 @@ export default function PlanBoard({
 
               {row.over && (
                 <p className="text-13 text-redpen">
-                  Over capacity by {row.prepare.hours - row.capacityHours}{" "}
-                  hours this week.{" "}
+                  Over capacity by {row.prepare.hours - row.capacityHours} hours
+                  this week.{" "}
                   <Link
                     href={`/team/${row.person.id}/takeover`}
                     className="underline underline-offset-4"
@@ -172,8 +175,8 @@ export default function PlanBoard({
         <p className="text-13 text-ink-muted">
           {unscheduled} open{" "}
           {unscheduled === 1 ? "engagement has" : "engagements have"} no date to
-          plan from — usually a due-date rule a partner has not confirmed.
-          Those are on{" "}
+          plan from — usually a due-date rule a partner has not confirmed. Those
+          are on{" "}
           <Link href="/issues" className="underline underline-offset-4">
             Issues
           </Link>
@@ -189,7 +192,9 @@ function Lane({ title, jobs, note, tone = "" }) {
     <section className="flex flex-col gap-2">
       <div>
         <h3 className="text-14 font-medium">{title}</h3>
-        <p className={`text-12 ${tone === "over" ? "text-redpen" : "text-ink-muted"}`}>
+        <p
+          className={`text-12 ${tone === "over" ? "text-redpen" : "text-ink-muted"}`}
+        >
           {note}
         </p>
       </div>

@@ -145,8 +145,8 @@ export default function ProcedureEditor({
   if (!canWrite) {
     return (
       <p className="rounded-ledger border-rule bg-surface text-14 text-ink-muted border px-3 py-4">
-        Nobody has written this one yet. A CA or a partner writes these —
-        ask whoever does this job most often.
+        Nobody has written this one yet. A CA or a partner writes these — ask
+        whoever does this job most often.
       </p>
     );
   }
@@ -209,8 +209,8 @@ export default function ProcedureEditor({
           className="rounded-control border-rule bg-paper text-14 border px-2 py-1"
         />
         <span className="text-12 text-ink-muted">
-          Your words, not the system&rsquo;s. Write it the way you would say
-          it to somebody on their first week.
+          Your words, not the system&rsquo;s. Write it the way you would say it
+          to somebody on their first week.
         </span>
       </label>
 
@@ -292,8 +292,8 @@ export default function ProcedureEditor({
       </div>
 
       <p className="text-12 text-ink-muted">
-        Saving clears the partner&rsquo;s confirmation: they said the old
-        words were how the firm works, not these.
+        Saving clears the partner&rsquo;s confirmation: they said the old words
+        were how the firm works, not these.
       </p>
     </form>
   );

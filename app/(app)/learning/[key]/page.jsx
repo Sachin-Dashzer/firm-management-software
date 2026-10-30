@@ -78,8 +78,8 @@ export default async function ProcedurePage({ params }) {
           {row.reviewedAt
             ? `Nobody has read this since ${formatISTDate(row.reviewedAt)}.`
             : "No partner has read this since it was written."}{" "}
-          A procedure that was true a year ago and is quietly wrong now is
-          how a handbook stops being worth opening.
+          A procedure that was true a year ago and is quietly wrong now is how a
+          handbook stops being worth opening.
         </p>
       )}
 
@@ -99,9 +99,7 @@ export default async function ProcedurePage({ params }) {
                 intro: row.intro ?? "",
                 steps: (row.steps ?? [])
                   .map((step) =>
-                    step.note
-                      ? `${step.text}\n— ${step.note}`
-                      : step.text,
+                    step.note ? `${step.text}\n— ${step.note}` : step.text,
                   )
                   .join("\n"),
                 notFor: (row.notFor ?? []).join("\n"),

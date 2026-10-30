@@ -3,11 +3,11 @@
     {
       "label": "Today",
       "items": [
-        "Issues",
-        "Inbox",
+        "Firm dashboard",
         "My tasks",
-        "To-dos",
-        "Firm dashboard"
+        "Inbox",
+        "Issues",
+        "To-dos"
       ]
     },
     {
@@ -23,9 +23,10 @@
     {
       "label": "Compliance calendar",
       "items": [
-        "Monthly returns",
-        "Quarterly returns",
-        "Annual filings",
+        "Overview",
+        "Monthly",
+        "Quarterly",
+        "Annual",
         "Monthly GST cycle"
       ]
     },
@@ -43,7 +44,7 @@
       ]
     },
     {
-      "label": "Notices",
+      "label": "Notices & hearings",
       "items": [
         "All open matters",
         "Due in 7 days, no draft",
@@ -53,7 +54,7 @@
       ]
     },
     {
-      "label": "Audit and certificates",
+      "label": "Audit & certificates",
       "items": [
         "Audit studio",
         "— Audit files",
@@ -120,9 +121,9 @@
     {
       "label": "Today",
       "items": [
-        "Issues",
-        "Inbox",
         "My tasks",
+        "Inbox",
+        "Issues",
         "To-dos"
       ]
     },
@@ -144,7 +145,7 @@
       ]
     },
     {
-      "label": "Notices",
+      "label": "Notices & hearings",
       "items": [
         "Open matters",
         "GST",

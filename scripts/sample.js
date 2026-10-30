@@ -1969,6 +1969,16 @@ export async function seedSample(options = {}) {
   }
   log(`bell    ${bells} notifications`);
 
+  /**
+   * The rest of the house (`sample-practice.js`): the audit file, the working
+   * papers, the notice matters, the certificates, the firm's own day and the
+   * registers. Separate file because it is as long again as this one, and it
+   * runs last because every record in it hangs off a client or an engagement
+   * written above.
+   */
+  const { seedPractice } = await import("./sample-practice.js");
+  const practice = await seedPractice({ log });
+
   return {
     people: SAMPLE_PEOPLE.length,
     clients: SAMPLE_CLIENTS.length,
@@ -1982,6 +1992,7 @@ export async function seedSample(options = {}) {
     documents,
     notes: SAMPLE_NOTES.length + workComments,
     notifications: bells,
+    practice,
   };
 }
 
@@ -2074,6 +2085,15 @@ export async function dropSample() {
     await systemAudit((session) => group.softDelete("sample", { session }));
     removed += 1;
   }
+
+  /* What `sample-practice.js` wrote, found the same way: by the clients and
+     the colleagues it hangs off. */
+  const { dropPractice } = await import("./sample-practice.js");
+  const practice = await dropPractice({
+    clientIds: clients.map((c) => c._id),
+    userIds: people.map((p) => p._id),
+  });
+  removed += practice.removed;
 
   /**
    * The invented GSTIN comes off any branch still carrying it untouched. A

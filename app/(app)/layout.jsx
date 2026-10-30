@@ -66,6 +66,30 @@ export default async function AppLayout({ children }) {
   // checks again when they get there
   const allowed = AREAS.filter((area) => can(user, "view", area));
 
+  /**
+   * What the `+ New` button offers (P3-34 phase 2).
+   *
+   * Decided here and not in the browser, and decided with `"edit"` rather
+   * than `"view"`: being allowed to read the client list is not being
+   * allowed to add a client. A to-do needs nothing — everybody keeps their
+   * own. Each route checks again on arrival; this only keeps the menu from
+   * offering a form somebody will be turned away from.
+   */
+  const canCreate = [
+    { label: "New client", href: "/clients/new", area: "clients" },
+    { label: "New job", href: "/engagements/new", area: "engagementsCreate" },
+    { label: "New invoice", href: "/invoices/new", area: "invoices" },
+    { label: "Log a notice", href: "/practice/notices/new", area: "practice" },
+    { label: "Record a payment", href: "/billing/desk", area: "invoices" },
+    { label: "New to-do", href: "/todos", area: null },
+  ]
+    .filter((item) => !item.area || can(user, "edit", item.area))
+    .map(({ label, href }) => ({ label, href }));
+
+  /** The one branch a person is in, for the line under their name. */
+  const branchLabel =
+    branches.length === 1 ? branches[0].name : `${branches.length} branches`;
+
   return (
     <div className="flex h-dvh flex-col">
       {/* first thing in the tab order: past the rail and straight to work */}
@@ -82,6 +106,7 @@ export default async function AppLayout({ children }) {
           counts={counts}
           userName={user.name}
           roleLabel={ROLE_LABELS[user.role] ?? user.role}
+          branchLabel={branchLabel}
           firmName={name}
         />
         <div className="flex min-w-0 flex-1 flex-col">
@@ -94,6 +119,7 @@ export default async function AppLayout({ children }) {
             }))}
             unreadCount={unreadCount}
             view={user.view}
+            canCreate={canCreate}
           />
           {/**
            * One canvas, set once (D80).
@@ -107,12 +133,19 @@ export default async function AppLayout({ children }) {
            *
            * Capping here rather than editing sixty files means a page can
            * still be *narrower* than the canvas — a settings form at 760
-           * is right — but none can be wider. The measured range for a
-           * data screen is 1100-1250; 1280 leaves the gutter inside it.
+           * is right — but none can be wider.
+           *
+           * **1440 since D104** (the owner's call, 30-10-2026), up from
+           * 1280. The measured range for a data screen is 1100-1250 and
+           * 1280 sat inside it; what changed is that the registers the
+           * firm works in are now two columns — the notice list beside
+           * its diary, the issues table with four columns and an action —
+           * and at 1280 the rail was taking width from the table rather
+           * than from the window. The reference the owner gave is 1440.
            */}
           <main
             id="content"
-            className="relative z-10 min-h-0 w-full max-w-[1280px] flex-1 self-center overflow-auto"
+            className="relative z-10 min-h-0 w-full max-w-[1440px] flex-1 self-center overflow-auto"
           >
             {children}
           </main>

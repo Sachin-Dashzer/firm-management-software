@@ -3,11 +3,7 @@
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import {
-  previewRoundTrip,
-  commitRoundTrip,
-  undoFieldChange,
-} from "./actions";
+import { previewRoundTrip, commitRoundTrip, undoFieldChange } from "./actions";
 import { useKeptFile } from "@/lib/forms/keptFile";
 
 /**
@@ -144,8 +140,8 @@ export default function RoundTrip() {
           >
             Download the list first
           </Link>
-          , correct it, and save it as CSV UTF-8. A blank cell changes
-          nothing — it never clears a field.
+          , correct it, and save it as CSV UTF-8. A blank cell changes nothing —
+          it never clears a field.
         </p>
       </form>
 
@@ -185,9 +181,9 @@ export default function RoundTrip() {
                 ))}
               </ul>
               <p className="text-12 text-ink-muted">
-                Undo is for this batch. Once you leave the page, what changed
-                is on each client&rsquo;s own Activity tab, where it is kept
-                for good.
+                Undo is for this batch. Once you leave the page, what changed is
+                on each client&rsquo;s own Activity tab, where it is kept for
+                good.
               </p>
             </>
           )}

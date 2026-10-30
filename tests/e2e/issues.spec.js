@@ -268,7 +268,7 @@ test("acting on a row makes the row go, with nothing to mark resolved", async ({
   await signIn(page, fx.ca);
   // a sign-in lands on the dashboard now, not here (D101)
   await page.goto("/issues");
-  await page.getByRole("button", { name: "Everyone" }).click();
+  await page.getByRole("link", { name: "Everyone" }).click();
 
   await expect(upload(page)).toBeVisible();
   // there is no way to dismiss a row: the only button is the real action
@@ -292,7 +292,7 @@ test("an employee's Issues has none of the firm's money on it", async ({
   const fx = names(testInfo.project.name);
   await signIn(page, fx.maker);
   await page.goto("/issues");
-  await page.getByRole("button", { name: "Everyone" }).click();
+  await page.getByRole("link", { name: "Everyone" }).click();
 
   // their own work is there — the second upload, which the test above
   // leaves alone
@@ -302,11 +302,13 @@ test("an employee's Issues has none of the firm's money on it", async ({
 
   // the overdue invoice is not, on either view, and neither is the group
   await expect(page.getByText(fx.invoice)).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /^Money · / })).toHaveCount(0);
+  // the chip carries its count as a badge since D104, so "Money 8", not
+  // "Money · 8" — matching on the word alone survives the next redraw
+  await expect(page.getByRole("button", { name: /^Money/ })).toHaveCount(0);
 
   // and a CA does see it, so the absence above is scoping and not an empty list
   await signIn(page, fx.ca);
   await page.goto("/issues");
-  await page.getByRole("button", { name: "Everyone" }).click();
+  await page.getByRole("link", { name: "Everyone" }).click();
   await expect(page.getByText(fx.invoice)).toBeVisible();
 });

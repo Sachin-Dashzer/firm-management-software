@@ -332,7 +332,7 @@ test("an empty period gets a reason, and leaves the count", async ({
 
   const service = await ServiceTemplate.findOne({ code: fx.code }).lean();
   await page.goto(
-    `/calendar?view=grid&service=${service._id}&fy=${new Date().getFullYear() - 1}`,
+    `/compliance/monthly?service=${service._id}&fy=${new Date().getFullYear() - 1}`,
   );
 
   const panel = page.getByRole("heading", {
