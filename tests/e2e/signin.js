@@ -2,6 +2,7 @@ import { expect } from "@playwright/test";
 import { TOTP, Secret } from "otpauth";
 import User from "../../models/User.js";
 import { decryptField } from "../../lib/crypto.js";
+import { LANDING } from "../../lib/nav/landing.js";
 
 /**
  * Signing in, once, for every spec that needs it.
@@ -104,11 +105,14 @@ export async function codeFor(email) {
  * @param {import("@playwright/test").Page} page
  * @param {string} email
  * @param {{password?: string, land?: RegExp}} [options]
- *   `land` is where this account is expected to end up — `/issues` for
- *   everybody except an account that must change its password first.
+ *   `land` is where this account is expected to end up. It defaults to
+ *   `LANDING`, the same constant the login form reads, so the suite cannot
+ *   disagree with the application about where a sign-in goes. Pass it only
+ *   for an account that goes somewhere else — one that must change its
+ *   password first, for instance.
  */
 export async function signIn(page, email, options = {}) {
-  const { password = PASSWORD, land = /\/issues$/ } = options;
+  const { password = PASSWORD, land = new RegExp(`${LANDING}$`) } = options;
 
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);

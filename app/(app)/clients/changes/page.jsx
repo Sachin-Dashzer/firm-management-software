@@ -71,3 +71,4 @@ export default async function ChangesPage({ searchParams }) {
     </div>
   );
 }
+

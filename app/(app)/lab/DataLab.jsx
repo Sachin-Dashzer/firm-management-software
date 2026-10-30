@@ -7,6 +7,7 @@ import {
   jobsForSummary,
   postSummary,
 } from "./actions";
+import { useKeptFile } from "@/lib/forms/keptFile";
 
 /**
  * Upload, map, read (P3-20).
@@ -29,8 +30,10 @@ export default function DataLab() {
   const [message, setMessage] = useState(null);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  const file = useKeptFile();
 
   function onProfile(formData) {
+    file.keep(formData);
     startTransition(async () => {
       setError("");
       setResult(null);
@@ -48,7 +51,10 @@ export default function DataLab() {
   function onAnalyse() {
     startTransition(async () => {
       setError("");
-      const response = await analyseUpload(null, new FormData(formRef.current));
+      const response = await analyseUpload(
+        null,
+        file.restore(new FormData(formRef.current)),
+      );
       if (response.error) {
         setError(response.error);
         return;

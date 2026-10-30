@@ -58,11 +58,23 @@ export default function ClientForm({
   const [duplicates, setDuplicates] = useState({ blocking: [], warnings: [] });
   const [message, setMessage] = useState(null);
   const [pending, startTransition] = useTransition();
+  /**
+   * The duplicate check gets a transition of its own, and it must keep it.
+   *
+   * It runs on blur, and clicking "Create client" after typing in PAN or the
+   * legal name *is* a blur of that field. Sharing one `pending` with the
+   * submit button therefore disabled the button between mousedown and
+   * mouseup, and a browser fires no click on a button disabled mid-press —
+   * so the form never submitted and nothing at all appeared to happen.
+   * Creating a client with a mouse was broken; the tests passed because
+   * `requestSubmit()` bypasses the button.
+   */
+  const [, startCheck] = useTransition();
 
   /** Ask the server whether anything already uses this PAN, GSTIN or mobile. */
   function runDuplicateCheck(formEl) {
     const data = new FormData(formEl);
-    startTransition(async () => {
+    startCheck(async () => {
       const result = await checkForDuplicates({
         id: client?.id,
         pan: data.get("pan"),

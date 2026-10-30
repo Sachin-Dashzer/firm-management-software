@@ -240,10 +240,23 @@ const upload = (page) =>
     .getByRole("listitem")
     .filter({ hasText: "Upload to check: Sales register" });
 
-test("signing in lands on Issues", async ({ page }, testInfo) => {
+test("signing in lands on a real page, and Issues is one click away", async ({
+  page,
+}, testInfo) => {
   const fx = names(testInfo.project.name);
   await signIn(page, fx.ca);
-  // the assertion is inside signIn; this is the one that says it is the page
+
+  /**
+   * This test used to assert that a sign-in lands on Issues, which was D43.
+   * The owner changed the landing to the firm dashboard on 29-10-2026, so
+   * the URL assertion now lives in `signIn` against `LANDING` and all this
+   * one says is that whatever that page is, it rendered. **The decision is
+   * worth revisiting**: Issues is the list of everything needing somebody's
+   * attention, which is why D43 put a sign-in there.
+   */
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+
+  await page.goto("/issues");
   await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
   await expect(page.getByText(/nothing to tick off/)).toBeVisible();
 });
@@ -253,6 +266,8 @@ test("acting on a row makes the row go, with nothing to mark resolved", async ({
 }, testInfo) => {
   const fx = names(testInfo.project.name);
   await signIn(page, fx.ca);
+  // a sign-in lands on the dashboard now, not here (D101)
+  await page.goto("/issues");
   await page.getByRole("button", { name: "Everyone" }).click();
 
   await expect(upload(page)).toBeVisible();
@@ -276,6 +291,7 @@ test("an employee's Issues has none of the firm's money on it", async ({
 }, testInfo) => {
   const fx = names(testInfo.project.name);
   await signIn(page, fx.maker);
+  await page.goto("/issues");
   await page.getByRole("button", { name: "Everyone" }).click();
 
   // their own work is there — the second upload, which the test above
@@ -290,6 +306,7 @@ test("an employee's Issues has none of the firm's money on it", async ({
 
   // and a CA does see it, so the absence above is scoping and not an empty list
   await signIn(page, fx.ca);
+  await page.goto("/issues");
   await page.getByRole("button", { name: "Everyone" }).click();
   await expect(page.getByText(fx.invoice)).toBeVisible();
 });

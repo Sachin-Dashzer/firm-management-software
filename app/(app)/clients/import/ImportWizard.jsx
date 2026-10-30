@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { previewImport, commitImport } from "./actions";
+import { useKeptFile } from "@/lib/forms/keptFile";
 
 /**
  * Upload, preview, then import (spec section 3: "bulk import with a
@@ -18,8 +19,10 @@ export default function ImportWizard() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  const file = useKeptFile();
 
   function onPreview(formData) {
+    file.keep(formData);
     startTransition(async () => {
       setError("");
       setResult(null);
@@ -36,7 +39,7 @@ export default function ImportWizard() {
   function onCommit() {
     startTransition(async () => {
       setError("");
-      const formData = new FormData(formRef.current);
+      const formData = file.restore(new FormData(formRef.current));
       const response = await commitImport(null, formData);
       if (response.error) {
         setError(response.error);

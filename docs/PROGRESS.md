@@ -1,9 +1,15 @@
-# PHMG CRM — Progress
+# PHMG CRM — Progre| 30-10-2026 | D94: **one invoice series for the whole firm, not one per branch.** `NOI/26-27/0087` becomes `PHMG/26-27/0087`: the prefix comes from the firm's own record rather than the branch the invoice was raised at. The owner's reason is the one that matters — the firm wants one running number to reconcile against, and four parallel series means four places a gap can hide. The branch stays on the invoice as a field, so every branch report still works; it simply no longer decides the number. | Owner (answering spec §18) |
+| 30-10-2026 | D95: **Tally is the export target.** Step 8c's open choice is settled: invoices and receipts export as Tally XML vouchers, not Zoho and not a generic CSV. | Owner (answering spec §18) |
+| 30-10-2026 | D96: **an intern never sees a fee or an amount.** The `invoices` and `feeWriteOff` matrix rows already said `none` for the role, but a fee is printed in a dozen other places — the engagement header, Ready to bill, the unbilled list, the client's outstanding balance, the time value and realisation figures. Those are a *field* rule, not an area rule, so one helper decides it and every screen asks the helper. | Owner (answering spec §18) |
+| 30-10-2026 | D97: **a separate Accounts role is wanted, and it already exists.** `accounts` has been in `ROLES` since P2-1 with its own column in every matrix area. Confirmed rather than built. | Owner (answering spec §18) |
+| 30-10-2026 | D98: **the old data is in Excel and two financial years are migrated.** 2024-25 and 2025-26 come across; anything older stays in the spreadsheets as the firm's own archive. Clients, engagement history and invoice history, in that order, because each needs the one before it. | Owner (answering spec §18) |
+| 30-10-2026 | D99: **BigRock is reported as unlimited, and the mail queue's rate limit stays anyway.** The owner's answer is that there are no caps. Shared cPanel hosting always has a real hourly email limit and a real inode count whatever the plan says, and the cost of discovering them by having a day's notices silently dropped is far higher than the cost of a limit nobody hits. The limit is kept as a setting, with the owner's figure as the default. | Agent, on the owner's answer |
+ss
 
 Source of truth for what is done. Updated at the end of every step.
 Status: ⬜ not started · 🟡 in progress · ✅ done
 
-Last updated: 29-10-2026
+Last updated: 30-10-2026
 
 ## Phase 1 — Core MVP
 
@@ -137,6 +143,37 @@ sub-steps P3-22a … P3-22f.
 | P3-21a | **The prototype's palette and type.** Token values only: `app/globals.css` and the font loader. The token *names* are unchanged, so sixty routes take the new look without being touched | 🟡 | Built 26-10-2026. **Two of the prototype's own colours fail the contrast bar spec §15 sets**, at the smallest text on screen — its faintest grey gives 2.97:1 on the page background where WCAG wants 4.5:1. Those two are the only values that are not the prototype's exactly, and `tests/contrast.test.js` now measures every new pair, including the chip-on-soft-fill ones, so a well-meaning revert fails the suite. The parser also resolved `var()` aliases, without which `--brass: var(--carbon)` silently left brass untested. Fraunces is gone with the ledger language; **Plex Sans at 700 does the headings now**. 4 new unit tests (938 total) |
 | P3-21b | **The prototype's screens** — the layouts, the card and chip shapes, the eight signature moments from Step 11 parked behind a theme setting rather than deleted, so the decision stays reversible | 🟡 | Built 27-10-2026. **One radius token was doing four jobs.** The prototype has four and they all differ — 12px card, 8px control, 10px table, a full pill on a chip — and this application put `rounded-ledger` on all four, which was the single most visible shape difference. 907 uses swept by what each line already said it was (`py-0.5` a chip, `h-9` a control, `overflow-x-auto` a table): 472 controls, 40 tables, 17 chips, 378 cards left alone. **The headings were a step large**: the prototype sets h1 at 24px/700 and h2 at 15.5px, this had 28 and 20; 60 h1s and 111 h2s corrected, and figures left at 28 because that is the prototype's own `.big`. The shell took the prototype's measurements — a 232px rail, its accent-soft active item, its 34px logo, a top bar on the page's own ground rather than a third surface — and table headers took its sunk ground. **The eight signature moments are parked, not deleted** (D52): one `data-moments` attribute, a switch in the top bar beside the theme and density, and one line each in `globals.css` — the tick, the stamp, the grain, the ruling, the brass ring, the serif, the brass hairline and the login constellation. | **And the application was rendered for the first time** (D53). `next start` boots without a database and `/login` serves, so a real browser finally saw a screen of this build. It found what 1,223 passing tests could not: **every primary button in the dark theme sat at 2.8:1** — 101 places wrote `text-white` where the ground is `bg-carbon`, which is dark blue in the light theme and pale blue in the dark one. `tests/contrast.test.js` had the pair right and even said so in a comment; it measures tokens and could not see a class name. All 101 fixed, and `tests/markup-contrast.test.js` now watches the markup instead of the tokens. The login screen was laid out as two panels and rendered with a quarter of the viewport empty under both; it is a centred column now. 6 new unit tests (1229 total). **Only the dark theme has been seen rendered, and only the sign-in screen** — everything inside the application still needs the Atlas cluster |
 
+
+**Group 6 — the owner's answers wired in, and the gaps closed.** Step list
+approved 30-10-2026, after the owner answered six of the ten questions open
+since Step 0 (D94–D99) and asked for every deliberately-omitted feature to be
+built. Ordered so the cheapest and most visible go first: a demonstration in
+which "Create client" does nothing is worse than one missing a cash flow
+statement.
+
+| Step | What | Status |
+| --- | --- | --- |
+| P3-33 | **Five bugs.** Create client with a mouse; the landing path that took the whole suite down; React 19's form reset emptying the file input on three upload screens and the email on the login screen; the data lab's findings in broken English at a count of one | ✅ |
+| P3-34 | **One invoice series for the firm** (D94): the prefix comes from the firm record, not the branch | ⬜ |
+| P3-35 | **An intern never sees an amount** (D96): one field-level helper, asked by every screen that prints a fee | ⬜ |
+| P3-36 | **Tally XML export** (D95): invoice and receipt vouchers. Nothing exists yet — `invoices/export/route.js` has carried the open choice as a comment since Step 8c | ⬜ |
+| P3-37 | **Two years in from Excel** (D98): clients, then engagement history, then invoice history. Needs three sample spreadsheets from the owner | ⬜ |
+| P3-38 | **Client experience** (the old P3-20b): WhatsApp answers from live data, a monthly report a partner releases, the business pulse. Behind `lib/whatsapp/` with a `log` and an `http` driver (D100) | ⬜ |
+| P3-39 | **`/settings/modules`**: the owner overrides the 27-10-2026 recommendation. One guard — a module switches off only when it holds no live work, and switching off hides screens, never data | ⬜ |
+| P3-40 | **The financial statements completed**: cash flow (AS 3), the Schedule III ratios, and a reason for every movement above 25%. All three need the prior year beside the current one, so a second year is stored | ⬜ |
+| P3-41 | **Ageing schedules**: trade receivables and payables ageing with the MSME split. The firm's own clients' invoices are already here; anybody else's is a second import | ⬜ |
+| P3-42 | **The notes' wording**: approved templates in the `DocTemplate` shape — shipped unapproved, a partner reads each one, figures filled from the mapped trial balance. P3-32 refused to draft sentences for a signed statement and that still holds; a template a partner has approved is the firm's own words, which is a different thing | ⬜ |
+| P3-43 | **Stratified sampling**, added to P3-30's three methods | ⬜ |
+| P3-44 | **The time figures as reports**: timesheet, utilisation, realisation and client profitability through the existing report and Excel export framework | ⬜ |
+| P3-45 | **GST QRMP**: the quarterly return, the monthly payment and the IFF. Flagged as uncovered since P3-1 | ⬜ |
+| P3-46 | **To-dos repeat, and chase**: recurrence, and a line in the daily digest rather than a mail of its own (P3-22c's own recommendation) | ⬜ |
+
+**Still unanswered from spec §18**, and none of Group 6 waits on them: the
+user count and client count at launch, the client-portal question (overtaken
+by P2-9a, which built the logins), the budget and target go-live date, and
+whether cPanel has Node.js app support — that last one decides how the job
+runner is deployed and is the only one that blocks a step.
+
 **`docs/SPEC.md` was amended 26-10-2026** on the nine passages Phase 2 and
 Phase 3 overtook: the A/B/C tiers, the six document states, Issues as the
 landing page, the view selector, the three internal dates, the pipeline order,
@@ -153,6 +190,8 @@ whose cost grows every week it waits.
 
 | Date | Decision | By |
 | --- | --- | --- |
+| 30-10-2026 | D101: **a sign-in now lands on the firm dashboard, and where it lands lives in one place.** The owner moved it from Issues to `/dashboard` on 29-10-2026, which reverses D43 (P3-6 made Issues the landing page because it is the list of everything needing somebody's attention). The move is kept, and it is **recorded rather than agreed** — worth the owner's confirmation, because the two screens answer different questions on opening the application. What is settled is that the path is `LANDING` in `lib/nav/landing.js`, read by the login form and by the test helper: it was a literal in both, they drifted, and the drift took the entire browser suite down. | Owner changed it; agent recorded it and asks |
+| 30-10-2026 | D100: **the WhatsApp provider is the firm's own, so the driver is generic.** The owner's answer to the question open since Step 0 is "custom" — not Meta's Cloud API and not a named BSP. `lib/whatsapp/` therefore takes the shape `lib/storage/` already has: one adapter, two drivers. `log` composes the message, records it and sends nothing, which is what a demonstration needs and what a firm with no approved number has anyway; `http` posts to an endpoint named in the environment with a bearer token, with the field names configurable, because a custom gateway's payload is not knowable from here. Nothing in the application calls the provider directly, so changing gateways later is one environment variable and not a rewrite. **The provider's API document is still needed before the `http` driver can be finished.** | Owner asked for the screen; agent chose the adapter shape |
 | 29-10-2026 | D93: **the Schedule III head list is a confirmed table, and no mapping is ever invented.** The 27 Division I summary heads live in code so nobody can edit them into something plausible-looking, and a partner's confirmation is a `ruleConfirmations` row — the same shape as the due-date master and the notice limitation periods (rule 8). Nothing is refused while it is unconfirmed, because a firm mid-audit should not be stopped by a settings task, but every screen says so and the export puts it in the title line of every sheet. **Every head on every ledger carries where it came from**: unmapped, suggested from the client's own Tally group, remembered from the same ledger name last year, or confirmed by a person on this set — only the last means somebody decided, so the firm can always say who put a figure where. The journal has **three** states, and the third is the point: only an entry passed in the books moves a figure, and one the client would not pass goes to the audit file's misstatement summary to be weighed against materiality. The notes step **lists the notes and does not write them** — their wording is the firm's own judgement about this company, and this application does not draft sentences for a statement somebody will sign. The statements cannot be locked while the two sides differ. | Agent |
 | 29-10-2026 | D92: **the accounts desk performs its own decisions, reversing D74 — and no new server action was written to do it.** D74 made the desk four lists that performed nothing, on the reasoning that the desk shows what needs doing and the doing belongs on the record; the owner asked for the prototype's behaviour instead. What was load-bearing in D74 is kept: every button calls the same action the record's own screen calls, so a decision cannot be allowed from one screen and refused from another, and the audit entry is written once. Refusals are shown rather than hidden, which matters most here because the firm's own branch GSTINs are not entered yet and most drafts therefore cannot be issued — the desk says so in the invoice rules' own words instead of looking broken. The one-click apply of unallocated money shows where the money will go **before** it is pressed and then applies exactly that: the firm's own oldest-invoice-first suggestion, not a second policy invented for this screen. Two of the prototype's eighteen actions stay off it with the reason on the screen — billing a job with its fee is one decision taken together on Ready to bill, and a manual "remind now" would be a second, unrecorded cadence beside the rule-driven one. | Owner asked; agent kept D74's reasoning where it held |
 | 29-10-2026 | D91: **a sample is drawn from a stored seed, and the firm says how big it is.** The selection runs off a seeded generator so the same population and the same seed give the same rows for ever — a selection made with `Math.random()` cannot answer the only question a peer reviewer asks about a sample. **No sample size is computed:** SA 530 gives no formula, a size comes from the firm's own table weighing risk against what other procedures cover, and deriving one from a confidence level would be inventing a professional rule (rule 8). The confidence, the tolerable misstatement and the reasoning are recorded beside the size instead, the way `materialityBasis` is. In monetary-unit selection anything worth a whole sampling interval is **promoted to a key item**, which is the method and not a refinement: without it one large entry absorbs several hits, they collapse to one row, and a draw asked for twelve returns four while looking like a smaller sample rather than a bug. Two refusals carry the professional rule: a sample cannot be locked until somebody has said whether the population agrees to the trial balance, and it cannot be redrawn once a single cell is marked. Unlocking needs a CA or partner and a written, audited reason. | Agent |
@@ -1859,15 +1898,15 @@ code, so say if one of these is not the fourth you meant:
 From spec §18 — none answered yet. These block later steps, not Step 0:
 
 - [ ] User count at launch and active client count
-- [ ] Invoice numbering: one series firm-wide or one per branch? GST registration in each state?
-- [ ] Export target: Tally, Zoho Books, other?
-- [ ] Can interns see fees / invoice amounts?
-- [ ] Is a separate Accounts / Billing role needed?
-- [ ] WhatsApp BSP choice and number availability (phase 2)
+- [x] Invoice numbering: **one series firm-wide** (D94). GST registration in each state still to confirm
+- [x] Export target: **Tally** (D95)
+- [x] Can interns see fees / invoice amounts? **No** (D96)
+- [x] Is a separate Accounts / Billing role needed? **Yes — and it already exists** (D97)
+- [ ] **WhatsApp provider still unanswered** — the owner asked on 30-10-2026 for `/client-experience` to be built, which needs one. Recommendation: Meta's own WhatsApp Cloud API, no BSP in between
 - [ ] Client portal logins in phase 3, or upload links only?
-- [ ] Where existing data lives today and how far back to migrate
+- [x] Where existing data lives today and how far back to migrate: **Excel, two financial years** (D98)
 - [ ] Budget and target go-live date
-- [ ] BigRock: Node.js app support in cPanel? hourly email cap? disk/inode limits? server country? backup destination?
+- [x] BigRock limits: **owner reports no caps** (D99) — the mail rate limit is kept regardless. Node.js app support in cPanel, server country and backup destination are still unanswered, and the first decides how the job runner is deployed
 
 ## Owner tasks outstanding
 
@@ -3470,6 +3509,98 @@ succeeds, 6 Playwright tests pass at laptop and phone widths.
 - **A declined waiver's reason is a single-line input.** Long enough for
   the sentence the person who asked will read, not long enough for a
   paragraph; the engagement's own screen takes more.
+
+## What P3-33 built — four bugs, three of them React 19's form reset (30-10-2026)
+
+The step was one bug: "Create client" did nothing when clicked with a mouse.
+It became four, because the cause turned out to be a shape repeated across
+the application.
+
+**The one that was asked for.** `ClientForm.jsx` ran its duplicate check on
+the form's `onBlur`, and **clicking the submit button is a blur of the field
+you were last in**. The check and the submit shared one `useTransition`, so
+the button went `disabled` between mousedown and mouseup — and a browser
+fires no click on a button disabled mid-press. No submit, no message, no
+error: exactly what was reported. `requestSubmit()` from a test passed
+because it bypasses the button, which is why the suite never caught it. The
+check now has a transition of its own. **The test was changed to type the PAN
+last**, immediately before the click, so it clicks inside the race that was
+the bug; filling the PAN earlier is what hid it.
+
+**The suite-wide one, found on the way.** Every one of the 45 specs that
+signs somebody in was failing — reported as a timeout filling the 2FA code
+box, which named the symptom. The sign-in succeeded; the helper waited for
+`/issues` while the application went to `/dashboard` (owner's commit,
+29-10-2026), then tried its code a second time on a page with no code box.
+The path was a literal in the login form and a literal in the helper. It is
+now `LANDING` in `lib/nav/landing.js` and both read it (D101).
+
+**React 19 resets a form once its action returns, and that broke three
+things nobody had connected.**
+
+- **Bulk client import was broken in the application, not the test.** Press
+  "Check the file", then "Import 1 client", and it answered *"The file is no
+  longer attached. Choose it again."* about a file named on the screen in
+  front of you — the preview's action had returned and the reset emptied the
+  file input. The client round-trip and the data lab upload the same way and
+  were broken identically. `lib/forms/keptFile.js` holds the file across the
+  reset and **restores rather than rebuilds**, so the round-trip's `apply`
+  list and the lab's column choices travel untouched. One helper, three
+  screens, four unit tests.
+- **The login screen wiped your email when you got your password wrong.**
+  First screen of the application, and the reset took both fields. The email
+  is now controlled state; the password is deliberately still cleared,
+  because clearing a refused password is right.
+
+**A fifth bug, in the data lab's words.** With the upload repaired the
+checks finally ran, and the screen said *"1 reference appear more than
+once"* and *"1 amount land on exactly ₹10,000"*. The noun was inflected for
+the count and the verb was not, so every finding read as broken English at
+exactly the count a firm sees most often — one. Both now inflect.
+
+**Six test selectors were wrong about the product rather than the other way
+round.** `getByText("Call")` matched the `<option>` in the Kind select, which
+is hidden, so the note test failed on a control it had just used.
+`getByText("1")` — "some element contains a 1" — matched the menu's hidden
+to-do badge at phone width. The lab's mapping row has grown a select per
+field, so `getByLabel("Amount")` matched four of them; its findings are
+scoped to the list now, because every finding's wording also appears in the
+summary that can be posted to a job. A `goto` raced the sign-in it followed
+and landed back on `/login`. And `navigation[name="Main"]` was asserted at
+both widths although the rail is `hidden` on a phone, where the menu is a
+drawer behind the Menu button — the assertion now takes either.
+
+**Three Issues tests needed a `goto`, and that is the landing change's
+bill.** They signed in and clicked a control on Issues, which worked while a
+sign-in landed there. Nothing else in the suite depended on it.
+
+**Checks:** lint clean, 1582 Vitest tests pass (4 new), `next build`
+succeeds, and the five specs over the changed screens — clients, signin-flow,
+issues, lab, round-trip — pass at **both laptop and phone width, run one
+spec at a time**: 13 tests each width, where clients alone was 0 of 8.
+
+**Left over**
+
+- **Running both widths in one command still fails 4 of 16**, and it is the
+  interference already on this list: one database, `workers: 1`, and the
+  second project's `beforeAll` deleting the fixture the first project's
+  later tests still need. Each project passes alone. This is the structural
+  job after D77 and it is not this step's.
+- **The duplicate check still fires on blur**, so it runs when somebody
+  tabs through PAN on the way to somewhere else. That is cheap and correct;
+  what was wrong was letting it reach the submit button.
+- **`keptFile` is per mount.** Reload the import page and the file is gone,
+  which is right — nothing is held on the server, and a reload is a person
+  starting again.
+- **`signin-flow.spec.js` is flaky in company, not alone.** Each of its
+  five tests passes on its own; in one file together a different one fails
+  each run, on an element that is there a second later. This is the sign-in
+  helper's known flakiness after several sign-ins in a file — already on
+  this list, and a pass of its own.
+- **Nothing was done about the 5.6-hour suite.** A single spec file against
+  an already-running `next start` is 30 seconds, which is the loop that made
+  this step possible; `PHMG_TEST_PORT` with a server already up is worth
+  writing down in `DEPLOY.md`.
 
 ## What P3-32 built — the trial balance to the financial statements (29-10-2026)
 

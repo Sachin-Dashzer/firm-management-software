@@ -99,11 +99,18 @@ test("onboard a client, then find it again", async ({ page }) => {
   await page.getByLabel("Trade name").fill("Playwright Textiles");
   await page.getByLabel("Entity type").selectOption("Private Limited");
   await pick(page.getByLabel("Branch"), /NOI/);
-  await page.getByLabel("PAN").fill(PAN);
   await chooseGroup(page);
   await page.locator('input[name="gstins.0.gstin"]').fill(GSTIN);
   await page.locator('input[name="contacts.0.name"]').fill("Rakesh Sharma");
   await page.locator('input[name="contacts.0.mobile"]').fill("9811034567");
+
+  // PAN is typed last on purpose. Leaving it starts the duplicate check, and
+  // this click lands while that check is still in flight — which is how the
+  // mouse bug showed itself: the submit button shared the check's pending
+  // state, went disabled between mousedown and mouseup, and the browser
+  // fired no click at all. Fill PAN earlier and the race is gone and so is
+  // the cover for the bug.
+  await page.getByLabel("PAN").fill(PAN);
   await page.getByRole("button", { name: "Create client" }).click();
 
   // lands on the new client's case file, with a generated code
@@ -222,8 +229,15 @@ test("a note goes on the communication log", async ({ page }) => {
     .fill("Called about September GST data; promised by Friday.");
   await page.getByRole("button", { name: "Add entry" }).click();
 
-  await expect(page.getByText(/promised by Friday/)).toBeVisible();
-  await expect(page.getByText("Call").first()).toBeVisible();
+  /**
+   * The kind is asserted on the log row, not on the page. `getByText("Call")`
+   * resolved to the `<option>` inside the Kind select — which is hidden, so
+   * the test failed on a control it had just used rather than on the entry it
+   * was about.
+   */
+  const entry = page.getByRole("listitem").filter({ hasText: /promised by Friday/ });
+  await expect(entry).toBeVisible();
+  await expect(entry).toContainText("Call");
 });
 
 test("the import preview refuses a bad file without saving anything", async ({
@@ -245,7 +259,13 @@ test("the import preview refuses a bad file without saving anything", async ({
   });
   await page.getByRole("button", { name: "Check the file" }).click();
 
-  await expect(page.getByText("1", { exact: false }).first()).toBeVisible();
+  /**
+   * This said `getByText("1")`, which meant "some element somewhere contains
+   * a 1" — at phone width the first match was the hidden to-do count in the
+   * menu drawer, so the test failed on the navigation while the preview it
+   * was about was correct. The count has a sentence; assert the sentence.
+   */
+  await expect(page.getByText(/1 ready to import/)).toBeVisible();
   await expect(page.getByText(/Branch "XYZ" is not one of/)).toBeVisible();
   expect(await Client.countDocuments({})).toBe(before);
 

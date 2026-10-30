@@ -6,6 +6,7 @@ import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { startSignIn, confirmTotpSetup } from "./actions";
 import { ARRIVE_EVENT, ARRIVE_MS } from "@/components/login/capability";
+import { LANDING } from "@/lib/nav/landing";
 
 /**
  * Sign-in in two steps: password, then the 6-digit code from the
@@ -13,9 +14,19 @@ import { ARRIVE_EVENT, ARRIVE_MS } from "@/components/login/capability";
  * code box, because 2FA is mandatory (spec section 16).
  */
 export default function LoginForm() {
-  const next = useSearchParams().get("next") || "/dashboard";
+  const next = useSearchParams().get("next") || LANDING;
 
   const [stage, setStage] = useState("password"); // password | setup | code
+  /**
+   * The email is held here rather than left to the input.
+   *
+   * React 19 resets a form once its `action` returns, and a refused password
+   * is a returned action — so mistyping a password wiped the email with it
+   * and the person retyped both, on the first screen of the application. A
+   * controlled input survives the reset. The password is deliberately not
+   * kept: clearing a refused one is right.
+   */
+  const [email, setEmail] = useState("");
   const [challenge, setChallenge] = useState("");
   const [qr, setQr] = useState("");
   const [secret, setSecret] = useState("");
@@ -127,6 +138,8 @@ export default function LoginForm() {
             autoComplete="username"
             required
             autoFocus
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
           <Field
             label="Password"

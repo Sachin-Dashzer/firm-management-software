@@ -92,30 +92,54 @@ test("a register is read, mapped, and checked", async ({ page }, testInfo) => {
 
   // it says what the columns look like, and decides nothing
   await expect(page.getByText("sales.csv · 4 rows")).toBeVisible();
-  await expect(page.getByText("Which column is which")).toBeVisible();
+  // the heading, not the sentence above it that also names the step
+  await expect(
+    page.getByRole("heading", { name: "Which column is which" }),
+  ).toBeVisible();
 
   // nothing is checked until somebody maps a column
   await page.getByRole("button", { name: "Check it" }).click();
   await expect(alertBox(page)).toContainText(/Say which column is which first/);
 
-  await page.getByLabel("Date").selectOption({ label: "Date" });
-  await page.getByLabel("Amount").selectOption({ label: "Amount" });
+  /**
+   * By name, not by label. The mapping row has grown a select per field, and
+   * `getByLabel("Amount")` matched four of them — Amount, Debit, Credit and
+   * Reference all carry the phrase in their own label text.
+   */
+  await page.locator('select[name="map.date"]').selectOption({ label: "Date" });
   await page
-    .getByLabel("Reference or voucher number")
+    .locator('select[name="map.amount"]')
+    .selectOption({ label: "Amount" });
+  await page
+    .locator('select[name="map.reference"]')
     .selectOption({ label: "Voucher" });
   await page.getByLabel("Period from").fill("2026-04-01");
   await page.getByLabel("Period to").fill("2026-04-30");
   await page.getByRole("button", { name: "Check it" }).click();
 
+  /**
+   * Scoped to the findings list. Every finding's wording also appears in the
+   * summary that can be posted to a job, so an unscoped `getByText` matches
+   * twice and fails on strict mode — the finding was on the screen both
+   * times.
+   */
+  const findings = page.getByRole("listitem");
   await expect(
-    page.getByText(/1 reference appears more than once/),
+    findings.filter({ hasText: /1 reference appears more than once/ }),
   ).toBeVisible();
-  await expect(page.getByText(/INV-002 — rows 3, 4/)).toBeVisible();
+  // a finding's own line is a nested list item, so this matches twice
   await expect(
-    page.getByText(/1 number missing from the series/),
+    findings.filter({ hasText: /INV-002 — rows 3, 4/ }).first(),
   ).toBeVisible();
-  await expect(page.getByText(/1 negative amount/)).toBeVisible();
+  await expect(
+    findings.filter({ hasText: /1 number missing from the series/ }),
+  ).toBeVisible();
+  await expect(
+    findings.filter({ hasText: /1 negative amount/ }),
+  ).toBeVisible();
 
   // and the summary is the thing that can be kept, not the file
-  await expect(page.getByText(/The file itself is not kept/)).toBeVisible();
+  await expect(
+    page.getByText(/The file itself is not kept/).first(),
+  ).toBeVisible();
 });

@@ -8,6 +8,7 @@ import {
   commitRoundTrip,
   undoFieldChange,
 } from "./actions";
+import { useKeptFile } from "@/lib/forms/keptFile";
 
 /**
  * Upload, look at every change, tick what to apply (P3-18a).
@@ -31,9 +32,12 @@ export default function RoundTrip() {
   const [off, setOff] = useState(() => new Set());
   const [pending, startTransition] = useTransition();
 
+  const file = useKeptFile();
+
   const key = (row, change) => `${row.clientId}:${change.field}`;
 
   function onPreview(formData) {
+    file.keep(formData);
     startTransition(async () => {
       setError("");
       setResult(null);
@@ -51,7 +55,7 @@ export default function RoundTrip() {
   function onCommit() {
     startTransition(async () => {
       setError("");
-      const formData = new FormData(formRef.current);
+      const formData = file.restore(new FormData(formRef.current));
       for (const row of preview.rows) {
         for (const change of row.changes) {
           if (!off.has(key(row, change))) {

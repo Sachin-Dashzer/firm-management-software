@@ -6,6 +6,7 @@ import User from "../../models/User.js";
 import Branch from "../../models/Branch.js";
 import { hashPassword, decryptField } from "../../lib/crypto.js";
 import { systemAudit } from "../../lib/audit/system.js";
+import { LANDING } from "../../lib/nav/landing.js";
 
 /**
  * The whole sign-in flow against a real database: password, first-time 2FA
@@ -111,12 +112,21 @@ test("first sign-in sets up 2FA, then lands in the app", async ({ page }) => {
   await page.getByLabel("6-digit code").fill(await codeFor(EMAIL));
   await page.getByRole("button", { name: /Turn on 2FA/ }).click();
 
-  await expect(page).toHaveURL(/\/issues$/);
+  // where a sign-in lands is `LANDING`, which the login form reads too —
+  // the owner moved it from Issues (D43) to the firm dashboard on 29-10-2026
+  await expect(page).toHaveURL(new RegExp(`${LANDING}$`));
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  /**
+   * The menu is a landmark at laptop width and a drawer behind the Menu
+   * button on a phone, where the desktop rail is `hidden`. Assert whichever
+   * this project renders: the claim is that the signed-in shell has its
+   * navigation, not that it has it in one shape.
+   */
   await expect(
-    // Issues is where a sign-in lands since P3-6 (D43), not Today
-    page.getByRole("heading", { name: "Issues", level: 1 }),
+    page
+      .getByRole("navigation", { name: "Main" })
+      .or(page.getByRole("button", { name: "Menu" })),
   ).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
 });
 
 test("a partner reaches the team screen and can sign out", async ({ page }) => {
@@ -127,7 +137,7 @@ test("a partner reaches the team screen and can sign out", async ({ page }) => {
   await page.getByLabel("6-digit code").waitFor();
   await page.getByLabel("6-digit code").fill(await codeFor(EMAIL));
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/issues$/);
+  await expect(page).toHaveURL(new RegExp(`${LANDING}$`));
 
   await page.goto("/settings/users");
   await expect(page.getByRole("heading", { name: "Team" })).toBeVisible();
@@ -154,7 +164,7 @@ test("the sign-in appears in the audit log, and the chain is intact", async ({
   await page.getByLabel("6-digit code").waitFor();
   await page.getByLabel("6-digit code").fill(await codeFor(EMAIL));
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/issues$/);
+  await expect(page).toHaveURL(new RegExp(`${LANDING}$`));
 
   // the old route still works and lands on the renamed screen (P2-10a)
   await page.goto("/audit");
@@ -182,6 +192,9 @@ test("a wrong password is recorded as a failed sign-in", async ({ page }) => {
   await page.getByLabel("6-digit code").waitFor();
   await page.getByLabel("6-digit code").fill(await codeFor(EMAIL));
   await page.getByRole("button", { name: "Sign in" }).click();
+  // wait for the session before navigating: this `goto` used to race the
+  // sign-in and land back on /login with a `next` parameter
+  await expect(page).toHaveURL(new RegExp(`${LANDING}$`));
 
   // the filters travel with the redirect, so a bookmark still works
   await page.goto("/audit?action=login_failed");
