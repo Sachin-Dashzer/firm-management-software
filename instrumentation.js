@@ -19,7 +19,26 @@
 const onNode = process.env.NEXT_RUNTIME === "nodejs";
 
 export async function register() {
-  if (!onNode || !process.env.SENTRY_DSN) return;
+  if (!onNode) return;
+
+  /**
+   * **Refuse to start a production server that would lose documents.**
+   *
+   * With `STORAGE_DRIVER=local` every upload goes to the lambda's own disk,
+   * which Vercel throws away on the next deploy. Nothing in the app treats
+   * a missing file as an error, so the firm would find out months later,
+   * when somebody opened a client's signed balance sheet and got nothing.
+   *
+   * Thrown here rather than warned about: a server that cannot keep a file
+   * should not accept one.
+   */
+  const { checkProductionStorage } = await import("./lib/storage/production.js");
+  const storage = checkProductionStorage();
+  if (!storage.ok) {
+    throw new Error(`Refusing to start: ${storage.reason}`);
+  }
+
+  if (!process.env.SENTRY_DSN) return;
   const { initSentry } = await import("./lib/observability/sentry.js");
   initSentry({ dsn: process.env.SENTRY_DSN });
 }

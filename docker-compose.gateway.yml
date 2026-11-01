@@ -1,0 +1,47 @@
+# Run the PHP file gateway locally, so BigRock is not its first execution.
+#
+#   docker compose -f docker-compose.gateway.yml up -d
+#   node scripts/gateway-smoke.mjs --base-url=http://127.0.0.1:8099
+#   docker compose -f docker-compose.gateway.yml down
+#
+# **PHP version.** 8.1 is assumed, because that is what BigRock's cPanel
+# offers by default on the shared plans and what the gateway was first
+# verified against (PHP 8.1.34). Check the firm's actual version in cPanel →
+# MultiPHP Manager and change the tag below to match it — the gateway uses
+# `declare(strict_types=1)`, typed signatures and `finfo`, so it needs 7.4 or
+# newer and behaves the same on 8.0–8.3.
+#
+# The image carries `openssl` and `fileinfo` already. Those are the only two
+# extensions the gateway needs: openssl for AES-256-GCM, fileinfo to sniff an
+# uploaded file's real type instead of trusting the browser.
+#
+# The layout below mirrors BigRock on purpose: the config file and the vault
+# sit one level ABOVE the web root, because anything inside it can be fetched
+# by URL and that file holds both secrets.
+
+services:
+  gateway:
+    image: php:8.1-apache
+    ports:
+      - "8099:80"
+    volumes:
+      # the web root: only these scripts are reachable over HTTP
+      - ./gateway:/var/www/html:ro
+      # one level up, where the gateway looks for its config (dirname(__DIR__))
+      - ./.gateway-local/phmg-gateway-config.php:/var/www/phmg-gateway-config.php:ro
+      # the vault and the request log, both outside the web root
+      - ./.gateway-local/vault:/var/www/vault
+      - ./.gateway-local/logs:/var/www/logs
+    environment:
+      PHMG_VAULT: /var/www/vault
+      PHMG_LOGS: /var/www/logs
+    # .htaccess needs AllowOverride, which the official image does not set by
+    # default. Without this the gateway still works but verify.php is served
+    # instead of denied, and the HTTPS redirect is inert — so the smoke test
+    # accepts either outcome for that one check.
+    command: >
+      bash -c "a2enmod headers rewrite &&
+               sed -ri 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf &&
+               echo 'upload_max_filesize=40M' > /usr/local/etc/php/conf.d/phmg.ini &&
+               echo 'post_max_size=45M' >> /usr/local/etc/php/conf.d/phmg.ini &&
+               apache2-foreground"

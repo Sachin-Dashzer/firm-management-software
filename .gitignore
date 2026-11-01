@@ -50,6 +50,12 @@ next-env.d.ts
 .env*.local
 .env
 
+# the local gateway's config, vault and logs (docker-compose.gateway.yml).
+# Holds the shared secret and the encryption key, and the vault holds real
+# file bytes — none of it belongs in the repo. docs/GATEWAY_DEPLOY.md has the
+# command that creates it.
+/.gateway-local/
+
 # test output
 /test-results/
 /playwright-report/
