@@ -13,19 +13,38 @@ exactly where it is instead.
 | --- | --- |
 | Tests in the suite | 348 (174 specs × 2 projects: `laptop`, `phone`) |
 | Baseline before this work | never completed a run — see below |
-| Baseline during this work | **167 passed, 101 failed** at 268 of 348 |
+| **Baseline, complete, 01-11-2026** | **215 passed, 121 failed** in 59 minutes |
 | Root causes found and fixed | 5 |
 | Specs changed | 8 |
 | Remaining failures | inventoried below, not yet fixed |
+
+That baseline was taken **before** the five fixes below landed, so it is the
+"before" number, not the "after" one. It is also the first complete run the
+suite has ever produced.
 
 **The suite had never completed a run against a database in its life.** Every
 report for twenty-odd steps said "waiting on Atlas"; the real reason was three
 missing lines in `playwright.config.mjs`. So these are not regressions — this
 is the first time anybody has seen what the suite actually says.
 
-A run takes about 70 minutes against the throwaway replica set, most of it in
-`next build` and the serial worker. Against Atlas it took 5.6 hours, which is
-why nobody had done it.
+A full run takes **59 minutes** against the throwaway replica set, most of it
+in `next build` and the single serial worker. Against Atlas it took 5.6
+hours, which is why nobody had done it.
+
+Failures per spec file, from that complete run:
+
+```
+docs 10   due-dates 8   view 6   services 6   portal 6   books 6
+automation 6   settings 5   registers 5   invoices 5   gates 5
+documents 5   team 4   portal-pages 4   milestones 4   icai 4
+access 4   engagements 3   client-360 3   checklist 3
+words 2   tiers 2   screens 2   reports 2   permissions 2
+inbox 2   cover 2   announcements 2   sampling 1   nav 1
+```
+
+Thirty spec files out of 174 account for every failure. Most of those 30
+contribute 2–6, which is roughly "one real cause and its cascade" per file
+rather than 121 independent defects.
 
 ---
 

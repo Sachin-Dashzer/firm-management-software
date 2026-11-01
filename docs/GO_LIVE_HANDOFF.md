@@ -28,7 +28,7 @@ seventh, the browser suite, is partly done and honestly reported.
 | **`STORAGE_DRIVER=local` would silently lose every document** on Vercel, whose disk is discarded on each deploy. | The app refuses to boot in production; `doctor` fails on it. The check lives in `lib/storage/production.js`, importing nothing, because `instrumentation.js` is bundled into the edge runtime where a reach through to `node:crypto` fails the build. | 8 unit tests. The edge-bundle problem was found by a red build, not by reasoning. | `1241075` |
 | **`doctor` was not a complete gate.** | PASS/WARN/FAIL per line, non-zero exit on any FAIL, read-only. Added: `NEXTAUTH_URL` https-and-not-localhost in production; a missing `JOBS_SECRET` as FAIL rather than a note; secret lengths; `SENTRY_ENVIRONMENT`; the production storage driver; a Background jobs section reporting the heartbeat, a backlog older than an hour and the failed count; and a check that the browser suite is still locked to a throwaway database. | Run against the live cluster; output in section 3. 19 unit tests for `checkEnv`. | `eb0df18` |
 | **Sample data mixed in with real; invoice series with unexplained gaps.** | `npm run purge:sample` prints the full tree of what would go and its effect on the firm's totals, reusing the existing `dropSample` so the dry run cannot describe a different set from what `--apply` removes. `npm run invoice:gaps` writes `docs/INVOICE_GAPS.md`, cross-referencing each missing number against the audit log. Neither was applied. | Dry runs executed and read. The gap report explained 3 of 8 gaps from `invoice_issue` entries and states what the log proves about the other 5 rather than guessing. | `3bf0c5c` |
-| **93+ of 348 browser tests failing.** | 5 root causes found and fixed across 8 specs. The rest inventoried by evidence in `docs/E2E_REPORT.md`. | **Not finished — see section 5.** | `6b5c08a`, `eb0df18` |
+| **121 of 348 browser tests failing.** | 5 root causes found and fixed across 8 specs. The rest inventoried by evidence in `docs/E2E_REPORT.md`. | **Not finished — see section 5.** | `6b5c08a`, `eb0df18` |
 
 ### A real application bug found on the way
 
@@ -62,7 +62,7 @@ Everything below was run in this session and observed.
 | Gateway smoke | **26 passed, 0 failed** against a live PHP 8.1.34 gateway |
 | Job runner, one tick | **11 of 11 completed**, 0 failed, exit 0 |
 | Audit hash chain | **intact across 6,595 entries** |
-| `npm run test:e2e` | **not passing — 167 passed, 101 failed at 268 of 348.** See section 5 |
+| `npm run test:e2e` | **not passing — 215 passed, 121 failed** (complete run, 59 min). See section 5 |
 
 The unit-test count never dropped at any point: 1,681 → 1,698 → 1,714 → 1,726
 → 1,734 → 1,754 → 1,757.
@@ -209,7 +209,8 @@ Keep going until nothing says FAIL. The WARNs are work, not faults.
 
 ### The browser suite is not at 348/348
 
-**Status: 167 passed, 101 failed at 268 of 348 tests.** Stage 2 of the plan
+**Status: 215 passed, 121 failed** — the first complete run the suite has
+ever produced, in 59 minutes. Stage 2 of the plan
 asked for two consecutive clean runs. That is not where it is.
 
 **Why not.** The suite had never completed a run in its life — every report
@@ -217,7 +218,7 @@ for twenty-odd steps said "waiting on Atlas" when the real cause was three
 missing lines in the Playwright config. So this session was the first time
 anybody saw what it says, and what it says is that roughly 40% of it fails.
 
-Those failures are not 101 separate bugs, and this is the important part:
+Those failures are not 121 separate bugs, and this is the important part:
 several spec files share state through a module-level `ids` object that
 earlier tests populate, so one failure cascades into every later test in the
 file as `Cannot read properties of null`. Until those fixtures are
