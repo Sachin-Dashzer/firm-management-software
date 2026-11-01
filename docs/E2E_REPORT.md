@@ -130,6 +130,7 @@ outcomes, observed:
 | `access.spec.js:146` — a client with no grant is nowhere to be found | **Navigation fix confirmed** — it reaches the list and finds the row link. Then failed on a *second*, unscoped `getByText` on the same client name, which the group label also matches. That line asserted nothing the one above it did not, so it is gone rather than wrapped in `.first()` — which would have made it pass against an empty list |
 | `access.spec.js:271` — a partner can give access | Same cause, same fix, by the row's link |
 | `docs.spec.js:206` — a draft fills itself in from the record | **Region fix confirmed** — the named panel is found and the client's name is in it. Still fails one line later on `Vikram Jaiswal`, the contact's name, which is a question about what the draft actually interpolates rather than about the selector |
+| `icai.spec.js:91` — a partner records the firm's ICAI details | **Now passes**, and so do the two tests after it in the file, which had been failing on its leftovers. One `exact: true` |
 | `books.spec.js:235` — an audit report that was not clean has to say why | Still failing, and **worth a careful look** — see below |
 | `books.spec.js:265` — a filing date in the future is refused | Still failing: no `[role="alert"]` appears at all |
 | `cover.spec.js:197`, `docs.spec.js:233` | Still failing |
