@@ -191,6 +191,26 @@ Cheap to fix once somebody reads each screen. Not cheap to guess.
 
 ---
 
+## Two things the plan asked about, answered
+
+**Should it run in parallel?** Not yet. `workers: 1` is set, and the config
+explains why: there is one `firmSettings` document, one set of branches and
+one due-date master, and a third of the suite writes to them. A six-worker
+run also emptied the Mongo connection pool, so pages came back as errors and
+the failures read like missing features — `nav.spec.js` passed 6 of 6 alone
+and failed 5 of 6 inside a six-worker run of the same build.
+
+That is the same shared-state problem as group A, one level up: the fixtures
+share a database the way the specs share an `ids` object. Fixing group A is
+the prerequisite for parallelising, and parallelising is what would bring a
+59-minute run down to something somebody will re-run after every change.
+Worth doing, in that order.
+
+**Are there sloppy waits to replace?** One `waitForTimeout` in the whole
+suite, in `signin.js`, waiting for the next TOTP time step. A code is valid
+for 30 seconds and `verifyTotp` refuses a step already accepted, so this is
+genuinely a wall-clock wait with no condition to poll. Correct as it is.
+
 ## How to run it
 
 ```
