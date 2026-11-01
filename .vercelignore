@@ -1,0 +1,32 @@
+# What Vercel does not need to build or serve the app.
+#
+# This is an upload filter, nothing more — it does not delete anything and it
+# does not apply to the BigRock runner, which gets the whole project
+# (DEPLOY.md §2, Option 1). Everything excluded here is either a development
+# tool or deployed somewhere else.
+#
+# `scripts/`, `runner/` and `jobs/` are deliberately NOT here. The runner is
+# the background queue BigRock's cron drives every five minutes, and the
+# scripts are the firm's own operational tools — `npm run doctor`,
+# `npm run jobs:tick`, `npm run purge:sample`, `npm run opinions:empty`.
+
+# the test suites and their output
+tests/
+test-results/
+playwright-report/
+playwright.config.mjs
+vitest.config.mjs
+.env.test
+
+# written for people, not for the server
+docs/
+
+# the PHP file gateway: deployed to BigRock cPanel, never to Vercel
+# (docs/GATEWAY_DEPLOY.md)
+gateway/
+docker-compose.gateway.yml
+
+# local file vaults, if a dev run left one behind
+.storage/
+.storage-test/
+.gateway-local/
