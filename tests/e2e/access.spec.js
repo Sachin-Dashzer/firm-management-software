@@ -158,12 +158,22 @@ test("a client with no grant and no assignment is nowhere to be found", async ({
    */
   await page.goto("/clients");
 
-  // the row's own link: since P2-13 the list prints the group beside the
-  // client, so the name can appear twice on one row
+  /*
+   * The granted client is there, by its own row link. Since P2-13 the list
+   * prints the group beside the client, so "Jaiswal Steels" appears twice
+   * on the row — once as the link and once inside the group's name — which
+   * is why this asks for the link and not for the text.
+   *
+   * There used to be a second, unscoped `getByText("Jaiswal Steels")` here
+   * as well. It asserted nothing the line above does not, and it matched
+   * both elements, so it failed on a strict-mode violation while the thing
+   * it was checking was true.
+   */
   await expect(
     page.getByRole("link", { name: "Jaiswal Steels" }).first(),
   ).toBeVisible();
-  await expect(page.getByText("Jaiswal Steels")).toBeVisible();
+
+  // and the client with no grant is nowhere on the page at all
   await expect(page.getByText("Tandon Exports")).toHaveCount(0);
 
   await page.goto(`/clients/${ids.unseen}`);
@@ -289,6 +299,14 @@ test("a partner can give access, and the client appears for the employee", async
   const employeePage = await other.newPage();
   await signIn(employeePage, EMPLOYEE);
   await employeePage.goto("/clients");
-  await expect(employeePage.getByText("Tandon Exports")).toBeVisible();
+  /*
+   * By the row's link, for the same reason as the first test in this file:
+   * the list prints the group beside the client (P2-13), so the trade name
+   * appears both as the link and inside the legal name, and a plain text
+   * match hits two elements.
+   */
+  await expect(
+    employeePage.getByRole("link", { name: "Tandon Exports" }).first(),
+  ).toBeVisible();
   await other.close();
 });
