@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { PORTALS } from "@/lib/validators";
 import { revealCredential, saveCredential, deleteCredential } from "../actions";
@@ -66,13 +67,16 @@ export default function CredentialsVault({ clientId, credentials, mayEdit }) {
 
       {adding && (
         <form
-          action={(formData) =>
-            startTransition(async () => {
+          onSubmit={saving(
+            async (formData) => {
               const result = await saveCredential(clientId, formData);
               setMessage(result);
               if (result?.ok) setAdding(false);
-            })
-          }
+              return result;
+            },
+            null,
+            startTransition,
+          )}
           className="rounded-ledger border-rule bg-paper mb-4 grid gap-3 border p-3 sm:grid-cols-2 lg:grid-cols-5"
         >
           <label className="flex flex-col gap-1">

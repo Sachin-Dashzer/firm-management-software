@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -40,12 +41,15 @@ export default function InvoiceEditor({
   const [reason, setReason] = useState("");
 
   function run(action) {
+    const answer = action();
     startTransition(async () => {
-      setMessage(await action());
+      setMessage(await answer);
       setAsking(null);
       setReason("");
       router.refresh();
     });
+    // the answer goes back to the caller: a form clears itself only on a save
+    return answer;
   }
 
   function save() {
@@ -533,7 +537,9 @@ export default function InvoiceEditor({
       */}
       {asking === "promise" && (
         <form
-          action={(formData) => run(() => recordPromise(invoice.id, formData))}
+          onSubmit={saving((formData) =>
+            run(() => recordPromise(invoice.id, formData)),
+          )}
           className="rounded-ledger border-carbon bg-carbon-wash flex flex-col gap-2 border p-3"
         >
           <div className="flex flex-wrap items-end gap-2">

@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { recordMilestoneFiling, correctMilestoneFiling } from "../actions";
 
@@ -131,13 +132,11 @@ export default function FilingMilestones({
             {/* record it ------------------------------------------------- */}
             {!m.filedOn && !locked && !blocked && (
               <form
-                action={(formData) =>
-                  startTransition(async () =>
-                    setMessage(
-                      await recordMilestoneFiling(engagement.id, formData),
-                    ),
-                  )
-                }
+                onSubmit={saving(
+                  (formData) => recordMilestoneFiling(engagement.id, formData),
+                  setMessage,
+                  startTransition,
+                )}
                 className="flex flex-wrap items-end gap-2"
               >
                 <input type="hidden" name="milestoneId" value={m.id} />
@@ -187,14 +186,14 @@ export default function FilingMilestones({
 
             {m.filedOn && !locked && correcting === m.id && (
               <form
-                action={(formData) =>
+                onSubmit={saving((formData) =>
                   startTransition(async () => {
                     setMessage(
                       await correctMilestoneFiling(engagement.id, formData),
                     );
                     setCorrecting(null);
-                  })
-                }
+                  }),
+                )}
                 className="flex flex-wrap items-end gap-2"
               >
                 <input type="hidden" name="milestoneId" value={m.id} />

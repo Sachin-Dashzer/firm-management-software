@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useActionState } from "react";
 import { requestChange } from "./actions";
 
@@ -26,7 +27,7 @@ export default function ChangeRequest() {
         </p>
       </div>
 
-      <form action={action} className="flex flex-col gap-3">
+      <form onSubmit={saving(action)} className="flex flex-col gap-3">
         <label className="flex flex-col gap-1">
           <span className="text-13 text-ink-muted font-medium">
             What needs changing?

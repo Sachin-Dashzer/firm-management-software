@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -151,7 +152,7 @@ export default function ClientForm({
   return (
     <form
       key={formKey}
-      action={onSubmit}
+      onSubmit={saving(onSubmit)}
       onBlur={(e) => {
         if (["pan", "legalName"].includes(e.target.name)) {
           runDuplicateCheck(e.currentTarget);

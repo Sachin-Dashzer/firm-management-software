@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -69,14 +70,26 @@ export default function EngagementWork({
   const [juststamped, setJustStamped] = useState(false);
   /** Which half of the conversation is open (P3-17b). Internal by default. */
   const [thread, setThread] = useState("internal");
-  // the opinion decides whether the reason field is on screen, so it is held
-  // here rather than read off the form
+  /**
+   * The opinion decides whether the reason field is on screen, so it is
+   * followed here — but the `<select>` below is **not** controlled by it.
+   *
+   * It used to be, and that was half of the bug this panel is named in
+   * (`docs/BUG_AUDIT_OPINION.md`): a form reset empties a select in the DOM
+   * without React re-committing a `value` that has not changed, so the
+   * screen kept showing a Qualified opinion — reason box and all — while
+   * the field it would post had gone blank. State that only decides what is
+   * rendered cannot drift apart from the field that way.
+   */
   const [opinion, setOpinion] = useState(engagement.assurance?.opinion ?? "");
 
   const router = useRouter();
 
   function run(action) {
-    startTransition(async () => setMessage(await action()));
+    const answer = action();
+    startTransition(async () => setMessage(await answer));
+    // the answer goes back to the caller: a form clears itself only on a save
+    return answer;
   }
 
   /** Server components hold the document list, so ask them again. */
@@ -603,13 +616,11 @@ export default function EngagementWork({
 
               {engagement.gates.approved && !engagement.gates.confirmation && (
                 <form
-                  action={(formData) =>
-                    startTransition(async () =>
-                      setMessage(
-                        await recordConfirmation(engagement.id, formData),
-                      ),
-                    )
-                  }
+                  onSubmit={saving(
+                    (formData) => recordConfirmation(engagement.id, formData),
+                    setMessage,
+                    startTransition,
+                  )}
                   className="flex flex-wrap items-end gap-2"
                 >
                   <label className="flex flex-col gap-1">
@@ -672,11 +683,25 @@ export default function EngagementWork({
             {hasMilestones ? "UDIN and the report" : "Filing"}
           </h2>
           <form
-            action={(formData) =>
-              startTransition(async () =>
-                setMessage(await saveFiling(engagement.id, formData)),
-              )
-            }
+            onSubmit={saving(
+              async (formData) => {
+                const result = await saveFiling(engagement.id, formData);
+                setMessage(result);
+                /**
+                 * The panel follows the record rather than the form: what
+                 * comes back is what the server read out of the database
+                 * after writing it, so this is the opinion that is actually
+                 * on file — and it is what decides whether the reason box
+                 * belongs on screen.
+                 */
+                if (result?.assurance) {
+                  setOpinion(result.assurance.opinion ?? "");
+                }
+                return result;
+              },
+              null,
+              startTransition,
+            )}
             className="flex flex-col gap-3"
           >
             {/*
@@ -781,7 +806,7 @@ export default function EngagementWork({
                     </span>
                     <select
                       name="opinion"
-                      value={opinion}
+                      defaultValue={engagement.assurance?.opinion ?? ""}
                       onChange={(event) => setOpinion(event.target.value)}
                       className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
                     >
@@ -929,15 +954,18 @@ export default function EngagementWork({
 
         <form
           key={thread}
-          action={(formData) =>
-            startTransition(async () => {
+          onSubmit={saving(
+            async (formData) => {
               const result = await addEngagementComment(
                 engagement.id,
                 formData,
               );
               setMessage(result);
-            })
-          }
+              return result;
+            },
+            null,
+            startTransition,
+          )}
           className="flex flex-col gap-2"
         >
           {/*

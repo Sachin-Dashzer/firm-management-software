@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { saveRule } from "./actions";
@@ -101,13 +102,16 @@ function RuleForm({ rule, mayEdit, onSaved }) {
 
   return (
     <form
-      action={(formData) =>
-        startTransition(async () => {
+      onSubmit={saving(
+        async (formData) => {
           const result = await saveRule(rule.key, formData);
           onSaved(result);
           if (result?.ok) router.refresh();
-        })
-      }
+          return result;
+        },
+        null,
+        startTransition,
+      )}
       className="bg-paper border-rule flex flex-col gap-3 border-t px-3 py-3"
     >
       <label className="text-14 flex items-center gap-2">

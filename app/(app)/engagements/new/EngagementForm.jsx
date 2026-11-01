@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { periodOptions } from "@/lib/engagements/period";
@@ -83,8 +84,8 @@ export default function EngagementForm({
 
   return (
     <form
-      action={(formData) =>
-        startTransition(async () => {
+      onSubmit={saving(
+        async (formData) => {
           const another = formData.get("then") === "another";
           const result = await createEngagement(null, formData);
 
@@ -105,8 +106,11 @@ export default function EngagementForm({
 
           setMessage(result);
           if (result?.id) router.push(`/engagements/${result.id}`);
-        })
-      }
+          return result;
+        },
+        null,
+        startTransition,
+      )}
       className="flex flex-col gap-6"
     >
       {message?.error && (

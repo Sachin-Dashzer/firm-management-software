@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { CONTACT_CHANNELS } from "@/lib/validators";
 import { addClientNote } from "../actions";
@@ -16,16 +17,19 @@ export default function NotesPanel({ clientId, notes, mayEdit }) {
     <div className="flex flex-col gap-4">
       {mayEdit && (
         <form
-          action={(formData) =>
-            startTransition(async () => {
+          onSubmit={saving(
+            async (formData) => {
               const result = await addClientNote(clientId, formData);
               setMessage(result);
               if (result?.ok) {
                 const field = document.getElementById("note-body");
                 if (field) field.value = "";
               }
-            })
-          }
+              return result;
+            },
+            null,
+            startTransition,
+          )}
           className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4"
         >
           <div className="flex flex-wrap gap-3">

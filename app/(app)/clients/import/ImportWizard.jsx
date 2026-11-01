@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { previewImport, commitImport } from "./actions";
@@ -55,7 +56,7 @@ export default function ImportWizard() {
     <div className="flex flex-col gap-5">
       <form
         ref={formRef}
-        action={onPreview}
+        onSubmit={saving(onPreview)}
         className="rounded-ledger border-rule bg-surface flex flex-wrap items-end gap-3 border p-4"
       >
         <label className="flex flex-col gap-1">

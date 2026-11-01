@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { METHODS } from "@/lib/practice/sampling";
@@ -33,12 +34,16 @@ export default function Design({ id, sample, editable, mayUnlock }) {
   const [unlocking, setUnlocking] = useState(false);
   const [why, setWhy] = useState("");
 
-  const run = (fn) =>
+  const run = (fn) => {
+    const answer = fn();
     start(async () => {
-      const result = await fn();
+      const result = await answer;
       setState(result ?? null);
       router.refresh();
     });
+    // the answer goes back to the caller: a form clears itself only on a save
+    return answer;
+  };
 
   const locked = sample.locked;
   const chosen = METHODS.find((row) => row.key === method);
@@ -51,7 +56,7 @@ export default function Design({ id, sample, editable, mayUnlock }) {
         </h2>
 
         <form
-          action={(formData) => run(() => saveDesign(id, formData))}
+          onSubmit={saving((formData) => run(() => saveDesign(id, formData)))}
           className="flex flex-col gap-3"
         >
           <label className="flex flex-col gap-1">

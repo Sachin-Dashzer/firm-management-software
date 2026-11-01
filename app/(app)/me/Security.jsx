@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { updateOwnMobile, resetOwn2FA } from "./actions";
@@ -14,11 +15,14 @@ export default function Security({ mobile, twoFactorOn }) {
   const [pending, startTransition] = useTransition();
 
   function run(work) {
+    const answer = work();
     startTransition(async () => {
-      const result = await work();
+      const result = await answer;
       setMessage(result);
       if (result?.ok) setResetting(false);
     });
+    // the answer goes back to the caller: a form clears itself only on a save
+    return answer;
   }
 
   return (
@@ -41,7 +45,7 @@ export default function Security({ mobile, twoFactorOn }) {
       )}
 
       <form
-        action={(formData) => run(() => updateOwnMobile(formData))}
+        onSubmit={saving((formData) => run(() => updateOwnMobile(formData)))}
         className="flex flex-wrap items-end gap-2"
       >
         <label className="flex flex-col gap-1">
@@ -96,7 +100,7 @@ export default function Security({ mobile, twoFactorOn }) {
 
         {resetting && (
           <form
-            action={(formData) => run(() => resetOwn2FA(formData))}
+            onSubmit={saving((formData) => run(() => resetOwn2FA(formData)))}
             className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-3"
           >
             <p className="text-13 text-ink-muted max-w-[60ch]">

@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import {
   Fragment,
   useCallback,
@@ -42,8 +43,9 @@ export default function UdinRegister({
   const [pending, startTransition] = useTransition();
 
   function run(work) {
+    const answer = work();
     startTransition(async () => {
-      const result = await work();
+      const result = await answer;
       setMessage(result);
       if (result?.ok) {
         setAdding(false);
@@ -51,6 +53,8 @@ export default function UdinRegister({
         setReason("");
       }
     });
+    // the answer goes back to the caller: a form clears itself only on a save
+    return answer;
   }
 
   const live = rows.filter((row) => !row.revoked).length;
@@ -160,7 +164,7 @@ export default function UdinRegister({
 
       {adding && (
         <form
-          action={(formData) => run(() => recordUdin(null, formData))}
+          onSubmit={saving((formData) => run(() => recordUdin(null, formData)))}
           className="rounded-ledger border-carbon bg-surface grid gap-4 border p-4 sm:grid-cols-2"
         >
           <label className="flex flex-col gap-1 sm:col-span-2">

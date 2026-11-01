@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -85,16 +86,19 @@ export default function SavedViews({
 
       {naming && (
         <form
-          action={(formData) =>
-            startTransition(async () => {
+          onSubmit={saving(
+            async (formData) => {
               const result = await saveView(formData);
               setMessage(result);
               if (result?.ok) {
                 setNaming(false);
                 router.refresh();
               }
-            })
-          }
+              return result;
+            },
+            null,
+            startTransition,
+          )}
           className="rounded-ledger border-rule bg-surface flex flex-wrap items-end gap-3 border p-3"
         >
           <input type="hidden" name="screen" value={reportKey} />

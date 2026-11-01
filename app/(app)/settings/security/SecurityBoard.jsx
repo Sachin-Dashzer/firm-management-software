@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -111,16 +112,19 @@ export default function SecurityBoard({ signals, counts, since, incidents }) {
 
         {raising && (
           <form
-            action={(formData) =>
-              startTransition(async () => {
+            onSubmit={saving(
+              async (formData) => {
                 const result = await raiseIncident(formData);
                 setMessage(result);
                 if (result?.ok) {
                   setRaising(false);
                   router.refresh();
                 }
-              })
-            }
+                return result;
+              },
+              null,
+              startTransition,
+            )}
             className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4"
           >
             <label className="flex flex-col gap-1">
@@ -278,8 +282,8 @@ export default function SecurityBoard({ signals, counts, since, incidents }) {
               <>
                 {open === incident.id ? (
                   <form
-                    action={(formData) =>
-                      startTransition(async () => {
+                    onSubmit={saving(
+                      async (formData) => {
                         const result = await updateIncident(
                           incident.id,
                           formData,
@@ -289,8 +293,11 @@ export default function SecurityBoard({ signals, counts, since, incidents }) {
                           setOpen(null);
                           router.refresh();
                         }
-                      })
-                    }
+                        return result;
+                      },
+                      null,
+                      startTransition,
+                    )}
                     className="bg-paper rounded-ledger flex flex-col gap-2 p-3"
                   >
                     <label className="flex flex-col gap-1">

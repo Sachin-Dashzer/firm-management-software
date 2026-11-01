@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { ROLE_LABELS, ROLES } from "@/lib/permissions";
@@ -37,7 +38,10 @@ export default function AdminActions({
   const [pending, startTransition] = useTransition();
 
   function run(work) {
-    startTransition(async () => setMessage(await work()));
+    const answer = work();
+    startTransition(async () => setMessage(await answer));
+    // the answer goes back to the caller: a form clears itself only on a save
+    return answer;
   }
 
   const first = name.split(" ")[0];
@@ -80,7 +84,9 @@ export default function AdminActions({
       <section className="rounded-ledger border-rule bg-surface flex flex-col gap-4 border p-4">
         <h2 className="font-display text-15 font-semibold">Where they work</h2>
         <form
-          action={(formData) => run(() => updateTeamMember(userId, formData))}
+          onSubmit={saving((formData) =>
+            run(() => updateTeamMember(userId, formData)),
+          )}
           className="flex flex-col gap-4"
         >
           <fieldset className="flex flex-col gap-1">

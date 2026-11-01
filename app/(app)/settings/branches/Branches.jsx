@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateBranch } from "./actions";
@@ -85,13 +86,13 @@ export default function Branches({ rows }) {
 
           {editing === branch.id ? (
             <form
-              action={(formData) =>
+              onSubmit={saving((formData) =>
                 startTransition(async () => {
                   setMessage(await updateBranch(branch.id, formData));
                   setEditing(null);
                   router.refresh();
-                })
-              }
+                }),
+              )}
               className="grid gap-3 sm:grid-cols-2"
             >
               <label className="flex flex-col gap-1">

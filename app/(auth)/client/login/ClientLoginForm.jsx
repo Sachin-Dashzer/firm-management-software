@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState } from "react";
 import Image from "next/image";
 import { signIn } from "next-auth/react";
@@ -107,7 +108,10 @@ export default function ClientLoginForm({ firmName }) {
       )}
 
       {stage === "password" ? (
-        <form action={onPassword} className="mt-6 flex flex-col gap-4">
+        <form
+          onSubmit={saving(onPassword)}
+          className="mt-6 flex flex-col gap-4"
+        >
           <Field
             label="Email"
             name="email"
@@ -126,7 +130,7 @@ export default function ClientLoginForm({ firmName }) {
           <Submit busy={busy}>Sign in</Submit>
         </form>
       ) : (
-        <form action={onCode} className="mt-6 flex flex-col gap-4">
+        <form onSubmit={saving(onCode)} className="mt-6 flex flex-col gap-4">
           {stage === "setup" && (
             <div className="rounded-ledger border-rule bg-paper border p-4">
               <p className="text-13 text-ink-muted">

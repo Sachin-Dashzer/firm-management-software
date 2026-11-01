@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { saveProcedure, markReviewed } from "../actions";
@@ -152,7 +153,7 @@ export default function ProcedureEditor({
   }
 
   return (
-    <form action={onSave} className="flex flex-col gap-3">
+    <form onSubmit={saving(onSave)} className="flex flex-col gap-3">
       <input type="hidden" name="kind" value={kind} />
 
       {message?.error && (

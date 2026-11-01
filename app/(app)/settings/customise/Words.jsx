@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -29,7 +30,7 @@ export default function Words({ current, sample }) {
   const changed = Object.keys(changes).length > 0;
 
   return (
-    <form action={action} className="flex flex-col gap-4">
+    <form onSubmit={saving(action)} className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-2">
         {RENAMEABLE.map((row) => (
           <fieldset

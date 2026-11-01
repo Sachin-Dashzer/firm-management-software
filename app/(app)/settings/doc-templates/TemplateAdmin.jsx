@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { approveTemplate, archiveTemplate, saveTemplate } from "./actions";
 
@@ -24,11 +25,14 @@ export default function TemplateAdmin({
   const unapproved = rows.filter((row) => !row.verified && row.active);
 
   function run(work) {
+    const answer = work();
     startTransition(async () => {
-      const result = await work();
+      const result = await answer;
       setMessage(result);
       if (result?.ok) setEditing(null);
     });
+    // the answer goes back to the caller: a form clears itself only on a save
+    return answer;
   }
 
   return (
@@ -181,7 +185,7 @@ export default function TemplateAdmin({
 /** The editor, shared by "add" and "edit". */
 function Editor({ row, kinds, fields, pending, onSave }) {
   return (
-    <form action={onSave} className="mt-3 flex flex-col gap-3">
+    <form onSubmit={saving(onSave)} className="mt-3 flex flex-col gap-3">
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="flex flex-col gap-1">
           <span className="text-13 text-ink-muted font-medium">Code</span>

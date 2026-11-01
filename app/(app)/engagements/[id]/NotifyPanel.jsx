@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { previewNotify, sendNotify } from "./notify";
@@ -29,8 +30,9 @@ export default function NotifyPanel({ id, job, client, recipients }) {
   const toTeam = recipients.filter((person) => person.side === "team");
 
   function run(action, formData) {
+    const answer = action(id, formData);
     startTransition(async () => {
-      const result = await action(id, formData);
+      const result = await answer;
       if (result?.error) {
         setMessage({ error: result.error });
         setMessages(null);
@@ -45,6 +47,8 @@ export default function NotifyPanel({ id, job, client, recipients }) {
       setMessage(result);
       router.refresh();
     });
+    // the answer goes back to the caller: a form clears itself only on a save
+    return answer;
   }
 
   if (recipients.length === 0) {
@@ -58,7 +62,7 @@ export default function NotifyPanel({ id, job, client, recipients }) {
 
   return (
     <form
-      action={(formData) => run(previewNotify, formData)}
+      onSubmit={saving((formData) => run(previewNotify, formData))}
       className="flex flex-col gap-3"
     >
       {message?.ok && (

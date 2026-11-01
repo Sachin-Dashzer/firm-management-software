@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useActionState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { addTodo } from "./actions";
@@ -42,7 +43,7 @@ export default function AddTodo({ people, clients, me }) {
   return (
     <form
       ref={form}
-      action={action}
+      onSubmit={saving(action)}
       className="rounded-ledger border-rule bg-surface flex flex-wrap items-center gap-2 border p-2"
     >
       <label className="flex min-w-[14rem] flex-[3] items-center">

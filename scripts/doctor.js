@@ -263,9 +263,13 @@ async function checkJobQueue() {
     );
     failures += 1;
   } else {
-    const minutes = Math.round((now - new Date(beat.updatedAt).valueOf()) / 60000);
+    const minutes = Math.round(
+      (now - new Date(beat.updatedAt).valueOf()) / 60000,
+    );
     if (minutes <= 15) {
-      pass(`job runner alive, last finished ${minutes} minute(s) ago (${beat.seq} runs)`);
+      pass(
+        `job runner alive, last finished ${minutes} minute(s) ago (${beat.seq} runs)`,
+      );
     } else {
       // three missed five-minute ticks: cron is not reaching it
       fail(
@@ -502,6 +506,43 @@ const REPORTED_ELSEWHERE = new Set(["runner", "failedJobs"]);
  * The go-live blockers that are data, not code.
  * @returns {Promise<number>} failures
  */
+/**
+ * Audit files that do not say what was concluded.
+ *
+ * An opinion is the audit report. Blank is fine while the work is running —
+ * the opinion is formed at the end — so that is a warning. Blank on a file
+ * that is completed, carries a UDIN or has a report date is a failure: that
+ * file reads as a finished audit to everybody who opens it and says nothing
+ * at all, and it is exactly what `docs/BUG_AUDIT_OPINION.md` describes being
+ * able to happen silently.
+ *
+ * Nothing here fills anything in. `npm run opinions:empty` lists the records
+ * with the names and dates a CA needs to correct them one by one.
+ */
+async function checkAuditOpinions() {
+  const { default: Engagement } = await import("../models/Engagement.js");
+  const { EMPTY_OPINION_QUERY, CLOSED_WITHOUT_OPINION_QUERY } =
+    await import("../lib/practice/books.js");
+
+  const blank = await Engagement.countDocuments(EMPTY_OPINION_QUERY);
+  const closed = await Engagement.countDocuments(CLOSED_WITHOUT_OPINION_QUERY);
+
+  if (closed) {
+    fail(
+      `${closed} audit file(s) are completed, numbered or dated with no opinion on record. A CA must read each report and enter the opinion that was given: \`npm run opinions:empty\` lists them.`,
+    );
+    return 1;
+  }
+  if (blank) {
+    warn(
+      `${blank} audit engagement(s) have no opinion yet. That is normal while the work is running — none of them can be completed or given a UDIN until it is entered (\`npm run opinions:empty\`).`,
+    );
+    return 0;
+  }
+  pass("every audit file that is closed or numbered says what was concluded");
+  return 0;
+}
+
 async function readiness() {
   /**
    * The same list the Settings screen shows (P2-10b), read here rather than
@@ -653,6 +694,9 @@ async function main() {
     fail(`chain broken at #${chain.seq}: ${chain.problem}`);
     failures += 1;
   }
+
+  console.log("\nAudit opinions");
+  failures += await checkAuditOpinions();
 
   console.log("\nFile vault");
   failures += await checkVault();

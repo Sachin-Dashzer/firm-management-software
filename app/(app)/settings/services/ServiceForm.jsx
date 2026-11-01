@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -50,14 +51,17 @@ export default function ServiceForm({ service }) {
 
   return (
     <form
-      action={(formData) =>
-        startTransition(async () => {
+      onSubmit={saving(
+        async (formData) => {
           const result = await saveService(null, formData);
           setMessage(result);
           // a warning has to be read, so the form stays where it is
           if (result?.ok && !result.warning) router.push("/settings/services");
-        })
-      }
+          return result;
+        },
+        null,
+        startTransition,
+      )}
       className="flex flex-col gap-6"
     >
       {service?.id && <input type="hidden" name="id" value={service.id} />}

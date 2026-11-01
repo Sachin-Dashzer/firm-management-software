@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import {
@@ -41,14 +42,17 @@ export default function DscRegister({
   const [pending, startTransition] = useTransition();
 
   function run(work) {
+    const answer = work();
     startTransition(async () => {
-      const result = await work();
+      const result = await answer;
       setMessage(result);
       if (result?.ok) {
         setAdding(false);
         setEditing(null);
       }
     });
+    // the answer goes back to the caller: a form clears itself only on a save
+    return answer;
   }
 
   return (
@@ -256,7 +260,7 @@ export default function DscRegister({
 function Form({ clients, row, pending, onSubmit, onCancel }) {
   return (
     <form
-      action={onSubmit}
+      onSubmit={saving(onSubmit)}
       className="rounded-ledger border-carbon bg-surface grid gap-4 border p-4 sm:grid-cols-2"
     >
       <h2 className="font-display text-15 font-semibold sm:col-span-2">

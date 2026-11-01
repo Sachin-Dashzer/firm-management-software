@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { CPE_BASIS_LABELS } from "@/lib/firm/profile";
 import { addCpe, removeCpe, saveMemberIcai } from "./actions";
@@ -46,7 +47,10 @@ function Member({ member, firm }) {
   const [pending, startTransition] = useTransition();
 
   function run(work) {
-    startTransition(async () => setMessage(await work()));
+    const answer = work();
+    startTransition(async () => setMessage(await answer));
+    // the answer goes back to the caller: a form clears itself only on a save
+    return answer;
   }
 
   return (
@@ -163,9 +167,9 @@ function Member({ member, firm }) {
       {open && member.mayEdit && (
         <div className="flex flex-col gap-5 pt-2">
           <form
-            action={(formData) =>
-              run(() => saveMemberIcai(member.id, formData))
-            }
+            onSubmit={saving((formData) =>
+              run(() => saveMemberIcai(member.id, formData)),
+            )}
             className="grid gap-3 sm:grid-cols-2"
           >
             <h4 className="text-13 text-ink-muted font-medium sm:col-span-2">
@@ -232,7 +236,9 @@ function Member({ member, firm }) {
           </form>
 
           <form
-            action={(formData) => run(() => addCpe(member.id, formData))}
+            onSubmit={saving((formData) =>
+              run(() => addCpe(member.id, formData)),
+            )}
             className="grid gap-3 sm:grid-cols-2"
           >
             <h4 className="text-13 text-ink-muted font-medium sm:col-span-2">

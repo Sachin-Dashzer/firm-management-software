@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { changeClientPassword } from "./actions";
@@ -17,7 +18,7 @@ export default function ClientPasswordForm({ forced }) {
   }, [state?.ok, router]);
 
   return (
-    <form action={action} className="flex flex-col gap-4">
+    <form onSubmit={saving(action)} className="flex flex-col gap-4">
       <label className="flex flex-col gap-1">
         <span className="text-13 text-ink-muted">
           {forced ? "The password the office gave you" : "Current password"}

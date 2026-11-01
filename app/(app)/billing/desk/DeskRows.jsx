@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -35,15 +36,19 @@ function useRun() {
   const [pending, start] = useTransition();
   const [result, setResult] = useState(null);
 
-  const run = (fn) =>
+  const run = (fn) => {
+    const answer = fn();
     start(async () => {
       try {
-        setResult(await fn());
+        setResult(await answer);
       } catch (error) {
         setResult({ error: error?.message ?? "That did not go through." });
       }
       router.refresh();
     });
+    // the answer goes back to the caller: a form clears itself only on a save
+    return answer;
+  };
 
   return { run, pending, result };
 }
@@ -264,13 +269,13 @@ export function PromiseRows({ rows, why }) {
 
             {open === row.id && (
               <form
-                action={(formData) =>
+                onSubmit={saving((formData) =>
                   run(async () => {
                     const said = await recordPromise(row.id, formData);
                     if (said?.ok) setOpen(null);
                     return said;
-                  })
-                }
+                  }),
+                )}
                 className="flex flex-wrap items-end gap-3 pt-1"
               >
                 <label className="flex flex-col gap-1">

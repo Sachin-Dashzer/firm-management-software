@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -42,14 +43,17 @@ export default function CertificateDraft({
   const [open, setOpen] = useState(null);
 
   function run(action) {
+    const answer = action();
     startTransition(async () => {
-      const result = await action();
+      const result = await answer;
       setMessage(result);
       if (result?.ok) {
         setOpen(null);
         router.refresh();
       }
     });
+    // the answer goes back to the caller: a form clears itself only on a save
+    return answer;
   }
 
   const blocked = [
@@ -142,11 +146,11 @@ export default function CertificateDraft({
           </p>
           {isPartner ? (
             <form
-              action={(formData) =>
+              onSubmit={saving((formData) =>
                 run(() =>
                   confirmCertificateWording(certificate.typeKey, formData),
-                )
-              }
+                ),
+              )}
               className="flex flex-wrap items-end gap-2"
             >
               <label className="flex flex-1 flex-col gap-1">
@@ -201,9 +205,9 @@ export default function CertificateDraft({
               {row.note && <p className="text-12 text-ink-muted">{row.note}</p>}
               {mayEdit && (
                 <form
-                  action={(formData) =>
-                    run(() => setEvidence(id, row.id, formData))
-                  }
+                  onSubmit={saving((formData) =>
+                    run(() => setEvidence(id, row.id, formData)),
+                  )}
                   className="flex flex-wrap items-end gap-2"
                 >
                   <select
@@ -258,7 +262,9 @@ export default function CertificateDraft({
           )}
           {mayEdit && (
             <form
-              action={(formData) => run(() => setFigure(id, formData))}
+              onSubmit={saving((formData) =>
+                run(() => setFigure(id, formData)),
+              )}
               className="flex flex-wrap items-end gap-2"
             >
               <label className="flex flex-col gap-1">
@@ -314,9 +320,9 @@ export default function CertificateDraft({
               <p className="text-14 whitespace-pre-line">{row.text}</p>
             ) : open === row.id && mayEdit ? (
               <form
-                action={(formData) =>
-                  run(() => saveParagraph(id, row.id, formData))
-                }
+                onSubmit={saving((formData) =>
+                  run(() => saveParagraph(id, row.id, formData)),
+                )}
                 className="flex flex-col gap-2"
               >
                 <textarea
@@ -398,7 +404,9 @@ export default function CertificateDraft({
             </p>
           )}
           <form
-            action={(formData) => run(() => signCertificate(id, formData))}
+            onSubmit={saving((formData) =>
+              run(() => signCertificate(id, formData)),
+            )}
             className="flex flex-wrap items-end gap-2"
           >
             <label className="flex flex-col gap-1">

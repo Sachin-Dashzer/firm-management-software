@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -49,14 +50,17 @@ export default function AuditStudio({ file, mayEdit, isPartner }) {
   const [asking, setAsking] = useState(null);
 
   function run(action) {
+    const answer = action();
     startTransition(async () => {
-      const result = await action();
+      const result = await answer;
       setMessage(result);
       if (result?.ok) {
         setAsking(null);
         router.refresh();
       }
     });
+    // the answer goes back to the caller: a form clears itself only on a save
+    return answer;
   }
 
   if (!file.open) {
@@ -201,9 +205,9 @@ export default function AuditStudio({ file, mayEdit, isPartner }) {
 
         {mayEdit && (
           <form
-            action={(formData) =>
-              run(() => setMateriality(file.engagementId, formData))
-            }
+            onSubmit={saving((formData) =>
+              run(() => setMateriality(file.engagementId, formData)),
+            )}
             className="flex flex-col gap-2"
           >
             <div className="flex flex-wrap items-end gap-2">
@@ -333,9 +337,9 @@ export default function AuditStudio({ file, mayEdit, isPartner }) {
 
                   {!area.confirmedByName && isPartner && (
                     <form
-                      action={(formData) =>
-                        run(() => confirmAuditArea(area.key, formData))
-                      }
+                      onSubmit={saving((formData) =>
+                        run(() => confirmAuditArea(area.key, formData)),
+                      )}
                       className="flex flex-wrap items-end gap-2"
                     >
                       <input
@@ -420,7 +424,7 @@ export default function AuditStudio({ file, mayEdit, isPartner }) {
                   <div className="flex flex-col gap-2">
                     {asking?.id === row.id ? (
                       <form
-                        action={(formData) =>
+                        onSubmit={saving((formData) =>
                           run(() =>
                             moveAuditException(
                               file.engagementId,
@@ -428,8 +432,8 @@ export default function AuditStudio({ file, mayEdit, isPartner }) {
                               asking.action,
                               formData,
                             ),
-                          )
-                        }
+                          ),
+                        )}
                         className="flex flex-col gap-2"
                       >
                         <label className="flex flex-col gap-1">
@@ -519,9 +523,9 @@ export default function AuditStudio({ file, mayEdit, isPartner }) {
 
         {mayEdit && (
           <form
-            action={(formData) =>
-              run(() => raiseException(file.engagementId, formData))
-            }
+            onSubmit={saving((formData) =>
+              run(() => raiseException(file.engagementId, formData)),
+            )}
             className="border-rule flex flex-col gap-2 border-t pt-3"
           >
             <input

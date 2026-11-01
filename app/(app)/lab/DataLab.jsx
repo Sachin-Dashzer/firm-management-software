@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useRef, useState, useTransition } from "react";
 import {
   profileUpload,
@@ -83,7 +84,11 @@ export default function DataLab() {
     );
 
   return (
-    <form ref={formRef} action={onProfile} className="flex flex-col gap-4">
+    <form
+      ref={formRef}
+      onSubmit={saving(onProfile)}
+      className="flex flex-col gap-4"
+    >
       {error && (
         <p
           role="alert"

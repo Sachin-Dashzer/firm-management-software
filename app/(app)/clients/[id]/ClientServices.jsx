@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { canExecute, canReview } from "@/lib/services/catalog";
 import TierBadge from "@/components/ledger/TierBadge";
@@ -66,16 +67,19 @@ export default function ClientServices({
 
       {adding && (
         <form
-          action={(formData) =>
-            startTransition(async () => {
+          onSubmit={saving(
+            async (formData) => {
               const result = await saveClientService(clientId, formData);
               setMessage(result);
               if (result?.ok) {
                 setAdding(false);
                 setTemplateId("");
               }
-            })
-          }
+              return result;
+            },
+            null,
+            startTransition,
+          )}
           className="rounded-ledger border-rule bg-surface grid gap-3 border p-4 sm:grid-cols-2"
         >
           <label className="flex flex-col gap-1">

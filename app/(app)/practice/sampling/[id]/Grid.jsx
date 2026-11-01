@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Check, X } from "@phosphor-icons/react";
@@ -53,16 +54,20 @@ export default function Grid({
    * can tell whether the tick was recorded. On a vouching grid that is the
    * worst possible failure, so the error is shown rather than swallowed.
    */
-  const run = (fn) =>
+  const run = (fn) => {
+    const answer = fn();
     start(async () => {
       try {
-        const result = await fn();
+        const result = await answer;
         if (result?.error || result?.ok) setState(result);
       } catch (error) {
         setState({ error: error?.message ?? "That did not save." });
       }
       router.refresh();
     });
+    // the answer goes back to the caller: a form clears itself only on a save
+    return answer;
+  };
 
   /** · → ✓ → ✗ → · */
   const nextMark = (mark) => (mark === null ? 1 : mark === 1 ? 0 : null);
@@ -287,7 +292,7 @@ function Rows({
           <td colSpan={attributes.length + 4} className="px-3 pt-0 pb-3">
             <div className="flex flex-col gap-3 lg:flex-row">
               <form
-                action={onNote}
+                onSubmit={saving(onNote)}
                 className="flex min-w-0 flex-1 flex-col gap-2"
               >
                 <label className="flex flex-col gap-1">
@@ -392,10 +397,10 @@ function ColumnEditor({ attributes, onSave, pending }) {
 
   return (
     <form
-      action={(formData) => {
+      onSubmit={saving((formData) => {
         onSave(formData);
         setEditing(false);
-      }}
+      })}
       className="rounded-ledger border-rule bg-surface flex flex-col gap-2 border p-3"
     >
       <label className="flex flex-col gap-1">

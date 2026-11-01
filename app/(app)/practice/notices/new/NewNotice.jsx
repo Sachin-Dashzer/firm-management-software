@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createNotice } from "../actions";
@@ -22,7 +23,7 @@ export default function NewNotice({ clients, people, kinds, client }) {
   if (state?.id) router.push(`/practice/notices/${state.id}`);
 
   return (
-    <form action={action} className="flex flex-col gap-4">
+    <form onSubmit={saving(action)} className="flex flex-col gap-4">
       {state?.error && (
         <p
           role="alert"

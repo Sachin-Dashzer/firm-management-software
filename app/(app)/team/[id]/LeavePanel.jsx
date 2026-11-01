@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -30,14 +31,17 @@ export default function LeavePanel({
   const first = name.split(" ")[0];
 
   function run(action) {
+    const answer = action();
     startTransition(async () => {
-      const result = await action();
+      const result = await answer;
       setMessage(result);
       if (result?.ok) {
         setWithdrawing(null);
         router.refresh();
       }
     });
+    // the answer goes back to the caller: a form clears itself only on a save
+    return answer;
   }
 
   return (
@@ -90,9 +94,11 @@ export default function LeavePanel({
                   <div>
                     {withdrawing === row.id ? (
                       <form
-                        action={(formData) =>
-                          run(() => cancelLeave(row.id, formData.get("reason")))
-                        }
+                        onSubmit={saving((formData) =>
+                          run(() =>
+                            cancelLeave(row.id, formData.get("reason")),
+                          ),
+                        )}
                         className="flex flex-wrap items-end gap-2"
                       >
                         <label className="flex flex-1 flex-col gap-1">
@@ -158,7 +164,9 @@ export default function LeavePanel({
           </p>
 
           <form
-            action={(formData) => run(() => recordLeave(id, formData))}
+            onSubmit={saving((formData) =>
+              run(() => recordLeave(id, formData)),
+            )}
             className="flex flex-col gap-3"
           >
             <div className="grid gap-3 sm:grid-cols-2">

@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -29,16 +30,20 @@ export default function Journal({ id, editable, heads, rows, unsent }) {
   const [state, setState] = useState(null);
   const [open, setOpen] = useState(false);
 
-  const run = (fn) =>
+  const run = (fn) => {
+    const answer = fn();
     start(async () => {
       try {
-        const said = await fn();
+        const said = await answer;
         if (said?.error || said?.ok) setState(said);
       } catch (error) {
         setState({ error: error?.message ?? "That did not save." });
       }
       router.refresh();
     });
+    // the answer goes back to the caller: a form clears itself only on a save
+    return answer;
+  };
 
   const byGroup = heads.reduce((map, head) => {
     const list = map.get(head.group) ?? [];
@@ -177,13 +182,13 @@ export default function Journal({ id, editable, heads, rows, unsent }) {
         <>
           {open ? (
             <form
-              action={(formData) =>
+              onSubmit={saving((formData) =>
                 run(async () => {
                   const said = await addAdjustment(id, formData);
                   if (said?.ok) setOpen(false);
                   return said;
-                })
-              }
+                }),
+              )}
               className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4"
             >
               <label className="flex flex-col gap-1">

@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { SECTIONS, SECTION_LABELS, capSections } from "@/lib/access/sections";
@@ -38,14 +39,17 @@ export default function TeamAccess({
   const refusedWhy = new Map(ceiling.refused.map((r) => [r.section, r.why]));
 
   function run(work) {
+    const answer = work();
     startTransition(async () => {
-      const result = await work();
+      const result = await answer;
       setMessage(result);
       if (result?.ok) {
         setAdding(false);
         setUserId("");
       }
     });
+    // the answer goes back to the caller: a form clears itself only on a save
+    return answer;
   }
 
   return (
@@ -162,7 +166,9 @@ export default function TeamAccess({
 
         {adding && (
           <form
-            action={(formData) => run(() => grantAccess(clientId, formData))}
+            onSubmit={saving((formData) =>
+              run(() => grantAccess(clientId, formData)),
+            )}
             className="rounded-ledger border-rule bg-surface flex flex-col gap-4 border p-4"
           >
             <label className="flex flex-col gap-1">

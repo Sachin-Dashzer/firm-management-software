@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Circle } from "@phosphor-icons/react";
@@ -64,14 +65,17 @@ export default function ReportPanel({
   const [open, setOpen] = useState(null);
 
   function run(action) {
+    const answer = action();
     startTransition(async () => {
-      const result = await action();
+      const result = await answer;
       setMessage(result);
       if (result?.ok) {
         setOpen(null);
         router.refresh();
       }
     });
+    // the answer goes back to the caller: a form clears itself only on a save
+    return answer;
   }
 
   const locked = report.locked;
@@ -146,9 +150,9 @@ export default function ReportPanel({
             <>
               {open === "amend" ? (
                 <form
-                  action={(formData) =>
-                    run(() => amendAuditReport(engagementId, formData))
-                  }
+                  onSubmit={saving((formData) =>
+                    run(() => amendAuditReport(engagementId, formData)),
+                  )}
                   className="flex flex-col gap-2"
                 >
                   <label className="flex flex-col gap-1">
@@ -283,11 +287,11 @@ export default function ReportPanel({
                 <>
                   {open === `test-${test.id}` ? (
                     <form
-                      action={(formData) =>
+                      onSubmit={saving((formData) =>
                         run(() =>
                           recordLedgerTest(engagementId, test.id, formData),
-                        )
-                      }
+                        ),
+                      )}
                       className="flex flex-wrap items-end gap-2"
                     >
                       <label className="flex flex-col gap-1">
@@ -393,9 +397,11 @@ export default function ReportPanel({
 
                 {editable && (
                   <form
-                    action={(formData) =>
-                      run(() => setReportEffect(engagementId, row.id, formData))
-                    }
+                    onSubmit={saving((formData) =>
+                      run(() =>
+                        setReportEffect(engagementId, row.id, formData),
+                      ),
+                    )}
                     className="flex flex-wrap items-end gap-2"
                   >
                     <label className="flex flex-col gap-1">
@@ -488,9 +494,9 @@ export default function ReportPanel({
               {editable &&
                 (open === `clause-${row.id}` ? (
                   <form
-                    action={(formData) =>
-                      run(() => answerClause(engagementId, row.id, formData))
-                    }
+                    onSubmit={saving((formData) =>
+                      run(() => answerClause(engagementId, row.id, formData)),
+                    )}
                     className="flex flex-col gap-2"
                   >
                     <textarea
@@ -594,9 +600,9 @@ export default function ReportPanel({
 
           {editable && (
             <form
-              action={(formData) =>
-                run(() => setOpinion(engagementId, formData))
-              }
+              onSubmit={saving((formData) =>
+                run(() => setOpinion(engagementId, formData)),
+              )}
               className="flex flex-col gap-2"
             >
               <div className="flex flex-wrap items-end gap-2">
@@ -678,9 +684,9 @@ export default function ReportPanel({
 
           {editable && !report.conclusionStands && (
             <form
-              action={(formData) =>
-                run(() => recordOverall(engagementId, formData))
-              }
+              onSubmit={saving((formData) =>
+                run(() => recordOverall(engagementId, formData)),
+              )}
               className="flex flex-col gap-2"
             >
               <textarea
@@ -719,9 +725,9 @@ export default function ReportPanel({
 
         {editable && (
           <form
-            action={(formData) =>
-              run(() => setReportStructure(engagementId, formData))
-            }
+            onSubmit={saving((formData) =>
+              run(() => setReportStructure(engagementId, formData)),
+            )}
             className="flex flex-col gap-2"
           >
             {SWITCHES.map((row) => {
@@ -801,15 +807,15 @@ export default function ReportPanel({
                 <>
                   {open === `section:${section.key}` ? (
                     <form
-                      action={(formData) =>
+                      onSubmit={saving((formData) =>
                         run(() =>
                           saveReportSection(
                             engagementId,
                             section.key,
                             formData,
                           ),
-                        )
-                      }
+                        ),
+                      )}
                       className="flex flex-col gap-2"
                     >
                       <textarea
@@ -890,9 +896,9 @@ export default function ReportPanel({
 
           {isPartner ? (
             <form
-              action={(formData) =>
-                run(() => signAuditReport(engagementId, formData))
-              }
+              onSubmit={saving((formData) =>
+                run(() => signAuditReport(engagementId, formData)),
+              )}
               className="flex flex-col gap-2"
             >
               <p className="text-13 text-ink-muted max-w-[70ch]">

@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { confirmHeads } from "./actions";
@@ -37,7 +38,10 @@ export default function ConfirmHeads({ count, mayConfirm }) {
         so.
       </p>
       {mayConfirm ? (
-        <form action={action} className="flex flex-wrap items-end gap-2">
+        <form
+          onSubmit={saving(action)}
+          className="flex flex-wrap items-end gap-2"
+        >
           <label className="flex min-w-0 flex-1 flex-col gap-1">
             <span className="text-12 text-ink-muted">
               Anything you want recorded with the confirmation

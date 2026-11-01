@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -111,7 +112,7 @@ export default function RoundTrip() {
 
       <form
         ref={formRef}
-        action={onPreview}
+        onSubmit={saving(onPreview)}
         className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4"
       >
         <div className="flex flex-wrap items-end gap-3">

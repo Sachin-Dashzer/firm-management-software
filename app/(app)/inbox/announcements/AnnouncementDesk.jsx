@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useActionState, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { postAnnouncement, endAnnouncement } from "./actions";
@@ -48,7 +49,7 @@ export default function AnnouncementDesk({ rows, audiences, branches, roles }) {
         </p>
       )}
 
-      <form action={action} className="flex flex-col gap-3">
+      <form onSubmit={saving(action)} className="flex flex-col gap-3">
         <h2 className="text-15 font-bold">Post one</h2>
 
         <label className="flex flex-col gap-1">

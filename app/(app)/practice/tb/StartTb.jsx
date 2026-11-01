@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useActionState } from "react";
 import { startTrialBalance } from "./actions";
 
@@ -9,7 +10,7 @@ export default function StartTb({ engagements }) {
 
   return (
     <form
-      action={action}
+      onSubmit={saving(action)}
       className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-3"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">

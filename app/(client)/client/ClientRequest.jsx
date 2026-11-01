@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { sayCannotProvide, delegateRequest, askAboutRequest } from "./actions";
 
@@ -100,7 +101,7 @@ export default function ClientRequest({ item }) {
 
       {form === "cannot" && (
         <form
-          action={(formData) => run(sayCannotProvide, formData)}
+          onSubmit={saving((formData) => run(sayCannotProvide, formData))}
           className="flex flex-wrap items-end gap-2"
         >
           <label className="flex flex-1 flex-col gap-1">
@@ -128,7 +129,7 @@ export default function ClientRequest({ item }) {
 
       {form === "delegate" && (
         <form
-          action={(formData) => run(delegateRequest, formData)}
+          onSubmit={saving((formData) => run(delegateRequest, formData))}
           className="flex flex-col gap-2"
         >
           <div className="flex flex-wrap gap-2">
@@ -177,7 +178,7 @@ export default function ClientRequest({ item }) {
 
       {form === "ask" && (
         <form
-          action={(formData) => run(askAboutRequest, formData)}
+          onSubmit={saving((formData) => run(askAboutRequest, formData))}
           className="flex flex-wrap items-end gap-2"
         >
           <label className="flex flex-1 flex-col gap-1">

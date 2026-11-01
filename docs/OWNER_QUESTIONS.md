@@ -153,6 +153,33 @@ actually import into before writing it.
 
 ---
 
+## 8. Two ways of saying an audit opinion has not been given
+
+**The situation.** The opinion list on an engagement's filing panel is the
+four words of SA 700 / SA 705 — Unmodified, Qualified, Adverse, Disclaimer —
+plus "Not yet issued". But the select also offers a blank first option, shown
+as "Not said", so there are two different ways to record "no opinion yet" and
+nothing distinguishes them.
+
+**Why it came up.** The bug in `docs/BUG_AUDIT_OPINION.md` stored a blank
+opinion while the screen said it had saved. It is fixed, and a blank can no
+longer reach a UDIN or a completed status. But while an audit is in progress
+the two blanks still mean the same thing, and a list of audits shows one as
+empty and the other as words.
+
+**What I have assumed meanwhile.** A blank opinion is allowed while the work
+is open, and refused at the two points where the file stops being a draft:
+recording a UDIN, and marking the engagement Completed. Nothing is ever
+filled in automatically.
+
+**What to decide.** Should "Not said" be dropped, so an audit starts at "Not
+yet issued" and the only states are the standard's own words plus that one?
+It is a one-line change and it removes a difference that means nothing. The
+alternative is to keep both, in which case I need to know what you want each
+to mean on an audit report.
+
+---
+
 ## Answered, for the record
 
 Nothing yet. As each question above is settled, move it here with the

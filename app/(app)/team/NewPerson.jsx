@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { ROLE_LABELS, ROLES } from "@/lib/permissions";
 import { createUser } from "./actions";
@@ -50,13 +51,16 @@ export default function NewPerson({ branches, seniors }) {
 
           {open && (
             <form
-              action={(formData) =>
-                startTransition(async () => {
+              onSubmit={saving(
+                async (formData) => {
                   const result = await createUser(null, formData);
                   setMessage(result);
                   if (result?.ok) setOpen(false);
-                })
-              }
+                  return result;
+                },
+                null,
+                startTransition,
+              )}
               className="rounded-ledger border-rule bg-surface mt-3 grid gap-4 border p-4 sm:grid-cols-2"
             >
               <Field label="Full name" name="name" required />

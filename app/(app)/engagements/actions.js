@@ -71,7 +71,7 @@ import {
   linkUdinToEngagement,
   unlinkUdinFromEngagement,
 } from "@/lib/practice/udin";
-import { bookOf, checkAssurance } from "@/lib/practice/books";
+import { bookOf, checkAssurance, missingOpinion } from "@/lib/practice/books";
 
 /**
  * Everything that changes an engagement (spec section 5).
@@ -319,6 +319,20 @@ export async function changeStatus(id, to, reason = "") {
     }
     if (engagement.templateSnapshot?.udinRequired && !engagement.udin) {
       return { error: "This service needs a UDIN before it can be completed." };
+    }
+    /**
+     * An audit cannot be signed off without saying what was concluded. The
+     * opinion is the report; a completed audit file with a blank one reads
+     * as a clean audit to everyone who opens it afterwards and says nothing
+     * at all to a reviewer or a regulator.
+     *
+     * Code never fills this in — see `missingOpinion()`.
+     */
+    if (missingOpinion(engagement)) {
+      return {
+        error:
+          "Record the audit opinion on the filing panel before completing this engagement.",
+      };
     }
   }
 
@@ -864,6 +878,8 @@ export async function saveFiling(id, formData) {
   }
 
   const before = engagement.udin ?? "";
+  /** What the database holds afterwards, read back inside the transaction. */
+  let saved = null;
 
   /**
    * The register is the record and this field is a copy of it (P2-7), so the
@@ -884,6 +900,22 @@ export async function saveFiling(id, formData) {
     return {
       error:
         "Name the partner or CA whose ICAI membership the UDIN was generated against.",
+    };
+  }
+
+  /**
+   * A UDIN is generated against a signed report, and a report is its
+   * opinion. So the number cannot be recorded while the opinion on this
+   * same panel is blank — that combination is how a file ends up looking
+   * signed and saying nothing.
+   */
+  if (
+    changed &&
+    missingOpinion({ templateSnapshot: { category }, assurance })
+  ) {
+    return {
+      error:
+        "Record the audit opinion before the UDIN. A UDIN is generated against a signed report, and the report is its opinion.",
     };
   }
 
@@ -916,6 +948,34 @@ export async function saveFiling(id, formData) {
       if (assurance) engagement.assurance = assurance;
       engagement.updatedBy = actor.id;
       await engagement.save({ session });
+
+      /**
+       * **Read it back before saying it saved.**
+       *
+       * The audit report is the one thing on this panel that nobody can
+       * check by eye later — a blank opinion looks exactly like an audit
+       * still in progress. So the record is read out of the transaction it
+       * was just written in and compared with what was asked for, and a
+       * difference throws rather than returning "saved". That covers a
+       * dropped field, a silent cast and a second write landing in between,
+       * without needing to know which of them happened.
+       */
+      if (assurance) {
+        const written = await Engagement.findById(engagement._id)
+          .select("assurance")
+          .session(session)
+          .lean();
+        if ((written?.assurance?.opinion ?? "") !== assurance.opinion) {
+          throw new Error(
+            `The audit opinion did not save: the record says ${
+              written?.assurance?.opinion
+                ? `"${written.assurance.opinion}"`
+                : "nothing"
+            }. Nothing has been changed — please try again.`,
+          );
+        }
+        saved = written.assurance;
+      }
     });
   } catch (err) {
     return { error: err.message };
@@ -925,7 +985,11 @@ export async function saveFiling(id, formData) {
   revalidatePath("/practice/udin");
   const book = bookOf(category);
   if (book) revalidatePath(`/practice/${book}`);
-  return { ok: "Filing details saved." };
+  /**
+   * The persisted assurance goes back with the message so the panel shows
+   * what the database holds rather than what was typed into it.
+   */
+  return { ok: "Filing details saved.", assurance: saved };
 }
 
 /**

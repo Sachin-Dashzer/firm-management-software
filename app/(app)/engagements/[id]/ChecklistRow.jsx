@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState } from "react";
 import AuditTick from "@/components/ledger/AuditTick";
 import {
@@ -170,7 +171,7 @@ export default function ChecklistRow({ engagementId, item, disabled, run }) {
 
       {form === "replace" && (
         <form
-          action={(formData) =>
+          onSubmit={saving((formData) =>
             run(async () => {
               const out = await replaceChecklistItem(
                 engagementId,
@@ -179,8 +180,8 @@ export default function ChecklistRow({ engagementId, item, disabled, run }) {
               );
               close();
               return out;
-            })
-          }
+            }),
+          )}
           className="flex flex-wrap items-end gap-2"
         >
           <label className="flex flex-1 flex-col gap-1">
@@ -209,7 +210,7 @@ export default function ChecklistRow({ engagementId, item, disabled, run }) {
 
       {form === "waive" && (
         <form
-          action={(formData) =>
+          onSubmit={saving((formData) =>
             run(async () => {
               const out = await waiveChecklistItem(
                 engagementId,
@@ -218,8 +219,8 @@ export default function ChecklistRow({ engagementId, item, disabled, run }) {
               );
               close();
               return out;
-            })
-          }
+            }),
+          )}
           className="flex flex-wrap items-end gap-2"
         >
           <label className="flex flex-1 flex-col gap-1">
@@ -249,7 +250,7 @@ export default function ChecklistRow({ engagementId, item, disabled, run }) {
 
       {form === "answer" && (
         <form
-          action={(formData) =>
+          onSubmit={saving((formData) =>
             run(async () => {
               const out = await answerChecklistQuestion(
                 engagementId,
@@ -258,8 +259,8 @@ export default function ChecklistRow({ engagementId, item, disabled, run }) {
               );
               close();
               return out;
-            })
-          }
+            }),
+          )}
           className="flex flex-wrap items-end gap-2"
         >
           <label className="flex flex-1 flex-col gap-1">

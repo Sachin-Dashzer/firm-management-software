@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -25,11 +26,14 @@ export default function DueDates({ rows, unverified }) {
   const [pending, startTransition] = useTransition();
 
   function run(action) {
+    const answer = action();
     startTransition(async () => {
-      setMessage(await action());
+      setMessage(await answer);
       setOpen(null);
       router.refresh();
     });
+    // the answer goes back to the caller: a form clears itself only on a save
+    return answer;
   }
 
   return (
@@ -229,13 +233,13 @@ export default function DueDates({ rows, unverified }) {
 
           {open === `edit-${rule.id}` && (
             <form
-              action={(formData) =>
+              onSubmit={saving((formData) =>
                 startTransition(async () => {
                   setMessage(await updateRule(rule.id, formData));
                   setOpen(null);
                   router.refresh();
-                })
-              }
+                }),
+              )}
               className="rounded-ledger border-rule bg-paper grid gap-3 border p-3 sm:grid-cols-3"
             >
               <label className="flex flex-col gap-1">
@@ -304,13 +308,13 @@ export default function DueDates({ rows, unverified }) {
 
           {open === `ext-${rule.id}` && (
             <form
-              action={(formData) =>
+              onSubmit={saving((formData) =>
                 startTransition(async () => {
                   setMessage(await extendPeriod(rule.id, formData));
                   setOpen(null);
                   router.refresh();
-                })
-              }
+                }),
+              )}
               className="rounded-ledger border-rule bg-paper grid gap-3 border p-3 sm:grid-cols-3"
             >
               <Field

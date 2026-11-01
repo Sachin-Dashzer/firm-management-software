@@ -248,6 +248,15 @@ test("an audit report that was not clean has to say why", async ({
   let saved = await Engagement.findById(ids.audit).lean();
   expect(saved.assurance?.opinion ?? "").toBe("");
 
+  /**
+   * And the refusal left the form alone. This is the line the bug hid
+   * behind: the opinion was still on screen because the reason box was
+   * still on screen, while the field that would be posted had been emptied
+   * by React's post-action form reset. The next submit then sent `""` and
+   * the server had no reason to refuse it (docs/BUG_AUDIT_OPINION.md).
+   */
+  await expect(page.locator('select[name="opinion"]')).toHaveValue("Qualified");
+
   await page
     .getByLabel("What the opinion is modified for")
     .fill("Inventory at the Ludhiana godown was not observed.");
@@ -258,8 +267,55 @@ test("an audit report that was not clean has to say why", async ({
   expect(saved.assurance.opinion).toBe("Qualified");
   expect(saved.assurance.qualificationNote).toContain("godown");
 
+  // and it comes back from the server, not from anything the browser kept
+  await page.reload();
+  await expect(page.locator('select[name="opinion"]')).toHaveValue("Qualified");
+  await expect(page.getByLabel("What the opinion is modified for")).toHaveValue(
+    /godown/,
+  );
+
   await page.goto("/practice/audits");
   await expect(page.getByRole("cell", { name: "Qualified" })).toBeVisible();
+});
+
+test("a UDIN cannot be recorded against an audit with no opinion", async ({
+  page,
+}, testInfo) => {
+  const fx = names(testInfo.project.name);
+
+  /**
+   * Back to where a half-finished audit sits: the opinion the test above
+   * recorded is taken off the record, because that — not a bad UDIN — is
+   * the state this gate exists for.
+   */
+  await systemAudit(async (session) => {
+    const row = await Engagement.findById(ids.audit).session(session);
+    row.assurance.opinion = "";
+    row.assurance.qualificationNote = "";
+    row.updatedBy = "test";
+    await row.save({ session });
+  });
+
+  await signIn(page, fx.ca);
+  await page.goto(`/engagements/${ids.audit}`);
+  await expect(page.locator('select[name="opinion"]')).toHaveValue("");
+
+  await page.locator('input[name="udin"]').fill("25419876AAAAAAAAAA");
+  await page
+    .getByLabel("Signed by")
+    .selectOption({ label: "Playwright Books CA · CA" });
+  await page.getByRole("button", { name: /Save filing/ }).click();
+  await expect(alertBox(page)).toContainText("before the UDIN");
+
+  // refused, and nothing written: no number and no invented opinion
+  const saved = await Engagement.findById(ids.audit).lean();
+  expect(saved.udin ?? "").toBe("");
+  expect(saved.assurance?.opinion ?? "").toBe("");
+
+  // the number the user typed is still there to save once the opinion is
+  await expect(page.locator('input[name="udin"]')).toHaveValue(
+    "25419876AAAAAAAAAA",
+  );
 });
 
 test("a filing date in the future is refused", async ({ page }, testInfo) => {
@@ -268,8 +324,14 @@ test("a filing date in the future is refused", async ({ page }, testInfo) => {
   await page.goto(`/engagements/${ids.audit}`);
 
   const tomorrow = asInput(new Date(Date.now() + DAY));
-  // the input carries a max, so this types past the browser's own guard
+  /*
+   * `max` is dropped first. Setting `.value` past it leaves the field
+   * failing constraint validation, and the browser then refuses to fire
+   * submit at all — so the server, which is where the refusal has to come
+   * from (CLAUDE.md rule 1), was never being asked.
+   */
   await page.getByLabel("Filed on").evaluate((element, value) => {
+    element.removeAttribute("max");
     element.value = value;
     element.dispatchEvent(new Event("input", { bubbles: true }));
   }, tomorrow);

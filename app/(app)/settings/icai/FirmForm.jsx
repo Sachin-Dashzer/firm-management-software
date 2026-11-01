@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import {
   FIRM_CONSTITUTIONS,
@@ -58,9 +59,11 @@ export default function FirmForm({ firm, mayEdit }) {
 
   return (
     <form
-      action={(formData) =>
-        startTransition(async () => setMessage(await saveFirm(null, formData)))
-      }
+      onSubmit={saving(
+        (formData) => saveFirm(null, formData),
+        setMessage,
+        startTransition,
+      )}
       className="flex flex-col gap-6"
     >
       {message?.ok && (

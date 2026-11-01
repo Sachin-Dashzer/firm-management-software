@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useActionState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { addTime } from "./actions";
@@ -33,7 +34,7 @@ export default function AddTime({ jobs, people, me, defaultDate }) {
   return (
     <form
       ref={form}
-      action={action}
+      onSubmit={saving(action)}
       className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-3"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">

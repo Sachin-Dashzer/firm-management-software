@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { uploadGstWorkbook, sendGstDataBack, confirmSetOffRule } from "./gst";
@@ -18,14 +19,17 @@ export default function GstPanel({ gst, engagementId, mayEdit, isPartner }) {
   const [openRule, setOpenRule] = useState(null);
 
   function run(action) {
+    const answer = action();
     startTransition(async () => {
-      const result = await action();
+      const result = await answer;
       setMessage(result);
       if (result?.ok) {
         setOpenRule(null);
         router.refresh();
       }
     });
+    // the answer goes back to the caller: a form clears itself only on a save
+    return answer;
   }
 
   const computation = gst.computation;
@@ -91,9 +95,9 @@ export default function GstPanel({ gst, engagementId, mayEdit, isPartner }) {
 
       {mayEdit && (
         <form
-          action={(formData) =>
-            run(() => uploadGstWorkbook(engagementId, formData))
-          }
+          onSubmit={saving((formData) =>
+            run(() => uploadGstWorkbook(engagementId, formData)),
+          )}
           className="border-rule flex flex-wrap items-end gap-2 border-t pt-3"
         >
           <label className="flex flex-col gap-1">
@@ -272,9 +276,9 @@ export default function GstPanel({ gst, engagementId, mayEdit, isPartner }) {
                     {isPartner &&
                       (openRule === rule.key ? (
                         <form
-                          action={(formData) =>
-                            run(() => confirmSetOffRule(rule.key, formData))
-                          }
+                          onSubmit={saving((formData) =>
+                            run(() => confirmSetOffRule(rule.key, formData)),
+                          )}
                           className="flex flex-wrap items-end gap-2"
                         >
                           <input

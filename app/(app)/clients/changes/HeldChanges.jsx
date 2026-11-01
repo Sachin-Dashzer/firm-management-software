@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -28,14 +29,17 @@ export default function HeldChanges({ rows, show, mayDecide }) {
   }
 
   function run(action) {
+    const answer = action();
     startTransition(async () => {
-      const result = await action();
+      const result = await answer;
       setMessage(result);
       if (result?.ok) {
         setDeclining(null);
         router.refresh();
       }
     });
+    // the answer goes back to the caller: a form clears itself only on a save
+    return answer;
   }
 
   return (
@@ -111,9 +115,11 @@ export default function HeldChanges({ rows, show, mayDecide }) {
                 (mayDecide ? (
                   declining === row.id ? (
                     <form
-                      action={(formData) =>
-                        run(() => decideHeldChange(row.id, "decline", formData))
-                      }
+                      onSubmit={saving((formData) =>
+                        run(() =>
+                          decideHeldChange(row.id, "decline", formData),
+                        ),
+                      )}
                       className="flex flex-wrap items-end gap-2"
                     >
                       <label className="flex flex-1 flex-col gap-1">

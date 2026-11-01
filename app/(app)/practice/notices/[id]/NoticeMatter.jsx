@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -36,14 +37,17 @@ export default function NoticeMatter({
   const [open, setOpen] = useState(null);
 
   function run(action) {
+    const answer = action();
     startTransition(async () => {
-      const result = await action();
+      const result = await answer;
       setMessage(result);
       if (result?.ok) {
         setOpen(null);
         router.refresh();
       }
     });
+    // the answer goes back to the caller: a form clears itself only on a save
+    return answer;
   }
 
   const form = (action) => (formData) => run(() => action(formData));
@@ -100,7 +104,7 @@ export default function NoticeMatter({
         </dl>
 
         {mayEdit && (
-          <form action={form(setStage.bind(null, notice.id))}>
+          <form onSubmit={saving(form(setStage.bind(null, notice.id)))}>
             <div className="flex flex-wrap items-end gap-2">
               <label className="flex flex-col gap-1">
                 <span className="text-12 text-ink-muted font-medium">
@@ -200,8 +204,8 @@ export default function NoticeMatter({
                 (isPartner ? (
                   open === clock.key ? (
                     <form
-                      action={form(
-                        confirmLawRule.bind(null, notice.kind, clock.key),
+                      onSubmit={saving(
+                        form(confirmLawRule.bind(null, notice.kind, clock.key)),
                       )}
                     >
                       <div className="flex flex-wrap items-end gap-2">
@@ -304,7 +308,9 @@ export default function NoticeMatter({
 
                 {!row.filedOn && mayEdit && (
                   <form
-                    action={form(fileSubmission.bind(null, notice.id, row.id))}
+                    onSubmit={saving(
+                      form(fileSubmission.bind(null, notice.id, row.id)),
+                    )}
                   >
                     <div className="flex flex-wrap items-end gap-2">
                       <label className="flex flex-col gap-1">
@@ -347,7 +353,7 @@ export default function NoticeMatter({
 
         {mayEdit && (
           <form
-            action={form(addSubmission.bind(null, notice.id))}
+            onSubmit={saving(form(addSubmission.bind(null, notice.id)))}
             className="border-rule flex flex-wrap items-end gap-2 border-t pt-3"
           >
             <label className="flex flex-col gap-1">
@@ -444,7 +450,9 @@ export default function NoticeMatter({
                 ) : (
                   mayEdit && (
                     <form
-                      action={form(recordHearing.bind(null, notice.id, row.id))}
+                      onSubmit={saving(
+                        form(recordHearing.bind(null, notice.id, row.id)),
+                      )}
                     >
                       <div className="flex flex-col gap-2">
                         <div className="flex flex-wrap items-end gap-2">
@@ -520,7 +528,7 @@ export default function NoticeMatter({
 
         {mayEdit && (
           <form
-            action={form(addHearing.bind(null, notice.id))}
+            onSubmit={saving(form(addHearing.bind(null, notice.id)))}
             className="border-rule flex flex-wrap items-end gap-2 border-t pt-3"
           >
             <label className="flex flex-col gap-1">
@@ -592,7 +600,7 @@ export default function NoticeMatter({
 
         {mayEdit && (
           <form
-            action={form(saveGround.bind(null, notice.id))}
+            onSubmit={saving(form(saveGround.bind(null, notice.id)))}
             className="border-rule flex flex-col gap-2 border-t pt-3"
           >
             <input
@@ -643,7 +651,7 @@ export default function NoticeMatter({
         </div>
 
         {mayEdit ? (
-          <form action={form(savePlainWords.bind(null, notice.id))}>
+          <form onSubmit={saving(form(savePlainWords.bind(null, notice.id)))}>
             <div className="flex flex-col gap-2">
               <textarea
                 name="plainWords"
@@ -701,7 +709,7 @@ export default function NoticeMatter({
 
         {mayEdit && (
           <form
-            action={form(addPaper.bind(null, notice.id))}
+            onSubmit={saving(form(addPaper.bind(null, notice.id)))}
             className="border-rule flex flex-wrap items-end gap-2 border-t pt-3"
           >
             <input

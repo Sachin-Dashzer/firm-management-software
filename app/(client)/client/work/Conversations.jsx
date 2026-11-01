@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { replyOnJob } from "./actions";
@@ -76,13 +77,16 @@ export default function Conversations({ threads }) {
             </ul>
 
             <form
-              action={(formData) =>
-                startTransition(async () => {
+              onSubmit={saving(
+                async (formData) => {
                   const result = await replyOnJob(thread.id, formData);
                   setMessage(result);
                   if (result?.ok) router.refresh();
-                })
-              }
+                  return result;
+                },
+                null,
+                startTransition,
+              )}
               className="flex flex-col gap-2"
             >
               <label className="flex flex-col gap-1">

@@ -1,5 +1,6 @@
 "use client";
 
+import { saving } from "@/lib/forms/saving";
 import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createCertificate } from "../actions";
@@ -22,7 +23,7 @@ export default function NewCertificate({ clients, client, types, levels }) {
   if (state?.id) router.push(`/practice/certificates/${state.id}`);
 
   return (
-    <form action={action} className="flex flex-col gap-4">
+    <form onSubmit={saving(action)} className="flex flex-col gap-4">
       {state?.error && (
         <p
           role="alert"

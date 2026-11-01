@@ -9,6 +9,7 @@ import {
   PRIORITIES,
 } from "../lib/engagements/status.js";
 import { SCOPES } from "../lib/engagements/scope.js";
+import { AUDIT_TYPES, OPINIONS } from "../lib/practice/books.js";
 
 /**
  * One service, for one client, for one period (spec section 5).
@@ -158,11 +159,29 @@ const reviewItemSchema = new mongoose.Schema(
  */
 const assuranceSchema = new mongoose.Schema(
   {
-    auditType: { type: String, default: "", trim: true },
+    auditType: {
+      type: String,
+      default: "",
+      trim: true,
+      enum: ["", ...AUDIT_TYPES],
+    },
     appointmentDate: { type: Date, default: null },
     reportDate: { type: Date, default: null },
-    /** SA 700 / SA 705: Unmodified, Qualified, Adverse or Disclaimer. */
-    opinion: { type: String, default: "", trim: true },
+    /**
+     * SA 700 / SA 705: Unmodified, Qualified, Adverse or Disclaimer.
+     *
+     * The `enum` is here as well as in `checkAssurance()` on purpose. The
+     * route used to be the only thing standing between a form and this
+     * field, and when a form sent the wrong thing — a wiped `<select>`
+     * posting `""` — the route had no reason to object and the database
+     * took it. An opinion that is not one of the standard's words now
+     * cannot be written at all, whichever code path asks.
+     *
+     * `""` stays allowed: an audit in progress has not issued an opinion
+     * yet. What it may not do is reach a UDIN or a completed status in that
+     * state — see `missingOpinion()` and the gate in `changeStatus`.
+     */
+    opinion: { type: String, default: "", trim: true, enum: ["", ...OPINIONS] },
     /** Required by `checkAssurance()` for anything but an unmodified one. */
     qualificationNote: { type: String, default: "", trim: true },
   },
