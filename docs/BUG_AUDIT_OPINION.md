@@ -93,7 +93,7 @@ the missing `enum` and the message that could not tell "written" from
 
 ## 3. What changed
 
-All of it in one commit, `2e5fd28`.
+All of it in one commit, `2b219b1`.
 
 ### The root cause
 
