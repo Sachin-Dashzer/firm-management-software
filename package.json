@@ -18,6 +18,8 @@
     "jobs:tick": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/jobs-tick.mjs",
     "jobs:backlog": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/jobs-review-backlog.mjs",
     "secrets": "node scripts/gen-secrets.mjs",
+    "purge:sample": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/purge-sample-data.mjs",
+    "invoice:gaps": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/invoice-gap-report.mjs",
     "gateway:smoke": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/gateway-smoke.mjs"
   },
   "dependencies": {

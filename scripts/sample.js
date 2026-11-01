@@ -1997,6 +1997,80 @@ export async function seedSample(options = {}) {
 }
 
 /**
+ * What `dropSample` would take out, without taking it out.
+ *
+ * Same two questions it asks — which clients carry the sample tag, which
+ * people have a sample email address — so the dry run cannot describe a
+ * different set from the one that gets removed. A purge that reports one
+ * thing and does another is worse than no report.
+ *
+ * @returns {Promise<{clients: Array<{name: string, id: string, counts: Record<string, number>}>,
+ *   people: Array<{name: string, email: string}>, groups: string[],
+ *   branches: string[], totals: Record<string, number>}>}
+ */
+export async function describeSample() {
+  const people = await User.find({
+    email: new RegExp(`@${SAMPLE_DOMAIN.replace(/\./g, "\\.")}$`),
+  }).lean();
+  const clients = await Client.find({ tags: SAMPLE_TAG }).lean();
+
+  /** Every collection that hangs off a client, by the field it hangs on. */
+  const hangers = [
+    ["engagements", Engagement],
+    ["services", ClientService],
+    ["invoices", Invoice],
+    ["payments", Payment],
+    ["documents", DocumentModel],
+    ["comments", Comment],
+    ["credentials", ClientCredential],
+    ["grants", ClientAccess],
+    ["UDINs", Udin],
+    ["DSC tokens", Dsc],
+    ["portal logins", ClientUser],
+  ];
+
+  const totals = {};
+  const described = [];
+
+  for (const client of clients) {
+    const counts = {};
+    for (const [label, Model] of hangers) {
+      const n = await Model.countDocuments({ clientId: client._id });
+      if (n > 0) {
+        counts[label] = n;
+        totals[label] = (totals[label] ?? 0) + n;
+      }
+    }
+    described.push({
+      name: client.legalName,
+      id: String(client._id),
+      counts,
+    });
+  }
+
+  const groups = [];
+  for (const row of SAMPLE_GROUPS) {
+    if (await ClientGroup.exists({ name: row.name })) groups.push(row.name);
+  }
+
+  const branches = [];
+  for (const branch of await Branch.find({}).lean()) {
+    const stateCode = SAMPLE_BRANCH_STATE[branch.code];
+    if (!stateCode) continue;
+    if (branch.gstin !== makeGstin(stateCode, SAMPLE_FIRM_PAN)) continue;
+    branches.push(branch.name);
+  }
+
+  return {
+    clients: described,
+    people: people.map((p) => ({ name: p.name, email: p.email })),
+    groups,
+    branches,
+    totals,
+  };
+}
+
+/**
  * Take the sample data out again, for a database that is about to hold real
  * records. Soft delete only, like everything else (CLAUDE.md rule 3).
  */

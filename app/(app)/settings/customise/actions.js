@@ -5,8 +5,7 @@ import { requireUser } from "@/auth";
 import { assertCan } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import { audited } from "@/lib/audit/request";
-import FirmSettings from "@/models/FirmSettings";
-import { clearFirmCache } from "@/lib/firm/settings";
+import { clearFirmCache, firmDocFor } from "@/lib/firm/settings";
 import { RENAMEABLE, WORD_KEYS } from "@/lib/firm/words";
 
 /**
@@ -56,9 +55,15 @@ export async function saveWords(_prev, formData) {
   await connectDB();
 
   await audited(actor, async (session) => {
-    const firm =
-      (await FirmSettings.findOne({ key: "firm" }).session(session)) ??
-      new FirmSettings({ key: "firm" });
+    /*
+     * Through the shared helper, which supplies the default name when the
+     * document does not exist yet. This used to build the document here and
+     * set only `vocabulary`, so on a deployment where nobody had saved the
+     * ICAI page the save died on the schema's required `name` — and
+     * Customise is reachable first, so day one of a new installation was
+     * the likeliest time to hit it.
+     */
+    const firm = await firmDocFor(session);
     firm.set({ vocabulary, updatedBy: actor.id });
     await firm.save({ session });
   });

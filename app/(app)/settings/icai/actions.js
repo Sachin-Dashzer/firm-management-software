@@ -6,9 +6,8 @@ import { requireUser } from "@/auth";
 import { assertCan } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import { audited } from "@/lib/audit/request";
-import FirmSettings from "@/models/FirmSettings";
 import User from "@/models/User";
-import { clearFirmCache } from "@/lib/firm/settings";
+import { clearFirmCache, firmDocFor } from "@/lib/firm/settings";
 import { FIRM_CONSTITUTIONS, CPE_YEAR_BASES } from "@/lib/firm/profile";
 
 /**
@@ -68,9 +67,7 @@ export async function saveFirm(_prev, formData) {
 
   await audited(actor, async (session) => {
     // one document, for ever: an upsert on the unique key cannot fork
-    const firm =
-      (await FirmSettings.findOne({ key: "firm" }).session(session)) ??
-      new FirmSettings({ key: "firm" });
+    const firm = await firmDocFor(session);
 
     firm.set({
       ...data,
