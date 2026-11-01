@@ -62,4 +62,7 @@ next-env.d.ts
 
 # local file vault (development storage driver)
 .storage/
+# ...and the browser suite's own, from STORAGE_LOCAL_DIR in .env.test, so a
+# test run's files never land beside a developer's
+.storage-test/
 .taste-skill/
