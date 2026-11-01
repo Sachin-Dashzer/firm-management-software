@@ -126,6 +126,13 @@ export default defineConfig({
     env: {
       MONGODB_URI: process.env.MONGODB_URI ?? "",
       AUTH_SKIP_2FA: "false",
+      /*
+       * `next start` sets NODE_ENV=production, so without this the
+       * production guards treat the server under test as the firm's real
+       * deployment and refuse to boot it over STORAGE_DRIVER=local. See
+       * the note in lib/storage/production.js.
+       */
+      PHMG_ENV: "test",
     },
     /**
      * **Never reuse a server that is already up.**

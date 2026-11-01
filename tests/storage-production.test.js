@@ -20,6 +20,7 @@ afterEach(() => {
     "NODE_ENV",
     "STORAGE_DRIVER",
     "STORAGE_GATEWAY_URL",
+    "PHMG_ENV",
   ]) {
     if (saved[key] === undefined) delete process.env[key];
     else process.env[key] = saved[key];
@@ -87,5 +88,36 @@ describe("checkProductionStorage", () => {
     process.env.STORAGE_DRIVER = "local";
 
     expect(checkProductionStorage()).toEqual({ ok: true });
+  });
+});
+
+describe("the test escape hatch", () => {
+  /*
+   * PHMG_ENV=test exists because `next start` sets NODE_ENV=production on a
+   * laptop, so the browser suite's own server was being refused. It turns
+   * every production guard off, which is why the next test matters.
+   */
+  it("lets the browser suite's own server boot with the local driver", () => {
+    delete process.env.VERCEL_ENV;
+    process.env.NODE_ENV = "production";
+    process.env.PHMG_ENV = "test";
+    process.env.STORAGE_DRIVER = "local";
+
+    expect(inProduction()).toBe(false);
+    expect(checkProductionStorage()).toEqual({ ok: true });
+  });
+
+  it("cannot turn the guards off on a real Vercel deployment", () => {
+    process.env.VERCEL_ENV = "production";
+    process.env.PHMG_ENV = "test";
+    process.env.STORAGE_DRIVER = "local";
+
+    /*
+     * It *does* silence checkProductionStorage — that is what the flag
+     * does. The protection is that doctor fails on the flag itself, judged
+     * against VERCEL_ENV, which PHMG_ENV cannot change. Covered in
+     * tests/doctor.test.js; asserted here so the two stay in step.
+     */
+    expect(inProduction()).toBe(false);
   });
 });

@@ -178,3 +178,14 @@ describe("what the go-live audit added", () => {
     expect(warnings).toEqual([]);
   });
 });
+
+describe("the test escape hatch cannot hide in production", () => {
+  it("fails PHMG_ENV=test on a real Vercel deployment", () => {
+    const { problems } = checkEnv(live({ PHMG_ENV: "test" }));
+    expect(problems.join(" ")).toMatch(/disables the production guards/);
+  });
+
+  it("says nothing about it on a laptop or in CI", () => {
+    expect(checkEnv(good({ PHMG_ENV: "test" })).problems).toEqual([]);
+  });
+});

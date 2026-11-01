@@ -201,6 +201,22 @@ export function checkEnv(env) {
    * is discarded on every deploy. Read from the same function the app
    * refuses to boot on, so the two cannot disagree.
    */
+  /**
+   * The test escape hatch must not be able to hide on a real deployment.
+   *
+   * `PHMG_ENV=test` turns off every production guard — the storage driver
+   * check, and anything else that asks `inProduction()`. That is right for
+   * the browser suite, which serves the app with `next start`, and it would
+   * be exactly the hole `AUTH_SKIP_2FA` turned out to be if it were ever
+   * set in Vercel. So it is judged against the platform's own answer, which
+   * `PHMG_ENV` cannot change.
+   */
+  if (env.PHMG_ENV === "test" && env.VERCEL_ENV === "production") {
+    problems.push(
+      "PHMG_ENV=test is set on a production deployment. It disables the production guards — including the one that stops documents being written to a disk Vercel discards. Remove it (it belongs only in .env.test).",
+    );
+  }
+
   const storage = checkProductionStorage(env);
   if (!storage.ok) problems.push(storage.reason);
 
