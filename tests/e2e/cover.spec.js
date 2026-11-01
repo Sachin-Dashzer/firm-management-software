@@ -13,6 +13,7 @@ import { systemAudit } from "../../lib/audit/system.js";
 import { buildEngagement } from "../../lib/engagements/create.js";
 import { periodFor } from "../../lib/engagements/period.js";
 import { startOfISTDay } from "../../lib/dates.js";
+import { istInputDate } from "../../lib/dates.js";
 
 /**
  * Leave, cover, and what cover does and does not do (P3-16).
@@ -182,7 +183,16 @@ test.afterAll(async ({}, testInfo) => {
    */
 });
 
-const asInput = (date) => date.toISOString().slice(0, 10);
+/**
+ * A stored date as `<input type="date">` wants it.
+ *
+ * This was `toISOString().slice(0, 10)`, which is the trap `istInputDate`
+ * exists to close: a date at IST midnight is 18:30 UTC the *previous* day,
+ * so the naive form yields yesterday. For a date built from `new Date()`
+ * it does so only between midnight and 05:30 IST — a test that passes all
+ * afternoon and fails overnight.
+ */
+const asInput = istInputDate;
 
 test("a cover gets the absentee's rows, and the work stays on the absentee's name", async ({
   page,

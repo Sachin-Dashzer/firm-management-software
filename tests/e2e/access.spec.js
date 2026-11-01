@@ -148,6 +148,16 @@ test("a client with no grant and no assignment is nowhere to be found", async ({
 }) => {
   await signIn(page, EMPLOYEE);
 
+  /*
+   * Go to the list rather than assuming sign-in lands on it. It used to:
+   * this read the client straight off the landing page until the owner
+   * moved that to /dashboard (lib/nav/landing.js), and then the test was
+   * asserting a client list against the firm dashboard and reporting it as
+   * a missing client — a permissions failure, by the look of it, which is
+   * the worst thing for this particular spec to lie about.
+   */
+  await page.goto("/clients");
+
   // the row's own link: since P2-13 the list prints the group beside the
   // client, so the name can appear twice on one row
   await expect(

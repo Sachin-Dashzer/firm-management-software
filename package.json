@@ -16,7 +16,9 @@
     "doctor": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/doctor.js",
     "backfill": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/backfill-milestones.js",
     "jobs:tick": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/jobs-tick.mjs",
-    "jobs:backlog": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/jobs-review-backlog.mjs"
+    "jobs:backlog": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/jobs-review-backlog.mjs",
+    "secrets": "node scripts/gen-secrets.mjs",
+    "gateway:smoke": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/gateway-smoke.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

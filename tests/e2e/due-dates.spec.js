@@ -9,6 +9,7 @@ import Engagement from "../../models/Engagement.js";
 import DueDateRule from "../../models/DueDateRule.js";
 import { hashPassword } from "../../lib/crypto.js";
 import { systemAudit } from "../../lib/audit/system.js";
+import { istInputDate } from "../../lib/dates.js";
 
 /**
  * The due-date master, and the rule it exists to enforce: a date nobody has
@@ -261,7 +262,14 @@ test("an extension moves every open engagement at once", async ({
   await expect(page.getByText(/1 open engagement updated/)).toBeVisible();
 
   const moved = await Engagement.findById(engagement._id);
-  expect(moved.statutoryDue.toISOString().slice(0, 10)).toBe("2026-11-25");
+  /*
+   * Read back in IST, not UTC. The app stores a due date at IST midnight,
+   * which is 18:30 UTC the day before, so `toISOString().slice(0, 10)` said
+   * "2026-11-24" and this test called a correct extension a bug. The same
+   * mistake in the app itself was P2-12, fixed in nine places; this was the
+   * tenth, hiding in the test that was meant to catch it.
+   */
+  expect(istInputDate(moved.statutoryDue)).toBe("2026-11-25");
 
   // the reason is on the record, not just in someone's memory
   const AuditLog = (await import("../../models/AuditLog.js")).default;

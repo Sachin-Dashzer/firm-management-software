@@ -176,7 +176,19 @@ export default function DocsPanel({ templates, docs, mayGenerate, mayIssue }) {
               </div>
 
               {preview?.id === doc.id && (
-                <div className="rounded-ledger border-rule bg-paper flex flex-col gap-2 border p-3">
+                /*
+                 * Named, so a screen reader announces what this panel is
+                 * when it opens rather than reading the letter's body out
+                 * of nowhere — and so a test can ask what the *draft* says
+                 * rather than what the page says. The client's name is on
+                 * the engagement header too, so an unscoped search for it
+                 * matches both and proves nothing about the draft.
+                 */
+                <div
+                  role="region"
+                  aria-label={`${doc.name || "Document"} — draft wording`}
+                  className="rounded-ledger border-rule bg-paper flex flex-col gap-2 border p-3"
+                >
                   {preview.gaps?.length > 0 && (
                     <p className="text-13 text-redpen">
                       Blank until the record is filled in:{" "}

@@ -213,10 +213,21 @@ test("a draft fills itself in from the record", async ({ page }, testInfo) => {
   await expect(page.getByRole("status")).toContainText("Draft");
 
   await page.getByRole("button", { name: "Read it" }).click();
+
+  /*
+   * Read the draft panel, not the page. The engagement header carries the
+   * client's name as a link, so an unscoped `getByText(clientName)` matched
+   * two elements — a strict-mode violation that failed the test, and would
+   * have passed on an empty draft once somebody added `.first()` to quiet
+   * it. The panel is a named region for exactly this reason.
+   */
+  const draft = page.getByRole("region", { name: /draft wording/ });
+  await expect(draft).toBeVisible();
+
   // the client's own details, not placeholders
-  await expect(page.getByText(fx.clientName)).toBeVisible();
-  await expect(page.getByText("Vikram Jaiswal")).toBeVisible();
-  await expect(page.getByText("{{")).toHaveCount(0);
+  await expect(draft.getByText(fx.clientName)).toBeVisible();
+  await expect(draft.getByText("Vikram Jaiswal")).toBeVisible();
+  await expect(draft.getByText("{{")).toHaveCount(0);
 });
 
 test("an unapproved template cannot be issued, however senior you are", async ({

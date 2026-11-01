@@ -13,9 +13,13 @@
  * which it erases.
  */
 
-import { readdirSync } from "node:fs";
+import { readdirSync, existsSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import mongoose from "mongoose";
+import {
+  inProduction,
+  checkProductionStorage,
+} from "../lib/storage/production.js";
 
 /** Decoded length of a base64 key, or -1 if it is not base64 at all. */
 function keyBytes(value) {
@@ -39,6 +43,13 @@ export function checkEnv(env) {
   const problems = [];
   const warnings = [];
   const uri = env.MONGODB_URI ?? "";
+  /*
+   * Several checks are advice on a laptop and blockers on the real thing —
+   * a localhost callback URL, for instance. Judged from the environment
+   * passed in, not from this process, so a test can ask about a
+   * deployment it is not running on.
+   */
+  const production = inProduction(env);
 
   if (!uri) {
     problems.push("MONGODB_URI is not set. Copy .env.example to .env.local.");
@@ -115,29 +126,213 @@ export function checkEnv(env) {
     );
   }
   if (env.AUTH_SKIP_2FA === "true") {
+    /*
+     * It is ignored on a production deployment (lib/twoFactor.js), so
+     * sign-in is still safe there — but it being set at all means the
+     * firm's environment is configured to skip the second factor, and that
+     * is a fault either way.
+     */
     problems.push(
-      "AUTH_SKIP_2FA is on: the password alone signs anybody in. Remove it before go-live.",
+      production
+        ? "AUTH_SKIP_2FA=true is set on a production deployment. It is ignored, so sign-in is still safe, but remove it: the firm's environment should not ask to skip 2FA. (Vercel → Settings → Environment Variables)"
+        : "AUTH_SKIP_2FA is on: the password alone signs anybody in. Remove it before go-live.",
     );
   }
+
+  /**
+   * The runner's only lock. A missing one was a warning, which is how 88
+   * jobs sat unrun for weeks: without it `/api/jobs/run` refuses every
+   * caller, so nothing scheduled happens at all — no reminders, no
+   * recurring filings, no email. That is a failure, not a note.
+   */
   if (!env.JOBS_SECRET) {
-    warnings.push(
-      "JOBS_SECRET is not set, so the runner cannot be started over the web (DEPLOY.md §2 Option 2).",
+    problems.push(
+      "JOBS_SECRET is not set, so /api/jobs/run refuses every caller and nothing scheduled runs — no reminders, no recurring work, no email. Generate one with `npm run secrets` (DEPLOY.md §2).",
+    );
+  } else if (env.JOBS_SECRET.length < 32) {
+    problems.push(
+      `JOBS_SECRET is ${env.JOBS_SECRET.length} characters; it guards the only unauthenticated-by-default route in the app. Use at least 32 (\`npm run secrets\`).`,
     );
   }
-  if (/localhost/.test(env.NEXT_PUBLIC_APP_URL ?? "localhost")) {
+
+  if (/localhost|127\.0\.0\.1/.test(env.NEXT_PUBLIC_APP_URL ?? "localhost")) {
+    const message =
+      "NEXT_PUBLIC_APP_URL still points at localhost; client upload links would be unusable.";
+    // on the real deployment this is not a cosmetic problem: every link the
+    // firm emails to a client would point at the recipient's own machine
+    (production ? problems : warnings).push(message);
+  }
+
+  /**
+   * `NEXTAUTH_URL` is what Auth.js builds its callback and redirect URLs
+   * from. Wrong in production and sign-in sends people to localhost; http
+   * in production and the session cookie travels in the clear.
+   */
+  const authUrl = env.NEXTAUTH_URL ?? "";
+  if (!authUrl) {
+    (production ? problems : warnings).push(
+      "NEXTAUTH_URL is not set. Auth.js builds its sign-in redirects from it (DEPLOY.md §4).",
+    );
+  } else if (production) {
+    if (/localhost|127\.0\.0\.1/.test(authUrl)) {
+      problems.push(
+        `NEXTAUTH_URL is "${authUrl}" on a production deployment: every sign-in would redirect to the user's own machine. Set it to https://crm.phmgindia.com.`,
+      );
+    } else if (!/^https:\/\//.test(authUrl)) {
+      problems.push(
+        `NEXTAUTH_URL is "${authUrl}": it must be https in production, or the session cookie travels in the clear.`,
+      );
+    }
+  }
+
+  /**
+   * Which deployment an error came from. Without it every environment
+   * reports into one bucket and a preview's noise is indistinguishable from
+   * the firm hitting a real bug.
+   */
+  if (env.SENTRY_DSN && !env.SENTRY_ENVIRONMENT) {
     warnings.push(
-      "NEXT_PUBLIC_APP_URL still points at localhost; client upload links would be unusable.",
+      "SENTRY_ENVIRONMENT is not set, so errors from production, previews and laptops all land in the same bucket (DEPLOY.md §8).",
     );
   }
+
+  /**
+   * The local file driver in production is silent data loss: Vercel's disk
+   * is discarded on every deploy. Read from the same function the app
+   * refuses to boot on, so the two cannot disagree.
+   */
+  const storage = checkProductionStorage(env);
+  if (!storage.ok) problems.push(storage.reason);
 
   return { problems, warnings };
 }
 
 // --- the live checks -------------------------------------------------------
 
-const pass = (m) => console.log(`  ok    ${m}`);
-const warn = (m) => console.log(`  note  ${m}`);
+const pass = (m) => console.log(`  PASS  ${m}`);
+const warn = (m) => console.log(`  WARN  ${m}`);
 const fail = (m) => console.log(`  FAIL  ${m}`);
+
+/**
+ * Is the queue being worked?
+ *
+ * The audit that opened the go-live work found 88 jobs queued and none ever
+ * run, and `doctor` said nothing about it: the shared attention list
+ * noticed the runner was quiet, but nothing reported a backlog or counted
+ * what had failed. A queue with work in it and nobody taking it is the
+ * single quietest way for this system to be wrong — the screens all look
+ * right and nothing happens.
+ *
+ * @returns {Promise<number>} failures
+ */
+async function checkJobQueue() {
+  const { default: Job } = await import("../models/Job.js");
+  const { default: Counter } = await import("../models/Counter.js");
+  const { HEARTBEAT_ID } = await import("../lib/jobs/queue.js");
+
+  let failures = 0;
+  const now = Date.now();
+
+  const beat = await Counter.findById(HEARTBEAT_ID).lean();
+  if (!beat) {
+    fail(
+      "the job runner has never run. Nothing scheduled is happening: no reminders, no recurring work, no email. Set up the cron job (DEPLOY.md §2) and check with `npm run jobs:tick`.",
+    );
+    failures += 1;
+  } else {
+    const minutes = Math.round((now - new Date(beat.updatedAt).valueOf()) / 60000);
+    if (minutes <= 15) {
+      pass(`job runner alive, last finished ${minutes} minute(s) ago (${beat.seq} runs)`);
+    } else {
+      // three missed five-minute ticks: cron is not reaching it
+      fail(
+        `the job runner last finished ${minutes} minutes ago. It should run every five. Check the cron job (DEPLOY.md §2); the queue is not being worked.`,
+      );
+      failures += 1;
+    }
+  }
+
+  const [queued, stale, failed] = await Promise.all([
+    Job.countDocuments({ status: "queued" }),
+    Job.countDocuments({
+      status: { $in: ["queued", "running"] },
+      runAt: { $lte: new Date(now - 60 * 60 * 1000) },
+    }),
+    Job.countDocuments({ status: "failed" }),
+  ]);
+
+  if (stale > 0) {
+    fail(
+      `${stale} job(s) have been waiting over an hour. Read them with \`npm run jobs:backlog\` before switching the runner on: some may be client reminders that are no longer true.`,
+    );
+    failures += 1;
+  } else if (queued > 0) {
+    pass(`${queued} job(s) queued, none older than an hour`);
+  } else {
+    pass("the queue is empty");
+  }
+
+  if (failed > 0) {
+    warn(
+      `${failed} job(s) gave up after their last attempt and are waiting for somebody to look (Settings → Background jobs).`,
+    );
+  }
+
+  return failures;
+}
+
+/**
+ * Is the browser suite still unable to reach the firm's database?
+ *
+ * This is the one check here about the repo rather than the deployment, and
+ * it earns its place: for twenty-odd steps `npm run test:e2e` ran against
+ * the live Atlas cluster while its specs called `Client.deleteMany`. The
+ * guard that stops it is only a guard while it is wired in, and the thing
+ * it replaced was dead code whose own comment claimed it was wired in.
+ *
+ * @returns {number} failures
+ */
+function checkE2eGuard() {
+  const root = new URL("../", import.meta.url);
+  const guardPath = new URL("tests/e2e/assert-safe-db.mjs", root);
+  const configPath = new URL("playwright.config.mjs", root);
+
+  if (!existsSync(guardPath)) {
+    fail(
+      "tests/e2e/assert-safe-db.mjs is missing. Without it `npm run test:e2e` can run against the firm's database, and those specs delete users and clients.",
+    );
+    return 1;
+  }
+
+  /*
+   * Comments stripped before matching. The config explains at length why it
+   * no longer calls `loadEnvFile(".env")` — and the first version of this
+   * check read that explanation as the thing it was warning about, and
+   * failed go-live over a comment.
+   */
+  const config = (
+    existsSync(configPath) ? readFileSync(configPath, "utf8") : ""
+  )
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+
+  if (!/assertSafeDb\s*\(/.test(config)) {
+    fail(
+      "playwright.config.mjs does not call assertSafeDb(). The guard exists but nothing runs it — which is exactly how the suite came to run against Atlas before.",
+    );
+    return 1;
+  }
+
+  if (/loadEnvFile\(["']\.env["']\)/.test(config)) {
+    fail(
+      "playwright.config.mjs loads .env, so the suite can pick up the firm's live MONGODB_URI. It should read .env.test only.",
+    );
+    return 1;
+  }
+
+  pass("the browser suite is locked to a throwaway database");
+  return 0;
+}
 
 /** Load every model so its indexes and hooks are registered. */
 async function loadModels() {
@@ -253,11 +448,38 @@ async function checkVault() {
   }
 }
 
-/** The go-live blockers that are data, not code. */
-async function readiness() {
-  const { default: Counter } = await import("../models/Counter.js");
-  const { HEARTBEAT_ID } = await import("../lib/jobs/queue.js");
+/**
+ * Which of the Settings checks stop go-live, as opposed to being work.
+ *
+ * The attention list carries its own `severity`, and it is right for what
+ * it is for: a nudge on a screen somebody reads every week. Go-live asks a
+ * different question, so two of them are harder here than there —
+ *
+ *  - `sampleData`: invented clients mixed in with real ones means every
+ *    total the firm reads is wrong. Fine while trying the system out,
+ *    unacceptable on the day it is relied on.
+ *  - `firm`: the firm's name and FRN print on every invoice and letter.
+ *    A missing FRN is the kind of thing a client's own auditor notices.
+ *
+ * — and one is softer, because the system already fails safe on it:
+ *
+ *  - `dueDates`: an unconfirmed rule puts no date on anything
+ *    (`lib/compliance/dueDate.js` refuses), so the calendar is empty
+ *    rather than wrong. It is the owner's to confirm and nobody else's,
+ *    and it cannot be done from here.
+ *
+ * `runner` is left out entirely: the Background jobs section above says the
+ * same thing with more detail, and reporting it twice reads like two
+ * problems.
+ */
+const GO_LIVE_BLOCKERS = new Set(["sampleData", "firm", "branchGstin"]);
+const REPORTED_ELSEWHERE = new Set(["runner", "failedJobs"]);
 
+/**
+ * The go-live blockers that are data, not code.
+ * @returns {Promise<number>} failures
+ */
+async function readiness() {
   /**
    * The same list the Settings screen shows (P2-10b), read here rather than
    * written out again (P2-10d).
@@ -278,8 +500,17 @@ async function readiness() {
   if (items.length === 0) {
     pass("nothing on the Settings 'needs attention' list");
   }
+
+  let failures = 0;
   for (const item of items) {
-    warn(`${item.count} ${item.title} — ${item.detail} (${item.href})`);
+    if (REPORTED_ELSEWHERE.has(item.key)) continue;
+    const line = `${item.count} ${item.title} — ${item.detail} (${item.href})`;
+    if (GO_LIVE_BLOCKERS.has(item.key)) {
+      fail(line);
+      failures += 1;
+    } else {
+      warn(line);
+    }
   }
 
   /**
@@ -316,21 +547,13 @@ async function readiness() {
     warn("no CPE target is set, so hours are totalled but not judged (ICAI).");
   }
 
-  /**
-   * The shared list says when the runner has stopped. This says how long it
-   * has been alive, which a warning cannot: a terminal is where somebody
-   * checks that cron is working, and "last finished 3 minutes ago" is the
-   * answer they came for.
+  /*
+   * The runner's heartbeat used to be reported here as well. It has moved
+   * to `checkJobQueue`, which has its own section and judges the backlog
+   * too — one place that answers "is anything scheduled actually running".
    */
-  const beat = await Counter.findById(HEARTBEAT_ID).lean();
-  if (beat) {
-    const minutes = Math.round(
-      (Date.now() - new Date(beat.updatedAt).valueOf()) / 60000,
-    );
-    if (minutes <= 30) {
-      pass(`job runner alive, last finished ${minutes} minute(s) ago`);
-    }
-  }
+
+  return failures;
 }
 
 async function main() {
@@ -411,8 +634,14 @@ async function main() {
   console.log("\nFile vault");
   failures += await checkVault();
 
+  console.log("\nBackground jobs");
+  failures += await checkJobQueue();
+
+  console.log("\nThe browser suite");
+  failures += checkE2eGuard();
+
   console.log("\nStill to do before the firm relies on this");
-  await readiness();
+  failures += await readiness();
 
   console.log(
     failures
