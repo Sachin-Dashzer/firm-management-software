@@ -22,7 +22,7 @@ What that audit found, and where each one stands:
 | The PHP file gateway had **never been executed** — BigRock was to be its first run, with the firm's documents as the test data | **Fixed.** Run against PHP 8.1.34, 26/26 checks pass including the encryption round trip and eight traversal attempts. `docs/GATEWAY_DEPLOY.md` |
 | `AUTH_SKIP_2FA=true` in the firm's own `.env`: the password alone signed anybody in | **Fixed.** Ignored in production, and `doctor` fails on it |
 | `STORAGE_DRIVER=local` would silently lose every document on Vercel | **Fixed.** The app refuses to boot; `doctor` fails on it |
-| 121 of 348 browser tests failing (first complete run, 59 min) | **Partly fixed.** Five root causes found and fixed, one of them a real application bug; the rest are inventoried in `docs/E2E_REPORT.md`. **This is the one item not finished** |
+| 121 of 348 browser tests failing (first complete run, 59 min) | **Partly fixed.** Five root causes found and fixed, one of them a real application bug; access.spec.js (6/6) and icai.spec.js (3/3) now green; the rest are inventoried in `docs/E2E_REPORT.md`. **This is the one item not finished** |
 | All 11 statutory due-date rules unconfirmed; FRN blank; 13 services with no fee or SAC; sample data mixed in with real | **Owner's.** `docs/OWNER_QUESTIONS.md` asks each one; `npm run doctor` lists them every time |
 
 **The single gate before go-live is `npm run doctor`.** It is read-only, it

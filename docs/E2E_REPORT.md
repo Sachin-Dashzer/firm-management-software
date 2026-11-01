@@ -14,8 +14,9 @@ exactly where it is instead.
 | Tests in the suite | 348 (174 specs × 2 projects: `laptop`, `phone`) |
 | Baseline before this work | never completed a run — see below |
 | **Baseline, complete, 01-11-2026** | **215 passed, 121 failed** in 59 minutes |
-| Root causes found and fixed | 5 |
+| Root causes found and fixed | 5 (one of them a real application bug) |
 | Specs changed | 8 |
+| Specs now fully green that were not | `access.spec.js` 6/6, `icai.spec.js` 3/3 |
 | Remaining failures | inventoried below, not yet fixed |
 
 That baseline was taken **before** the five fixes below landed, so it is the
@@ -135,15 +136,14 @@ Confirmed passing that were failing before:
 | `due-dates.spec.js:218` | the IST assertion fix, reading a stored date back in IST |
 | `icai.spec.js:91` + `:127` + `:169` | one `exact: true`, which also unblocked the two tests after it |
 | `two-factor.spec.js:82`, `:100`, `:135`, `:153` | **the new 2FA and lockout coverage, all passing** — the right password alone gets nowhere, a wrong code is refused, a wrong password reveals nothing about the address, and five wrong passwords lock the account so the correct one then fails too |
-| `access.spec.js:184`, `:209`, `:233`, `:255` | already passing, unaffected |
+| **`access.spec.js` — the whole file, 6 of 6** | Confirmed in its own run after the selector fixes landed. It had 4 failures in the baseline and has none now: the landing-page navigation fix and the two group-label selector fixes between them account for all of it |
 
 Per-test outcomes for the rest:
 
 | Test | Outcome |
 | --- | --- |
 | `books.spec.js:203` — a return filed after its deadline is called late | **Now passes.** The IST date fix was the whole of it |
-| `access.spec.js:146` — a client with no grant is nowhere to be found | **Navigation fix confirmed** — it reaches the list and finds the row link. It then failed on a *second*, unscoped `getByText` on the same client name, which the group label also matches. That line asserted nothing the one above it did not, so it is gone rather than wrapped in `.first()` — which would have made it pass against an empty list. **The removal itself is unverified: it landed while the run was in progress** |
-| `access.spec.js:271` — a partner can give access | Same cause, same fix, by the row's link. **Also unverified for the same reason** |
+| `docs.spec.js:233`, `:248`, `:291`, `:310` | Still failing, downstream of `:206` — the intra-file cascade described in group A |
 | `docs.spec.js:206` — a draft fills itself in from the record | **Region fix confirmed** — the named panel is found and the client's name is in it. Still fails one line later on `Vikram Jaiswal`, the contact's name, which is a question about what the draft actually interpolates rather than about the selector |
 | `icai.spec.js:91` — a partner records the firm's ICAI details | **Now passes**, and so do the two tests after it in the file, which had been failing on its leftovers. One `exact: true` |
 | `books.spec.js:235` — an audit report that was not clean has to say why | Still failing, and **worth a careful look** — see below |
