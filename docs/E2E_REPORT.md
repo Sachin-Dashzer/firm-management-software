@@ -119,6 +119,46 @@ the bug was Mongoose validation on save).
 
 ---
 
+## What re-running the eight changed specs showed
+
+A targeted re-run of the specs touched above, after the fixes. Per-test
+outcomes, observed:
+
+| Test | Outcome |
+| --- | --- |
+| `books.spec.js:203` — a return filed after its deadline is called late | **Now passes.** The IST date fix was the whole of it |
+| `access.spec.js:146` — a client with no grant is nowhere to be found | **Navigation fix confirmed** — it reaches the list and finds the row link. Then failed on a *second*, unscoped `getByText` on the same client name, which the group label also matches. That line asserted nothing the one above it did not, so it is gone rather than wrapped in `.first()` — which would have made it pass against an empty list |
+| `access.spec.js:271` — a partner can give access | Same cause, same fix, by the row's link |
+| `docs.spec.js:206` — a draft fills itself in from the record | **Region fix confirmed** — the named panel is found and the client's name is in it. Still fails one line later on `Vikram Jaiswal`, the contact's name, which is a question about what the draft actually interpolates rather than about the selector |
+| `books.spec.js:235` — an audit report that was not clean has to say why | Still failing, and **worth a careful look** — see below |
+| `books.spec.js:265` — a filing date in the future is refused | Still failing: no `[role="alert"]` appears at all |
+| `cover.spec.js:197`, `docs.spec.js:233` | Still failing |
+
+### The one that looks like a real bug
+
+`books.spec.js:235` saves an audit filing twice: first with a Qualified
+opinion and no reason, which must be refused, then with the reason filled,
+which must save. The second save reports "Filing details saved" and the
+stored `assurance.opinion` is **empty**.
+
+What that rules in and out:
+
+- The validation is right. `checkAssurance` refuses a modified opinion with
+  no note, and the first save is correctly rejected.
+- **The UI still had the opinion selected.** The reason field only renders
+  when the opinion is a modified one, and the test fills it successfully —
+  so the select was not reset by the failed save.
+- Yet `saveFiling` reads `formData.get("opinion")` and stored `""`.
+
+So the opinion was on screen and did not reach the server. If that is right
+it is a data-integrity bug, not a test bug: a partner records a qualified
+opinion, is told it saved, and the record says nothing — which for an audit
+file is the worst shape of wrong. **It needs the form's actual submission
+read, not more guessing**, and it is the first thing I would pick up.
+
+`books.spec.js:265` failing with no alert at all may be the same mechanism
+seen from another angle: both are the filing panel's save-and-report path.
+
 ## Not fixed: the inventory
 
 Grouped by what the evidence says, most-likely-systemic first. Counts are from
