@@ -17,7 +17,21 @@ import mongoose from "mongoose";
  * a person had done it.
  */
 
-export const JOB_STATUSES = ["queued", "running", "done", "failed"];
+/**
+ * `expired` is a job the firm decided not to run after all: a reminder or
+ * an email that sat in the queue so long that sending it now would be
+ * wrong rather than late. It is set only by
+ * `scripts/jobs-review-backlog.mjs`, never by the runner, and the runner
+ * does not pick it up — `claimNext` asks for `queued` or `running`. The row
+ * is kept rather than deleted so the decision is visible.
+ */
+export const JOB_STATUSES = [
+  "queued",
+  "running",
+  "done",
+  "failed",
+  "expired",
+];
 
 const jobSchema = new mongoose.Schema(
   {

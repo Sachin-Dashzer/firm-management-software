@@ -148,8 +148,20 @@ every upload.
 This is what does the work nobody triggers: generating next month's filings,
 sending reminders, clearing the recycle bin. It runs every five minutes.
 
-There are two ways to set it up. **Do step A first** — it tells you which
-one you need.
+**Nothing scheduled happens until one of these is set up.** That is not a
+figure of speech: the go-live audit found 88 jobs waiting and none ever
+run, because no cron job existed anywhere and `JOBS_SECRET` was unset. The
+queue had been collecting work for weeks and the runner had never once been
+started. Until you finish this section there are no reminders, no recurring
+filings, no overdue chasing and no email.
+
+There are three ways to set it up, and you only need one. **Option 3 is the
+least work** if the CRM is on Vercel. **Do step A first** if you would
+rather run it from BigRock.
+
+Before the first real tick, read the queue: `npm run jobs:backlog` lists
+what is waiting and how old it is. Some of that backlog is client-facing
+and weeks stale — see section 2c.
 
 ### Step A — which kind of hosting do you have?
 
@@ -204,6 +216,57 @@ one you need.
 4. Set **Cron Email** to your own address at first, so a failure reaches
    you. Turn it off once it has run quietly for a week, or the mail becomes
    noise you stop reading.
+
+### Option 3 — Vercel Cron (nothing on BigRock at all)
+
+`vercel.json` already carries the schedule, so there is nothing to write:
+
+```json
+"crons": [{ "path": "/api/jobs/run", "schedule": "*/5 * * * *" }]
+```
+
+1. Make a secret and add it to Vercel as `JOBS_SECRET` (see Option 2 step 1).
+   Vercel also sends its own `CRON_SECRET` as a bearer token if you set
+   one; the route accepts either name.
+2. Redeploy. Vercel picks the schedule up from `vercel.json` on deploy.
+3. Check **Settings → Background jobs** after five minutes.
+
+**The catch, and it matters:** on the Vercel **Hobby** plan cron jobs run
+**once a day**, not every five minutes — Vercel silently treats
+`*/5 * * * *` as daily. A CRM whose reminders go out once a day is not what
+section 8 of the spec describes. So:
+
+- On **Pro** (\$20/month), `*/5 * * * *` runs as written. Nothing else to do.
+- On **Hobby**, either use Option 1 or 2 from BigRock, or point a free
+  external pinger at the route every five minutes:
+  [cron-job.org](https://cron-job.org) → new cronjob → URL
+  `https://crm.phmgindia.com/api/jobs/run`, every 5 minutes, and add the
+  header `x-jobs-secret: YOUR_SECRET_HERE`.
+
+An external pinger means a third party knows the URL and holds the secret.
+It is a reasonable trade for a firm this size, but it is the owner's call —
+BigRock cron (Option 1 or 2) keeps it in-house.
+
+### 2c. The backlog waiting for the first tick
+
+The queue has jobs in it from before the runner ever worked. Draining them
+all at once would send reminders for deadlines that have already passed.
+
+```
+npm run jobs:backlog
+```
+
+Read-only: it groups what is waiting by type and age and says how much of
+it can leave the building. To set aside the stale ones:
+
+```
+npm run jobs:backlog -- --expire-older-than=7 --types=reminders,sendMail
+```
+
+Still read-only. Add `--apply` to write it. Those jobs are marked
+`expired` and kept — nothing is deleted, so the decision stays on the
+record. **Client email is off by default, so the immediate risk is staff
+mail.** Check **Settings → Messages** before the first tick.
 
 ### Step B — check it is working
 
