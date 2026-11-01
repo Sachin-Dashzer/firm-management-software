@@ -3,7 +3,41 @@
 Source of truth for what is done. Updated at the end of every step.
 Status: ⬜ not started · 🟡 in progress · ✅ done
 
-Last updated: 30-10-2026
+Last updated: 01-11-2026
+
+## Go-live status
+
+A readiness audit on 01-11-2026 found the system **architecturally sound and
+never operated**: the foundations were right — 1,681 unit tests passing, an
+audit hash chain intact across 6,543 entries, transaction discipline
+everywhere, a statutory-date guard that fails closed — and almost nothing had
+ever been run.
+
+What that audit found, and where each one stands:
+
+| Found | Status |
+| --- | --- |
+| The browser suite ran against the **live Atlas cluster** while its specs called `Client.deleteMany` | **Fixed.** Throwaway replica set per run, plus a guard that refuses any remote host. See the note under Phase 2 below |
+| The job runner had **never run**: 88 jobs queued, 0 ever processed, no cron job anywhere, `JOBS_SECRET` unset | **Fixed in code.** Schedule, route auth and tooling done; the owner still has to set the cron job up (`DEPLOY.md` §2) and read the backlog |
+| The PHP file gateway had **never been executed** — BigRock was to be its first run, with the firm's documents as the test data | **Fixed.** Run against PHP 8.1.34, 26/26 checks pass including the encryption round trip and eight traversal attempts. `docs/GATEWAY_DEPLOY.md` |
+| `AUTH_SKIP_2FA=true` in the firm's own `.env`: the password alone signed anybody in | **Fixed.** Ignored in production, and `doctor` fails on it |
+| `STORAGE_DRIVER=local` would silently lose every document on Vercel | **Fixed.** The app refuses to boot; `doctor` fails on it |
+| 93+ of 348 browser tests failing | **Partly fixed.** Four root causes found and fixed; the rest are inventoried in `docs/E2E_REPORT.md`. **This is the one item not finished** |
+| All 11 statutory due-date rules unconfirmed; FRN blank; 13 services with no fee or SAC; sample data mixed in with real | **Owner's.** `docs/OWNER_QUESTIONS.md` asks each one; `npm run doctor` lists them every time |
+
+**The single gate before go-live is `npm run doctor`.** It is read-only, it
+exits non-zero on any FAIL, and it now checks the environment, the database,
+the audit chain, the vault, the job queue and the test isolation. Everything
+it still reports as FAIL or WARN is either on the owner's list above or the
+browser suite.
+
+Read alongside this file:
+
+- `docs/GO_LIVE_HANDOFF.md` — what changed, how it was verified, what is left
+- `docs/E2E_REPORT.md` — every browser-test failure, its cause, and its fix
+- `docs/GATEWAY_DEPLOY.md` — installing the file gateway on BigRock
+- `docs/INVOICE_GAPS.md` — why each invoice number is missing, for the file
+- `docs/OWNER_QUESTIONS.md` — the seven decisions only the owner can make
 
 ## Phase 1 — Core MVP
 
@@ -16,7 +50,7 @@ Last updated: 30-10-2026
 | 4 | Service catalog (templates, versions, checklists, steps, starter catalog seed) | 🟡 | Built 16-10-2026. Needs Atlas to run; 3 Playwright tests waiting. Fees and most SAC codes left blank for the owner |
 | 5a | Engagements core (template snapshot, status pipeline, maker-checker, tasks, checklists, comments, client tab, Today) | 🟡 | Built 16-10-2026. Needs Atlas to run; 2 Playwright tests waiting |
 | 5b | Engagement views (filters, Kanban, calendar, bulk actions, CSV export) | 🟡 | Built 16-10-2026. Needs Atlas to run; 3 Playwright tests waiting |
-| 6a | File gateway and documents core (PHP gateway, storage adapter, both drivers, uploads, versions, preview, permanent file, recycle bin) | 🟡 | Built 16-10-2026. The PHP gateway has never been executed — no PHP on the build machine — so BigRock is its first run. 2 Playwright tests waiting on Atlas |
+| 6a | File gateway and documents core (PHP gateway, storage adapter, both drivers, uploads, versions, preview, permanent file, recycle bin) | 🟡 | Built 16-10-2026. **The gateway has now been run** (01-11-2026, PHP 8.1.34 via a portable runtime): 26/26 smoke checks pass — the AES-256-GCM round trip byte for byte, encryption confirmed at rest, eight path-traversal keys refused, ticket forgery and op-reuse refused, and the bin/restore/purge lifecycle. `scripts/gateway-smoke.mjs`, `docker-compose.gateway.yml`, `docs/GATEWAY_DEPLOY.md`. Still to do: the owner's own run on BigRock |
 | 6b | Document requests (public upload link, no login) and document search / "pending from client" | 🟡 | Built 17-10-2026. Needs Atlas to run; 2 more Playwright tests waiting. Emailing the link waits for the mailer in Step 9 |
 | 7a | Job queue and runner (queue, runner, both deployment shapes, cron setup, heartbeat screen, recycle purge wired in) | 🟡 | Built 17-10-2026. Needs Atlas to run. Owner still to say whether cPanel has Node.js app support |
 | 7b | Due-date master (rules, owner verification, government extensions, recurring generation) | 🟡 | Built 17-10-2026. **The owner must confirm all 11 rules in Settings → Due dates before any statutory date is applied.** 2 Playwright tests waiting on Atlas |
@@ -34,9 +68,20 @@ Last updated: 30-10-2026
 
 Step list approved by the owner 19-10-2026, against the Phase 2 upgrade brief.
 **Opened although Phase 1 is not yet in daily use**, which `CLAUDE.md` gates
-Phase 2 on — see the decisions table. Nothing in Phase 1 has ever run against a
-database, so every Phase 2 step will report "built, needs Atlas" for the same
-reason, including the security fixes in P2-1.
+Phase 2 on — see the decisions table.
+
+> **Stale, and corrected 01-11-2026.** This paragraph used to end "Nothing in
+> Phase 1 has ever run against a database, so every Phase 2 step will report
+> 'built, needs Atlas'". That was wrong, and had been for weeks. The Atlas
+> cluster was live and holding real data — 6,500 audit entries and counting —
+> and the reason every step reported "waiting on Atlas" was that
+> `playwright.config.mjs` did not load `.env`, so every spec skipped itself.
+> Three missing lines, reported for twenty-odd steps as a missing database.
+>
+> Fixing it the obvious way turned out to be worse than the bug: the config
+> then loaded `.env`, found the **live** `MONGODB_URI`, and pointed a suite
+> whose specs call `Client.deleteMany` at the firm's own cluster. That is
+> fixed properly now — see "Go-live status" below.
 
 | Step | What | Status | Notes |
 | --- | --- | --- | --- |
@@ -70,8 +115,22 @@ Owner's instruction, 26-10-2026: **"keep everything exact like prototype"** —
 the product model of `CA-Firm-OS-v6.2.html` becomes the target. The gap report
 behind this list is `docs/GAP-v6.2.md`.
 
-⬜ **Proposed. Awaiting the owner's approval of the step list** (CLAUDE.md: the
-step list is approved before the phase starts). Nothing below is built.
+> **Also stale, and corrected 01-11-2026.** This said "⬜ Proposed. Awaiting
+> the owner's approval of the step list. Nothing below is built." Most of it
+> *is* built — the rows below carry their own build dates, and
+> `lib/audit-studio/` plus nine `practice/` modules (audit, notices,
+> certificates, trial balance, sampling, auditor's report, UDIN, DSC, book)
+> exist and reference P3-11, P3-12 and P3-13 in their own comments.
+>
+> So the honest status of Phase 3 is: **built, not verified, and frozen.**
+> Built, because the code is there. Not verified, because almost none of it
+> has been exercised against a database by a passing browser test. Frozen,
+> because CLAUDE.md gates a phase on the previous one being in daily use, and
+> Phase 1 is not — the job runner has never run and the file gateway had
+> never been executed until 01-11-2026.
+>
+> Nothing in Phase 3 should be extended until Phase 1 is actually in use.
+> Finishing it is not the next job; getting Phase 1 to work is.
 
 Five things are deliberately *not* copied exactly, because CLAUDE.md forbids
 them: money stays integer paise, dates stay DD-MM-YYYY, the audit log and soft

@@ -101,7 +101,14 @@ test("a partner records the firm's ICAI details", async ({
   await page.getByLabel("Firm registration number (FRN)").fill("012345N");
   await page.getByLabel("Constitution").selectOption("LLP");
   await page.getByLabel("Working papers kept (years)").fill("10");
-  await page.getByLabel("Structured hours a year").fill("20");
+  /*
+   * `exact`, because "Structured hours a year" is a substring of
+   * "Unstructured hours a year" — the default substring match found both
+   * boxes and refused to type in either.
+   */
+  await page
+    .getByLabel("Structured hours a year", { exact: true })
+    .fill("20");
   await page
     .getByLabel("The firm’s notes on its obligations")
     .fill("Working papers retained 10 years. UDIN on every attestation.");
