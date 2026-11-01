@@ -39,10 +39,11 @@ describe("what counts as production", () => {
     expect(inProduction()).toBe(false);
   });
 
-  it("is a production build with no Vercel around it", () => {
+  it("is NOT a production build with no Vercel around it", () => {
+    // `next start` on a laptop is a production build, not a deployment
     delete process.env.VERCEL_ENV;
     process.env.NODE_ENV = "production";
-    expect(inProduction()).toBe(true);
+    expect(inProduction()).toBe(false);
   });
 
   it("is not a laptop", () => {
@@ -91,33 +92,29 @@ describe("checkProductionStorage", () => {
   });
 });
 
-describe("the test escape hatch", () => {
+describe("what NODE_ENV on its own must not do", () => {
   /*
-   * PHMG_ENV=test exists because `next start` sets NODE_ENV=production on a
-   * laptop, so the browser suite's own server was being refused. It turns
-   * every production guard off, which is why the next test matters.
+   * The regression that cost a red e2e run and a broken `npm start`.
+   *
+   * A production *build* is not a production *deployment*. `next start`
+   * sets NODE_ENV=production on a laptop, and both the browser suite and
+   * the owner rely on serving the built app locally with the local file
+   * driver — so a guard that read NODE_ENV refused to boot either one.
    */
-  it("lets the browser suite's own server boot with the local driver", () => {
+  it("does not make a local `npm start` look like the firm's deployment", () => {
     delete process.env.VERCEL_ENV;
     process.env.NODE_ENV = "production";
-    process.env.PHMG_ENV = "test";
     process.env.STORAGE_DRIVER = "local";
 
     expect(inProduction()).toBe(false);
     expect(checkProductionStorage()).toEqual({ ok: true });
   });
 
-  it("cannot turn the guards off on a real Vercel deployment", () => {
+  it("still catches the real deployment, which is the whole point", () => {
     process.env.VERCEL_ENV = "production";
-    process.env.PHMG_ENV = "test";
     process.env.STORAGE_DRIVER = "local";
 
-    /*
-     * It *does* silence checkProductionStorage — that is what the flag
-     * does. The protection is that doctor fails on the flag itself, judged
-     * against VERCEL_ENV, which PHMG_ENV cannot change. Covered in
-     * tests/doctor.test.js; asserted here so the two stay in step.
-     */
-    expect(inProduction()).toBe(false);
+    expect(inProduction()).toBe(true);
+    expect(checkProductionStorage().ok).toBe(false);
   });
 });

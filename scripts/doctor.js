@@ -202,18 +202,25 @@ export function checkEnv(env) {
    * refuses to boot on, so the two cannot disagree.
    */
   /**
-   * The test escape hatch must not be able to hide on a real deployment.
+   * The self-hosted case the boot guard cannot see.
    *
-   * `PHMG_ENV=test` turns off every production guard — the storage driver
-   * check, and anything else that asks `inProduction()`. That is right for
-   * the browser suite, which serves the app with `next start`, and it would
-   * be exactly the hole `AUTH_SKIP_2FA` turned out to be if it were ever
-   * set in Vercel. So it is judged against the platform's own answer, which
-   * `PHMG_ENV` cannot change.
+   * `inProduction()` keys on `VERCEL_ENV` alone, because `NODE_ENV` is
+   * `production` for `npm start` on a laptop too — see the note in
+   * `lib/storage/production.js`. That leaves one real gap: a deployment
+   * somewhere other than Vercel, where `NODE_ENV=production` genuinely is
+   * the signal and nothing refuses to boot.
+   *
+   * It is a warning rather than a failure because the overwhelmingly more
+   * likely reader of this line is somebody running `npm start` on their own
+   * machine, where the local driver is right.
    */
-  if (env.PHMG_ENV === "test" && env.VERCEL_ENV === "production") {
-    problems.push(
-      "PHMG_ENV=test is set on a production deployment. It disables the production guards — including the one that stops documents being written to a disk Vercel discards. Remove it (it belongs only in .env.test).",
+  if (
+    !env.VERCEL_ENV &&
+    env.NODE_ENV === "production" &&
+    (env.STORAGE_DRIVER || "local") === "local"
+  ) {
+    warnings.push(
+      "This is a production build with the local file driver and no VERCEL_ENV. On a laptop that is fine. If this is a deployment serving the firm, the local driver loses every document when the server is replaced — set STORAGE_DRIVER=bigrock (docs/GATEWAY_DEPLOY.md §6).",
     );
   }
 

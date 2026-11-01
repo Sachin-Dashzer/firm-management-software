@@ -179,13 +179,34 @@ describe("what the go-live audit added", () => {
   });
 });
 
-describe("the test escape hatch cannot hide in production", () => {
-  it("fails PHMG_ENV=test on a real Vercel deployment", () => {
-    const { problems } = checkEnv(live({ PHMG_ENV: "test" }));
-    expect(problems.join(" ")).toMatch(/disables the production guards/);
+describe("the self-hosted gap the boot guard cannot see", () => {
+  /*
+   * inProduction() keys on VERCEL_ENV alone, because NODE_ENV is
+   * "production" for `npm start` on a laptop too. That leaves a deployment
+   * somewhere other than Vercel with nothing refusing to boot, so the gate
+   * says it out loud instead.
+   */
+  it("warns about a production build using the local driver off-Vercel", () => {
+    const { problems, warnings } = checkEnv(
+      good({ NODE_ENV: "production", STORAGE_DRIVER: "local" }),
+    );
+    expect(problems).toEqual([]);
+    expect(warnings.join(" ")).toMatch(/loses every document/);
   });
 
-  it("says nothing about it on a laptop or in CI", () => {
-    expect(checkEnv(good({ PHMG_ENV: "test" })).problems).toEqual([]);
+  it("says nothing once the gateway driver is in use", () => {
+    const { warnings } = checkEnv(
+      good({
+        NODE_ENV: "production",
+        STORAGE_DRIVER: "bigrock",
+        STORAGE_GATEWAY_URL: "https://files.phmgindia.com",
+        STORAGE_SHARED_SECRET: key(),
+      }),
+    );
+    expect(warnings).toEqual([]);
+  });
+
+  it("says nothing on a development build", () => {
+    expect(checkEnv(good({ NODE_ENV: "development" })).warnings).toEqual([]);
   });
 });

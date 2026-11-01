@@ -38,12 +38,18 @@ describe("skip2fa", () => {
     expect(skip2fa()).toBe(false);
   });
 
-  it("refuses to skip on a production build with no Vercel around it", () => {
+  it("still skips on a local production build, which is npm start", () => {
+    /*
+     * A production *build* is not a production *deployment*. This used to
+     * expect false, from a second copy of inProduction() in twoFactor.js
+     * that counted NODE_ENV — so the owner running the built app locally
+     * would have been asked for a code while being told the hatch was on,
+     * and the storage guard would have refused to boot at all.
+     */
     process.env.AUTH_SKIP_2FA = "true";
     delete process.env.VERCEL_ENV;
     process.env.NODE_ENV = "production";
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(skip2fa()).toBe(false);
+    expect(skip2fa()).toBe(true);
   });
 
   it("still skips on a preview deployment, which is not the firm's data", () => {
