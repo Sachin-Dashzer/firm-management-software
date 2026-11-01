@@ -3,6 +3,19 @@ import { TOTP, Secret } from "otpauth";
 import User from "../../models/User.js";
 import { decryptField } from "../../lib/crypto.js";
 import { LANDING } from "../../lib/nav/landing.js";
+import { assertSafeDb } from "./assert-safe-db.mjs";
+
+/**
+ * **The guard, in every worker.**
+ *
+ * The config checks at load time, which covers the normal run. This covers
+ * the worker processes, which are where the deleting actually happens: this
+ * helper is imported by nearly every spec that signs somebody in, and it
+ * reads and writes `User` to do it. Checking on import means a worker that
+ * somehow started with the firm's URI dies before its first query rather
+ * than after its first `deleteOne`.
+ */
+assertSafeDb("a spec that signs in and writes users");
 
 /**
  * Signing in, once, for every spec that needs it.

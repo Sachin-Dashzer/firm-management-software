@@ -11,14 +11,21 @@
  * need one, and this system writes nothing without a transaction
  * (CLAUDE.md rule 2).
  *
- * **It is off until `mongodb-memory-server` is installed**, and it can be
- * switched off with `PHMG_TEST_DB=atlas` when the point is the real
- * cluster — the acceptance pass, and anything about go-live.
+ * **This module used to be dead code, and the comment here used to claim
+ * the Playwright config imported it.** It did not. Nothing did. So the
+ * suite ran against whatever `MONGODB_URI` was in `.env` — the live Atlas
+ * cluster — while specs called `Client.deleteMany`. The audit that found it
+ * called it the worst thing in the build, and it was.
  *
- *   npm i -D mongodb-memory-server
+ * It is now started by `scripts/e2e.mjs`, which sets `MONGODB_URI` before
+ * Playwright loads, so the config, the server under test and every worker
+ * all see the throwaway database. `tests/e2e/assert-safe-db.mjs` is the
+ * second lock: it refuses to let the suite run against a remote host at
+ * all, so this going unused again is a loud failure rather than a quiet
+ * one.
  *
- * Nothing here runs in production: it is imported by the Playwright config
- * and by nothing else.
+ * `PHMG_TEST_DB=atlas` still asks for the real cluster — for the acceptance
+ * pass — but the guard then demands `E2E_ALLOW_REMOTE_DB` as well.
  */
 
 /** @type {{ stop: () => Promise<unknown> } | null} */
@@ -38,10 +45,15 @@ export async function startLocalDb() {
   try {
     ({ MongoMemoryReplSet } = await import("mongodb-memory-server"));
   } catch {
-    return {
-      started: false,
-      why: "mongodb-memory-server is not installed (npm i -D mongodb-memory-server)",
-    };
+    /*
+     * Not installed is now fatal rather than a shrug. Returning
+     * `started: false` is what let the suite fall through to Atlas for
+     * twenty-odd steps: the caller logged a note nobody read and carried
+     * on against the firm's data.
+     */
+    throw new Error(
+      "mongodb-memory-server is not installed, so there is no throwaway database to run against. Install it with: npm i -D mongodb-memory-server",
+    );
   }
 
   /**
@@ -109,7 +121,7 @@ export async function seedLocalDb() {
       await Branch.findOneAndUpdate(
         { code: branch.code },
         { $setOnInsert: { ...branch, createdBy: "test", updatedBy: "test" } },
-        { upsert: true, new: true, session },
+        { upsert: true, returnDocument: "after", session },
       );
     }
 
@@ -117,7 +129,7 @@ export async function seedLocalDb() {
       await ServiceTemplate.findOneAndUpdate(
         { code: service.code },
         { $setOnInsert: { ...service, createdBy: "test", updatedBy: "test" } },
-        { upsert: true, new: true, session },
+        { upsert: true, returnDocument: "after", session },
       );
     }
 
@@ -131,15 +143,21 @@ export async function seedLocalDb() {
       await DueDateRule.findOneAndUpdate(
         { serviceCode: rule.serviceCode, name: rule.name },
         { $setOnInsert: { ...rule, createdBy: "test", updatedBy: "test" } },
-        { upsert: true, new: true, session },
+        { upsert: true, returnDocument: "after", session },
       );
     }
 
+    /*
+     * Keyed on `code`, which is what a document template is identified by.
+     * This said `key` until the seed was first actually run, and a `key`
+     * does not exist on the schema — proof that this function had never
+     * executed in its life.
+     */
     for (const template of STARTER_DOC_TEMPLATES) {
       await DocTemplate.findOneAndUpdate(
-        { key: template.key },
+        { code: template.code },
         { $setOnInsert: { ...template, createdBy: "test", updatedBy: "test" } },
-        { upsert: true, new: true, session },
+        { upsert: true, returnDocument: "after", session },
       );
     }
   });

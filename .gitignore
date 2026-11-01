@@ -34,6 +34,10 @@ yarn-error.log*
 .env*
 # ...except the template, which has no secrets in it and must be in the repo
 !.env.example
+# ...and the browser suite's environment, whose every value is throwaway.
+# Committed so CI can run the suite without a file somebody writes by hand.
+# It holds no MONGODB_URI: scripts/e2e.mjs supplies a throwaway one.
+!.env.test
 
 # vercel
 .vercel

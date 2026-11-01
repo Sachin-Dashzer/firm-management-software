@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { InvoicePdf } from "../lib/billing/invoicePdf.jsx";
 import { amountInWords } from "../lib/billing/gst.js";
@@ -9,6 +9,19 @@ import { formatPaise } from "../lib/money.js";
  * missing GSTIN, a tax head that does not appear, a draft that looks
  * issued. So these tests render the real thing and read the bytes back.
  */
+
+/**
+ * **20 seconds a test, not the default 5.**
+ *
+ * Every test here lays out a real PDF, which is pure CPU and about a second
+ * on an idle machine. The suite spawns a worker per file, so on a busy one
+ * these lose the race for a core and time out *while working correctly* —
+ * a flake that moved between tests in this file depending on scheduling.
+ *
+ * Raised for this file only. Everything else in the suite should still be
+ * quick, and a slow test elsewhere is worth noticing rather than absorbing.
+ */
+vi.setConfig({ testTimeout: 20_000 });
 
 const base = {
   number: "NOI/26-27/0087",

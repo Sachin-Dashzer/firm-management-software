@@ -1,27 +1,40 @@
 import { defineConfig, devices } from "@playwright/test";
+import { assertSafeDb } from "./tests/e2e/assert-safe-db.mjs";
 
 /**
- * **The environment is loaded here, and that is the whole point of this
- * comment.**
+ * **The environment, and the database, are decided before this file runs.**
  *
- * Every spec in `tests/e2e` starts with
- * `test.skip(!process.env.MONGODB_URI || !process.env.AUTH_SECRET)`, and
- * Playwright does not read `.env` by itself — only `npm run doctor` and
- * `npm run seed` did, through `--env-file-if-exists`. So for twenty-odd
- * steps the whole suite skipped and every report said it was "waiting on
- * Atlas", when the database had been there for weeks and the gate was
- * three missing lines in this file.
+ * This config used to call `process.loadEnvFile(".env")` itself. That fixed
+ * one bug and created a worse one: it made the suite finally see a
+ * `MONGODB_URI`, and the one it saw was the firm's live Atlas cluster,
+ * which specs then called `Client.deleteMany` against. Two bugs, one line.
  *
- * Loaded in the config process, before the workers are forked, so the
- * tests inherit it.
+ * Both are now handled by `scripts/e2e.mjs` (`npm run test:e2e`), which
+ * loads `.env.test` — never `.env` — starts a throwaway replica set and
+ * puts its URI in the environment before Playwright is loaded at all. So
+ * by the time this file is evaluated, `MONGODB_URI` is already the right
+ * answer, and it can be handed to the server under test below.
+ *
+ * `.env.test` is loaded here too, as a fallback, so a bare
+ * `npx playwright test` gets a coherent environment rather than a
+ * confusing one — but it carries no `MONGODB_URI`, so a bare run has no
+ * database and the guard says so plainly.
  */
-for (const file of [".env", ".env.local"]) {
-  try {
-    process.loadEnvFile(file);
-  } catch {
-    // not there, which is fine: the specs then skip themselves
-  }
+try {
+  process.loadEnvFile(".env.test");
+} catch {
+  // committed to the repo; if it is gone the guard below explains the rest
 }
+
+/**
+ * **The lock, at load time.**
+ *
+ * Here rather than only in `globalSetup` because `--list`, `--ui` and a
+ * `--reporter` that merely collects tests never run global setup, and
+ * "refuses to delete the firm's clients" should not depend on which
+ * Playwright subcommand was typed.
+ */
+assertSafeDb("the end-to-end suite");
 
 /**
  * **2FA is always on under test, whatever `.env` says.**
@@ -37,25 +50,27 @@ for (const file of [".env", ".env.local"]) {
  * and the hatch stays free to be whatever the owner needs it to be while they
  * are trying the system out.
  *
- * Set before the `webServer` command is spawned, so the server under test
- * inherits it too. If a server is *already* up on the port — `reuseExistingServer`
- * below — it keeps whatever it booted with; use `PHMG_TEST_PORT` to get a
- * fresh one.
+ * Set before the `webServer` command is spawned, and passed to it
+ * explicitly in `webServer.env` below, so the server under test cannot
+ * boot with the hatch open.
  */
 process.env.AUTH_SKIP_2FA = "false";
 
 /**
- * The port, so a second server can be run beside one that is already up.
- * On this machine a `next start` from an earlier session cannot be stopped,
- * and it serves the build it booted with — which fails every test about a
- * screen that has changed since.
+ * **Its own port, not 3000.**
+ *
+ * 3000 is where a developer's `next dev` lives, and that server booted
+ * from `.env` — the firm's live database. Sharing the port meant the suite
+ * either collided with it or, worse, reused it and drove a browser against
+ * production. A port of its own makes both impossible.
  */
-const port = process.env.PHMG_TEST_PORT ?? "3000";
+const port = process.env.PHMG_TEST_PORT ?? "3147";
 const base = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
   testDir: "./tests/e2e",
   use: { baseURL: base },
+  globalSetup: "./tests/e2e/global-setup.mjs",
   /**
    * **One worker, on purpose.**
    *
@@ -99,7 +114,30 @@ export default defineConfig({
   webServer: {
     command: `npm run build && npm run start -- -p ${port}`,
     url: base,
-    reuseExistingServer: !process.env.CI,
+    /**
+     * **The server under test gets the throwaway database explicitly.**
+     *
+     * Without this it would start from `.env` and serve the firm's live
+     * cluster, while the specs wrote their fixtures into the throwaway one.
+     * Every assertion would then be read against a different database from
+     * the one it set up — and the screens a reviewer looked at would be the
+     * real firm's.
+     */
+    env: {
+      MONGODB_URI: process.env.MONGODB_URI ?? "",
+      AUTH_SKIP_2FA: "false",
+    },
+    /**
+     * **Never reuse a server that is already up.**
+     *
+     * This was `!process.env.CI`, which was the convenience of not waiting
+     * for a build and the risk of testing the wrong thing: a `next dev`
+     * left running on this port booted from `.env`, so the suite would
+     * drive a browser against the firm's data no matter what the specs
+     * did. The port below is its own, so there is nothing to collide with
+     * and nothing to reuse.
+     */
+    reuseExistingServer: false,
     /**
      * Ten minutes. `next build` on a machine whose SWC binary is blocked
      * falls back to the WASM compiler and takes several, and a timeout
