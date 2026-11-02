@@ -133,6 +133,7 @@ export default function TopBar({
               {branches[0].name}
             </span>
           )}
+          
           <Link
             href="/inbox"
             aria-label={
