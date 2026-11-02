@@ -8,6 +8,7 @@ import {
   CPE_BASIS_LABELS,
 } from "@/lib/firm/profile";
 import { saveFirm } from "./actions";
+import { Result } from "@/components/ui/Notice";
 
 /**
  * The firm's own record.
@@ -66,22 +67,7 @@ export default function FirmForm({ firm, mayEdit }) {
       )}
       className="flex flex-col gap-6"
     >
-      {message?.ok && (
-        <p
-          role="status"
-          className="rounded-ledger border-filed bg-filed-wash text-13 text-filed border px-3 py-2"
-        >
-          {message.ok}
-        </p>
-      )}
-      {message?.error && (
-        <p
-          role="alert"
-          className="rounded-ledger border-redpen bg-redpen-wash text-13 text-redpen border px-3 py-2"
-        >
-          {message.error}
-        </p>
-      )}
+      <Result message={message} />
 
       <section className="rounded-ledger border-rule bg-surface grid gap-4 border p-4 sm:grid-cols-2">
         <h2 className="font-display text-15 font-semibold sm:col-span-2">

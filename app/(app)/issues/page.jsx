@@ -2,6 +2,7 @@ import { requireUser } from "@/auth";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
 import Leave from "@/models/Leave";
+import { APPROVED_LEAVE } from "@/lib/team/leave";
 import Engagement from "@/models/Engagement";
 import { engagementQuery } from "@/lib/engagements/filter";
 import { CLOSED_STATUSES } from "@/lib/engagements/status";
@@ -43,6 +44,7 @@ export default async function IssuesPage({ searchParams }) {
    */
   const today = startOfISTDay(new Date());
   const covering = await Leave.find({
+    ...APPROVED_LEAVE,
     coverId: actor.id,
     from: { $lte: today },
     to: { $gte: today },

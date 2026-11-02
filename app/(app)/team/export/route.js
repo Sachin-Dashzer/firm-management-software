@@ -1,11 +1,12 @@
 import { headers } from "next/headers";
 import { requireUser } from "@/auth";
-import { branchFilter, can, scopeOf, ROLE_LABELS } from "@/lib/permissions";
+import { can, scopeOf, ROLE_LABELS } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
 import Branch from "@/models/Branch";
 import Engagement from "@/models/Engagement";
 import { loadForEach } from "@/lib/team/workload";
+import { teamQuery } from "@/lib/team/filters";
 import { buildWorkbook, xlsxResponse } from "@/lib/excel";
 import {
   withAudit,
@@ -39,17 +40,22 @@ export async function GET(request) {
   await connectDB();
   const url = new URL(request.url);
 
-  /** @type {Record<string, any>} */
-  const query = {};
-  if (branchFilter(actor, "team")) query.branchIds = { $in: actor.branchIds };
-  const wantBranch = url.searchParams.get("branch");
-  if (wantBranch) query.branchIds = { $in: [wantBranch] };
-  const wantRole = url.searchParams.get("role");
-  if (wantRole) query.role = wantRole;
-  if (url.searchParams.get("inactive") !== "1") query.active = true;
+  /**
+   * The same filters as the screen, decided in the same place — so the
+   * spreadsheet cannot be wider than the list that produced it, and an
+   * office outside this person's scope is dropped here too.
+   */
+  const { query, withDeleted } = teamQuery(
+    actor,
+    Object.fromEntries(url.searchParams),
+  );
 
   const [people, branches] = await Promise.all([
-    User.find(query).sort({ role: 1, name: 1 }).limit(2000).lean(),
+    User.find(query)
+      .setOptions({ withDeleted })
+      .sort({ active: -1, role: 1, name: 1 })
+      .limit(2000)
+      .lean(),
     Branch.find({}).select("code").lean(),
   ]);
   const branchCode = new Map(branches.map((b) => [String(b._id), b.code]));
@@ -95,7 +101,11 @@ export async function GET(request) {
       toReview: figures?.awaitingMyReview ?? 0,
       reworked: figures?.reworked ?? 0,
       twoFactor: person.totpEnabledAt ? "On" : "Not yet",
-      active: person.active === false ? "Left" : "Here",
+      active: person.deletedAt
+        ? "Offboarded"
+        : person.active === false
+          ? "Switched off"
+          : "Here",
     };
   });
 

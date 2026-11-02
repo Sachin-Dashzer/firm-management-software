@@ -1,17 +1,28 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/auth";
-import { can, scopeOf, branchFilter } from "@/lib/permissions";
+import { can, scopeOf, branchFilter, ROLE_LABELS } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import Leave from "@/models/Leave";
 import User from "@/models/User";
 import Engagement from "@/models/Engagement";
 import Client from "@/models/Client";
+import TimeEntry from "@/models/TimeEntry";
 import { CLOSED_STATUSES } from "@/lib/engagements/status";
-import { coversDay } from "@/lib/team/leave";
-import { formatISTDate, startOfISTDay, daysUntil } from "@/lib/dates";
+import {
+  coversDay,
+  statusOf,
+  leaveDays,
+  attendanceMonth,
+  LEAVE_KINDS,
+} from "@/lib/team/leave";
+import { formatISTDate, startOfISTDay, istParts, istDate } from "@/lib/dates";
+import PageHead from "@/components/ui/PageHead";
+import Segmented from "@/components/ui/Segmented";
+import Requests from "./Requests";
+import Attendance from "./Attendance";
 
-export const metadata = { title: "Leave and cover · PHMG" };
+export const metadata = { title: "Leave and attendance · PHMG" };
 export const dynamic = "force-dynamic";
 
 const DAY = 86_400_000;
@@ -19,53 +30,91 @@ const DAY = 86_400_000;
 const AHEAD = 30;
 
 /**
- * Who is away, who is covering, and what falls due while they are gone
- * (P3-22b, over P3-16).
+ * Leave, and the attendance month (owner request, 01-11-2026).
  *
- * Recording an absence stays on the person's own record, where the overlap
- * checks and the cover rules live. What was missing is the firm-wide view,
- * and in particular the warning spec section 9 asks for in so many words:
- * *the system warns if a person on leave has engagements due.* That warning
- * cannot be given on one person's page, because the person reading it is
- * the one who is away.
+ * Two tabs, because they answer two different questions and were being
+ * asked of one screen:
  *
- * An employee or an intern has `own` scope on the team area, so they get
- * their own absences and the ones they are covering — which is the useful
- * half for them, and not a list of where their colleagues are.
+ *  - **Applications** — what is waiting on a decision, who is away now and
+ *    next, and the work that falls due while they are gone. This is where
+ *    leave is approved, declined, marked for somebody, and where the work
+ *    is handed to the cover.
+ *  - **Attendance** — the month as a grid, person by day. It is built from
+ *    the timesheet and from approved leave, because this application has no
+ *    clock-in and will not pretend to one: see `attendanceMonth`.
+ *
+ * An employee or an intern has `own` scope, so they get their own
+ * applications and the ones they are covering, and the apply form. Not a
+ * list of where their colleagues are.
  */
-export default async function LeaveBoardPage() {
+export default async function LeaveBoardPage({ searchParams }) {
   const actor = await requireUser();
   if (!can(actor, "view", "team")) redirect("/me");
 
+  const params = (await searchParams) ?? {};
+  const tab = params.tab === "attendance" ? "attendance" : "applications";
+
   const now = new Date();
   const today = startOfISTDay(now);
-  const horizon = new Date(today.getTime() + AHEAD * DAY);
 
   await connectDB();
 
   const ownOnly = scopeOf(actor, "team") === "own";
+  const mayDecide = can(actor, "approve", "leaveApprove");
 
   /**
    * Whose absences this person may read. A Partner sees the firm, a CA their
    * branches, and everybody else themselves plus whoever they cover.
    */
   let who = {};
+  /** @type {any[]} */
+  let colleagues = [];
   if (ownOnly) {
     who = { $or: [{ userId: actor.id }, { coverId: actor.id }] };
-  } else if (branchFilter(actor, "team")) {
-    const colleagues = await User.find({
-      branchIds: { $in: actor.branchIds ?? [] },
-    })
-      .select("_id")
+  } else {
+    const scoped = branchFilter(actor, "team")
+      ? { branchIds: { $in: actor.branchIds ?? [] } }
+      : {};
+    colleagues = await User.find({ ...scoped, active: true })
+      .select("name role branchIds")
+      .sort({ name: 1 })
       .lean();
-    who = { userId: { $in: colleagues.map((person) => person._id) } };
+    if (branchFilter(actor, "team")) {
+      who = { userId: { $in: colleagues.map((person) => person._id) } };
+    }
   }
 
-  /** In force now, or starting inside the horizon. */
+  if (tab === "attendance") {
+    return (
+      <Shell tab={tab} ownOnly={ownOnly}>
+        <AttendanceTab
+          actor={actor}
+          params={params}
+          who={who}
+          colleagues={colleagues}
+          ownOnly={ownOnly}
+          now={now}
+        />
+      </Shell>
+    );
+  }
+
+  // --- the applications tab ------------------------------------------------
+
+  const horizon = new Date(today.getTime() + AHEAD * DAY);
+
+  /**
+   * Everything pending, however far off, plus approved leave in force now or
+   * starting inside the horizon. A pending application for March is the one
+   * thing a decider must see in November — it is the whole reason they are
+   * here — so it is not held to the 30-day window.
+   */
   const leaves = await Leave.find({
     ...who,
-    to: { $gte: today },
-    from: { $lt: horizon },
+    $or: [
+      { status: "Pending" },
+      { to: { $gte: today }, from: { $lt: horizon } },
+    ],
   })
     .sort({ from: 1 })
     .limit(500)
@@ -76,7 +125,7 @@ export default async function LeaveBoardPage() {
       $in: [
         ...new Set([
           ...leaves.map((row) => String(row.userId)),
-          ...leaves.map((row) => String(row.coverId)),
+          ...leaves.map((row) => String(row.coverId ?? "")).filter(Boolean),
         ]),
       ],
     },
@@ -86,11 +135,18 @@ export default async function LeaveBoardPage() {
   const personName = new Map(
     people.map((person) => [String(person._id), person.name]),
   );
+  const personRole = new Map(
+    people.map((person) => [String(person._id), person.role]),
+  );
 
   /**
    * Work that falls due inside somebody's absence. One query for every
    * absence on the board, bucketed below — a query per person would be
    * eleven round trips for a five-person firm.
+   *
+   * It covers pending applications too, because "what falls due while they
+   * are gone" is exactly what the decider needs in front of them before
+   * saying yes, and it is the list they tick to hand the work over.
    */
   const owners = [...new Set(leaves.map((row) => String(row.userId)))];
   const dueWindow = leaves.reduce(
@@ -137,144 +193,166 @@ export default async function LeaveBoardPage() {
         client: clientName.get(String(engagement.clientId)) ?? "Client",
         work: engagement.templateSnapshot?.name ?? "Work",
         period: engagement.periodLabel || engagement.period,
-        due: engagement.statutoryDue ?? engagement.internalDue,
+        due: formatISTDate(engagement.statutoryDue ?? engagement.internalDue),
       }));
 
     return {
       id: String(leave._id),
       userId: String(leave.userId),
       person: personName.get(String(leave.userId)) ?? "Somebody",
-      cover: personName.get(String(leave.coverId)) ?? "Nobody",
+      role: ROLE_LABELS[personRole.get(String(leave.userId))] ?? "",
+      cover: leave.coverId
+        ? (personName.get(String(leave.coverId)) ?? "Somebody")
+        : "",
+      coverId: String(leave.coverId ?? ""),
       kind: leave.kind,
-      from: leave.from,
-      to: leave.to,
+      status: statusOf(leave),
+      days: leaveDays(leave),
+      from: formatISTDate(leave.from),
+      to: formatISTDate(leave.to),
+      startsIn: Math.round(
+        (startOfISTDay(leave.from).getTime() - today.getTime()) / DAY,
+      ),
       note: leave.note ?? "",
-      approvedByName: leave.approvedByName ?? "",
-      current: coversDay(leave, now),
+      decisionNote: leave.decisionNote ?? "",
+      decidedByName: leave.approvedByName ?? "",
+      decidedOn: leave.approvedAt ? formatISTDate(leave.approvedAt) : "",
+      current: statusOf(leave) === "Approved" && coversDay(leave, now),
+      mine: String(leave.userId) === actor.id,
       falls,
     };
   });
 
-  const away = rows.filter((row) => row.current);
-  const coming = rows.filter((row) => !row.current);
+  /**
+   * Who may be named as a cover. Active colleagues the reader can see, minus
+   * nobody — the server refuses a cover who is away, and the error says who
+   * and when, which is more use than a name quietly missing from a list.
+   */
+  const coverChoices = (
+    colleagues.length
+      ? colleagues
+      : await User.find({ active: true })
+          .select("name role")
+          .sort({ name: 1 })
+          .lean()
+  ).map((person) => ({
+    id: String(person._id),
+    name: person.name,
+    role: ROLE_LABELS[person.role] ?? person.role,
+  }));
 
   return (
-    <div className="mx-auto flex max-w-[1100px] flex-col gap-5 p-4 md:p-6">
-      <div>
-        <h1 className="font-display text-24 font-bold tracking-tight">
-          Leave and cover
-        </h1>
-        <p className="text-13 text-ink-muted max-w-[70ch]">
-          {ownOnly
-            ? "Your own absences, and the work you are holding for somebody else."
-            : `Who is away now and in the next ${AHEAD} days, who holds their work, and what falls due while they are gone. An absence is recorded on the person's own record.`}
-        </p>
-      </div>
-
-      <Section
-        title="Away now"
-        empty="Nobody is away today."
-        rows={away}
-        now={now}
+    <Shell tab={tab} ownOnly={ownOnly}>
+      <Requests
+        rows={rows}
+        people={coverChoices}
+        kinds={LEAVE_KINDS}
+        mayDecide={mayDecide}
+        ownOnly={ownOnly}
+        actorId={actor.id}
+        actorIsPartner={actor.role === "partner"}
+        ahead={AHEAD}
       />
-      <Section
-        title={`Coming up, next ${AHEAD} days`}
-        empty="No leave is booked in the next month."
-        rows={coming}
-        now={now}
+    </Shell>
+  );
+}
+
+/** The head and the two tabs, around whichever one is open. */
+function Shell({ tab, ownOnly, children }) {
+  return (
+    <div className="mx-auto flex max-w-[1500px] flex-col gap-4 p-4 md:p-6">
+      <PageHead
+        title="Leave and attendance"
+        sub={
+          ownOnly
+            ? "Your own leave, the work you are holding for somebody else, and your month."
+            : "What is waiting on a decision, who is away, and the month as it was actually worked."
+        }
+      >
+        <Link
+          href="/team"
+          className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
+        >
+          The team
+        </Link>
+      </PageHead>
+
+      <Segmented
+        label="Leave or attendance"
+        value={tab}
+        items={[
+          {
+            key: "applications",
+            label: "Leave",
+            href: "/team/leave",
+          },
+          {
+            key: "attendance",
+            label: "Attendance",
+            href: "/team/leave?tab=attendance",
+          },
+        ]}
       />
 
-      {!ownOnly && (
-        <p className="text-13 text-ink-muted">
-          Past leave stays on each person&rsquo;s record —{" "}
-          <Link href="/team" className="underline underline-offset-4">
-            the team list
-          </Link>{" "}
-          is the way to it.
-        </p>
-      )}
+      {children}
     </div>
   );
 }
 
-/** One half of the board. Absences, each with the work it crosses. */
-function Section({ title, empty, rows, now }) {
+/**
+ * The month grid. Its own component because it asks different questions of
+ * the database — the timesheet, and the whole month rather than the horizon.
+ */
+async function AttendanceTab({ actor, params, who, colleagues, ownOnly, now }) {
+  const here = istParts(now);
+  const asked = String(params.month ?? "");
+  const match = /^(\d{4})-(\d{2})$/.exec(asked);
+  const year = match ? Number(match[1]) : here.year;
+  const month = match ? Number(match[2]) : here.month;
+  const valid = month >= 1 && month <= 12 && year >= 2020 && year <= 2100;
+  const [y, m] = valid ? [year, month] : [here.year, here.month];
+
+  const first = istDate(y, m, 1);
+  const next = istDate(m === 12 ? y + 1 : y, m === 12 ? 1 : m + 1, 1);
+
+  /** The people on the grid: the reader's scope, or just the reader. */
+  const people = ownOnly
+    ? await User.find({ _id: actor.id }).select("name role").lean()
+    : colleagues;
+
+  const ids = people.map((person) => person._id);
+
+  const [leaves, time] = await Promise.all([
+    // any leave that touches the month at all, both ends counted
+    Leave.find({
+      ...(ownOnly ? who : { userId: { $in: ids } }),
+      from: { $lt: next },
+      to: { $gte: first },
+    }).lean(),
+    TimeEntry.find({
+      userId: { $in: ids },
+      on: { $gte: first, $lt: next },
+      minutes: { $gt: 0 },
+    })
+      .select("userId on minutes")
+      .lean(),
+  ]);
+
+  const grid = attendanceMonth({
+    people,
+    leaves,
+    time,
+    year: y,
+    month: m,
+    now,
+  });
+
   return (
-    <section className="flex flex-col gap-3">
-      <h2 className="text-13 text-ink-muted font-medium">
-        {title}
-        {rows.length > 0 && <span className="num"> · {rows.length}</span>}
-      </h2>
-
-      {rows.length === 0 ? (
-        <p className="rounded-ledger border-rule bg-surface text-14 border px-4 py-3">
-          {empty}
-        </p>
-      ) : (
-        rows.map((row) => (
-          <article
-            key={row.id}
-            className="rounded-ledger border-rule bg-surface flex flex-col gap-2 border p-4"
-          >
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h3 className="text-16 font-medium">
-                <Link
-                  href={`/team/${row.userId}?tab=leave`}
-                  className="underline underline-offset-4"
-                >
-                  {row.person}
-                </Link>
-                <span className="text-13 text-ink-muted">
-                  {" "}
-                  · {row.kind.toLowerCase()}
-                </span>
-              </h3>
-              <p className="num text-13 text-ink-muted">
-                {formatISTDate(row.from)} to {formatISTDate(row.to)}
-                {!row.current && ` · in ${daysUntil(row.from, now)} days`}
-              </p>
-            </div>
-
-            <p className="text-14">
-              Covered by <strong>{row.cover}</strong>
-              {row.note && (
-                <span className="text-ink-muted"> · {row.note}</span>
-              )}
-            </p>
-
-            {row.falls.length === 0 ? (
-              <p className="text-13 text-ink-muted">
-                Nothing of theirs falls due while they are away.
-              </p>
-            ) : (
-              <div className="flex flex-col gap-1">
-                <p className="text-13 text-redpen font-medium">
-                  {row.falls.length}{" "}
-                  {row.falls.length === 1 ? "job falls" : "jobs fall"} due while
-                  they are away — {row.cover} holds{" "}
-                  {row.falls.length === 1 ? "it" : "them"}.
-                </p>
-                <ul className="flex flex-col gap-1">
-                  {row.falls.map((job) => (
-                    <li key={job.id} className="text-13">
-                      <Link
-                        href={`/engagements/${job.id}`}
-                        className="underline underline-offset-4"
-                      >
-                        {job.client}
-                      </Link>{" "}
-                      <span className="text-ink-muted">
-                        {job.work} · {job.period} · due{" "}
-                        <span className="num">{formatISTDate(job.due)}</span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </article>
-        ))
-      )}
-    </section>
+    <Attendance
+      grid={grid}
+      year={y}
+      month={m}
+      thisMonth={here.year === y && here.month === m}
+    />
   );
 }

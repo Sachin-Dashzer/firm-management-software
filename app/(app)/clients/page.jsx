@@ -8,6 +8,7 @@ import Client from "@/models/Client";
 import Branch from "@/models/Branch";
 import ClientGroup from "@/models/ClientGroup";
 import { CLIENT_STATUSES, ENTITY_TYPES, RISK_RATINGS } from "@/lib/validators";
+import FilterBar, { FilterSelect } from "@/components/ui/FilterBar";
 
 export const metadata = { title: "Clients · PHMG" };
 export const dynamic = "force-dynamic";
@@ -143,61 +144,44 @@ export default async function ClientsPage({ searchParams }) {
         </div>
       </div>
 
-      <form
-        method="get"
-        className="rounded-ledger border-rule bg-surface grid gap-3 border p-3 sm:grid-cols-2 lg:grid-cols-6"
-      >
-        <label className="flex flex-col gap-1 lg:col-span-2">
-          <span className="text-13 text-ink-muted font-medium">
-            Name, code, PAN, GSTIN or mobile
-          </span>
-          <input
-            name="q"
-            defaultValue={search}
-            placeholder="ABC Traders, AAAPZ1234C, 9876543210…"
-            className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
-          />
-        </label>
-        <Filter
-          label="Group"
-          name="group"
-          value={group}
-          options={[
-            ...groups.map((g) => [String(g._id), g.name]),
-            ["none", "Ungrouped"],
-          ]}
-        />
-        <Filter
-          label="Status"
-          name="status"
-          value={status}
-          options={CLIENT_STATUSES}
-        />
-        <Filter
-          label="Entity type"
-          name="entityType"
-          value={entityType}
-          options={ENTITY_TYPES}
-        />
-        <Filter label="Risk" name="risk" value={risk} options={RISK_RATINGS} />
-        {/* The six filters fill the six columns, so the two controls take a
-            row of their own. Sharing the last cell with Risk pushed Clear
-            off the card's right edge at 1440. */}
-        <div className="flex items-end justify-end gap-2 lg:col-span-6">
-          <button
-            type="submit"
-            className="rounded-control border-rule bg-sunk text-14 text-ink h-9 border px-3 font-medium"
-          >
-            Filter
-          </button>
-          <Link
-            href="/clients"
-            className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
-          >
-            Clear
-          </Link>
-        </div>
-      </form>
+      <FilterBar
+        action="/clients"
+        label="Name, code, PAN, GSTIN or mobile"
+        placeholder="ABC Traders, AAAPZ1234C, 9876543210…"
+        value={search}
+        active={Boolean(search || status || entityType || risk || group)}
+        primary={
+          <>
+            <FilterSelect
+              label="Status"
+              name="status"
+              value={status}
+              options={CLIENT_STATUSES}
+            />
+            <FilterSelect
+              label="Group"
+              name="group"
+              value={group}
+              options={[
+                ...groups.map((g) => [String(g._id), g.name]),
+                ["none", "Ungrouped"],
+              ]}
+            />
+            <FilterSelect
+              label="Entity type"
+              name="entityType"
+              value={entityType}
+              options={ENTITY_TYPES}
+            />
+            <FilterSelect
+              label="Risk"
+              name="risk"
+              value={risk}
+              options={RISK_RATINGS}
+            />
+          </>
+        }
+      />
 
       {assignedOnly && total === 0 ? (
         <p className="rounded-ledger border-rule bg-surface text-14 text-ink-muted border p-6">
@@ -349,29 +333,6 @@ export function StatusChip({ status }) {
     <span className={`rounded-chip text-13 border px-2 py-0.5 ${tone}`}>
       {status}
     </span>
-  );
-}
-
-function Filter({ label, name, value, options }) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-13 text-ink-muted font-medium">{label}</span>
-      <select
-        name={name}
-        defaultValue={value}
-        className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
-      >
-        <option value="">Any</option>
-        {options.map((o) => {
-          const [key, text] = Array.isArray(o) ? o : [o, o];
-          return (
-            <option key={key} value={key}>
-              {text}
-            </option>
-          );
-        })}
-      </select>
-    </label>
   );
 }
 

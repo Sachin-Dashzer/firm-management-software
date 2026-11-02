@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireUser } from "@/auth";
 import { can } from "@/lib/permissions";
+import SettingsScreen from "../Shell";
 
 export const metadata = { title: "Modules · PHMG" };
 export const dynamic = "force-dynamic";
@@ -19,22 +20,15 @@ export default async function Page() {
   if (!can(actor, "view", "firmProfile")) redirect("/issues");
 
   return (
-    <div className="mx-auto flex max-w-[760px] flex-col gap-4 p-4 md:p-6">
-      <div>
-        <h1 className="font-display text-24 font-bold tracking-tight">
-          Modules
-        </h1>
-        <p className="text-13 text-ink-muted max-w-[70ch]">
-          Which parts of the system the firm uses. Switching one off hides it —
-          here and on the server — and deletes nothing.
-        </p>
-      </div>
-
+    <SettingsScreen
+      title="Modules"
+      sub="Which parts of the system the firm uses. Switching one off hides it — here and on the server — and deletes nothing."
+    >
       <p className="rounded-ledger border-waiting bg-waiting-wash text-13 border px-3 py-2">
         <strong>Not built yet — P3-22d.</strong> The menu was rebuilt to the
         firm's own shape first (P3-22a), so every item has somewhere real to go.
         Nothing on this screen is invented in the meantime.
       </p>
-    </div>
+    </SettingsScreen>
   );
 }

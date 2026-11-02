@@ -74,17 +74,88 @@ export default async function AppLayout({ children }) {
    * allowed to add a client. A to-do needs nothing — everybody keeps their
    * own. Each route checks again on arrival; this only keeps the menu from
    * offering a form somebody will be turned away from.
+   *
+   * Each row carries a line saying what it starts, because the labels alone
+   * do not separate the things that sound alike — a job, a to-do and a
+   * document request are three different objects with three different
+   * owners, and "Bank receipt" tells you nothing about allocation.
+   *
+   * `level` is for the rows whose screen asks a different question: the
+   * announcements desk is a partner's, and "Notify people" is a page you
+   * read rather than a form you fill in, because it is not built yet.
    */
   const canCreate = [
-    { label: "New client", href: "/clients/new", area: "clients" },
-    { label: "New job", href: "/engagements/new", area: "engagementsCreate" },
-    { label: "New invoice", href: "/invoices/new", area: "invoices" },
-    { label: "Log a notice", href: "/practice/notices/new", area: "practice" },
-    { label: "Record a payment", href: "/billing/desk", area: "invoices" },
-    { label: "New to-do", href: "/todos", area: null },
+    {
+      label: "Job (GST, TDS, ITR…)",
+      hint: "A statutory or client job with its due dates",
+      href: "/engagements/new",
+      area: "engagementsCreate",
+    },
+    {
+      label: "To-do",
+      hint: "A small internal task with an owner and date",
+      href: "/todos",
+      area: null,
+    },
+    {
+      label: "Client",
+      hint: "Full onboarding: KYC, services, portal",
+      href: "/clients/new",
+      area: "clients",
+    },
+    {
+      label: "Invoice",
+      hint: "Bill a client for work or a one-off fee",
+      href: "/invoices/new",
+      area: "invoices",
+    },
+    {
+      /* A request is always about a job, so it is started from the
+         engagement's own panel; this lands on the screen that holds them. */
+      label: "Document request",
+      hint: "Ask a client for a file — sent on WhatsApp",
+      href: "/documents?tab=pending",
+      area: "documents",
+    },
+    {
+      label: "Bank receipt",
+      hint: "Money received — then allocate it",
+      href: "/billing/desk",
+      area: "invoices",
+    },
+    {
+      label: "Notice",
+      hint: "Log a GST / income-tax notice with its reply date",
+      href: "/practice/notices/new",
+      area: "practice",
+    },
+    {
+      label: "Bulk client data",
+      hint: "Download the template, fill in Excel, upload",
+      href: "/clients/round-trip",
+      area: "clients",
+    },
+    {
+      /* The composer is P3-22f and WhatsApp has no provider yet (spec §18),
+         so this goes to the screen that says so rather than nowhere. */
+      label: "Notify people",
+      hint: "In-app, WhatsApp or both — with a preview",
+      href: "/client-experience?tab=whatsapp",
+      area: "clients",
+      level: "view",
+    },
+    {
+      /* The announcements desk turns nobody else away quietly — it
+         redirects — so the menu asks the same question it asks. */
+      label: "Announcement",
+      hint: "To everyone, branches, teams, people or clients",
+      href: "/inbox/announcements",
+      area: "feeWriteOff",
+      level: "approve",
+    },
   ]
-    .filter((item) => !item.area || can(user, "edit", item.area))
-    .map(({ label, href }) => ({ label, href }));
+    .filter((item) => !item.area || can(user, item.level ?? "edit", item.area))
+    .map(({ label, hint, href }) => ({ label, hint, href }));
 
   /** The one branch a person is in, for the line under their name. */
   const branchLabel =

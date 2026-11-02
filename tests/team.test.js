@@ -9,6 +9,7 @@ import {
 import { STATUSES, CLOSED_STATUSES } from "@/lib/engagements/status";
 import { checkAssignment } from "@/lib/engagements/assign";
 import { LEVEL_DEFAULTS } from "@/lib/services/catalog";
+import { teamQuery } from "@/lib/team/filters";
 
 /**
  * Counting what is on somebody's desk.
@@ -22,6 +23,10 @@ import { LEVEL_DEFAULTS } from "@/lib/services/catalog";
 const ANKIT = "u-ankit";
 const RITIKA = "u-ritika";
 const NOW = new Date("2026-10-19T12:00:00+05:30");
+
+/** Two office ids, in the shape the filter insists on. */
+const NOIDA = "6710000000000000000000a1";
+const LUDHIANA = "6710000000000000000000b2";
 
 /** @param {Partial<any>} fields */
 function work(fields = {}) {
@@ -264,5 +269,70 @@ describe("open work by tier (owner decision D4)", () => {
 
   it("leaves work with no snapshot out rather than guessing a tier", () => {
     expect(loadFor([work()], ANKIT, NOW).byTier).toEqual({ A: 0, B: 0, C: 0 });
+  });
+});
+
+describe("what the team list is asked to show", () => {
+  const PARTNER = { role: "partner", branchIds: [NOIDA, LUDHIANA] };
+  const CA = { role: "ca", branchIds: [NOIDA] };
+
+  it("keeps a CA inside their own offices, however the URL asks", () => {
+    const { query, chosen, dropped } = teamQuery(CA, { branch: LUDHIANA });
+    // the fault this replaces: the chosen office overwrote the scope, so
+    // this was `{ branchIds: { $in: [LUDHIANA] } }`
+    expect(query.branchIds).toEqual({ $in: [NOIDA] });
+    expect(chosen.branch).toBe("");
+    expect(dropped).toBe(true);
+  });
+
+  it("honours an office the CA does belong to", () => {
+    const { query, dropped } = teamQuery(CA, { branch: NOIDA });
+    expect(query.branchIds).toBe(NOIDA);
+    expect(dropped).toBe(false);
+  });
+
+  it("lets a partner filter to any office, and to none", () => {
+    expect(teamQuery(PARTNER, { branch: LUDHIANA }).query.branchIds).toBe(
+      LUDHIANA,
+    );
+    expect(teamQuery(PARTNER, {}).query.branchIds).toBeUndefined();
+  });
+
+  it("narrows a partner to the office the top bar is viewing", () => {
+    const viewing = { ...PARTNER, view: LUDHIANA };
+    expect(teamQuery(viewing, {}).query.branchIds).toEqual({
+      $in: [LUDHIANA],
+    });
+  });
+
+  it("asks for soft-deleted records when it asks for people who have left", () => {
+    // the fault this replaces: offboarding soft deletes the record, so the
+    // one filter meant to find those people was the one that could not
+    expect(teamQuery(PARTNER, { status: "inactive" })).toMatchObject({
+      query: { active: false },
+      withDeleted: true,
+    });
+    expect(teamQuery(PARTNER, { status: "all" })).toMatchObject({
+      withDeleted: true,
+    });
+    expect(teamQuery(PARTNER, {}).query.active).toBe(true);
+  });
+
+  it("drops a role or a senior that is not one, rather than querying it", () => {
+    const { query } = teamQuery(PARTNER, {
+      role: "director",
+      senior: "'; drop",
+      status: "retired",
+    });
+    expect(query.role).toBeUndefined();
+    expect(query.reportingTo).toBeUndefined();
+    expect(query.active).toBe(true);
+  });
+
+  it("offers every office this person may see, not just the filtered one", () => {
+    // what the Office dropdown is built from: narrowing it to the chosen
+    // office would leave no way back out of it
+    expect(teamQuery(CA, { branch: NOIDA }).allowed).toEqual([NOIDA]);
+    expect(teamQuery(PARTNER, { branch: NOIDA }).allowed).toBeNull();
   });
 });

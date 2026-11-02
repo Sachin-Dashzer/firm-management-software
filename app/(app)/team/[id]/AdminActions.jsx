@@ -82,7 +82,7 @@ export default function AdminActions({
 
       {/* --- offices, senior, capacity, skills --- */}
       <section className="rounded-ledger border-rule bg-surface flex flex-col gap-4 border p-4">
-        <h2 className="font-display text-15 font-semibold">Where they work</h2>
+        <h2 className="font-display text-15 font-semibold">Their record</h2>
         <form
           onSubmit={saving((formData) =>
             run(() => updateTeamMember(userId, formData)),
@@ -126,6 +126,26 @@ export default function AdminActions({
                     </option>
                   ))}
               </select>
+            </label>
+
+            {/*
+              When they joined (owner request, 01-11-2026).
+
+              It was on the record and on three screens, and there was
+              nowhere to put it: everybody added before today has the date
+              the seed script gave them and nobody else has one at all.
+            */}
+            <label className="flex flex-col gap-1">
+              <span className="text-13 text-ink-muted">Joined the firm</span>
+              <input
+                type="date"
+                name="joiningDate"
+                defaultValue={current.joiningDate}
+                className="rounded-control border-rule bg-paper text-14 h-9 w-44 border px-2"
+              />
+              <span className="text-12 text-faint">
+                Left empty if the firm does not have the date.
+              </span>
             </label>
 
             <label className="flex flex-col gap-1">

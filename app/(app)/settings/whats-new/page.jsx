@@ -6,6 +6,7 @@ import { connectDB } from "@/lib/db";
 import AuditLog from "@/models/AuditLog";
 import { describeEntry } from "@/lib/audit/describe";
 import { groupByDay } from "@/lib/audit/log";
+import SettingsScreen from "../Shell";
 
 export const metadata = { title: "What's new · PHMG" };
 export const dynamic = "force-dynamic";
@@ -87,29 +88,24 @@ export default async function WhatsNewPage({ searchParams }) {
   const pages = Math.ceil(total / PAGE_SIZE);
 
   return (
-    <div className="mx-auto flex max-w-[860px] flex-col gap-5 p-4 md:p-6">
-      <div>
-        <Link
-          href="/settings"
-          className="text-13 text-ink-muted underline underline-offset-4"
-        >
-          Settings
-        </Link>
-        <h1 className="font-display text-24 font-bold tracking-tight">
-          What&rsquo;s new
-        </h1>
-        <p className="text-13 text-ink-muted max-w-[70ch]">
+    <SettingsScreen
+      title="What&rsquo;s new"
+      sub={
+        <>
           What has changed about the way this firm&rsquo;s system works — the
           rules, the services, the templates, the people. Read from the log
           itself, so nothing has to be remembered and written up. The
           day&rsquo;s work is on the{" "}
-          <Link href="/portal-log" className="underline underline-offset-4">
+          <Link
+            href="/portal-log"
+            className="text-carbon underline underline-offset-4"
+          >
             Portal log
           </Link>
           .
-        </p>
-      </div>
-
+        </>
+      }
+    >
       {days.length === 0 ? (
         <p className="rounded-ledger border-rule bg-surface text-14 border px-4 py-3">
           Nothing has been changed yet. Setting the firm up is on{" "}
@@ -168,6 +164,6 @@ export default async function WhatsNewPage({ searchParams }) {
           )}
         </nav>
       )}
-    </div>
+    </SettingsScreen>
   );
 }

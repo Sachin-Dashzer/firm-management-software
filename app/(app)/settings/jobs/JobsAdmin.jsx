@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { cancelJob, retryJob, runNow } from "./actions";
+import { Result } from "@/components/ui/Notice";
+import SettingsScreen from "../Shell";
 
 /**
  * Whether the background work is happening, in one glance.
@@ -28,43 +30,22 @@ export default function JobsAdmin({ health, schedules }) {
   const failed = health.byStatus.failed ?? 0;
 
   return (
-    <div className="mx-auto flex max-w-[1000px] flex-col gap-6 p-4 md:p-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <div>
-          <h1 className="font-display text-24 font-bold tracking-tight">
-            Background jobs
-          </h1>
-          <p className="text-13 text-ink-muted">
-            Work the system does on its own: generating recurring filings,
-            reminders and clearing the recycle bin.
-          </p>
-        </div>
+    <SettingsScreen
+      wide
+      title="Background jobs"
+      sub="Work the system does on its own: generating recurring filings, reminders and clearing the recycle bin."
+      actions={
         <button
           type="button"
           disabled={pending}
           onClick={() => run(runNow)}
-          className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
+          className="rounded-control bg-carbon text-14 text-on-carbon hover:bg-carbon-ink h-9 px-3 font-medium disabled:opacity-60"
         >
           {pending ? "Running…" : "Run now"}
         </button>
-      </div>
-
-      {message?.ok && (
-        <p
-          role="status"
-          className="rounded-ledger border-filed bg-filed-wash text-13 text-filed border px-3 py-2"
-        >
-          {message.ok}
-        </p>
-      )}
-      {message?.error && (
-        <p
-          role="alert"
-          className="rounded-ledger border-redpen bg-redpen-wash text-13 text-redpen border px-3 py-2"
-        >
-          {message.error}
-        </p>
-      )}
+      }
+    >
+      <Result message={message} />
 
       <section
         className={`rounded-ledger border p-4 ${
@@ -178,7 +159,7 @@ export default function JobsAdmin({ health, schedules }) {
           </div>
         </section>
       )}
-    </div>
+    </SettingsScreen>
   );
 }
 

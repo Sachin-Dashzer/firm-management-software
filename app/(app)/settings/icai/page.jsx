@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/auth";
 import { can, seesOnlyOwnRecords, ROLE_LABELS } from "@/lib/permissions";
@@ -10,6 +9,7 @@ import { cpeByYear } from "@/lib/firm/cpe";
 import { formatISTDate, istInputDate } from "@/lib/dates";
 import FirmForm from "./FirmForm";
 import Members from "./Members";
+import SettingsScreen from "../Shell";
 
 export const metadata = { title: "ICAI · PHMG" };
 export const dynamic = "force-dynamic";
@@ -81,21 +81,11 @@ export default async function IcaiPage() {
   }));
 
   return (
-    <div className="mx-auto flex max-w-[1000px] flex-col gap-6 p-4 md:p-6">
-      <div>
-        <Link
-          href="/settings"
-          className="text-13 text-ink-muted underline underline-offset-4"
-        >
-          Settings
-        </Link>
-        <h1 className="font-display text-24 font-bold tracking-tight">ICAI</h1>
-        <p className="text-13 text-ink-muted">
-          The firm&rsquo;s own record, who holds what membership, and the CPE
-          log.
-        </p>
-      </div>
-
+    <SettingsScreen
+      wide
+      title="The firm's record"
+      sub="What prints on every invoice, report and letter — the firm's name, its registration and its peer review — plus who holds which ICAI membership, and the CPE log."
+    >
       {!hasCpeTarget(firm) && (
         <p className="rounded-ledger border-waiting bg-waiting-wash text-13 border px-3 py-2">
           <strong>No CPE target is set.</strong> Hours are recorded and totalled
@@ -118,7 +108,7 @@ export default async function IcaiPage() {
         }}
         ownOnly={ownOnly}
       />
-    </div>
+    </SettingsScreen>
   );
 }
 

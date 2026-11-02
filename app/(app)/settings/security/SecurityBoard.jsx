@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { raiseIncident, updateIncident } from "./actions";
 import { SEVERITIES, INCIDENT_STATES } from "@/lib/security/incidents";
+import { Result } from "@/components/ui/Notice";
 
 /**
  * Breach detection and the incident log (spec section 16).
@@ -28,22 +29,7 @@ export default function SecurityBoard({ signals, counts, since, incidents }) {
 
   return (
     <div className="flex flex-col gap-6">
-      {message?.ok && (
-        <p
-          role="status"
-          className="rounded-ledger border-filed bg-filed-wash text-13 text-filed border px-3 py-2"
-        >
-          {message.ok}
-        </p>
-      )}
-      {message?.error && (
-        <p
-          role="alert"
-          className="rounded-ledger border-redpen bg-redpen-wash text-13 text-redpen border px-3 py-2"
-        >
-          {message.error}
-        </p>
-      )}
+      <Result message={message} />
 
       {/* --- what the log is showing ------------------------------------- */}
       <section className="flex flex-col gap-2">

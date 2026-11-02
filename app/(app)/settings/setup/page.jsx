@@ -1,9 +1,11 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/auth";
 import { can } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import { firmProfile } from "@/lib/firm/settings";
+import Notice from "@/components/ui/Notice";
+import ProgressBar from "@/components/ui/ProgressBar";
+import SettingsScreen, { RowList, Row } from "../Shell";
 import {
   checksForSteps,
   ownCounts,
@@ -50,76 +52,60 @@ export default async function SetupPage() {
   const progress = setupProgress(steps);
 
   return (
-    <div className="mx-auto flex max-w-[860px] flex-col gap-5 p-4 md:p-6">
-      <div>
-        <Link
-          href="/settings"
-          className="text-13 text-ink-muted underline underline-offset-4"
-        >
-          Settings
-        </Link>
-        <h1 className="font-display text-24 font-bold tracking-tight">
-          Setting the firm up
-        </h1>
-        <p className="text-13 text-ink-muted max-w-[70ch]">
-          Eight things to do once. Every one of them is read from the records
-          rather than ticked off by hand, so this page cannot tell you something
-          is done when it is not.
-        </p>
-      </div>
+    <SettingsScreen
+      title="Setting the firm up"
+      sub="Eight things to do once. Every one of them is read from the records rather than ticked off by hand, so this page cannot tell you something is done when it is not."
+    >
+      {/* the one figure on the page that moves, so it is the one that is
+          drawn: eight of eight is the whole point of the screen */}
+      <Notice tone={progress.finished ? "good" : "flat"}>
+        <div className="flex flex-col gap-2">
+          <p className="text-14">
+            {progress.finished ? (
+              <>
+                <strong>All eight are done.</strong> Nothing here needs you
+                again unless something changes — a new office, a new
+                year&rsquo;s due dates.
+              </>
+            ) : (
+              <>
+                <strong className="num">
+                  {progress.done} of {progress.total}
+                </strong>{" "}
+                done, in the order a firm usually works through them.
+              </>
+            )}
+          </p>
+          <ProgressBar
+            value={progress.done}
+            max={progress.total}
+            label={`${progress.done} of ${progress.total} steps done`}
+            trailing={`${progress.done}/${progress.total}`}
+          />
+        </div>
+      </Notice>
 
-      <p className="rounded-ledger border-rule bg-surface text-14 border px-4 py-3">
-        {progress.finished ? (
-          <>
-            <strong>All eight are done.</strong> Nothing on this page needs you
-            again unless something changes — a new branch, a new year&rsquo;s
-            due dates.
-          </>
-        ) : (
-          <>
-            <strong className="num">
-              {progress.done} of {progress.total}
-            </strong>{" "}
-            done. The rest are below, in the order they are usually worked
-            through.
-          </>
-        )}
-      </p>
-
-      <ol className="flex flex-col gap-3">
+      <RowList as="ol">
         {steps.map((step, index) => (
-          <li
+          <Row
             key={step.key}
-            className={`rounded-ledger flex flex-col gap-1 border p-4 ${
-              step.done ? "border-rule bg-surface" : "border-carbon bg-paper"
-            }`}
-          >
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-16 font-medium">
+            href={step.href}
+            title={
+              <>
                 <span className="num text-ink-muted">{index + 1}. </span>
                 {step.title}
-              </h2>
-              {step.done ? (
-                <span className="text-13 text-filed">done</span>
-              ) : (
-                <span className="text-13 text-waiting">
-                  {step.left > 1 ? `${step.left} ` : ""}
-                  {step.whenLeft}
-                </span>
-              )}
-            </div>
-
-            <p className="text-13 text-ink-muted max-w-[70ch]">{step.why}</p>
-
-            <Link
-              href={step.href}
-              className="text-13 w-fit underline underline-offset-4"
-            >
-              {step.done ? "Open it anyway" : "Do it now"}
-            </Link>
-          </li>
+              </>
+            }
+            body={step.why}
+            state={
+              step.done
+                ? "done"
+                : `${step.left > 1 ? `${step.left} ` : ""}${step.whenLeft}`
+            }
+            tone={step.done ? "good" : "warn"}
+          />
         ))}
-      </ol>
-    </div>
+      </RowList>
+    </SettingsScreen>
   );
 }

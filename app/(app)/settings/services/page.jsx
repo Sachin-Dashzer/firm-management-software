@@ -12,6 +12,7 @@ import {
   turnaroundLabel,
 } from "@/lib/services/catalog";
 import CatalogList from "./CatalogList";
+import SettingsScreen from "../Shell";
 
 export const metadata = { title: "Services · PHMG" };
 
@@ -58,36 +59,37 @@ export default async function ServicesPage({ searchParams }) {
   );
 
   return (
-    <div className="mx-auto flex max-w-[1200px] flex-col gap-6 p-4 md:p-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <div>
-          <h1 className="font-display text-24 font-bold tracking-tight">
-            Services
-          </h1>
-          <p className="text-13 text-ink-muted">
-            {rows.length} {rows.length === 1 ? "service" : "services"} · every
-            engagement is created from one of these
-            {editable ? "" : " · only a partner can change them"}
-          </p>
-          <FirmWide />
-        </div>
-        <div className="flex items-center gap-3">
+    <SettingsScreen
+      wide
+      title="Services"
+      sub={
+        <>
+          <span className="num">{rows.length}</span>{" "}
+          {rows.length === 1 ? "service" : "services"} · every job in the system
+          is created from one of these
+          {editable ? "" : " · only a partner can change them"}
+        </>
+      }
+      actions={
+        <>
           <Link
             href={showArchived ? "/settings/services" : "?archived=1"}
-            className="text-13 text-ink-muted underline underline-offset-4"
+            className="text-13 text-ink-muted hover:text-carbon underline underline-offset-4"
           >
             {showArchived ? "Hide archived" : "Show archived"}
           </Link>
           {editable && (
             <Link
               href="/settings/services/new"
-              className="rounded-control bg-carbon text-14 text-on-carbon flex h-9 items-center px-3 font-medium"
+              className="rounded-control bg-carbon text-14 text-on-carbon hover:bg-carbon-ink flex h-9 items-center px-3 font-medium"
             >
               Add a service
             </Link>
           )}
-        </div>
-      </div>
+        </>
+      }
+    >
+      <FirmWide />
 
       {rows.some((r) => !r.sac) && (
         <p className="rounded-ledger border-waiting bg-waiting-wash text-13 border px-3 py-2">
@@ -97,6 +99,6 @@ export default async function ServicesPage({ searchParams }) {
       )}
 
       <CatalogList rows={rows} categories={categories} editable={editable} />
-    </div>
+    </SettingsScreen>
   );
 }

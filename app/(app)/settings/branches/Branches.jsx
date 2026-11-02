@@ -4,6 +4,9 @@ import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateBranch } from "./actions";
+import { Result } from "@/components/ui/Notice";
+import SettingsScreen from "../Shell";
+import Notice from "@/components/ui/Notice";
 
 /**
  * The offices, and the registration each one bills under.
@@ -21,50 +24,30 @@ export default function Branches({ rows }) {
   const missing = rows.filter((r) => !r.gstin);
 
   return (
-    <div className="mx-auto flex max-w-[900px] flex-col gap-5 p-4 md:p-6">
-      <div>
-        <h1 className="font-display text-24 font-bold tracking-tight">
-          Branches
-        </h1>
-        <p className="text-13 text-ink-muted">
-          Each office bills under its own GST registration and its own invoice
-          series.
-        </p>
-      </div>
-
+    <SettingsScreen
+      title="Offices"
+      sub="Each office bills under its own GST registration and its own invoice series."
+    >
       {missing.length > 0 && (
-        <div className="rounded-ledger border-waiting bg-waiting-wash border p-4">
-          <p className="text-14 font-medium">
-            {missing.length === rows.length
-              ? "No branch has a GSTIN yet."
-              : `${missing.length} ${missing.length === 1 ? "branch has" : "branches have"} no GSTIN.`}
-          </p>
-          <p className="text-13">
+        <Notice
+          tone="warn"
+          title={
+            missing.length === rows.length
+              ? "No office has a GSTIN yet."
+              : `${missing.length} ${missing.length === 1 ? "office has" : "offices have"} no GSTIN.`
+          }
+        >
+          <p>
             The first two digits of the GSTIN say which state is supplying,
             which decides whether an invoice carries CGST and SGST or IGST.
-            Until a branch has one, its invoices can be drafted but not issued.
+            Until an office has one, its invoices can be drafted but not issued.
             If the firm bills everything under a single registration, put that
-            same GSTIN on each branch.
+            same GSTIN on each office.
           </p>
-        </div>
+        </Notice>
       )}
 
-      {message?.ok && (
-        <p
-          role="status"
-          className="rounded-ledger border-filed bg-filed-wash text-13 text-filed border px-3 py-2"
-        >
-          {message.ok}
-        </p>
-      )}
-      {message?.error && (
-        <p
-          role="alert"
-          className="rounded-ledger border-redpen bg-redpen-wash text-13 text-redpen border px-3 py-2"
-        >
-          {message.error}
-        </p>
-      )}
+      <Result message={message} />
 
       {rows.map((branch) => (
         <section
@@ -172,6 +155,6 @@ export default function Branches({ rows }) {
           )}
         </section>
       ))}
-    </div>
+    </SettingsScreen>
   );
 }

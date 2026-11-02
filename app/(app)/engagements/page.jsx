@@ -16,6 +16,10 @@ import { PRIORITIES, STATUSES } from "@/lib/engagements/status";
 import { engagementQuery } from "@/lib/engagements/filter";
 import { atRisk } from "@/lib/engagements/risk";
 import { TIERS, TIER_LABELS } from "@/lib/services/catalog";
+import FilterBar, {
+  FilterSelect,
+  FilterToggle,
+} from "@/components/ui/FilterBar";
 import EngagementViews from "./EngagementViews";
 import SavedViews from "@/components/reports/SavedViews";
 import { listViews } from "../reports/views";
@@ -130,6 +134,20 @@ export default async function EngagementsPage({ searchParams }) {
     ...new Set(engagements.map((e) => e.period).filter(Boolean)),
   ].sort((a, b) => b.localeCompare(a));
 
+  // which of the filters behind "More filters" are on, so the disclosure
+  // can open itself and say how many are hiding in there
+  const extraCount = [
+    "service",
+    "period",
+    "tier",
+    "priority",
+    "branch",
+    "group",
+  ].filter((key) => params[key]).length;
+  const filtered = Object.entries(params).some(
+    ([key, value]) => value && key !== "view" && key !== "page",
+  );
+
   const exportParams = new URLSearchParams(
     Object.entries(params).filter(
       ([key, value]) => value && key !== "view" && key !== "page",
@@ -167,114 +185,96 @@ export default async function EngagementsPage({ searchParams }) {
         </div>
       </div>
 
-      <form
-        method="get"
-        className="rounded-ledger border-rule bg-surface grid gap-3 border p-3 sm:grid-cols-2 lg:grid-cols-6"
+      <FilterBar
+        action="/engagements"
+        label="Client or engagement code"
+        placeholder="ABC Traders, NOI-GSTR3B-…"
+        value={search}
+        active={filtered}
+        extraCount={extraCount}
+        hidden={<input type="hidden" name="view" value={view} />}
+        primary={
+          <>
+            <FilterSelect
+              label="Status"
+              name="status"
+              value={params.status}
+              options={STATUSES}
+            />
+            <FilterSelect
+              label="Due"
+              name="due"
+              value={params.due}
+              options={[
+                ["overdue", "Overdue"],
+                ["today", "Due today"],
+                ["week", "Next 7 days"],
+                ["month", "Next 30 days"],
+              ]}
+            />
+            <FilterSelect
+              label="Assignee"
+              name="assignee"
+              value={params.assignee}
+              empty="Anyone"
+              options={team.map((u) => [String(u._id), u.name])}
+            />
+          </>
+        }
+        toggles={
+          <>
+            <FilterToggle name="mine" on={Boolean(params.mine)}>
+              Only mine
+            </FilterToggle>
+            <FilterToggle name="closed" on={Boolean(params.closed)}>
+              Include closed
+            </FilterToggle>
+          </>
+        }
       >
-        <input type="hidden" name="view" value={view} />
-        <label className="flex flex-col gap-1 lg:col-span-2">
-          <span className="text-13 text-ink-muted font-medium">
-            Client or engagement code
-          </span>
-          <input
-            name="q"
-            defaultValue={search}
-            placeholder="ABC Traders, NOI-GSTR3B-…"
-            className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
-          />
-        </label>
-        <Filter
-          label="Status"
-          name="status"
-          value={params.status}
-          options={STATUSES.map((s) => [s, s])}
-        />
-        <Filter
+        <FilterSelect
+          block
           label="Service"
           name="service"
           value={params.service}
           options={templates.map((t) => [String(t._id), t.name])}
         />
-        <Filter
+        <FilterSelect
+          block
           label="Period"
           name="period"
           value={params.period}
-          options={periods.map((p) => [p, p])}
+          options={periods}
         />
-        <Filter
-          label="Due"
-          name="due"
-          value={params.due}
-          options={[
-            ["overdue", "Overdue"],
-            ["today", "Today"],
-            ["week", "Next 7 days"],
-            ["month", "Next 30 days"],
-          ]}
-        />
-        <Filter
+        <FilterSelect
+          block
           label="Tier"
           name="tier"
           value={params.tier}
           options={TIERS.map((t) => [t, TIER_LABELS[t]])}
         />
-        <Filter
+        <FilterSelect
+          block
           label="Priority"
           name="priority"
           value={params.priority}
-          options={PRIORITIES.map((p) => [p, p])}
+          options={PRIORITIES}
         />
-        <Filter
+        <FilterSelect
+          block
           label="Branch"
           name="branch"
           value={params.branch}
           options={branches.map((b) => [String(b._id), b.code])}
         />
-        <Filter
-          label="Assignee"
-          name="assignee"
-          value={params.assignee}
-          options={team.map((u) => [String(u._id), u.name])}
-        />
-        <Filter
+        <FilterSelect
+          block
           label="Group"
           name="group"
           value={params.group}
           options={groups.map((g) => [String(g._id), g.name])}
         />
-        <div className="flex flex-wrap items-end gap-3 lg:col-span-2">
-          <label className="text-13 flex items-center gap-2">
-            <input
-              type="checkbox"
-              name="mine"
-              value="1"
-              defaultChecked={Boolean(params.mine)}
-            />
-            Only mine
-          </label>
-          <label className="text-13 flex items-center gap-2">
-            <input
-              type="checkbox"
-              name="closed"
-              value="1"
-              defaultChecked={Boolean(params.closed)}
-            />
-            Include closed
-          </label>
-          <button
-            type="submit"
-            className="rounded-control border-rule bg-sunk text-14 text-ink h-9 border px-3 font-medium"
-          >
-            Filter
-          </button>
-          <Link
-            href="/engagements"
-            className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3 leading-9"
-          >
-            Clear
-          </Link>
-        </div>
-      </form>
+      </FilterBar>
 
       <SavedViews
         reportKey="engagements"
@@ -304,25 +304,5 @@ export default async function EngagementsPage({ searchParams }) {
         )}
       />
     </div>
-  );
-}
-
-function Filter({ label, name, value = "", options }) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-13 text-ink-muted font-medium">{label}</span>
-      <select
-        name={name}
-        defaultValue={value}
-        className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
-      >
-        <option value="">Any</option>
-        {options.map(([v, text]) => (
-          <option key={v} value={v}>
-            {text}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }

@@ -9,6 +9,7 @@ import { WORD_KEYS } from "@/lib/firm/words";
 import { FirmWide } from "@/components/shell/ViewNote";
 import { Panel } from "@/components/dashboard/Tiles";
 import Words from "./Words";
+import SettingsScreen from "../Shell";
 
 export const metadata = { title: "Customise · PHMG" };
 export const dynamic = "force-dynamic";
@@ -69,17 +70,11 @@ export default async function CustomisePage() {
   ];
 
   return (
-    <div className="mx-auto flex max-w-[1000px] flex-col gap-6 p-4 md:p-6">
-      <div>
-        <h1 className="font-display text-24 font-bold tracking-tight">
-          Customise
-        </h1>
-        <p className="text-13 text-ink-muted max-w-[72ch]">
-          Fitting the software to the firm, without a developer. Everything here
-          is a setting.
-        </p>
-        <FirmWide />
-      </div>
+    <SettingsScreen
+      title="Customise"
+      sub="Fitting the software to the firm, without a developer. Everything here is a setting."
+    >
+      <FirmWide />
 
       <Panel
         title="Words your firm uses"
@@ -177,6 +172,6 @@ export default async function CustomisePage() {
           </li>
         </ul>
       </Panel>
-    </div>
+    </SettingsScreen>
   );
 }

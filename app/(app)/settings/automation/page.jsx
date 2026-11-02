@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/auth";
 import { can } from "@/lib/permissions";
@@ -16,6 +15,7 @@ import {
 } from "@/lib/mailer/gate";
 import { FirmWide } from "@/components/shell/ViewNote";
 import AutomationBoard from "./AutomationBoard";
+import SettingsScreen from "../Shell";
 
 export const metadata = { title: "Automatic messages · PHMG" };
 export const dynamic = "force-dynamic";
@@ -63,24 +63,12 @@ export default async function AutomationPage() {
     }));
 
   return (
-    <div className="mx-auto flex max-w-[1000px] flex-col gap-6 p-4 md:p-6">
-      <div>
-        <Link
-          href="/settings"
-          className="text-13 text-ink-muted underline underline-offset-4"
-        >
-          Settings
-        </Link>
-        <h1 className="font-display text-24 font-bold tracking-tight">
-          Automatic messages
-        </h1>
-        <p className="text-14 text-ink-muted max-w-[70ch]">
-          A rule that writes to clients does not reach them until somebody has
-          either approved the batch or decided the rule can be trusted. What
-          went out, and what did not, is kept below for good.
-        </p>
-        <FirmWide />
-      </div>
+    <SettingsScreen
+      wide
+      title="Automatic messages"
+      sub="A rule that writes to clients does not reach them until somebody has either approved the batch or decided the rule can be trusted. What went out, and what did not, is kept below for good."
+    >
+      <FirmWide />
 
       <AutomationBoard
         queued={queued.map(shapeBatch)}
@@ -100,7 +88,7 @@ export default async function AutomationPage() {
           quietUntil: QUIET_UNTIL_HOUR,
         }}
       />
-    </div>
+    </SettingsScreen>
   );
 }
 

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireUser } from "@/auth";
 import { can } from "@/lib/permissions";
 import Migration from "./Migration";
+import SettingsScreen from "../Shell";
 
 export const metadata = { title: "Bringing data in · PHMG" };
 export const dynamic = "force-dynamic";
@@ -21,17 +22,10 @@ export default async function MigrationPage() {
   if (!can(actor, "edit", "usersSettings")) redirect("/issues");
 
   return (
-    <div className="mx-auto flex max-w-[1000px] flex-col gap-6 p-4 md:p-6">
-      <div>
-        <h1 className="font-display text-24 font-bold tracking-tight">
-          Bringing data in
-        </h1>
-        <p className="text-13 text-ink-muted">
-          For go-live. Do it in this order: the team, then the clients, then
-          what each client owed you on the day you switch over.
-        </p>
-      </div>
-
+    <SettingsScreen
+      title="Bringing data in"
+      sub="For go-live. Do it in this order: the team, then the clients, then what each client owed you on the day you switch over."
+    >
       <ol className="rounded-ledger border-rule bg-surface text-14 flex flex-col gap-2 border p-4">
         <li>
           <strong>1. The team</strong> — below. Each person gets a one-time
@@ -51,6 +45,6 @@ export default async function MigrationPage() {
       </ol>
 
       <Migration />
-    </div>
+    </SettingsScreen>
   );
 }

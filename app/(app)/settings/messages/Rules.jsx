@@ -4,6 +4,7 @@ import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { saveRule } from "./actions";
+import { Result } from "@/components/ui/Notice";
 
 /**
  * The switches behind every message (spec section 12).
@@ -29,22 +30,7 @@ export default function Rules({ rules, mayEdit }) {
         </p>
       </div>
 
-      {message?.ok && (
-        <p
-          role="status"
-          className="rounded-ledger border-filed bg-filed-wash text-13 text-filed border px-3 py-2"
-        >
-          {message.ok}
-        </p>
-      )}
-      {message?.error && (
-        <p
-          role="alert"
-          className="rounded-ledger border-redpen bg-redpen-wash text-13 text-redpen border px-3 py-2"
-        >
-          {message.error}
-        </p>
-      )}
+      <Result message={message} />
 
       <div className="rounded-ledger border-rule bg-surface border">
         <ul>

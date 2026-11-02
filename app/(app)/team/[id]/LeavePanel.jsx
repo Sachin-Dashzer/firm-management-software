@@ -4,7 +4,8 @@ import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { recordLeave, cancelLeave } from "../actions";
+import Chip from "@/components/ui/Chip";
+import { markLeave, withdrawLeave } from "../leave/actions";
 
 /**
  * Leave, and who holds the work while it lasts (P3-16).
@@ -74,21 +75,48 @@ export default function LeavePanel({
             {rows.map((row) => (
               <li key={row.id} className="flex flex-col gap-1 px-3 py-2">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="text-14">
-                    {row.from} – {row.to}
-                    {row.kind === "Exam leave" ? " · exam leave" : ""}
-                    {row.now ? " · away now" : row.past ? " · past" : ""}
+                  <span className="text-14 flex flex-wrap items-center gap-2">
+                    <span className="num">
+                      {row.from} – {row.to}
+                    </span>
+                    <Chip
+                      tone={
+                        row.status === "Approved"
+                          ? "good"
+                          : row.status === "Declined"
+                            ? "late"
+                            : "soon"
+                      }
+                    >
+                      {row.status}
+                    </Chip>
+                    {row.kind === "Exam leave" && (
+                      <Chip tone="info">Exam leave</Chip>
+                    )}
+                    <span className="text-13 text-ink-muted">
+                      {row.now ? "away now" : row.past ? "past" : ""}
+                    </span>
                   </span>
                   <span className="text-13 text-ink-muted">
-                    covered by <strong>{row.cover}</strong>
+                    {row.cover ? (
+                      <>
+                        covered by <strong>{row.cover}</strong>
+                      </>
+                    ) : (
+                      <span className="text-waiting">no cover named</span>
+                    )}
                   </span>
                 </div>
                 {row.note && (
                   <p className="text-12 text-ink-muted">{row.note}</p>
                 )}
                 <p className="text-12 text-ink-muted">
-                  Recorded by {row.approvedByName || "a partner"}
-                  {row.approvedOn ? ` on ${row.approvedOn}` : ""}
+                  {row.status === "Pending"
+                    ? "Waiting on a CA or a partner."
+                    : `${row.status} by ${row.approvedByName || "a partner"}${
+                        row.approvedOn ? ` on ${row.approvedOn}` : ""
+                      }`}
+                  {row.decisionNote ? ` — ${row.decisionNote}` : ""}
                 </p>
                 {mayEdit && !row.past && (
                   <div>
@@ -96,7 +124,7 @@ export default function LeavePanel({
                       <form
                         onSubmit={saving((formData) =>
                           run(() =>
-                            cancelLeave(row.id, formData.get("reason")),
+                            withdrawLeave(row.id, formData.get("reason")),
                           ),
                         )}
                         className="flex flex-wrap items-end gap-2"
@@ -165,7 +193,12 @@ export default function LeavePanel({
 
           <form
             onSubmit={saving((formData) =>
-              run(() => recordLeave(id, formData)),
+              run(() => {
+                // `markLeave` takes the person off the form, so the one
+                // action serves this panel and the leave board both
+                formData.set("userId", id);
+                return markLeave(null, formData);
+              }),
             )}
             className="flex flex-col gap-3"
           >
@@ -251,7 +284,11 @@ export default function LeavePanel({
         </section>
       ) : (
         <p className="text-13 text-ink-muted">
-          A partner records leave, and recording it is the approval.
+          A CA or a partner decides leave. Applying for your own is on{" "}
+          <Link href="/team/leave" className="underline underline-offset-4">
+            the leave board
+          </Link>
+          .
         </p>
       )}
     </div>

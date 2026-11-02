@@ -183,6 +183,44 @@ export const SAMPLE_PEOPLE = [
       leaveTaken: 11,
     },
   },
+  {
+    key: "accounts-noida",
+    name: "Meenakshi Rawat",
+    email: `meenakshi.rawat@${SAMPLE_DOMAIN}`,
+    mobile: "9910774526",
+    role: "accounts",
+    branches: ["NOI"],
+    reportsTo: null,
+    joiningDate: "2020-11-16",
+    skills: ["Billing", "Receipts", "Client ledgers"],
+  },
+  {
+    // the fourth office has staff too, or the office filter has a choice
+    // that finds nobody
+    key: "emp-meerut",
+    name: "Vikas Tyagi",
+    email: `vikas.tyagi@${SAMPLE_DOMAIN}`,
+    mobile: "9897331205",
+    role: "employee",
+    branches: ["MRT"],
+    reportsTo: "ca-noida",
+    joiningDate: "2024-04-15",
+    skills: ["GST returns", "TDS returns"],
+  },
+  {
+    // somebody whose account is switched off: an inactive row to read, and
+    // something for the Working here / Switched off filter to separate
+    key: "emp-switched-off",
+    name: "Nisha Dhingra",
+    email: `nisha.dhingra@${SAMPLE_DOMAIN}`,
+    mobile: "9818290447",
+    role: "employee",
+    branches: ["DEL"],
+    reportsTo: "ca-noida",
+    joiningDate: "2021-09-06",
+    skills: ["ITR", "Bookkeeping"],
+    active: false,
+  },
 ];
 
 /**
@@ -1042,6 +1080,7 @@ export async function seedSample(options = {}) {
               `sample-not-a-real-password-${person.key}`,
             ),
             mustChangePassword: true,
+            active: person.active !== false,
             isIntern: person.role === "intern",
             icai: person.icai
               ? {

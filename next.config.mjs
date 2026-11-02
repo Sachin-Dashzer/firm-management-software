@@ -2,6 +2,15 @@ import { withSentryConfig } from "@sentry/nextjs/config";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  /**
+   * The end-to-end suite builds and starts its own server while a `next dev`
+   * is usually still running. Sharing `.next` meant `next build` deleting
+   * files out from under dev's compiler, which surfaced as ENOENT on
+   * `.next/static/development/_buildManifest.js.tmp.*`. The suite sets this
+   * so the two never touch the same directory, the same way it already has a
+   * port of its own (`playwright.config.mjs`).
+   */
+  distDir: process.env.PHMG_DIST_DIR ?? ".next",
   experimental: {
     /**
      * `import { Bell } from "@phosphor-icons/react"` pulls the whole barrel —

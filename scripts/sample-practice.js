@@ -77,6 +77,8 @@ export async function seedPractice({ log = () => {} } = {}) {
   const shalini = by("shalini");
   const gurpreet = by("gurpreet");
   const ananya = by("ananya");
+  const meenakshi = by("meenakshi");
+  const vikas = by("vikas");
 
   const clients = await Client.find({ tags: "sample" })
     .select("_id legalName branchId")
@@ -1250,17 +1252,28 @@ export async function seedPractice({ log = () => {} } = {}) {
     },
     { person: ritika, what: "Partner review and sign-off queue", minutes: 90 },
     { person: gurpreet, what: "Collecting salary documents", minutes: 240 },
+    { person: meenakshi, what: "Raising bills and receipts", minutes: 300 },
+    { person: meenakshi, what: "Chasing outstanding", minutes: 120 },
+    { person: vikas, work: gstWork, what: "GSTR-1 upload", minutes: 270 },
+    { person: vikas, what: "Document collection", minutes: 150 },
   ];
 
-  const haveTime = await TimeEntry.countDocuments({
-    userId: { $in: people.map((p) => p._id) },
-  });
-  if (haveTime === 0) {
+  // per person, so a colleague added to the list later gets their own weeks
+  // filled in without rewriting anybody else's
+  const timed = new Set(
+    (
+      await TimeEntry.distinct("userId", {
+        userId: { $in: people.map((p) => p._id) },
+      })
+    ).map(String),
+  );
+  if (timed.size < people.length) {
     const entries = [];
-    for (let dayAgo = 20; dayAgo >= 0; dayAgo -= 1) {
+    for (let dayAgo = 45; dayAgo >= 0; dayAgo -= 1) {
       const on = fwd(today, -dayAgo);
       if (on.getDay() === 0) continue; // the firm does not sit on Sunday
       for (const shape of TIME_SHAPE) {
+        if (timed.has(String(shape.person._id))) continue;
         if ((dayAgo + shape.minutes) % 3 === 0) continue;
         const wobble = ((dayAgo * 37 + shape.minutes) % 5) - 2;
         entries.push({
@@ -1276,11 +1289,18 @@ export async function seedPractice({ log = () => {} } = {}) {
         });
       }
     }
-    await systemAudit(async (session) => {
-      await TimeEntry.create(entries, { session, ordered: true });
-    });
-    bump("timeEntries", entries.length);
-    log(`time    ${entries.length} entries over the last three weeks`);
+    // in batches: six weeks of entries for nine people is more than one
+    // Atlas transaction will carry, and it aborted the whole seed
+    for (let at = 0; at < entries.length; at += 60) {
+      const batch = entries.slice(at, at + 60);
+      await systemAudit(async (session) => {
+        await TimeEntry.create(batch, { session, ordered: true });
+      });
+    }
+    if (entries.length) {
+      bump("timeEntries", entries.length);
+      log(`time    ${entries.length} entries over the last six weeks`);
+    }
   }
 
   // --- the firm's own day: leave ------------------------------------------
@@ -1320,6 +1340,24 @@ export async function seedPractice({ log = () => {} } = {}) {
       note: "Family trip, tickets booked.",
       approved: 2,
     },
+    {
+      // applied for, nobody suggested: the approve form has to name a cover
+      person: gurpreet,
+      cover: null,
+      fromDays: 5,
+      toDays: 6,
+      kind: "Leave",
+      note: "Sister's convocation in Patiala.",
+    },
+    {
+      person: ankit,
+      cover: shalini,
+      fromDays: 9,
+      toDays: 13,
+      kind: "Leave",
+      note: "Want the Diwali week off.",
+      declined: "Three GST returns fall in that week. Take it after the 20th.",
+    },
   ];
   for (const row of LEAVES) {
     const from = fwd(today, row.fromDays);
@@ -1332,13 +1370,21 @@ export async function seedPractice({ log = () => {} } = {}) {
             from,
             to: fwd(today, row.toDays),
             kind: row.kind,
-            coverId: row.cover._id,
+            coverId: row.cover?._id ?? null,
             note: row.note,
-            ...(row.approved
+            // the three states the board shows: waiting on a partner,
+            // agreed, and turned down with a reason
+            status: row.declined
+              ? "Declined"
+              : row.approved
+                ? "Approved"
+                : "Pending",
+            ...(row.declined ? { decisionNote: row.declined } : {}),
+            ...(row.approved || row.declined
               ? {
                   approvedBy: String(partner._id),
                   approvedByName: partner.name,
-                  approvedAt: back(now, row.approved),
+                  approvedAt: back(now, row.approved ?? 1),
                 }
               : {}),
             createdBy: "sample",

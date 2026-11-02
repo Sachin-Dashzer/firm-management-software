@@ -43,12 +43,21 @@ const SCREENS = [
   ["issues", "/issues"],
   ["today", "/today"],
   ["clients", "/clients"],
+  ["team", "/team"],
   ["engagements", "/engagements"],
   ["invoices", "/invoices"],
   ["dashboard", "/dashboard"],
   ["desk", "/billing/desk"],
   ["reports", "/reports"],
   ["settings", "/settings"],
+  // the settings area, redrawn D106: the index, the two widest tables, the
+  // two reading screens and one form
+  ["settings-setup", "/settings/setup"],
+  ["settings-services", "/settings/services"],
+  ["settings-permissions", "/settings/permissions"],
+  ["settings-due-dates", "/settings/due-dates"],
+  ["settings-messages", "/settings/messages"],
+  ["settings-icai", "/settings/icai"],
 ];
 
 const args = process.argv.slice(2);

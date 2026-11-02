@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireUser } from "@/auth";
 import { can } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import ServiceTemplate from "@/models/ServiceTemplate";
 import ServiceForm from "../ServiceForm";
+import SettingsScreen from "../../Shell";
 
 export const metadata = { title: "Edit service · PHMG" };
 
@@ -49,20 +49,17 @@ export default async function EditServicePage({ params }) {
   };
 
   return (
-    <div className="mx-auto flex max-w-[900px] flex-col gap-6 p-4 md:p-6">
-      <div>
-        <Link
-          href="/settings/services"
-          className="text-13 text-ink-muted underline underline-offset-4"
-        >
-          Services
-        </Link>
-        <h1 className="font-display text-24 font-bold tracking-tight">
-          {service.name}
-        </h1>
-        <p className="text-13 text-ink-muted font-mono">{service.code}</p>
-      </div>
+    <SettingsScreen
+      title={service.name}
+      sub={
+        <>
+          <span className="num">{service.code}</span> · editing this makes a new
+          version, and a job already open keeps the version it started on.
+        </>
+      }
+      back={{ href: "/settings/services", label: "Services" }}
+    >
       <ServiceForm service={service} />
-    </div>
+    </SettingsScreen>
   );
 }

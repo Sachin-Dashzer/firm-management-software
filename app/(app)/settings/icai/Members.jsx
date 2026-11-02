@@ -4,6 +4,7 @@ import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { CPE_BASIS_LABELS } from "@/lib/firm/profile";
 import { addCpe, removeCpe, saveMemberIcai } from "./actions";
+import { Result } from "@/components/ui/Notice";
 
 /**
  * Each member's membership, and their CPE log.
@@ -87,22 +88,7 @@ function Member({ member, firm }) {
         )}
       </div>
 
-      {message?.ok && (
-        <p
-          role="status"
-          className="rounded-ledger border-filed bg-filed-wash text-13 text-filed border px-3 py-2"
-        >
-          {message.ok}
-        </p>
-      )}
-      {message?.error && (
-        <p
-          role="alert"
-          className="rounded-ledger border-redpen bg-redpen-wash text-13 text-redpen border px-3 py-2"
-        >
-          {message.error}
-        </p>
-      )}
+      <Result message={message} />
 
       {/* --- the position, year by year --- */}
       {member.years.length === 0 ? (

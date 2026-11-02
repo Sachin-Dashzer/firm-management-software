@@ -151,7 +151,7 @@ describe("the sample colleagues", () => {
 
   it("has somebody in each office the firm actually has", () => {
     const offices = new Set(SAMPLE_PEOPLE.flatMap((p) => p.branches));
-    expect([...offices].sort()).toEqual(["DEL", "LDH", "NOI"]);
+    expect([...offices].sort()).toEqual(["DEL", "LDH", "MRT", "NOI"]);
   });
 });
 

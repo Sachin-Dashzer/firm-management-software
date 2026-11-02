@@ -144,6 +144,9 @@ export default function NewPerson({ branches, seniors }) {
                 max={24}
               />
 
+              {/* the one fact about somebody that cannot be worked out later */}
+              <Field label="Joined the firm" name="joiningDate" type="date" />
+
               {role === "intern" && (
                 <>
                   <Field label="ICAI registration no." name="icaiRegNo" />

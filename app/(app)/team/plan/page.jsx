@@ -7,6 +7,7 @@ import User from "@/models/User";
 import Client from "@/models/Client";
 import Engagement from "@/models/Engagement";
 import Leave from "@/models/Leave";
+import { APPROVED_LEAVE } from "@/lib/team/leave";
 import ServiceTemplate from "@/models/ServiceTemplate";
 import { CLOSED_STATUSES } from "@/lib/engagements/status";
 import { planFor, weeksFrom } from "@/lib/team/plan";
@@ -67,6 +68,7 @@ export default async function PlanPage({ searchParams }) {
    * covering whom right now".
    */
   const leaves = await Leave.find({
+    ...APPROVED_LEAVE,
     userId: { $in: people.map((row) => row._id) },
     from: { $lt: chosen.end },
     to: { $gte: chosen.start },

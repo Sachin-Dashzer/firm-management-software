@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Rules from "./Rules";
+import SettingsScreen from "../Shell";
 
 /**
  * What the system is sending, and whether it is reaching anyone.
@@ -19,16 +20,11 @@ export default function Messages({
   status,
 }) {
   return (
-    <div className="mx-auto flex max-w-[1200px] flex-col gap-5 p-4 md:p-6">
-      <div>
-        <h1 className="font-display text-24 font-bold tracking-tight">
-          Messages
-        </h1>
-        <p className="text-13 text-ink-muted">
-          Everything the system has sent, and everything it has held back.
-        </p>
-      </div>
-
+    <SettingsScreen
+      wide
+      title="Email and WhatsApp"
+      sub="Everything the system has sent, and everything it has held back."
+    >
       <section
         className={`rounded-ledger border p-4 ${
           settings.clientsEnabled
@@ -151,7 +147,7 @@ export default function Messages({
       </div>
 
       <Rules rules={rules} mayEdit={mayEdit} />
-    </div>
+    </SettingsScreen>
   );
 }
 

@@ -4296,3 +4296,295 @@ fix.
 `next build` all pass; all four compliance routes compile. The overview
 was rendered with real markup and the compiled stylesheet and
 photographed in both themes against page 3 of the reference.
+
+## The team list, reworked (owner request, 01-11-2026)
+
+Four things the owner asked for on `/team`, in their order.
+
+### 1. The filters did not work
+
+Three faults, and all three were there twice — once in `page.jsx` and once
+in `export/route.js`, which is the usual fate of a filter written out by
+hand in two places. They are now decided once, in `lib/team/filters.js`,
+which both ask.
+
+**The office filter widened access.** `query.branchIds = { $in: [wantBranch] }`
+was assigned *after* the branch-scope line, so it replaced it: a CA who put
+another office's id in the URL was served that office's people. A filter is
+never allowed to widen access (rule 1), so an office outside what the reader
+may already see is now dropped — and the screen says so rather than silently
+showing something else.
+
+**"Include people who have left" found nobody.** Offboarding soft deletes
+the record, and the soft-delete plugin hides deleted rows from every
+ordinary query — so the one filter whose whole purpose was to show people
+who had gone was the one that could not. It needs `withDeleted`, and now
+asks for it.
+
+**The branch view in the top bar was ignored.** Every other list narrows to
+it; this one read `branchFilter` for its truthiness only and then wrote its
+own scope from the account.
+
+Also: a role or a senior that is not one is dropped rather than queried, and
+the Office dropdown is built from every office the reader may see rather
+than from the one currently filtered to — narrowing it left no way back out.
+
+### 2. Active and inactive
+
+The checkbox is now three choices above the table — **Working here ·
+Switched off · Everyone** — each with its count, because "nobody matches
+those filters" does not tell a partner that two people are switched off.
+They are links, so the choice is in the URL and one click, and they carry
+the other three filters with them.
+
+A partner can switch an account off, or back on, **from the row**: the same
+`setUserActive` the admin tab uses, so the rules and the audit entry are
+unchanged. Switching off asks first (it signs the person out on their next
+request); switching on does not, because it undoes rather than does. Your
+own row says "You", and an offboarded one offers nothing — that is a soft
+delete, not a switch.
+
+The row's own mark is a chip beside the name, **Switched off** or
+**Offboarded**, because a dimmed name is not a statement and a CA reading
+the list has no Account column to read it from.
+
+### 3. The joining date
+
+It was on the record, in the export and on three read-only screens, and
+there was **nowhere to set it**: everybody the seed script made had one and
+nobody added since could. It is now a date box on the new-person form and on
+the admin tab, and a column on the list — the date in the ledger face with
+the tenure under it (`6 yrs 4 mo`), which is the figure somebody actually
+wants off a team list.
+
+`istDayFromInput` in `lib/dates.js` is the inverse of `istInputDate` and the
+reason the date does not drift: `new Date("2019-06-17")` is UTC midnight,
+which is 05:30 IST — right-looking and a day wrong as soon as anything
+shifts it. It also refuses `2026-02-31` and `0219-06-17`, which both parse.
+
+### 4. The screen itself
+
+It was the last list still writing its own header band and its own loose row
+of filters. It now uses what the other screens use: `PageHead`, the
+clients-page filter card, `Segmented`, `Chip`, and `Th`/`Td` on the house
+table. Plus the left rail's monogram at row size, two-line cells for the
+date and for 2FA, the A·B·C and 2FA columns hidden below `lg` so there is
+less to scroll on a laptop, numbers right-aligned on the ledger grid, and a
+row hover.
+
+The stale line at the foot of the page — "A/B/C tier counts per person
+arrive with the hierarchy work in the next step" — is gone; they arrived in
+P3 and the column has been printing them for weeks.
+
+### Checks
+
+`npx eslint .`, `npx vitest run` (90 files, 1,799 tests) and `next build`
+all pass. 13 new assertions: `tests/team.test.js` on the filter — including
+the two faults above, each named — and `tests/dates.test.js` on the date
+box.
+
+**Not done: the screen was not photographed.** Four attempts at a throwaway
+Playwright pass were spent on the harness rather than the page (a
+transactional `create` needing `ordered: true`, a fixture that pre-enrolled
+2FA with no secret, a stale `.next`, then a `beforeAll` that timed out), and
+the honest statement is that the layout is built from components already
+verified elsewhere and has not been looked at. `scripts/shots.mjs` now
+lists `team`, so `node scripts/shots.mjs team` photographs it in both themes
+against a running dev server.
+
+## Leave: an application, not an announcement (owner request, 01-11-2026)
+
+`/team/leave` was one list of leave rows with a form under it. It is now
+two tabs — **Leave** and **Attendance** — and leave has a decision in the
+middle of it.
+
+### The reversal
+
+On 27-10-2026 this log recorded that *recording* leave was the approval:
+only a partner could write a row, so a row meant the leave was agreed.
+That is no longer what the firm wants. A `status` field now carries
+`Pending`, `Approved` or `Declined`; `coverId` is no longer required on
+write, because somebody applying for leave has not been given a cover yet.
+
+Rows written before today have no `status`. The shared filter is
+`{ status: { $nin: ["Pending", "Declined"] } }`, which matches a missing
+field, so every old row still counts as approved and no history moved.
+
+### Who decides
+
+Two new areas in `lib/permissions.js`:
+
+- `leave` — everybody `edit/own`; a partner `edit/all`, a CA `edit/branch`.
+- `leaveApprove` — a partner `approve/all`, a CA `approve/branch`, nobody
+  else at all.
+
+You apply only for yourself. You do not decide your own application —
+except a partner, because in a one-partner firm the partner's own leave
+could otherwise never be approved, and a rule nobody can satisfy is worse
+than no rule. A CA decides only for people in their own branches.
+
+### Tab 1 — Leave
+
+**Waiting on you** sits first: who, which dates, how many days, and the
+reason in full. Under each one, the jobs that fall due while they are away.
+
+**Approve** is one form doing two things — name the cover, and tick which
+of those jobs go to them. Ticked by default; the handover is the point of
+the approval, not a second errand. It calls the existing `reassign` action
+once per engagement, so the tier rules and the audit entries are the same
+as any other reassignment, and a job the rules refuse is reported back
+while the rest still move. That work runs **outside** the leave
+transaction: a refused reassignment must not roll back an approval the
+partner has already given.
+
+**Decline** requires a reason of its own, and the applicant sees it.
+
+Below: **Away now**, **Coming up** (30 days) and **Declined**. At the foot,
+two forms — *Apply for leave* for anybody, and *Mark somebody's leave* for
+a CA or partner, which writes straight to Approved with a cover, for the
+leave that arrives as a phone call on a Sunday.
+
+### Tab 2 — Attendance
+
+A month grid, person down the side and day across. Each cell is a mark, not
+a colour fill: a filled square for a day worked at three weights by the
+hours on it, a hatched square for approved leave, the page's sunk ground
+for a weekend, a 1px rule for nothing recorded.
+
+That last one is deliberate. **There is no clock-in in this system.** A day
+with nothing on it means nobody filed time, which is not the same as
+somebody being absent, and printing "absent" against a colleague's name on
+the strength of a forgotten timesheet would put a false statement in the
+firm's own record. The legend says so on the screen. Logged time beats
+leave in the same cell, because a person who worked through their leave
+worked.
+
+Built from `timeEntries` (`minutes > 0`) and approved leave, both already
+in the database. The owner chose this over a new attendance collection.
+
+### The bug this turned up
+
+Four screens and the mailer read a Leave row as *this person is away*:
+Issues (whose rows a cover is shown), the week plan (capacity), the
+take-over page, and `peopleFor` in `lib/mailer/notify.js` (who is copied).
+An applicant may **suggest** a cover, so a pending row can carry a
+`coverId` — which would have handed a colleague's issues and their mail to
+somebody over leave nobody had approved. All five call sites now spread the
+same `APPROVED_LEAVE` filter.
+
+Also fixed: `withdrawLeave` wrote `ACTIONS.delete`, which does not exist —
+the key is `softDelete` — so withdrawing leave logged an audit entry with
+no action in it. Inherited from the old `cancelLeave`; grep confirms it was
+the only one.
+
+### Tidying
+
+`recordLeave` and `cancelLeave` are gone from `app/(app)/team/actions.js`.
+The person page's Leave panel and the board now call the same four actions
+in `app/(app)/team/leave/actions.js`, so there is one set of rules rather
+than two. The panel shows status chips and a CA can use it. Nav label is
+now "Leave and attendance".
+
+### Not done
+
+No tests, no screenshots, no lint-at-scale — the owner asked for logic and
+UI only on this pass, with verification collected at the end. `next build`
+was run once (compiles; `/team/leave` 5.39 kB) because handing over a
+screen that 500s is not faster for anybody. The attendance grid scrolls
+sideways at 390px and has not been looked at on a phone.
+
+## The settings area, redrawn (owner request, 01-11-2026)
+
+Twenty screens live under `/settings`. They were built one per step over
+several months and it showed: between them they named **seven different
+page widths** — 760, 860, 900, 1000, 1100, 1200 — so the area changed
+shape as you moved through it, and **nineteen of them wrote the same
+`<h1 className="font-display text-24 font-bold tracking-tight">` out by
+hand** while `PageHead` had existed for exactly that since D104. Three of
+the twenty had a link back to Settings. The other seventeen were dead
+ends: once you were on the jobs queue, the only way back was the browser.
+
+### One frame
+
+`app/(app)/settings/Shell.jsx` is the frame now, and it carries **two
+widths because the area does two jobs**:
+
+- `read` (820) for prose and forms — the setup steps, what the system
+  covers, the firm's record. Seventy characters of text in a 1,100px
+  column leaves a third of the screen empty.
+- `wide` (1120) for the tables and boards — the permission matrix, the
+  message log, the catalogue, the jobs queue.
+
+Anything else is the same decision made twice. Every screen also gets the
+way out that seventeen of them lacked.
+
+Afterwards: no hand-written `<h1>` anywhere under `/settings`, and no
+page-level `max-w-[...]` either. The five screens whose header lived
+inside a client component (`Branches`, `JobsAdmin`, `Messages`,
+`TemplateAdmin`, `DueDates`) use the same frame as the server pages.
+
+### The index reads the records
+
+The Settings page was twenty-two bordered cards — a heading and two lines
+of prose each, all the same size, in five stacks. That is the shape a page
+takes when every step that adds a screen also adds a card, and a container
+per link says nothing about the link. **You could read the whole page and
+not know that no due-date rule had been confirmed** — the condition that
+leaves every statutory deadline in the system blank.
+
+Each row now carries the one figure that decides whether it is worth
+opening: four offices, fifteen services, eleven rules and none confirmed.
+The readings come from the same `attention.js` checks as the strip at the
+top, matched by href, so a row and the warning above it cannot disagree
+about the same fact; five `countDocuments` on indexed fields cover the
+rest. A row with nothing to report shows nothing, because an index that
+fills every slot is back to being furniture.
+
+`/settings/customise` is on it. That screen was reachable only from the
+coverage page, which is to say not reachable.
+
+### Two more card stacks became rows
+
+The setup page was eight cards and the coverage page another nine. Both
+are `RowList` now — one bordered list, rows divided by a rule, the state
+on the ledger grid at the right. Setup gained the one figure on it worth
+drawing: a progress bar for *n* of eight.
+
+### The permission matrix
+
+Two hundred cells, and most of them say "none". The grants now carry the
+weight and the refusals stay grey — no second colour. The role row and the
+area column stay put while you scroll, which needed the table to become
+its own scroller: `position: sticky` resolves against the nearest
+scrolling ancestor, and `overflow-x-auto` was already making that box one
+horizontally while the page scrolled vertically, so a sticky header would
+have stuck to nothing.
+
+### `Notice` and `Result`
+
+Thirty of those tone-coloured blocks were written out by hand in
+`/settings` alone, each with its own padding and its own idea of whether
+the first line is bold. `components/ui/Notice.jsx` is the one of them.
+
+Under it, `Result` — the twenty lines every form in this application
+wrote to report `{ok}` or `{error}`. That block appears **thirty-seven
+times across the app, byte for byte identical**, and all thirty-seven
+carry the same fault: the tone colour on the text as well as the border.
+A wash is the accent at 12% over an unknown ground, so the accent on it
+measures between 3.99:1 and 4.41:1 — under the bar, which is the thing
+`tests/contrast.test.js` and the comment at the top of `Chip` both say not
+to do. `Result` puts `ink` on the wash, which reads at 16:1 on either
+ground.
+
+**Ten of the thirty-seven are swapped — the ten in `/settings`.** The
+other twenty-seven are identical and outside what was asked for; they are
+a single pass whenever the owner wants it.
+
+### Not done
+
+No tests, no screenshots — logic and UI only on this pass, by the owner's
+instruction. `npx eslint .` is clean and `next build` compiles all twenty
+settings routes. `scripts/shots.mjs` now lists six of them
+(`settings-setup`, `-services`, `-permissions`, `-due-dates`, `-messages`,
+`-icai`), so `node scripts/shots.mjs settings settings-permissions`
+photographs the area in both themes against a running dev server.

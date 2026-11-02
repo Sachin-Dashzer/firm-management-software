@@ -379,6 +379,32 @@ html {
   color-scheme: light dark;
 }
 
+/**
+ * The theme toggle has to reach the browser's own widgets as well as ours.
+ *
+ * `light dark` alone means the parts we do not draw — the option list a
+ * select opens, the scrollbars, the date picker, the caret — follow the
+ * *operating system*, while everything else follows the toggle. Somebody on
+ * a light laptop who switches this application to dark was opening a white
+ * option list over a dark screen, and that list is painted by the browser,
+ * so no amount of styling on the select could reach it. Binding the
+ * property to `data-theme` is what reaches it.
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* The two properties that do carry into a native option list. */
+select,
+option {
+  background-color: var(--surface);
+  color: var(--ink);
+}
+
 body {
   background-color: var(--paper);
   color: var(--ink);

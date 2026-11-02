@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import TierBadge from "@/components/ledger/TierBadge";
 import { setServiceActive } from "./actions";
+import { Result } from "@/components/ui/Notice";
 
 /**
  * The catalog grouped by category, the way the firm thinks about its work,
@@ -34,22 +35,7 @@ export default function CatalogList({ rows, categories, editable }) {
         />
       </label>
 
-      {message?.ok && (
-        <p
-          role="status"
-          className="rounded-ledger border-filed bg-filed-wash text-13 text-filed border px-3 py-2"
-        >
-          {message.ok}
-        </p>
-      )}
-      {message?.error && (
-        <p
-          role="alert"
-          className="rounded-ledger border-redpen bg-redpen-wash text-13 text-redpen border px-3 py-2"
-        >
-          {message.error}
-        </p>
-      )}
+      <Result message={message} />
 
       {categories.map((category) => {
         const group = matches.filter((r) => r.category === category);

@@ -6,7 +6,7 @@ import { connectDB } from "@/lib/db";
 import User from "@/models/User";
 import Leave from "@/models/Leave";
 import { handoverRows } from "@/lib/team/handover";
-import { coversDay } from "@/lib/team/leave";
+import { coversDay, APPROVED_LEAVE } from "@/lib/team/leave";
 import { formatISTDate } from "@/lib/dates";
 import TakeOver from "./TakeOver";
 
@@ -48,7 +48,7 @@ export default async function TakeOverPage({ params }) {
 
   const [rows, leaves] = await Promise.all([
     handoverRows(String(id), actor),
-    Leave.find({ userId: id, to: { $gte: new Date() } })
+    Leave.find({ ...APPROVED_LEAVE, userId: id, to: { $gte: new Date() } })
       .sort({ from: 1 })
       .lean(),
   ]);

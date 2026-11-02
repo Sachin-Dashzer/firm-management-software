@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { formatPaise } from "@/lib/money";
 import { TEAM_COLUMNS, teamTemplateRows } from "@/lib/migration/team";
+import { Result } from "@/components/ui/Notice";
 import {
   OPENING_COLUMNS,
   openingTemplateRows,
@@ -101,22 +102,7 @@ function Importer({
         <p className="text-13 text-ink-muted">{what}</p>
       </div>
 
-      {message?.ok && (
-        <p
-          role="status"
-          className="rounded-ledger border-filed bg-filed-wash text-13 text-filed border px-3 py-2"
-        >
-          {message.ok}
-        </p>
-      )}
-      {message?.error && (
-        <p
-          role="alert"
-          className="rounded-ledger border-redpen bg-redpen-wash text-13 text-redpen border px-3 py-2"
-        >
-          {message.error}
-        </p>
-      )}
+      <Result message={message} />
 
       {message?.created && (
         <div className="rounded-ledger border-brass bg-surface border p-3">

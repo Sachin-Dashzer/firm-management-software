@@ -20,8 +20,13 @@ import { Plus } from "@phosphor-icons/react";
  * Keyboard: Down opens it and lands on the first item, Up on the last,
  * arrows move, Escape closes and gives the button its focus back.
  *
+ * **Each row says what it starts.** Ten labels alone do not separate the
+ * things that sound alike — a job, a to-do and a document request are three
+ * different objects — so every row carries a second line. That is also why
+ * the menu is wide: a hint that wraps to three lines is not a hint.
+ *
  * @param {object} props
- * @param {Array<{label: string, href: string}>} props.items
+ * @param {Array<{label: string, hint?: string, href: string}>} props.items
  */
 export default function NewMenu({ items }) {
   const [open, setOpen] = useState(false);
@@ -92,8 +97,10 @@ export default function NewMenu({ items }) {
         }}
         className="rounded-control bg-carbon text-on-carbon text-13 ml-2 flex h-9 shrink-0 items-center gap-1.5 px-3 font-medium"
       >
-        <Plus size={16} weight="bold" />
-        <span className="hidden sm:inline">New</span>
+        <Plus size={16} weight="bold" aria-hidden="true" />
+        {/* `sr-only`, not `hidden`: below sm the word is not drawn, but a
+            button whose whole name is a plus sign is announced as "button" */}
+        <span className="sr-only sm:not-sr-only">New</span>
       </button>
 
       {open && (
@@ -101,7 +108,7 @@ export default function NewMenu({ items }) {
           ref={list}
           role="menu"
           aria-label="Start something new"
-          className="anim-pop rounded-ledger border-rule bg-surface absolute right-0 z-30 mt-1.5 w-56 border p-1.5 shadow-lg"
+          className="anim-pop rounded-ledger border-rule bg-surface absolute right-0 z-30 mt-1.5 max-h-[min(42rem,calc(100dvh-5rem))] w-[21rem] max-w-[calc(100vw-1rem)] overflow-y-auto border p-1.5 shadow-lg"
         >
           {items.map((item) => (
             <Link
@@ -109,9 +116,14 @@ export default function NewMenu({ items }) {
               role="menuitem"
               href={item.href}
               onClick={() => setOpen(false)}
-              className="rounded-control text-14 hover:bg-carbon-wash block px-2 py-1.5"
+              className="rounded-control hover:bg-carbon-wash block px-2.5 py-2"
             >
-              {item.label}
+              <span className="text-14 block font-medium">{item.label}</span>
+              {item.hint && (
+                <span className="text-12 text-ink-muted mt-0.5 block">
+                  {item.hint}
+                </span>
+              )}
             </Link>
           ))}
         </div>

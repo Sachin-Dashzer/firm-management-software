@@ -3,6 +3,7 @@
 import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { approveTemplate, archiveTemplate, saveTemplate } from "./actions";
+import SettingsScreen from "../Shell";
 
 /**
  * Editing and approving the firm's letters (P2-8b).
@@ -36,29 +37,22 @@ export default function TemplateAdmin({
   }
 
   return (
-    <div className="mx-auto flex max-w-[1100px] flex-col gap-5 p-4 md:p-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <div>
-          <h1 className="font-display text-24 font-bold tracking-tight">
-            Document templates
-          </h1>
-          <p className="text-13 text-ink-muted max-w-[70ch]">
-            Letters and certificates the firm writes often. A template makes
-            watermarked drafts until a partner has read the wording and approved
-            it — and editing an approved one takes the approval away again.
-          </p>
-        </div>
-        {mayEdit && (
+    <SettingsScreen
+      wide
+      title="Document templates"
+      sub="Letters and certificates the firm writes often. A template makes watermarked drafts until a partner has read the wording and approved it — and editing an approved one takes the approval away again."
+      actions={
+        mayEdit && (
           <button
             type="button"
             onClick={() => setEditing(editing === "new" ? null : "new")}
-            className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium"
+            className="rounded-control bg-carbon text-14 text-on-carbon hover:bg-carbon-ink h-9 px-3 font-medium"
           >
             {editing === "new" ? "Cancel" : "Add a template"}
           </button>
-        )}
-      </div>
-
+        )
+      }
+    >
       {message && (
         <p
           role={message.error ? "alert" : "status"}
@@ -178,7 +172,7 @@ export default function TemplateAdmin({
           </li>
         ))}
       </ul>
-    </div>
+    </SettingsScreen>
   );
 }
 

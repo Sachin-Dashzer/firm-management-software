@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/auth";
 import { can } from "@/lib/permissions";
 import { firmModules } from "@/lib/firm/settings";
+import SettingsScreen, { RowList, Row } from "../Shell";
 import {
   coveredGroups,
   coverageTotals,
@@ -40,24 +40,16 @@ export default async function CoveragePage() {
   }));
 
   return (
-    <div className="mx-auto flex max-w-[860px] flex-col gap-5 p-4 md:p-6">
-      <div>
-        <Link
-          href="/settings"
-          className="text-13 text-ink-muted underline underline-offset-4"
-        >
-          Settings
-        </Link>
-        <h1 className="font-display text-24 font-bold tracking-tight">
-          What this covers
-        </h1>
-        <p className="text-13 text-ink-muted max-w-[70ch]">
+    <SettingsScreen
+      title="What this covers"
+      sub={
+        <>
           Counted from your own menu, so nothing here is a claim about a screen
           that does not exist. What the system does <em>not</em> do is below,
           with why — most of it is work deliberately not done.
-        </p>
-      </div>
-
+        </>
+      }
+    >
       <section className="flex flex-col gap-2">
         <h2 className="text-13 text-ink-muted font-medium">
           What you can open
@@ -103,29 +95,18 @@ export default async function CoveragePage() {
               <span className="num"> · {bucket.rows.length}</span>
             </h2>
 
-            <ul className="flex flex-col gap-3">
+            <RowList>
               {bucket.rows.map((gap) => (
-                <li
+                <Row
                   key={gap.title}
-                  className="rounded-ledger border-rule bg-surface flex flex-col gap-1 border p-4"
-                >
-                  <h3 className="text-14 font-medium">{gap.title}</h3>
-                  <p className="text-13 text-ink-muted max-w-[70ch]">
-                    {gap.why}
-                  </p>
-                  {gap.route && (
-                    <Link
-                      href={gap.route}
-                      className="text-13 w-fit underline underline-offset-4"
-                    >
-                      The screen that says so
-                    </Link>
-                  )}
-                </li>
+                  href={gap.route || undefined}
+                  title={gap.title}
+                  body={gap.why}
+                />
               ))}
-            </ul>
+            </RowList>
           </section>
         ))}
-    </div>
+    </SettingsScreen>
   );
 }

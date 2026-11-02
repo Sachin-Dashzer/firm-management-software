@@ -11,13 +11,13 @@ import ClientAccess from "@/models/ClientAccess";
 import AuditLog from "@/models/AuditLog";
 import ActivityFeed from "@/components/audit/ActivityFeed";
 import FolderTabs from "@/components/clients/FolderTabs";
-import { formatISTDate } from "@/lib/dates";
+import { formatISTDate, istInputDate } from "@/lib/dates";
 import TierBadge from "@/components/ledger/TierBadge";
 import { SECTION_LABELS } from "@/lib/access/sections";
 import { STATUSES, CLOSED_STATUSES } from "@/lib/engagements/status";
 import { loadFor, groupByStatus, isOverdue } from "@/lib/team/workload";
 import Leave from "@/models/Leave";
-import { LEAVE_KINDS, coversDay } from "@/lib/team/leave";
+import { LEAVE_KINDS, coversDay, statusOf, leaveDays } from "@/lib/team/leave";
 import AdminActions from "./AdminActions";
 import LeavePanel from "./LeavePanel";
 
@@ -215,7 +215,13 @@ export default async function TeamMemberPage({ params, searchParams }) {
           id={String(id)}
           person={person}
           actor={actor}
-          mayEdit={mayAdmin}
+          /* a CA decides their branch's leave now, not only a Partner
+             (owner decision, 01-11-2026) */
+          mayEdit={(person.branchIds ?? []).some((branchId) =>
+            can(actor, "approve", "leaveApprove", {
+              branchId: String(branchId),
+            }),
+          )}
         />
       )}
 
@@ -236,6 +242,7 @@ export default async function TeamMemberPage({ params, searchParams }) {
             branchIds: (person.branchIds ?? []).map(String),
             reportingTo: String(person.reportingTo ?? ""),
             capacityHours: person.capacityHours ?? 8,
+            joiningDate: istInputDate(person.joiningDate),
             chargeRate: Math.round((person.chargeRatePaise ?? 0) / 100),
             skills: (person.skills ?? []).join(", "),
           }}
@@ -299,9 +306,14 @@ async function LeaveTab({ id, person, actor, mayEdit }) {
         from: formatISTDate(row.from),
         to: formatISTDate(row.to),
         kind: row.kind,
+        status: statusOf(row),
+        days: leaveDays(row),
         note: row.note ?? "",
-        cover: coverName.get(String(row.coverId)) ?? "somebody who has left",
-        now: coversDay(row, now),
+        decisionNote: row.decisionNote ?? "",
+        cover: row.coverId
+          ? (coverName.get(String(row.coverId)) ?? "somebody who has left")
+          : "",
+        now: statusOf(row) === "Approved" && coversDay(row, now),
         past: new Date(row.to).getTime() < now.getTime(),
         approvedByName: row.approvedByName ?? "",
         approvedOn: row.approvedAt ? formatISTDate(row.approvedAt) : "",

@@ -3,6 +3,8 @@
 import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Result } from "@/components/ui/Notice";
+import SettingsScreen from "../Shell";
 import {
   extendPeriod,
   removeOverride,
@@ -37,17 +39,11 @@ export default function DueDates({ rows, unverified }) {
   }
 
   return (
-    <div className="mx-auto flex max-w-[1000px] flex-col gap-5 p-4 md:p-6">
-      <div>
-        <h1 className="font-display text-24 font-bold tracking-tight">
-          Statutory due dates
-        </h1>
-        <p className="text-13 text-ink-muted">
-          What the system believes about each deadline — and whether anyone has
-          checked.
-        </p>
-      </div>
-
+    <SettingsScreen
+      wide
+      title="Statutory due dates"
+      sub="What the system believes about each deadline — and whether anyone has checked."
+    >
       {unverified > 0 && (
         <div className="rounded-ledger border-waiting bg-waiting-wash flex flex-col gap-1 border p-4">
           <p className="text-14 font-medium">
@@ -65,22 +61,7 @@ export default function DueDates({ rows, unverified }) {
         </div>
       )}
 
-      {message?.ok && (
-        <p
-          role="status"
-          className="rounded-ledger border-filed bg-filed-wash text-13 text-filed border px-3 py-2"
-        >
-          {message.ok}
-        </p>
-      )}
-      {message?.error && (
-        <p
-          role="alert"
-          className="rounded-ledger border-redpen bg-redpen-wash text-13 text-redpen border px-3 py-2"
-        >
-          {message.error}
-        </p>
-      )}
+      <Result message={message} />
 
       {rows.map((rule) => (
         <section
@@ -352,7 +333,7 @@ export default function DueDates({ rows, unverified }) {
           No due-date rules yet. Run the seed script to load the draft table.
         </p>
       )}
-    </div>
+    </SettingsScreen>
   );
 }
 

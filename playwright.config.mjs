@@ -126,6 +126,12 @@ export default defineConfig({
     env: {
       MONGODB_URI: process.env.MONGODB_URI ?? "",
       AUTH_SKIP_2FA: "false",
+      /**
+       * Its own build directory, for the same reason it has its own port: a
+       * developer's `next dev` owns `.next`, and `next build` clearing it
+       * mid-compile broke the dev server rather than the test run.
+       */
+      PHMG_DIST_DIR: ".next-e2e",
     },
     /**
      * **Never reuse a server that is already up.**

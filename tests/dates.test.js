@@ -6,6 +6,7 @@ import {
   financialYearRange,
   istParts,
   istInputDate,
+  istDayFromInput,
   addWorkingDays,
   financialQuarterLabel,
 } from "@/lib/dates";
@@ -103,5 +104,23 @@ describe("the quarter of the financial year (P3-22b)", () => {
   it("turns over on 1 April, in IST", () => {
     // 20:00 UTC on 31 March is already 1 April in India
     expect(q("2027-03-31T20:00:00Z")).toBe("Q1 2027-28");
+  });
+});
+
+describe("a date box read back", () => {
+  it("stores the IST day it names, not UTC midnight", () => {
+    const joined = istDayFromInput("2019-06-17");
+    expect(joined.toISOString()).toBe("2019-06-16T18:30:00.000Z");
+    // and comes back out of the box as the same day it went in
+    expect(istInputDate(joined)).toBe("2019-06-17");
+  });
+
+  it("treats an empty box as an answer, and nonsense as a refusal", () => {
+    expect(istDayFromInput("")).toBe(null);
+    expect(istDayFromInput(null)).toBe(null);
+    expect(istDayFromInput("17-06-2019")).toBe(false);
+    expect(istDayFromInput("2026-02-31")).toBe(false);
+    expect(istDayFromInput("2026-13-01")).toBe(false);
+    expect(istDayFromInput("0219-06-17")).toBe(false);
   });
 });

@@ -7,6 +7,7 @@ import Incident from "@/models/Incident";
 import { securitySignals } from "@/lib/security/signals";
 import { formatISTDate, formatISTDateTime } from "@/lib/dates";
 import SecurityBoard from "./SecurityBoard";
+import SettingsScreen from "../Shell";
 
 export const metadata = { title: "Security · PHMG" };
 export const dynamic = "force-dynamic";
@@ -31,21 +32,23 @@ export default async function SecurityPage() {
   ]);
 
   return (
-    <div className="mx-auto flex max-w-[1100px] flex-col gap-6 p-4 md:p-6">
-      <div>
-        <h1 className="font-display text-24 font-bold tracking-tight">
-          Security
-        </h1>
-        <p className="text-13 text-ink-muted">
+    <SettingsScreen
+      wide
+      title="Security"
+      sub={
+        <>
           What the portal log is showing, and the firm&rsquo;s record of
           anything that went wrong.{" "}
-          <Link href="/portal-log" className="underline underline-offset-4">
+          <Link
+            href="/portal-log"
+            className="text-carbon underline underline-offset-4"
+          >
             The full audit log
           </Link>{" "}
           is where the detail is.
-        </p>
-      </div>
-
+        </>
+      }
+    >
       <SecurityBoard
         signals={signals.signals}
         counts={signals.counts}
@@ -65,6 +68,6 @@ export default async function SecurityPage() {
           by: incident.raisedByName,
         }))}
       />
-    </div>
+    </SettingsScreen>
   );
 }
