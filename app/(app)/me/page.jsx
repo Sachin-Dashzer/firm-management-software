@@ -12,6 +12,7 @@ import TierBadge from "@/components/ledger/TierBadge";
 import { SECTION_LABELS } from "@/lib/access/sections";
 import { loadFor, isOverdue } from "@/lib/team/workload";
 import { CLOSED_STATUSES } from "@/lib/engagements/status";
+import { assignedTo } from "@/lib/engagements/filter";
 import Security from "./Security";
 
 export const metadata = { title: "Me · PHMG" };
@@ -46,7 +47,7 @@ export default async function MePage() {
           .lean()
       : null,
     Engagement.find({
-      $or: [{ assigneeId: actor.id }, { reviewerId: actor.id }],
+      $or: assignedTo(actor.id),
     })
       .select(
         "code status statutoryDue internalDue assigneeId reviewerId reworkCount clientId templateSnapshot periodLabel period",

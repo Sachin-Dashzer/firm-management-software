@@ -99,6 +99,8 @@ export default async function EngagementPage({ params }) {
     branchId: String(engagement.branchId),
     assigneeId: String(engagement.assigneeId ?? ""),
     reviewerId: String(engagement.reviewerId ?? ""),
+    // the others working on it, who are on it as far as access goes
+    assignedUserIds: (engagement.helperIds ?? []).map(String),
   };
   if (!can(actor, "view", "engagementsWork", target)) {
     redirect(`/no-access?client=${engagement.clientId}`);
@@ -341,6 +343,16 @@ export default async function EngagementPage({ params }) {
     reviewerId: target.reviewerId,
     assigneeName: assignee?.name ?? "Nobody yet",
     reviewerName: reviewer?.name ?? "Nobody yet",
+    /** The others on the job, named from the team list already loaded. */
+    helperIds: target.assignedUserIds,
+    helperNames: target.assignedUserIds
+      .map(
+        (helperId) =>
+          team.find((person) => String(person._id) === helperId)?.name,
+      )
+      .filter(Boolean),
+    /** Has anybody said this work needs no UDIN? (02-11-2026) */
+    udinNotRequired: Boolean(engagement.udinNotRequired),
     /**
      * The statutory filings this work owes (P3-1). Two for monthly GST, one
      * for most things, none when the service's due-date rule has not been
@@ -375,6 +387,11 @@ export default async function EngagementPage({ params }) {
       // empty means the step inherits the service's own floor
       minRole: t.minRole || "",
       assigneeId: t.assigneeId ? String(t.assigneeId) : "",
+      /** Who ticked it and when, which the stepper shows on a done step. */
+      doneOn: t.doneAt ? formatISTDate(t.doneAt) : "",
+      doneByName:
+        team.find((person) => String(person._id) === String(t.doneBy ?? ""))
+          ?.name ?? "",
     })),
     checklist: (engagement.checklist ?? []).map((c) => ({
       id: String(c._id),

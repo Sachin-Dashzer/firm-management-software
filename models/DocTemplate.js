@@ -19,12 +19,23 @@ import { auditPlugin } from "./plugins/audit.js";
  * put the firm's name to anything a person has not checked.
  */
 
-/** What the document is for; groups the admin screen and the pick list. */
+/**
+ * What the document is for; groups the shelf on the Templates screen and
+ * the pick list on a job.
+ *
+ * The order is the order they are drawn in, which is roughly the order a
+ * client meets them: taken on, audited, written to about a notice, filed
+ * for at the registry, certified, corresponded with, messaged.
+ */
 export const DOC_KINDS = [
+  "Onboarding",
   "Engagement",
   "Audit and Assurance",
+  "Notices",
+  "ROC",
   "Certificate",
   "Correspondence",
+  "Messages",
 ];
 
 const docTemplateSchema = new mongoose.Schema(

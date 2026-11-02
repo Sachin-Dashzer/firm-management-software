@@ -430,6 +430,30 @@ const engagementSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+    /**
+     * The others working on it (owner request, 02-11-2026).
+     *
+     * A GST quarter for a large client is three people for two days, and
+     * before this the job could only name one of them — so the other two
+     * had the work on their desk and not on any list, and an employee who
+     * was helping could not even open the client.
+     *
+     * **`assigneeId` above stays the accountable one**, and nothing that
+     * reads it changes meaning: one name answers "whose job is this", the
+     * maker-checker rule has one maker to compare against the checker, and
+     * every dashboard, digest and overdue email keeps working. These are
+     * the people also doing it: the job appears on their lists, they may
+     * open the client and tick the steps, and they are told when they are
+     * added.
+     *
+     * A reviewer is never in here. The checker cannot be one of the makers
+     * (CLAUDE.md rule 4), and a list that could hold them would be a way
+     * round it.
+     */
+    helperIds: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+      default: [],
+    },
     reviewerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -493,6 +517,18 @@ const engagementSchema = new mongoose.Schema(
      * nothing to do with which return went in on which day.
      */
     udin: { type: String, default: "", trim: true },
+
+    /**
+     * Somebody has said, in as many words, that this work needs no UDIN
+     * (owner request, 02-11-2026).
+     *
+     * The steps panel asks the question once the work is finished, and the
+     * answer has to be recorded or the question is asked for ever. It is
+     * only ever an answer to a question nobody else had answered: a service
+     * whose catalog entry says a UDIN is required cannot be waived here —
+     * `changeStatus` still refuses to complete it without one.
+     */
+    udinNotRequired: { type: Boolean, default: false },
 
     /** Audit and assurance work only; empty on everything else. */
     assurance: { type: assuranceSchema, default: () => ({}) },
@@ -569,6 +605,8 @@ engagementSchema.index(
   { unique: true, partialFilterExpression: { deletedAt: null } },
 );
 engagementSchema.index({ assigneeId: 1, status: 1, internalDue: 1 });
+// "what is on my desk" for somebody who is helping rather than accountable
+engagementSchema.index({ helperIds: 1, status: 1 });
 engagementSchema.index({ clientId: 1, period: 1 });
 engagementSchema.index({ statutoryDue: 1 });
 engagementSchema.index({ branchId: 1, status: 1 });

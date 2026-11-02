@@ -48,14 +48,17 @@ describe("a URL finds its screen, or nothing at all", () => {
 
   it("finds the screen a deeper page sits under", () => {
     expect(screenKeyFor("/practice/notices/new")).toBe("practice.notices");
-    // chasing money moved from /invoices/receivables to /billing in P3-22b,
-    // and the accounts desk under it keeps the same procedure
+    // chasing money moved from /invoices/receivables to /billing in P3-22b
     expect(screenKeyFor("/billing")).toBe("invoices.receivables");
-    expect(screenKeyFor("/billing/desk")).toBe("invoices.receivables");
+    expect(screenKeyFor("/engagements/export")).toBe("engagements.review");
+    // ...but a deeper page with a procedure of its own wins over the one
+    // above it, which is why the accounts desk is itself and not /billing
+    expect(screenKeyFor("/billing/desk")).toBe("billingDesk");
+    expect(screenKeyFor("/settings/doc-templates")).toBe("templates");
   });
 
   it("answers nothing for a screen nobody listed, rather than guessing", () => {
-    expect(screenKeyFor("/settings/branches")).toBe(null);
+    expect(screenKeyFor("/no-access")).toBe(null);
     expect(screenKeyFor("/me")).toBe(null);
     expect(screenKeyFor("/")).toBe(null);
     expect(screenKeyFor("")).toBe(null);

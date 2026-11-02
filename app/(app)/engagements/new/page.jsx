@@ -80,6 +80,9 @@ export default async function NewEngagementPage({ searchParams }) {
           role: u.role,
         }))}
         presetClientId={params?.client ?? ""}
+        /* "Other" writes a catalog row, which is a Partner’s to do
+           (serviceCatalog, spec section 2) */
+        mayAddService={can(actor, "edit", "serviceCatalog")}
       />
     </div>
   );

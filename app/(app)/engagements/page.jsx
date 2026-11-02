@@ -29,6 +29,32 @@ export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 100;
 
+/**
+ * What order the list comes in (owner request, 02-11-2026).
+ *
+ * It was always soonest-due-first, which is the right order for a deadline
+ * list and the wrong one for the question this page is usually opened with
+ * — what has been happening — so work somebody touched an hour ago sat
+ * forty rows below a return due in March.
+ *
+ * Recently touched is the default now; the due order is still one click
+ * away, because in the last week of a season it is the only order worth
+ * having. The timestamp is Mongoose's own, so every status change, tick,
+ * reassignment and saved edit moves a job up the list without anything
+ * having to remember to.
+ */
+const ORDERS = {
+  touched: { updatedAt: -1, createdAt: -1 },
+  created: { createdAt: -1 },
+  due: { statutoryDue: 1, internalDue: 1, createdAt: -1 },
+};
+
+const ORDER_LABELS = [
+  ["touched", "Recently updated"],
+  ["created", "Newest first"],
+  ["due", "Due soonest"],
+];
+
 export default async function EngagementsPage({ searchParams }) {
   const actor = await requireUser();
   if (!can(actor, "view", "engagementsWork")) redirect("/issues");
@@ -39,6 +65,10 @@ export default async function EngagementsPage({ searchParams }) {
     : "list";
   const pageNumber = Math.max(1, Number(params.page) || 1);
   const search = String(params.q ?? "").trim();
+  // hasOwn, not `in`: ?order=constructor would otherwise reach a function
+  const order = Object.hasOwn(ORDERS, String(params.order ?? ""))
+    ? params.order
+    : "touched";
 
   await connectDB();
 
@@ -80,7 +110,7 @@ export default async function EngagementsPage({ searchParams }) {
   const [engagements, total, branches, templates, team, groups] =
     await Promise.all([
       Engagement.find(query)
-        .sort({ statutoryDue: 1, internalDue: 1, createdAt: -1 })
+        .sort(ORDERS[order])
         .skip(skip)
         .limit(limit)
         .lean(),
@@ -218,6 +248,13 @@ export default async function EngagementsPage({ searchParams }) {
               value={params.assignee}
               empty="Anyone"
               options={team.map((u) => [String(u._id), u.name])}
+            />
+            <FilterSelect
+              label="Order"
+              name="order"
+              value={order}
+              empty="Recently updated"
+              options={ORDER_LABELS}
             />
           </>
         }

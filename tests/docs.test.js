@@ -192,11 +192,11 @@ describe("who may issue a document", () => {
   });
 });
 
-describe("the eight starter templates", () => {
-  it("ships eight, each with a code of its own", () => {
-    expect(STARTER_DOC_TEMPLATES).toHaveLength(8);
+describe("the starter templates", () => {
+  it("ships twenty-two, each with a code of its own", () => {
+    expect(STARTER_DOC_TEMPLATES).toHaveLength(22);
     const codes = STARTER_DOC_TEMPLATES.map((t) => t.code);
-    expect(new Set(codes).size).toBe(8);
+    expect(new Set(codes).size).toBe(22);
   });
 
   it("ships none of them approved", () => {

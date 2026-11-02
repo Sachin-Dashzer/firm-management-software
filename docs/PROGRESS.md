@@ -4888,3 +4888,180 @@ and one upload link for every document not ticked as received.
 
 - The **edit** screen still uses the old `ClientForm`, so the entity's own
   fields can be set at onboarding but not changed afterwards.
+
+## The Firm group, redrawn (owner request, 02-11-2026)
+
+The eight screens of the rail's **Firm** group, rebuilt to the owner's
+prototype. The instruction was the prototype "100% same, inch by inch, with
+the data also", and the two answers that shaped it were: the screens read
+the firm's **own records** (not the prototype's demo rows), and the
+prototype's **content** — its letters, its recipes, its procedures, its
+playbooks, its sample sheets — comes in as real data.
+
+### What each screen is now
+
+- **Management reports** (`/reports`) — the prototype's four cards, in place
+  of an index of twenty report names: filing punctuality by service, what was
+  billed by kind of work, workload by person with overdue beside open, and
+  who owes us with the overdue part called out. Every figure comes from the
+  helper the report behind it already used (`filingPunctuality`,
+  `revenueByCategory`, `receivablesReport`, `loadForEach`), so a card and its
+  report cannot disagree.
+- **Email and WhatsApp** (`/settings/messages`) — three tabs. The log is
+  cards rather than rows, inbound and outbound in one stream, because the
+  question is what the client actually read. Templates is every message the
+  system can send with its wording, its timing and its channel. Channels and
+  consent states what the firm speaks through, when it stays quiet, and who
+  at each client agreed to hear from us on what.
+- **Automation runs and approvals** (`/settings/automation`) — opens with
+  the **six steps** every recipe goes through, the gate highlighted, then
+  four figures, the approval queue, **failed runs with a retry**, the
+  recipes as *when / if / then* sentences with two switches, and the
+  append-only log.
+- **Templates** (`/settings/doc-templates`) — a second tab that did not
+  exist: pick a letter, pick a client, read it filled from their record with
+  every blank marked and counted, copy it or start it on a job. The editor
+  stays on the Wording tab, because an unapproved template makes watermarked
+  drafts and nothing else.
+- **Data lab** (`/lab`) — three sample sheets, the kind of sheet recognised
+  from its headings, the mapping boxes filled in from them, the figures, the
+  charts, and a checklist of what to look at **with how to do it** — the
+  lines the lab can answer itself marked as such.
+- **Learning library** and **How we work here** (`/learning`) — two shelves
+  of one bookcase: playbooks by shelf, and a procedure per screen. Three
+  states, drawn differently: written by the firm, the firm's starting draft,
+  and nobody has written this.
+- **Settings and customisation** (`/settings`) — the owner's five groups and
+  thirteen rows, in place of twenty-two.
+
+### The content that came in with it
+
+- **Fourteen more document templates** (22 in all), in six new kinds —
+  Onboarding, Notices, ROC and Messages beside the existing four. This closes
+  D-ONB-4's leftover: the proposal, the KYC request, the portal authority, the
+  welcome message and the audit engagement letter now have wording, so the
+  onboarding pack no longer offers five letters that do not exist.
+- **Thirty-seven screens** now carry a procedure key, against sixteen, which
+  is what makes the **?** in the top bar work across the application.
+- **Twenty-two starter procedures** and **five playbooks** (the monthly GST
+  return, the quarterly deduction return, paying micro and small suppliers,
+  setting up a captive, the monthly close), with forty more listed as not
+  written so the holes are visible.
+- **Three sample sheets** for the lab, each with its faults planted on
+  purpose — a suspense balance, a repeated invoice number, a gap in the
+  series, a returned cheque.
+
+### Decisions
+
+- **D-FIRM-1.** The starter procedures reverse the stance in
+  `lib/learning/screens.js` that the system ships none. They are the
+  **firm's own draft**, marked as a draft on every page until a partner
+  reviews it, and anything written in the app replaces the draft entirely —
+  the two are never merged.
+- **D-FIRM-2.** Where the prototype states a figure the law sets — a rate, a
+  threshold, a due date — the procedure says to read it off the firm's
+  confirmed rules instead. Nothing in this content quotes one (CLAUDE.md
+  rule 8).
+- **D-FIRM-3.** WhatsApp is drawn as the prototype draws it and described as
+  it actually is: no provider is connected, so the column is empty rather
+  than hopeful, and anything that would go on WhatsApp goes by email.
+- **D-FIRM-4.** Three of the prototype's sixteen settings tiles are one
+  screen here and are drawn as one row; two of them — portal branding and
+  custom fields — are **not built**, and are listed with the reason rather
+  than dropped.
+- **D-FIRM-5.** The attention strip stays on the Settings index although the
+  prototype has none. It is not another screen: it is the warning that no
+  due-date rule has been confirmed, which is what leaves every deadline
+  blank.
+- **D-FIRM-6.** The menu label "Leave and attendance" went back to the
+  prototype's **"Leave and cover"**, which is what the fixture the browser
+  test reads has always expected.
+
+### For the owner to verify
+
+- **Every procedure and playbook**, before anybody is told to follow one.
+  Each page says so, and the library repeats it.
+- **The fourteen new letters.** None is approved, so each produces a
+  watermarked draft until a partner reads the wording. The notice replies
+  name the section printed on the notice being answered and state no legal
+  position.
+
+### Left over
+
+- The screens the two indexes no longer link to — the firm's ICAI record,
+  background jobs, bringing data in, security, the recycle bin and eighteen
+  of the twenty reports — are **still built and still reachable** from the
+  command bar. Deleting them is a separate decision: the recycle bin is the
+  only way to restore a soft-deleted file, and four of them are referenced
+  by the attention strip and the setup checklist.
+
+## Engagements: three owner requests (02-11-2026) — part done
+
+### 1. New engagement: searchable pickers and "Other" (done)
+
+`components/ui/Combobox.jsx` — a dropdown you can type into: a real
+combobox (`role="combobox"` over a listbox, arrows move
+`aria-activedescendant`, Enter picks, Escape restores) that posts its id
+through a hidden input, so the form and its `FormData` do not know it is
+not a select. Client and Service on `/engagements/new` both use it; every
+word of the query has to match, so "kaur gst" finds the right row and a
+code works too.
+
+**"Other — not in the catalog"** is the last option in the service list. An
+engagement is always a service — the snapshot, the engagement code, the
+duplicate guard and the compliance books all read one — so one-off work
+becomes a real service: `adHocService()` in the engagements actions creates
+it (category Other, L2, one-time, no checklist, no fee, no UDIN rule) or
+reuses the row if that name already exists. It is a **Partner's** to do,
+because adding to the catalog is `serviceCatalog`; a CA sees the option
+withheld with the reason. `SERVICE_CATEGORIES` gained "Other".
+
+### 2. The list order (done)
+
+`/engagements` was always soonest-due-first. It now defaults to **recently
+updated**, with Newest first and Due soonest in an Order filter. Mongoose's
+own `updatedAt` drives it, so every tick, status change and reassignment
+moves a job up without anything having to remember to.
+
+### 3. Multiple assignees, stepwise work, UDIN question (server done, UI not)
+
+Owner's decisions, 02-11-2026: **one accountable owner plus helpers**;
+**steps locked for everyone, a CA or Partner may go out of order**; the
+**UDIN question is asked when every step is done**, not at a fixed step.
+
+Done, server side:
+
+- `Engagement.helperIds` — the others working on it. `assigneeId` stays the
+  accountable one, so maker-checker, the badges, the digests and every
+  report keep their meaning. A reviewer can never be a helper.
+- `assignedTo(userId)` in `lib/engagements/filter.js` is now the one
+  definition of "work that is mine" — preparing, reviewing or helping — and
+  the five places that each wrote their own `$or` use it: the list's Only
+  mine, client access, My day, `/me` and the search box. (My day needed
+  `$and`: two `$or`s cannot share one object, and the second would have
+  silently dropped the assignment condition.)
+- `loadForWork()` and the detail page's permission target carry
+  `assignedUserIds`, so a helper may open the client and tick the steps.
+- `saveAssignment()` — one action, one transaction, one audit diff, emails
+  once: assignee, helpers, reviewer, internal due and priority together.
+  Helpers must clear the service's `minExecRole` and cannot be the
+  reviewer. `reassign`/`setPriority`/`setInternalDue` stay for the bulk
+  reassign, leave cover and offboarding hand-over.
+- `setTaskDone()` refuses a step while an earlier one is open, and refuses
+  reopening one while a later one is ticked. A CA or Partner may override,
+  and the override is written into the audit entry in those words.
+- `Engagement.udinNotRequired` and `setUdinNotRequired()` — the recorded
+  *no*, so the question is asked once. It refuses to waive a service whose
+  catalog entry requires a UDIN, because `changeStatus` would refuse the
+  completion anyway.
+
+**Not done:** the UI for all of item 3 — the Assignment panel as a form
+with a Save button and a helpers picker, the Steps panel redrawn as a
+locked stepper (done steps stamped with who and when, the current one open,
+later ones locked, a review step saying it is with a CA), the UDIN question
+panel, and the UDIN register prefilling from
+`/practice/udin?new=1&client=…&engagement=…`.
+
+**One behaviour is already live without its UI:** out-of-order ticks are
+refused for an employee or intern with a message naming the step to finish
+first. The checkboxes are not yet drawn as locks.

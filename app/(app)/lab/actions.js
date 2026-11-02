@@ -8,6 +8,9 @@ import Client from "@/models/Client";
 import { CLOSED_STATUSES } from "@/lib/engagements/status";
 import { profileSheet } from "@/lib/datalab/profile";
 import { runChecks, summaryText, ROLES } from "@/lib/datalab/checks";
+import { sampleFor } from "@/lib/datalab/samples";
+import { detectKind, guessMapping, checklistFor } from "@/lib/datalab/kinds";
+import { misFigures } from "@/lib/datalab/mis";
 import { addEngagementComment } from "../engagements/actions";
 
 /**
@@ -32,10 +35,27 @@ async function allowed() {
   return actor;
 }
 
+/**
+ * The rows to work on: either the file somebody chose, or one of the three
+ * samples.
+ *
+ * A sample goes down exactly the same path as an upload — read, profiled,
+ * mapped, checked — so what somebody learns on the sample is true of the
+ * real thing, and there is no second code path to keep in step.
+ */
 async function readFile(formData) {
+  const sample = sampleFor(String(formData.get("sample") ?? ""));
+  if (sample) {
+    return {
+      file: { name: `${sample.label} (sample)` },
+      text: sample.file,
+      sample: sample.key,
+    };
+  }
+
   const file = formData.get("file");
   if (!file || typeof file === "string" || file.size === 0) {
-    return { error: "Choose a CSV file first." };
+    return { error: "Choose a CSV file, or try one of the samples." };
   }
   if (file.size > MAX_BYTES) {
     return { error: "That file is over 5 MB. Split it and read it in parts." };
@@ -63,13 +83,26 @@ export async function profileUpload(_prev, formData) {
     };
   }
 
+  /**
+   * What it looks like, and the boxes filled in from the headers. Both are
+   * shown and both can be overridden: recognising is allowed, deciding is
+   * not.
+   */
+  const asked = String(formData.get("kind") ?? "");
+  const kind = asked || detectKind(profile.headers);
+
   return {
     ok: true,
     fileName: file.name,
+    sample: formData.get("sample") ? String(formData.get("sample")) : "",
     rowCount: profile.rowCount,
     headers: profile.headers,
     columns: profile.columns,
     roles: ROLES,
+    kind,
+    detected: detectKind(profile.headers),
+    guessed: guessMapping(profile.columns, kind),
+    checklist: checklistFor(kind),
   };
 }
 
@@ -111,11 +144,16 @@ export async function analyseUpload(_prev, formData) {
     to: to ? new Date(`${to}T00:00:00+05:30`) : null,
   });
 
+  const kind = String(formData.get("kind") ?? "") || detectKind(profile.headers);
+
   return {
     ok: true,
     fileName: file.name,
     rowCount: profile.rowCount,
     findings,
+    kind,
+    figures: misFigures(profile.rows, mapping, kind),
+    checklist: checklistFor(kind),
     summary: summaryText({
       fileName: file.name,
       rowCount: profile.rowCount,

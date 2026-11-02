@@ -65,7 +65,7 @@ import {
   PRIORITIES,
   BULK_APPROVE_LIMIT,
 } from "@/lib/engagements/status";
-import { canExecute, tierOf } from "@/lib/services/catalog";
+import { canExecute, tierOf, LEVEL_DEFAULTS } from "@/lib/services/catalog";
 import {
   checkUdinShape,
   linkUdinToEngagement,
@@ -99,8 +99,42 @@ async function loadForWork(actor, id, action = "edit") {
     branchId: String(engagement.branchId),
     assigneeId: String(engagement.assigneeId ?? ""),
     reviewerId: String(engagement.reviewerId ?? ""),
+    // the others working on it are on it as far as permission is concerned
+    assignedUserIds: (engagement.helperIds ?? []).map(String),
   });
   return engagement;
+}
+
+/**
+ * Steps are done in order (owner request, 02-11-2026).
+ *
+ * The template's steps are a sequence, not a set — documents, then the
+ * working, then the review, then the filing — and a job where step four is
+ * ticked and step two is open is a job nobody can read the state of. So the
+ * rule is the obvious one: a step cannot be ticked while an earlier one is
+ * open, and cannot be reopened while a later one is still ticked.
+ *
+ * **A CA or a Partner may go out of order**, because the person who has to
+ * fix a mis-tick at nine in the evening is the one signing the file, and
+ * the override is written into the audit entry in those words. Everybody
+ * else is refused here, on the server, so the lock is a rule and not a
+ * disabled checkbox (CLAUDE.md rule 1).
+ *
+ * @returns {string|null} why this tick is out of order, or null
+ */
+function outOfOrder(engagement, task, done) {
+  const tasks = engagement.tasks ?? [];
+  const at = tasks.findIndex((row) => String(row._id) === String(task._id));
+  if (at < 0) return null;
+
+  if (done) {
+    const open = tasks.slice(0, at).find((row) => !row.done);
+    return open ? `Finish “${open.name}” first.` : null;
+  }
+
+  // walking back: only the last thing ticked can be untied
+  const later = tasks.slice(at + 1).find((row) => row.done);
+  return later ? `“${later.name}” is already done — reopen that first.` : null;
 }
 
 /** Everyone a template allows, with the fields the assignment rules need. */
@@ -121,6 +155,8 @@ async function loadPeople(ids) {
 const createInput = z.object({
   clientId: z.string().min(1, "Choose a client"),
   serviceTemplateId: z.string().min(1, "Choose a service"),
+  /** Read only when the service is "other": what the one-off work is. */
+  otherName: z.string().trim().max(120).default(""),
   period: z.string().min(1, "Choose a period"),
   assigneeId: z.string().optional(),
   reviewerId: z.string().optional(),
@@ -130,6 +166,90 @@ const createInput = z.object({
   internalDue: z.string().trim().default(""),
 });
 
+/**
+ * The catalog row behind "Other — not in the catalog" (owner request,
+ * 02-11-2026).
+ *
+ * An engagement is always a service: the snapshot, the engagement code, the
+ * duplicate guard and the compliance books all read one. So one-off work
+ * does not get a special case inside the engagement — it gets a real
+ * service, named by whoever is raising it, and from then on it is in the
+ * catalog like everything else, where a partner can price it, give it a
+ * checklist or archive it.
+ *
+ * Two consequences, both deliberate:
+ *
+ *  - **It is a Partner's to do.** Adding to the catalog is `serviceCatalog`
+ *    (spec section 2), which a CA may read and not write, so a CA raising
+ *    one-off work asks a partner for the service first. The form says so
+ *    rather than offering a button that fails.
+ *  - **The same name is the same service.** Typing "Fire insurance
+ *    certificate" twice reuses the row instead of making a second one, so
+ *    the catalog does not fill with near-duplicates — and the engagement's
+ *    own duplicate guard (one per client, service and period) then does its
+ *    usual job.
+ *
+ * ponytail: the service is created in its own transaction, before the
+ * engagement's. If the engagement is then refused, an unused catalog row is
+ * left for a partner to archive — cheaper than one transaction spanning two
+ * decisions.
+ *
+ * @param {object} actor
+ * @param {string} name
+ */
+async function adHocService(actor, name) {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const existing = await ServiceTemplate.findOne({
+    name: new RegExp(`^${escaped}$`, "i"),
+  }).lean();
+  if (existing) return existing;
+
+  const base =
+    name
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 12) || "OTHER";
+
+  let code = base;
+  for (let n = 2; await ServiceTemplate.exists({ code }); n += 1) {
+    code = `${base.slice(0, 10)}-${n}`;
+  }
+
+  return audited(actor, async (session) => {
+    const [created] = await ServiceTemplate.create(
+      [
+        {
+          name,
+          code,
+          category: "Other",
+          level: "L2",
+          ...LEVEL_DEFAULTS.L2,
+          recurrence: "one-time",
+          turnaroundDays: null,
+          turnaroundNote: "As agreed with the client",
+          /*
+           * Nothing is invented for work nobody has described: no
+           * checklist, no steps, no fee, no UDIN rule. The person raising
+           * it knows what it is; Settings → Services is where it gets
+           * filled in if it happens again.
+           */
+          checklist: [],
+          steps: [],
+          defaultFeePaise: 0,
+          udinRequired: false,
+          version: 1,
+          active: true,
+          createdBy: actor.id,
+          updatedBy: actor.id,
+        },
+      ],
+      { session },
+    );
+    return created.toObject();
+  });
+}
+
 /** Create one engagement from a service template (spec section 5). */
 export async function createEngagement(_prev, formData) {
   const actor = await requireUser();
@@ -138,6 +258,7 @@ export async function createEngagement(_prev, formData) {
   const parsed = createInput.safeParse({
     clientId: formData.get("clientId") ?? "",
     serviceTemplateId: formData.get("serviceTemplateId") ?? "",
+    otherName: formData.get("otherName") ?? "",
     period: formData.get("period") ?? "",
     assigneeId: formData.get("assigneeId") || undefined,
     reviewerId: formData.get("reviewerId") || undefined,
@@ -149,9 +270,30 @@ export async function createEngagement(_prev, formData) {
   const data = parsed.data;
 
   await connectDB();
+
+  /**
+   * "Other" is a service the firm has not met before, so it becomes one.
+   * The permission checked is the catalog's, not the engagement's, because
+   * the catalog is what is being written.
+   */
+  const other = data.serviceTemplateId === "other";
+  if (other) {
+    if (!can(actor, "edit", "serviceCatalog")) {
+      return {
+        error:
+          "Only a partner can add a service. Ask one to add it in Settings → Services, then raise the work against it.",
+      };
+    }
+    if (data.otherName.length < 3) {
+      return { error: "Say what the work is, in a few words." };
+    }
+  }
+
   const [client, template] = await Promise.all([
     Client.findById(data.clientId).lean(),
-    ServiceTemplate.findById(data.serviceTemplateId).lean(),
+    other
+      ? adHocService(actor, data.otherName)
+      : ServiceTemplate.findById(data.serviceTemplateId).lean(),
   ]);
   if (!client) return { error: "That client no longer exists." };
   if (!template) return { error: "That service no longer exists." };
@@ -407,6 +549,172 @@ export async function changeStatus(id, to, reason = "") {
 }
 
 /** Reassign the work or the review; both sides are logged. */
+/**
+ * Who is on this job and when it is due, saved in one go (owner request,
+ * 02-11-2026).
+ *
+ * The panel used to write on every keystroke: picking a reviewer saved,
+ * then moving the date saved, then the priority — three writes, three audit
+ * entries, three notifications, and no way to change your mind halfway. It
+ * is a form with a Save button now, so this is the one action behind it:
+ * one transaction, one audit entry naming what actually changed, and the
+ * emails sent once at the end.
+ *
+ * `reassign`, `setPriority` and `setInternalDue` stay as they are — the
+ * bulk reassign, the leave cover and the offboarding hand-over all call
+ * them, and each of those is genuinely one field.
+ *
+ * @param {string} id
+ * @param {{assigneeId?: string, helperIds?: string[], reviewerId?: string,
+ *   internalDue?: string, priority?: string}} input
+ */
+export async function saveAssignment(id, input) {
+  const actor = await requireUser();
+  const engagement = await loadForWork(actor, id);
+  // deciding who does the work is a CA's call, as it is in `reassign`
+  assertCan(actor, "edit", "engagementsCreate", {
+    branchId: String(engagement.branchId),
+  });
+
+  const wantedAssignee = String(input.assigneeId ?? "");
+  const wantedReviewer = String(input.reviewerId ?? "");
+  const wantedHelpers = [
+    ...new Set((input.helperIds ?? []).map(String).filter(Boolean)),
+  ];
+
+  if (input.priority && !PRIORITIES.includes(input.priority)) {
+    return { error: "Unknown priority." };
+  }
+
+  const due = input.internalDue
+    ? new Date(`${input.internalDue}T00:00:00+05:30`)
+    : null;
+  if (input.internalDue && Number.isNaN(due?.valueOf())) {
+    return { error: "That internal due date is not a date." };
+  }
+
+  const people = await loadPeople([
+    wantedAssignee,
+    wantedReviewer,
+    ...wantedHelpers,
+  ]);
+  const assignee = wantedAssignee ? people.get(wantedAssignee) : null;
+  const reviewer = wantedReviewer ? people.get(wantedReviewer) : null;
+  if (wantedAssignee && !assignee) return { error: "Unknown assignee." };
+  if (wantedReviewer && !reviewer) return { error: "Unknown reviewer." };
+  if (assignee?.active === false || reviewer?.active === false) {
+    return { error: "That person's account is deactivated." };
+  }
+
+  const allowed = checkAssignment(
+    engagement.templateSnapshot ?? {},
+    assignee,
+    reviewer,
+  );
+  if (!allowed.ok) return { error: allowed.error };
+
+  /**
+   * The helpers have to clear the same bar as the assignee — the service's
+   * `minExecRole`, which is what the tier means — and the checker can never
+   * be one of them (CLAUDE.md rule 4). The assignee is the accountable one
+   * and is not repeated in the list.
+   */
+  const floor = engagement.templateSnapshot?.minExecRole ?? "intern";
+  const helpers = [];
+  for (const helperId of wantedHelpers) {
+    if (helperId === wantedAssignee) continue;
+    const person = people.get(helperId);
+    if (!person) return { error: "Unknown person on the helpers list." };
+    if (person.active === false) {
+      return { error: `${person.name}'s account is deactivated.` };
+    }
+    if (helperId === wantedReviewer) {
+      return {
+        error: `${person.name} is reviewing this. The person checking the work cannot also be doing it.`,
+      };
+    }
+    if (!canExecute(person.role, floor)) {
+      return {
+        error: `${person.name} is ${roleName(person.role)}; this work needs ${roleName(floor)} or above.`,
+      };
+    }
+    helpers.push(person);
+  }
+
+  const before = {
+    assigneeId: String(engagement.assigneeId ?? ""),
+    reviewerId: String(engagement.reviewerId ?? ""),
+    helperIds: (engagement.helperIds ?? []).map(String),
+    priority: engagement.priority,
+    internalDue: engagement.internalDue
+      ? istInputDate(engagement.internalDue)
+      : "",
+  };
+
+  const after = {
+    assigneeId: assignee?.id ?? "",
+    reviewerId: reviewer?.id ?? "",
+    helperIds: helpers.map((person) => person.id),
+    priority: input.priority ?? engagement.priority,
+    internalDue: input.internalDue ?? "",
+  };
+
+  /** Only what moved goes in the audit diff. */
+  const diff = {};
+  for (const key of Object.keys(after)) {
+    const was = Array.isArray(before[key]) ? before[key].join(",") : before[key];
+    const now = Array.isArray(after[key]) ? after[key].join(",") : after[key];
+    if (was !== now) diff[key] = [was, now];
+  }
+  if (Object.keys(diff).length === 0) return { ok: "Nothing to save." };
+
+  await audited(actor, async (session) => {
+    engagement.assigneeId = assignee?.id ?? null;
+    engagement.reviewerId = reviewer?.id ?? null;
+    engagement.helperIds = helpers.map((person) => person.id);
+    engagement.priority = after.priority;
+    if (input.internalDue !== undefined) engagement.internalDue = due;
+    engagement.updatedBy = actor.id;
+    await engagement.save({ session });
+
+    await recordAudit(
+      {
+        action: ACTIONS.reassign,
+        entityType: "Engagement",
+        entityId: engagement._id,
+        clientId: engagement.clientId,
+        diff,
+      },
+      session,
+    );
+
+    if (assignee?.id && assignee.id !== before.assigneeId) {
+      await engagementAssigned(engagement, actor, session);
+    }
+    if (
+      reviewer?.id &&
+      reviewer.id !== before.reviewerId &&
+      engagement.status === "Under review"
+    ) {
+      await engagementForReview(engagement, actor, session);
+    }
+  });
+
+  revalidatePath(`/engagements/${id}`);
+  revalidatePath("/engagements");
+
+  const added = helpers.filter(
+    (person) => !before.helperIds.includes(person.id),
+  );
+  return {
+    ok:
+      added.length > 0
+        ? `Saved. ${added.map((person) => person.name).join(", ")} ${added.length === 1 ? "is" : "are"} now on this job too.`
+        : "Saved.",
+    hint: await accessHint(engagement, assignee),
+  };
+}
+
 export async function reassign(id, { assigneeId, reviewerId }) {
   const actor = await requireUser();
   const engagement = await loadForWork(actor, id);
@@ -538,6 +846,11 @@ export async function setTaskDone(id, taskId, done) {
     };
   }
 
+  /** In order, unless the person signing the file says otherwise. */
+  const jumped = outOfOrder(engagement, task, done);
+  const mayJump = actor.role === "ca" || actor.role === "partner";
+  if (jumped && !mayJump) return { error: jumped };
+
   let bump = null;
   await audited(actor, async (session) => {
     task.done = Boolean(done);
@@ -547,15 +860,91 @@ export async function setTaskDone(id, taskId, done) {
     bump = await resetGatesIfApproved(
       engagement,
       actor,
-      `"${task.name}" ${done ? "ticked" : "reopened"}`,
+      `"${task.name}" ${done ? "ticked" : "reopened"}${
+        jumped ? " out of order" : ""
+      }`,
       session,
     );
     await engagement.save({ session });
+
+    if (jumped) {
+      await recordAudit(
+        {
+          action: ACTIONS.update,
+          entityType: "Engagement",
+          entityId: engagement._id,
+          clientId: engagement.clientId,
+          note: `"${task.name}" ${done ? "ticked" : "reopened"} out of order — ${jumped}`,
+        },
+        session,
+      );
+    }
   });
 
   revalidatePath(`/engagements/${id}`);
   const said = done ? `${task.name} done.` : `${task.name} reopened.`;
   return { ok: bump ? `${said} ${bump.note}` : said };
+}
+
+/**
+ * "Does this work need a UDIN?", answered (owner request, 02-11-2026).
+ *
+ * The steps panel asks once every step is ticked, because that is the
+ * moment the answer is knowable and the last moment it is useful. *Yes*
+ * needs no action here — it sends the person to the register, and the
+ * number comes back onto the engagement the way it always has. This is only
+ * the *no*, which has to be recorded or the question is asked for ever.
+ *
+ * A service whose catalog entry says a UDIN is required cannot be waived:
+ * `changeStatus` refuses to complete it without one, and a screen that
+ * accepted "no" here would be promising something the pipeline will not
+ * honour.
+ *
+ * @param {string} id
+ * @param {boolean} notRequired
+ */
+export async function setUdinNotRequired(id, notRequired) {
+  const actor = await requireUser();
+  const engagement = await loadForWork(actor, id);
+  if (!canEditWork(actor, engagement)) {
+    return { error: `Nothing can be edited while it is ${engagement.status}.` };
+  }
+
+  if (notRequired && engagement.templateSnapshot?.udinRequired) {
+    return {
+      error:
+        "This service needs a UDIN — it cannot be completed without one. Record the number instead, or change the service in the catalog.",
+    };
+  }
+  if (notRequired && (engagement.udin ?? "").trim()) {
+    return { error: "A UDIN is already recorded against this work." };
+  }
+
+  await audited(actor, async (session) => {
+    engagement.udinNotRequired = Boolean(notRequired);
+    engagement.updatedBy = actor.id;
+    await engagement.save({ session });
+
+    await recordAudit(
+      {
+        action: ACTIONS.update,
+        entityType: "Engagement",
+        entityId: engagement._id,
+        clientId: engagement.clientId,
+        note: notRequired
+          ? "recorded that this work needs no UDIN"
+          : "reopened the question of whether this work needs a UDIN",
+      },
+      session,
+    );
+  });
+
+  revalidatePath(`/engagements/${id}`);
+  return {
+    ok: notRequired
+      ? "Noted — no UDIN for this work."
+      : "The UDIN question is open again.",
+  };
 }
 
 /**

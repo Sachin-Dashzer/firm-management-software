@@ -4,6 +4,7 @@ import { clientListFilter } from "@/lib/access/clientAccess";
 import { connectDB } from "@/lib/db";
 import Client from "@/models/Client";
 import Engagement from "@/models/Engagement";
+import { assignedTo } from "@/lib/engagements/filter";
 import Invoice from "@/models/Invoice";
 import { formatISTDate } from "@/lib/dates";
 
@@ -80,7 +81,7 @@ export async function GET(request) {
     const query = { ...(branchFilter(actor, "engagementsWork") ?? {}) };
     if (["employee", "intern"].includes(actor.role)) {
       query.$and = [
-        { $or: [{ assigneeId: actor.id }, { reviewerId: actor.id }] },
+        { $or: assignedTo(actor.id) },
       ];
     }
     query.$or = [

@@ -1,278 +1,303 @@
-import Link from "next/link";
 import { requireUser } from "@/auth";
-import { can } from "@/lib/permissions";
+import { can, branchFilter, ROLE_LABELS } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
-import { reportHeadlines } from "@/lib/reports/headlines";
+import { financialYearLabel } from "@/lib/dates";
+import { filingPunctuality } from "@/lib/reports/practice";
+import { revenueByCategory } from "@/lib/reports/figures";
+import { receivablesReport } from "@/lib/reports/standard";
+import { loadForEach } from "@/lib/team/workload";
+import { teamQuery } from "@/lib/team/filters";
+import Engagement from "@/models/Engagement";
+import User from "@/models/User";
+import PageHead from "@/components/ui/PageHead";
+import Panel from "@/components/ui/Panel";
+import ProgressBar from "@/components/ui/ProgressBar";
+import { FirmWide } from "@/components/shell/ViewNote";
+import {
+  TableShell,
+  Table,
+  Head,
+  Th,
+  Tr,
+  Td,
+  Num,
+} from "@/components/ui/Table";
 
-export const metadata = { title: "Reports · PHMG" };
+export const metadata = { title: "Management reports · PHMG" };
 export const dynamic = "force-dynamic";
 
 /**
- * The reports index (spec section 10).
+ * Management reports (the owner's screen of 02-11-2026).
  *
- * Grouped by the question each one answers rather than by where the data
- * lives, and each line says in one sentence what the report is for — a
- * list of eight nouns helps nobody choose.
+ * This was an index of twenty report names. The brief replaces it with the
+ * four figures a partner opens a reports screen *for*, each read off the
+ * records rather than linked to:
  *
- * The four reports that already have screens of their own are linked here
- * rather than rebuilt: the compliance grid, the client ledger and the two
- * on the receivables screen. One report, one home.
+ *  - **are we filing on time**, by service, because "are we late with GST
+ *    returns" is a question about a process a firm can fix;
+ *  - **what are we billing for**, by kind of work;
+ *  - **who is carrying what**, with overdue beside open, because open
+ *    alone says nothing about whether somebody is in trouble;
+ *  - **who owes us**, with the overdue part of it called out.
+ *
+ * Nothing on this page is computed here. Each panel calls the helper the
+ * report behind it already used — `filingPunctuality`, `revenueByCategory`,
+ * `receivablesReport`, `loadForEach` — so this screen and the report it
+ * came from can never disagree about the same number.
  */
-
-const GROUPS = [
-  {
-    title: "Work",
-    reports: [
-      {
-        href: "/reports/status",
-        area: "engagementsWork",
-        name: "Engagement status",
-        what: "Every job with its status, dates and who has it.",
-      },
-      {
-        href: "/reports/overdue",
-        area: "engagementsWork",
-        name: "Overdue work",
-        what: "Everything past its date and not filed, latest first.",
-      },
-      {
-        href: "/reports/pending-documents",
-        area: "documents",
-        name: "Documents awaited from clients",
-        what: "What each client still owes us, and whether we have asked.",
-      },
-      {
-        href: "/compliance/monthly",
-        area: "engagementsWork",
-        name: "Compliance status grid",
-        what: "Clients down the side, periods across the top — the fastest way to spot a month nobody filed.",
-      },
-      {
-        href: "/reports/at-risk",
-        area: "engagementsWork",
-        name: "At risk",
-        what: "The deadline has not passed but one of our own targets has — the list where acting still works.",
-      },
-      {
-        href: "/reports/turnaround",
-        area: "engagementsWork",
-        name: "Turnaround per service",
-        what: "How long work actually takes, against the standard we set.",
-      },
-      {
-        href: "/reports/rework",
-        area: "dashboards",
-        name: "Work sent back from review",
-        what: "How often finished work came back, by the person who did it.",
-      },
-      {
-        href: "/reports/tier-mix",
-        area: "dashboards",
-        name: "Work by tier",
-        what: "A, B and C work per person: who is carrying the senior jobs.",
-      },
-    ],
-  },
-  {
-    title: "Money",
-    reports: [
-      {
-        href: "/reports/revenue",
-        area: "invoices",
-        name: "Revenue",
-        what: "Billed work by client, service, branch or month.",
-      },
-      {
-        href: "/reports/receivables",
-        area: "invoices",
-        name: "Receivables",
-        what: "Every unpaid invoice, what is left on it and how late.",
-      },
-      {
-        href: "/billing?tab=collections",
-        area: "invoices",
-        name: "Receivables ageing",
-        what: "The same money in 30-day buckets, with the unbilled tab beside it.",
-      },
-      {
-        href: "/reports/unbilled",
-        area: "invoices",
-        name: "Unbilled work",
-        what: "Finished jobs nobody has invoiced yet.",
-      },
-    ],
-  },
-  {
-    title: "Compliance",
-    reports: [
-      {
-        href: "/reports/punctuality",
-        area: "engagementsWork",
-        name: "Filing punctuality",
-        what: "What went in on time, what went in late, and by how long.",
-      },
-      {
-        href: "/reports/opinions",
-        area: "practice",
-        name: "Audit opinions",
-        what: "Every audit, its type, and what the report said.",
-      },
-      {
-        href: "/reports/udin-summary",
-        area: "udin",
-        name: "UDINs issued",
-        what: "What the firm has signed this year, and who signed it.",
-      },
-      {
-        href: "/reports/certificates",
-        area: "dsc",
-        name: "Certificates expiring",
-        what: "Digital signature certificates, soonest first.",
-      },
-    ],
-  },
-  {
-    title: "The practice",
-    reports: [
-      {
-        href: "/reports/clients",
-        area: "clients",
-        name: "New and lost clients",
-        what: "Clients taken on and clients closed, by month.",
-      },
-      {
-        href: "/reports/grants",
-        area: "clientAccess",
-        name: "Client access grants",
-        what: "Who can see a client they do not work on, and why they were given it.",
-      },
-      {
-        href: "/reports/portal",
-        area: "clientPortalUsers",
-        name: "Client portal accounts",
-        what: "Who outside the firm can sign in, and when they last did.",
-      },
-    ],
-  },
-];
-
 export default async function ReportsPage() {
   const actor = await requireUser();
 
-  const groups = GROUPS.map((group) => ({
-    ...group,
-    reports: group.reports.filter((report) => can(actor, "view", report.area)),
-  })).filter((group) => group.reports.length > 0);
-
   await connectDB();
-  const headlines = await reportHeadlines(actor);
+
+  const mayMoney = can(actor, "view", "invoices");
+  const mayWork = can(actor, "view", "engagementsWork");
+  const mayTeam = can(actor, "view", "team");
+
+  const [punctuality, revenue, people, receivables] = await Promise.all([
+    mayWork ? filingPunctuality(actor) : null,
+    mayMoney ? revenueByCategory(actor) : [],
+    mayTeam
+      ? User.find(teamQuery(actor, { status: "active" }).query)
+          .select("name role")
+          .sort({ name: 1 })
+          .limit(200)
+          .lean()
+      : [],
+    mayMoney ? receivablesReport(actor) : null,
+  ]);
+
+  /** Open work for everybody on the list, in one query (lib/team/workload). */
+  const ids = people.map((person) => person._id);
+  const engagements = ids.length
+    ? await Engagement.find({
+        ...(branchFilter(actor, "engagementsWork") ?? {}),
+        $or: [{ assigneeId: { $in: ids } }, { reviewerId: { $in: ids } }],
+      })
+        .select(
+          "status statutoryDue internalDue assigneeId reviewerId reworkCount templateSnapshot.level",
+        )
+        .limit(10000)
+        .lean()
+    : [];
+  const load = loadForEach(
+    engagements,
+    ids.map((id) => String(id)),
+  );
+
+  /**
+   * Receivables, one row per client rather than one per invoice: a partner
+   * reading this panel is deciding who to telephone, and four invoices to
+   * the same client is one telephone call.
+   */
+  const owedByClient = new Map();
+  for (const row of receivables?.rows ?? []) {
+    const entry = owedByClient.get(row.client) ?? { owed: 0, overdue: 0 };
+    entry.owed += row.outstanding;
+    if (row.daysLate) entry.overdue += row.outstanding;
+    owedByClient.set(row.client, entry);
+  }
+  const owedRows = [...owedByClient.entries()]
+    .map(([client, sums]) => ({ client, ...sums }))
+    .sort((a, b) => b.owed - a.owed);
+
+  const revenueTotal = revenue.reduce((sum, row) => sum + row.paise, 0);
+  const fy = financialYearLabel(new Date());
 
   return (
-    <div className="mx-auto flex max-w-[900px] flex-col gap-6 p-4 md:p-6">
-      <div>
-        <h1 className="font-display text-24 font-bold tracking-tight">
-          Reports
-        </h1>
-        <p className="text-13 text-ink-muted">
-          Each one can be narrowed by date, branch, client, service or person,
-          and downloaded as a spreadsheet.
-        </p>
-      </div>
+    <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-5 p-4 md:p-6">
+      <PageHead
+        title="Management reports"
+        sub="Fixed reports, read off the firm's own records. Each one downloads as a spreadsheet."
+      />
 
-      {/* the headline figures, each a link to the report behind it. They
-          come from the same helpers the dashboard uses, so the two cannot
-          disagree about the same number */}
-      {headlines.length > 0 && (
-        <dl className="border-rule divide-rule flex flex-wrap divide-x border-y py-3">
-          {headlines.map((tile) => (
-            <div key={tile.key} className="px-4 first:pl-0">
-              <dt className="text-12 text-ink-muted uppercase">{tile.label}</dt>
-              <dd className="text-20">
-                <Link
-                  href={tile.href}
-                  className={`num font-medium ${
-                    tile.tone === "late"
-                      ? "text-redpen"
-                      : // amber, not red: at risk is still saveable (P3-5)
-                        tile.tone === "waiting"
-                        ? "text-waiting"
-                        : ""
-                  }`}
-                >
-                  {tile.value}
-                </Link>
-              </dd>
-            </div>
-          ))}
-        </dl>
-      )}
+      <FirmWide />
 
-      {/* the categories, so a long index can be skipped rather than read */}
-      <nav
-        aria-label="Report categories"
-        className="text-14 flex flex-wrap gap-2"
-      >
-        {groups.map((group) => (
-          <a
-            key={group.title}
-            href={`#${slug(group.title)}`}
-            className="rounded-ledger border-rule hover:bg-carbon-wash border px-3 py-1"
+      <div className="grid gap-4 lg:grid-cols-2">
+        {punctuality && (
+          <Panel
+            title={`Filing punctuality · ${fy}`}
+            link={{ href: "/reports/punctuality", label: "Full report" }}
           >
-            {group.title}
-          </a>
-        ))}
-      </nav>
+            <TableShell>
+              <Table caption="Filings this year by service, and how many went in late">
+                <Head>
+                  <Th>Service</Th>
+                  <Th align="right">Filed</Th>
+                  <Th align="right">Late</Th>
+                  <Th align="right">On time</Th>
+                  <Th align="right">Worst</Th>
+                </Head>
+                <tbody>
+                  {punctuality.rows.length === 0 ? (
+                    <Tr>
+                      <Td colSpan={5}>
+                        <span className="text-ink-muted">
+                          Nothing has been filed in {fy} yet.
+                        </span>
+                      </Td>
+                    </Tr>
+                  ) : (
+                    punctuality.rows.map((row) => (
+                      <Tr key={row.label}>
+                        <Td>{row.label}</Td>
+                        <Td align="right" className="num">
+                          {row.filed}
+                        </Td>
+                        <Td
+                          align="right"
+                          className={`num ${row.late ? "text-redpen" : ""}`}
+                        >
+                          {row.late}
+                        </Td>
+                        <Td align="right" className="num">
+                          {row.rate === null ? "—" : `${row.rate}%`}
+                        </Td>
+                        <Td align="right" className="num">
+                          {row.worst ? `${row.worst} days` : "—"}
+                        </Td>
+                      </Tr>
+                    ))
+                  )}
+                </tbody>
+              </Table>
+            </TableShell>
+            {punctuality.note && (
+              <p className="text-12 text-ink-muted">{punctuality.note}</p>
+            )}
+          </Panel>
+        )}
 
-      {groups.map((group) => (
-        <section
-          key={group.title}
-          id={slug(group.title)}
-          className="flex scroll-mt-4 flex-col gap-2"
-        >
-          <h2 className="font-display text-15 font-semibold">{group.title}</h2>
-          <ul className="rounded-ledger border-rule bg-surface border">
-            {group.reports.map((report) => (
-              <li
-                key={report.href}
-                className="border-rule border-b last:border-0"
-              >
-                <Link
-                  href={report.href}
-                  className="hover:bg-carbon-wash focus-visible:outline-brass block px-4 py-3 focus-visible:outline-2"
-                >
-                  <span className="text-14 font-medium underline underline-offset-4">
-                    {report.name}
-                  </span>
-                  <span className="text-13 text-ink-muted block">
-                    {report.what}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+        {mayMoney && (
+          <Panel
+            title="Billed this year by kind of work"
+            link={{ href: "/reports/revenue", label: "Full report" }}
+          >
+            {revenue.length === 0 ? (
+              <p className="text-14 text-ink-muted">
+                Nothing has been billed in {fy} yet.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {revenue.map((row, index) => (
+                  <div key={row.label} className="flex flex-col gap-1">
+                    <div className="text-13 flex items-baseline justify-between gap-3">
+                      <span>{row.label}</span>
+                      <Num paise={row.paise} strong />
+                    </div>
+                    <ProgressBar
+                      value={row.paise}
+                      max={revenueTotal}
+                      index={index}
+                      label={`${row.label}, ${Math.round(
+                        (row.paise / revenueTotal) * 100,
+                      )}% of what was billed`}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
+        )}
 
-      {/*
-        Time tracking exists now (P3-28), so the reason these are missing
-        has changed and so has the sentence. They are figures on a screen
-        and not yet reports, which means they do not export — and saying
-        that is better than leaving the old reason standing.
-      */}
-      <p className="text-12 text-ink-muted">
-        Utilisation, realisation, client profitability and the days nobody has
-        filled in are on{" "}
-        <Link href="/team/time" className="underline underline-offset-4">
-          the timesheet
-        </Link>{" "}
-        (P3-28). They are not reports yet, so they do not export to Excel or
-        PDF; the intern exposure report still needs time by tier, which nothing
-        records.
-      </p>
+        {mayTeam && (
+          <Panel
+            title="Workload by person"
+            link={{ href: "/team", label: "Team and time" }}
+          >
+            <TableShell>
+              <Table caption="Open work, overdue work and work waiting for each person's review">
+                <Head>
+                  <Th>Person</Th>
+                  <Th>Role</Th>
+                  <Th align="right">Open</Th>
+                  <Th align="right">Overdue</Th>
+                  <Th align="right">To review</Th>
+                </Head>
+                <tbody>
+                  {people.length === 0 && (
+                    <Tr>
+                      <Td colSpan={5}>
+                        <span className="text-ink-muted">
+                          Nobody is on the team yet.
+                        </span>
+                      </Td>
+                    </Tr>
+                  )}
+                  {people.map((person) => {
+                    const mine = load.get(String(person._id));
+                    return (
+                      <Tr key={String(person._id)}>
+                        <Td>{person.name}</Td>
+                        <Td className="text-13 text-ink-muted">
+                          {ROLE_LABELS[person.role] ?? person.role}
+                        </Td>
+                        <Td align="right" className="num">
+                          {mine?.asAssignee ?? 0}
+                        </Td>
+                        <Td
+                          align="right"
+                          className={`num ${
+                            mine?.overdue ? "text-redpen" : ""
+                          }`}
+                        >
+                          {mine?.overdue ?? 0}
+                        </Td>
+                        <Td align="right" className="num">
+                          {mine?.awaitingMyReview ?? 0}
+                        </Td>
+                      </Tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
+            </TableShell>
+          </Panel>
+        )}
+
+        {mayMoney && (
+          <Panel
+            title="Receivables by client"
+            count={owedRows.length ? `${owedRows.length} clients` : undefined}
+            link={{ href: "/billing?tab=collections", label: "Collections" }}
+          >
+            <TableShell>
+              <Table caption="What each client owes, and how much of it is past its due date">
+                <Head>
+                  <Th>Client</Th>
+                  <Th align="right" rule>
+                    Owed
+                  </Th>
+                  <Th align="right">Overdue</Th>
+                </Head>
+                <tbody>
+                  {owedRows.length === 0 ? (
+                    <Tr>
+                      <Td colSpan={3}>
+                        <span className="text-ink-muted">
+                          Nothing is outstanding.
+                        </span>
+                      </Td>
+                    </Tr>
+                  ) : (
+                    owedRows.map((row) => (
+                      <Tr key={row.client}>
+                        <Td>{row.client}</Td>
+                        <Td align="right" rule>
+                          <Num paise={row.owed} strong />
+                        </Td>
+                        <Td align="right">
+                          <Num paise={row.overdue} tone="late" />
+                        </Td>
+                      </Tr>
+                    ))
+                  )}
+                </tbody>
+              </Table>
+            </TableShell>
+          </Panel>
+        )}
+      </div>
     </div>
   );
-}
-/** A heading as an anchor: "The practice" becomes "the-practice". */
-function slug(title) {
-  return title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }

@@ -21,12 +21,20 @@ export default function ProcedureEditor({
   canReview,
   screens,
   current,
+  prefill,
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(!current);
   const [message, setMessage] = useState(null);
   const [pending, startTransition] = useTransition();
   const [slug, setSlug] = useState(procedureKey);
+
+  /**
+   * What the form opens with: the firm's own words where there are any,
+   * otherwise the starting draft — so writing the firm's own version is
+   * editing rather than retyping it. Saving replaces the draft for good.
+   */
+  const draft = current ?? prefill ?? null;
 
   const isPlaybook = kind === "playbook";
 
@@ -146,8 +154,9 @@ export default function ProcedureEditor({
   if (!canWrite) {
     return (
       <p className="rounded-ledger border-rule bg-surface text-14 text-ink-muted border px-3 py-4">
-        Nobody has written this one yet. A CA or a partner writes these — ask
-        whoever does this job most often.
+        {prefill
+          ? "The firm has not written its own version of this one yet, so what is above is the starting draft. A CA or a partner replaces it."
+          : "Nobody has written this one yet. A CA or a partner writes these — ask whoever does this job most often."}
       </p>
     );
   }
@@ -155,6 +164,16 @@ export default function ProcedureEditor({
   return (
     <form onSubmit={saving(onSave)} className="flex flex-col gap-3">
       <input type="hidden" name="kind" value={kind} />
+
+      {prefill && !current && (
+        <h2 className="font-display text-15 font-semibold">
+          Write the firm&rsquo;s own version
+          <span className="text-13 text-ink-muted block font-normal">
+            The boxes open with the draft in them. Correct it in your own
+            words and save — what you save replaces the draft everywhere.
+          </span>
+        </h2>
+      )}
 
       {message?.error && (
         <p
@@ -171,7 +190,7 @@ export default function ProcedureEditor({
           <input
             name="title"
             required
-            defaultValue={current?.title ?? ""}
+            defaultValue={draft?.title ?? ""}
             onChange={(event) =>
               !procedureKey &&
               setSlug(
@@ -192,7 +211,7 @@ export default function ProcedureEditor({
         <span className="text-13 font-medium">What it is for, in a line</span>
         <input
           name="intro"
-          defaultValue={current?.intro ?? ""}
+          defaultValue={draft?.intro ?? ""}
           className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
         />
       </label>
@@ -203,7 +222,7 @@ export default function ProcedureEditor({
           name="steps"
           rows={10}
           required
-          defaultValue={current?.steps ?? ""}
+          defaultValue={draft?.steps ?? ""}
           placeholder={
             "One step per line, in the order you do them.\nA line starting with — is a note on the step above it."
           }
@@ -222,7 +241,7 @@ export default function ProcedureEditor({
         <textarea
           name="notFor"
           rows={2}
-          defaultValue={current?.notFor ?? ""}
+          defaultValue={draft?.notFor ?? ""}
           placeholder="One per line. The half of every procedure that gets left out."
           className="rounded-control border-rule bg-paper text-14 border px-2 py-1"
         />
@@ -233,23 +252,23 @@ export default function ProcedureEditor({
           <Field
             label="When it happens"
             name="whenItHappens"
-            defaultValue={current?.whenItHappens}
+            defaultValue={draft?.whenItHappens}
           />
           <Field
             label="Where the decisions are"
             name="decisions"
-            defaultValue={current?.decisions}
+            defaultValue={draft?.decisions}
           />
           <Field
             label="What usually goes wrong"
             name="mistakes"
-            defaultValue={current?.mistakes}
+            defaultValue={draft?.mistakes}
           />
           <Field
             label="A worked example"
             name="example"
             rows={6}
-            defaultValue={current?.example}
+            defaultValue={draft?.example}
           />
 
           <fieldset className="flex flex-col gap-1">
@@ -263,7 +282,7 @@ export default function ProcedureEditor({
                     type="checkbox"
                     name="screens"
                     value={screen.key}
-                    defaultChecked={current?.screens?.includes(screen.key)}
+                    defaultChecked={draft?.screens?.includes(screen.key)}
                   />
                   {screen.label}
                 </label>

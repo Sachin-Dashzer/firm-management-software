@@ -9,7 +9,10 @@ import { recordAudit, ACTIONS } from "@/lib/audit";
 import SendBatch from "@/models/SendBatch";
 import NotificationRule from "@/models/NotificationRule";
 import FirmSettings from "@/models/FirmSettings";
+import MessageLog from "@/models/MessageLog";
 import { sendBatch } from "@/lib/mailer/batches";
+import { RULE_DEFAULTS } from "@/lib/mailer/rules";
+import { enqueue } from "@/lib/jobs/queue";
 
 /**
  * The partner's end of the automation gate (P3-10).
@@ -216,4 +219,99 @@ export async function setAutomationPaused(paused) {
       ? "Paused. Nothing automatic reaches a client until you turn this back on."
       : "Running again. The next sweep will propose what is due.",
   };
+}
+
+/**
+ * The kill switch, rule by rule (the owner's screen of 02-11-2026).
+ *
+ * Trusting a rule decides *whether a partner reads it first*; this decides
+ * whether it runs at all. They are two different sentences on the screen
+ * and two different fields, because switching a nagging chaser off is a
+ * thing a firm does in a hurry and should not require reading the wording.
+ *
+ * Partner-only, like the rest of this file: a rule that stops running
+ * stops a client being told something.
+ */
+export async function setRuleEnabled(key, enabled) {
+  const actor = await requireUser();
+  gate(actor);
+  await connectDB();
+
+  if (!RULE_DEFAULTS[key]) return { error: "There is no such message." };
+  const on = Boolean(enabled);
+
+  await audited(actor, async (session) => {
+    const rule = await NotificationRule.findOneAndUpdate(
+      { key },
+      { $set: { enabled: on, updatedBy: actor.id }, $setOnInsert: { key } },
+      { new: true, upsert: true, session },
+    );
+
+    await recordAudit(
+      {
+        action: ACTIONS.update,
+        entityType: "NotificationRule",
+        entityId: rule._id,
+        diff: { enabled: [!on, on] },
+        note: on
+          ? `${key} is running again`
+          : `${key} is switched off and will not run for anybody`,
+      },
+      session,
+    );
+  });
+
+  revalidatePath("/settings/automation");
+  revalidatePath("/settings/messages");
+  return {
+    ok: on
+      ? "That rule is running again."
+      : "Switched off. It will not run for anybody until it is switched back on.",
+  };
+}
+
+/**
+ * Send a failed message again.
+ *
+ * The runner already retries three times with a back-off, so anything
+ * still sitting here failed for a reason that did not fix itself — a bad
+ * address, a mailbox that was down all morning. Pressing this puts the
+ * same composed message back in the queue; it does not rewrite it, and the
+ * failure stays on the record.
+ */
+export async function retryMessage(id) {
+  const actor = await requireUser();
+  gate(actor);
+  await connectDB();
+
+  const log = await MessageLog.findById(id);
+  if (!log) return { error: "That message is gone." };
+  if (log.status !== "failed") {
+    return { error: `That message is ${log.status}, not failed.` };
+  }
+
+  await audited(actor, async (session) => {
+    log.status = "queued";
+    log.error = "";
+    log.updatedBy = actor.id;
+    await log.save({ session });
+
+    await recordAudit(
+      {
+        action: ACTIONS.update,
+        entityType: "MessageLog",
+        entityId: log._id,
+        note: `queued again after failing: ${log.subject || log.template}`,
+      },
+      session,
+    );
+  });
+
+  // outside the transaction: a job that runs before the write lands would
+  // read the old row and skip it
+  await enqueue("sendMail", { messageLogId: String(log._id) });
+
+  revalidatePath("/settings/automation");
+  revalidatePath("/settings/messages");
+  return { ok: "Back in the queue. The runner picks it up within 5 minutes." };
 }

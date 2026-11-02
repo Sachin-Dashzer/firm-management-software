@@ -4,167 +4,273 @@ import { connectDB } from "@/lib/db";
 import Procedure from "@/models/Procedure";
 import { formatISTDate } from "@/lib/dates";
 import { roadmap, mayWrite, isStale } from "@/lib/learning/screens";
+import { STARTER_SOPS, STARTER_NOTE } from "@/lib/learning/sops";
+import { SHELVES, shelfContents, VERIFY } from "@/lib/learning/playbooks";
+import PageHead from "@/components/ui/PageHead";
+import Panel from "@/components/ui/Panel";
+import Chip from "@/components/ui/Chip";
+import Segmented from "@/components/ui/Segmented";
 
-export const metadata = { title: "How we do things · PHMG" };
+export const metadata = { title: "Learning library · PHMG" };
 export const dynamic = "force-dynamic";
 
 /**
- * The shelf (P3-19).
+ * The library (P3-19, redrawn to the owner's screen of 02-11-2026).
  *
- * Every screen worth a procedure, and whether anybody has written it. The
- * empty ones are listed as loudly as the written ones on purpose: a
- * handbook with holes that nobody can see is how a new joiner finds the
- * hole, at the worst moment, on their own.
+ * Two menu items, one page, because they are two shelves of the same
+ * bookcase: **playbooks** are a kind of work learnt once, and **how we
+ * work here** is the procedure for the screen you are standing on.
  *
- * Nothing here is seeded. Every word on this screen was typed by somebody
- * at the firm.
+ * Three states are drawn differently and the difference is the point:
+ *
+ *  - *written by the firm* — somebody here typed it, and a partner's name
+ *    is against it;
+ *  - *the firm's starting draft* — the content that shipped with the
+ *    system, true enough to work from and not yet read by a partner;
+ *  - *nobody has written this* — listed as loudly as the rest, because a
+ *    handbook with invisible holes is how a new joiner finds the hole at
+ *    the worst moment.
+ *
+ * A firm-written procedure replaces the draft completely. They are never
+ * merged: two voices in one procedure is how a handbook stops being
+ * trusted.
  */
 export default async function LearningPage({ searchParams }) {
   const actor = await requireUser();
   const params = (await searchParams) ?? {};
-  /**
-   * Two menu items, one page (P3-22a): "How we work here" is the per-screen
-   * procedures and "Learning library" is the playbooks. Both sections stay
-   * on the page — the tab decides which one is first and which is open.
-   */
   const tab = params.tab === "sops" ? "sops" : "playbooks";
+  const query = String(params.q ?? "").trim().toLowerCase();
+  const specialist = params.specialist === "1";
 
   await connectDB();
   const rows = await Procedure.find({}).sort({ updatedAt: -1 }).lean();
 
-  const screens = roadmap(
-    rows.filter((row) => row.kind === "screen"),
-    new Date(),
-  );
-  const playbooks = rows.filter((row) => row.kind === "playbook");
+  const written = rows.filter((row) => row.kind === "screen");
+  const screens = roadmap(written, new Date()).map((screen) => ({
+    ...screen,
+    starter: Boolean(STARTER_SOPS[screen.key]),
+    draftSteps: STARTER_SOPS[screen.key]?.steps?.length ?? 0,
+    why: STARTER_SOPS[screen.key]?.why ?? "",
+  }));
 
-  const written = screens.filter((row) => row.written).length;
+  const firmWritten = screens.filter((screen) => screen.written).length;
+  const drafted = screens.filter(
+    (screen) => !screen.written && screen.starter,
+  ).length;
+  const blank = screens.length - firmWritten - drafted;
   const canWrite = mayWrite(actor);
 
+  /** A firm-written playbook sits on the shelf beside the shipped ones. */
+  const ownPlaybooks = rows.filter((row) => row.kind === "playbook");
+
+  const shelves = SHELVES.filter((shelf) => specialist || !shelf.specialist)
+    .map((shelf) => ({
+      ...shelf,
+      books: shelfContents(shelf.id).filter(
+        (book) =>
+          !query ||
+          `${book.id} ${book.title} ${book.out}`.toLowerCase().includes(query),
+      ),
+    }))
+    .filter((shelf) => shelf.books.length > 0);
+
+  const hiddenShelves = SHELVES.filter((shelf) => shelf.specialist).length;
+
   return (
-    <div className="mx-auto flex max-w-[900px] flex-col gap-5 p-4 md:p-6">
-      <div>
-        <h1 className="font-display text-24 font-bold tracking-tight">
-          How we do things
-        </h1>
-        <p className="text-13 text-ink-muted max-w-[70ch]">
-          The firm&rsquo;s own procedures, beside the work they are about — the{" "}
-          <strong>?</strong> in the top bar opens the one for whatever screen
-          you are on. Nothing here is written by the system: every word is
-          somebody&rsquo;s at PHMG, and a screen nobody has written up says so.
-        </p>
-      </div>
+    <div className="mx-auto flex w-full max-w-[1000px] flex-col gap-5 p-4 md:p-6">
+      <PageHead
+        title="Learning library"
+        sub="Learn a kind of work in depth. For help with the screen you are standing on, open its procedure from the question mark in the top bar."
+      />
 
-      <p className="rounded-ledger border-rule bg-sunk text-13 border px-3 py-2">
-        <strong>
-          {written} of {screens.length}
-        </strong>{" "}
-        screens have a procedure.{" "}
-        {canWrite
-          ? "Write the ones you explain out loud most often — those are the ones that cost the firm time."
-          : "A CA or a partner writes these."}
-      </p>
+      <Segmented
+        label="Which shelf"
+        variant="underline"
+        value={tab}
+        items={[
+          {
+            key: "playbooks",
+            label: "Playbooks",
+            href: "/learning?tab=playbooks",
+          },
+          {
+            key: "sops",
+            label: "How we work here",
+            href: "/learning?tab=sops",
+          },
+        ]}
+      />
 
-      <section
-        className="flex flex-col gap-2"
-        id="sops"
-        hidden={tab !== "sops"}
-      >
-        <h2 className="text-15 font-bold">Screen by screen</h2>
-        <ul className="rounded-table border-rule bg-surface divide-rule divide-y border">
-          {screens.map((screen) => (
-            <li
-              key={screen.key}
-              className="flex flex-wrap items-baseline justify-between gap-2 px-3 py-2"
-            >
-              <span className="text-14">
-                {screen.label}
-                <span className="text-12 text-ink-muted block font-mono">
-                  {screen.path}
-                </span>
+      {tab === "playbooks" ? (
+        <>
+          <form
+            method="get"
+            className="flex flex-wrap items-end gap-3"
+            aria-label="Find a playbook"
+          >
+            <input type="hidden" name="tab" value="playbooks" />
+            <label className="flex flex-col gap-1">
+              <span className="text-12 text-ink-muted font-medium">
+                Find a playbook
               </span>
-              <span className="text-13">
-                {screen.written ? (
-                  <>
-                    <Link
-                      href={`/learning/${screen.key}`}
-                      className="underline underline-offset-4"
-                    >
-                      {screen.steps} {screen.steps === 1 ? "step" : "steps"}
-                    </Link>
-                    {screen.stale && (
-                      <span className="text-waiting"> · needs a read</span>
+              <input
+                type="search"
+                name="q"
+                defaultValue={params.q ?? ""}
+                placeholder="Returns, notices, a captive…"
+                className="rounded-control border-rule bg-paper text-14 h-9 min-w-[16rem] border px-2"
+              />
+            </label>
+            <label className="text-13 flex h-9 items-center gap-2">
+              <input
+                type="checkbox"
+                name="specialist"
+                value="1"
+                defaultChecked={specialist}
+              />
+              Show the specialist shelves ({hiddenShelves})
+            </label>
+            <button
+              type="submit"
+              className="rounded-control border-rule bg-surface text-13 h-9 border px-3"
+            >
+              Show
+            </button>
+          </form>
+
+          {shelves.map((shelf) => (
+            <Panel
+              key={shelf.id}
+              title={shelf.title}
+              hint={`For ${shelf.who}`}
+            >
+              <ul className="divide-rule divide-y">
+                {shelf.books.map((book) => (
+                  <li key={book.id}>
+                    {book.full ? (
+                      <Link
+                        href={`/learning/${book.id}`}
+                        className="hover:bg-carbon-wash -mx-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded px-2 py-2.5"
+                      >
+                        <span className="min-w-0">
+                          <span className="text-14 font-medium underline underline-offset-4">
+                            {book.title}
+                          </span>
+                          <span className="text-13 text-ink-muted block max-w-[68ch]">
+                            {book.out}
+                          </span>
+                        </span>
+                        <span className="text-12 text-ink-muted shrink-0">
+                          {book.steps?.length ?? 0} steps
+                          {book.exercise ? " · exercise" : ""}
+                        </span>
+                      </Link>
+                    ) : (
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-2 py-2.5">
+                        <span className="text-14 text-ink-muted">
+                          {book.title}
+                        </span>
+                        <span className="text-12 text-faint shrink-0">
+                          not written yet
+                        </span>
+                      </div>
                     )}
-                  </>
-                ) : canWrite ? (
-                  <Link
-                    href={`/learning/${screen.key}`}
-                    className="text-ink-muted underline underline-offset-4"
-                  >
-                    nobody has written this — write it
-                  </Link>
-                ) : (
-                  <span className="text-ink-muted">
-                    nobody has written this yet
-                  </span>
-                )}
-              </span>
-            </li>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
           ))}
-        </ul>
-      </section>
 
-      <section
-        className="flex flex-col gap-2"
-        id="playbooks"
-        hidden={tab !== "playbooks"}
-      >
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-15 font-bold">Playbooks</h2>
-          {canWrite && (
-            <Link
-              href="/learning/new-playbook"
-              className="text-13 underline underline-offset-4"
-            >
-              Write one
-            </Link>
+          {ownPlaybooks.length > 0 && (
+            <Panel title="Written here" hint="The firm's own">
+              <ul className="divide-rule divide-y">
+                {ownPlaybooks.map((row) => (
+                  <li
+                    key={String(row._id)}
+                    className="flex flex-wrap items-baseline justify-between gap-2 py-2.5"
+                  >
+                    <Link
+                      href={`/learning/${row.key}`}
+                      className="text-14 underline underline-offset-4"
+                    >
+                      {row.title}
+                    </Link>
+                    <span className="text-12 text-ink-muted">
+                      {row.writtenByName}
+                      {row.reviewedAt
+                        ? ` · read by ${row.reviewedByName}, ${formatISTDate(row.reviewedAt)}`
+                        : " · not reviewed"}
+                      {isStale(row) && " · needs a read"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
           )}
-        </div>
-        <p className="text-13 text-ink-muted max-w-[70ch]">
-          A job start to finish — when it happens, who does what, where the
-          decisions are, and what usually goes wrong. Longer than a screen
-          procedure and read once rather than looked up.
-        </p>
 
-        {playbooks.length === 0 ? (
-          <p className="rounded-ledger border-rule bg-surface text-14 text-ink-muted border px-3 py-4">
-            None written yet.
-          </p>
-        ) : (
-          <ul className="rounded-table border-rule bg-surface divide-rule divide-y border">
-            {playbooks.map((row) => (
-              <li
-                key={String(row._id)}
-                className="flex flex-wrap items-baseline justify-between gap-2 px-3 py-2"
+          {canWrite && (
+            <p className="text-13">
+              <Link
+                href="/learning/new-playbook"
+                className="underline underline-offset-4"
               >
+                Write one of your own
+              </Link>{" "}
+              — for the work this firm does that nothing above covers.
+            </p>
+          )}
+
+          <p className="text-12 text-ink-muted">{VERIFY}</p>
+        </>
+      ) : (
+        <>
+          <p className="rounded-ledger border-rule bg-sunk text-13 border px-3 py-2">
+            <strong>{firmWritten}</strong> of {screens.length} screens have a
+            procedure written here, <strong>{drafted}</strong> have the
+            firm&rsquo;s starting draft, and <strong>{blank}</strong> have
+            nothing.{" "}
+            {canWrite
+              ? "Write the ones you explain out loud most often — those are the ones costing the firm time."
+              : "A CA or a partner writes these."}
+          </p>
+
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {screens.map((screen) => (
+              <li key={screen.key}>
                 <Link
-                  href={`/learning/${row.key}`}
-                  className="text-14 underline underline-offset-4"
+                  href={`/learning/${screen.key}`}
+                  className="rounded-ledger border-rule bg-surface hover:border-carbon flex h-full flex-col gap-1 border p-3"
                 >
-                  {row.title}
+                  <span className="flex items-baseline justify-between gap-2">
+                    <span className="text-14 font-medium">{screen.label}</span>
+                    {screen.written ? (
+                      <Chip tone={screen.stale ? "soon" : "good"}>
+                        {screen.stale ? "needs a read" : "written here"}
+                      </Chip>
+                    ) : screen.starter ? (
+                      <Chip tone="info">draft</Chip>
+                    ) : (
+                      <Chip tone="neutral">not written</Chip>
+                    )}
+                  </span>
+                  <span className="text-12 text-ink-muted font-mono">
+                    {screen.path}
+                  </span>
+                  {(screen.why || screen.written) && (
+                    <span className="text-13 text-ink-muted">
+                      {screen.written
+                        ? `${screen.steps} ${screen.steps === 1 ? "step" : "steps"}, written by the firm`
+                        : screen.why}
+                    </span>
+                  )}
                 </Link>
-                <span className="text-12 text-ink-muted">
-                  {row.writtenByName}
-                  {row.reviewedAt
-                    ? ` · read by ${row.reviewedByName}, ${formatISTDate(row.reviewedAt)}`
-                    : " · not reviewed"}
-                  {isStale(row) && " · needs a read"}
-                </span>
               </li>
             ))}
           </ul>
-        )}
-      </section>
+
+          <p className="text-12 text-ink-muted">{STARTER_NOTE}</p>
+        </>
+      )}
     </div>
   );
 }

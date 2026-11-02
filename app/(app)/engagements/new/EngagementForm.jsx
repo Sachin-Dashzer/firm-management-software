@@ -8,6 +8,7 @@ import { addWorkingDays, istInputDate } from "@/lib/dates";
 import { canExecute, canReview, tierLabel } from "@/lib/services/catalog";
 import { ROLE_LABELS } from "@/lib/permissions";
 import { PRIORITIES } from "@/lib/engagements/status";
+import Combobox from "@/components/ui/Combobox";
 import { createEngagement, subscriptionDefaults } from "../actions";
 
 /**
@@ -18,11 +19,28 @@ import { createEngagement, subscriptionDefaults } from "../actions";
  * client's own fee and usual people are filled in from their subscription
  * when there is one.
  */
+const OTHER = {
+  id: "other",
+  name: "Other — not in the catalog",
+  code: "OTHER",
+  category: "Other",
+  recurrence: "one-time",
+  level: "L2",
+  minExecRole: "employee",
+  minReviewRole: "ca",
+  defaultFee: "0",
+  turnaroundDays: null,
+  turnaroundNote: "As agreed with the client",
+  udinRequired: false,
+  version: 1,
+};
+
 export default function EngagementForm({
   clients,
   templates,
   team,
   presetClientId,
+  mayAddService = false,
 }) {
   const router = useRouter();
   const [clientId, setClientId] = useState(presetClientId || "");
@@ -35,7 +53,25 @@ export default function EngagementForm({
   const [message, setMessage] = useState(null);
   const [pending, startTransition] = useTransition();
 
-  const template = templates.find((t) => t.id === templateId) ?? null;
+  const [otherName, setOtherName] = useState("");
+
+  /**
+   * The service, including the one that is not a service yet. "Other"
+   * behaves like a one-time L2 job in the form, so the period list, the
+   * people filters and the due date all work before the catalog row
+   * exists; the server makes the row (see adHocService in ../actions).
+   *
+   * Memoised on the id alone — the effects below key off this object, and
+   * one rebuilt on every keystroke would reset the period and the fee
+   * while somebody was still typing the name.
+   */
+  const template = useMemo(
+    () =>
+      templateId === "other"
+        ? OTHER
+        : (templates.find((t) => t.id === templateId) ?? null),
+    [templateId, templates],
+  );
 
   const periods = useMemo(
     () => (template ? periodOptions(template.recurrence) : []),
@@ -123,41 +159,74 @@ export default function EngagementForm({
       )}
 
       <section className="rounded-ledger border-rule bg-surface grid gap-4 border p-4 sm:grid-cols-2">
-        <label className="flex flex-col gap-1">
-          <span className="text-13 text-ink-muted font-medium">Client</span>
-          <select
-            name="clientId"
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-            required
-            className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
-          >
-            <option value="">— choose —</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} ({c.code})
-              </option>
-            ))}
-          </select>
-        </label>
+        <Combobox
+          label="Client"
+          name="clientId"
+          value={clientId}
+          onChange={setClientId}
+          required
+          placeholder="Name or code — type to search"
+          options={clients.map((c) => ({
+            id: c.id,
+            label: c.name,
+            hint: c.code,
+          }))}
+        />
 
-        <label className="flex flex-col gap-1">
-          <span className="text-13 text-ink-muted font-medium">Service</span>
-          <select
-            name="serviceTemplateId"
-            value={templateId}
-            onChange={(e) => setTemplateId(e.target.value)}
-            required
-            className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
-          >
-            <option value="">— choose —</option>
-            {templates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name} ({t.code})
-              </option>
-            ))}
-          </select>
-        </label>
+        <Combobox
+          label="Service"
+          name="serviceTemplateId"
+          value={templateId}
+          onChange={setTemplateId}
+          required
+          placeholder="Service name or code — type to search"
+          options={[
+            ...templates.map((t) => ({
+              id: t.id,
+              label: t.name,
+              hint: t.code,
+              group: t.category,
+            })),
+            /* one-off work, last, where a new thing belongs */
+            ...(mayAddService
+              ? [
+                  {
+                    id: "other",
+                    label: OTHER.name,
+                    group: "Anything the catalog does not have yet",
+                  },
+                ]
+              : []),
+          ]}
+          footnote={
+            mayAddService
+              ? undefined
+              : "Work that is not on this list has to be added to the catalog by a partner first."
+          }
+        />
+
+        {templateId === "other" && (
+          <label className="flex flex-col gap-1 sm:col-span-2">
+            <span className="text-13 text-ink-muted font-medium">
+              What is this work? <span className="text-redpen">*</span>
+            </span>
+            <input
+              name="otherName"
+              value={otherName}
+              onChange={(e) => setOtherName(e.target.value)}
+              required
+              maxLength={120}
+              placeholder="Fire insurance certificate, bank visit, valuation…"
+              className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
+            />
+            <span className="text-12 text-ink-muted">
+              This becomes a service in the catalog, as a one-time job needing
+              an employee and a CA review, with no checklist and no fee until
+              somebody sets them. Use the same words next time and it is the
+              same service.
+            </span>
+          </label>
+        )}
 
         <label className="flex flex-col gap-1">
           <span className="text-13 text-ink-muted font-medium">Period</span>

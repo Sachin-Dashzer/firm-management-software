@@ -12,6 +12,7 @@ import {
   startOfISTDay,
 } from "@/lib/dates";
 import { CLOSED_STATUSES } from "@/lib/engagements/status";
+import { assignedTo } from "@/lib/engagements/filter";
 import { DueChip, PriorityChip } from "../engagements/chips";
 import { hasRoleDashboard } from "@/components/dashboard/RoleDashboard";
 import TierBadge from "@/components/ledger/TierBadge";
@@ -51,10 +52,15 @@ export default async function MyDayPage() {
   const [due, waiting, toReview] = await Promise.all([
     Engagement.find({
       ...open,
-      assigneeId: actor.id,
-      $or: [
-        { internalDue: { $lt: endOfToday } },
-        { statutoryDue: { $lt: endOfToday } },
+      // two `$or`s cannot share an object: mine, *and* due
+      $and: [
+        { $or: assignedTo(actor.id) },
+        {
+          $or: [
+            { internalDue: { $lt: endOfToday } },
+            { statutoryDue: { $lt: endOfToday } },
+          ],
+        },
       ],
     })
       .sort({ internalDue: 1 })
@@ -62,7 +68,7 @@ export default async function MyDayPage() {
       .lean(),
     Engagement.find({
       ...open,
-      assigneeId: actor.id,
+      $or: assignedTo(actor.id),
       status: "Awaiting documents",
     })
       .sort({ internalDue: 1 })
