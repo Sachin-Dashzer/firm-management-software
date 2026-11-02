@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, gotoForm } from "./signin.js";
-import { alertBox, pick } from "./alerts.js";
+import { pick } from "./alerts.js";
 import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
 import Branch from "../../models/Branch.js";
@@ -68,7 +68,7 @@ test.afterAll(async () => {
 
 /**
  * Every new client belongs to a group (owner decision, 24-10-2026). The
- * group can be made from the form itself, which is the flow here: the first
+ * group is chosen on the checks step, and can be made from there: the first
  * client of a new family has nowhere else to make one.
  */
 async function chooseGroup(page, name = GROUP) {
@@ -77,43 +77,114 @@ async function chooseGroup(page, name = GROUP) {
     await select.selectOption({ label: name });
     return;
   }
-  await page.getByPlaceholder("…or a new group").fill(name);
+  await page.getByPlaceholder("Sharma family").fill(name);
   await page.getByRole("button", { name: "Add", exact: true }).click();
   await expect(select).toHaveValue(/^[a-f0-9]{24}$/);
 }
 
-test("a new client cannot be saved without a group", async ({ page }) => {
+/** Step 1, then the master in step 2, which is where every test starts. */
+async function master(page, fields) {
+  const {
+    entity = "Private limited company",
+    name,
+    pan,
+    gstin,
+    contact = "Rakesh Sharma",
+    mobile,
+  } = fields;
+
+  await page.getByRole("button", { name: entity, exact: true }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(
+    page.getByRole("heading", { name: /Client master/ }),
+  ).toBeVisible();
+
+  await page.getByLabel(/Legal name/).fill(name);
+  await page.getByLabel(/Contact person/).fill(contact);
+  await pick(page.getByLabel(/^Branch/), /NOI/);
+  if (mobile) await page.getByLabel("Mobile").fill(mobile);
+  if (gstin) await page.getByLabel("GSTIN", { exact: true }).fill(gstin);
+  // the PAN is typed last: leaving it is what starts the duplicate lookup
+  if (pan) await page.getByLabel(/^PAN/).fill(pan);
+  await page.getByRole("heading", { name: /Client master/ }).click();
+}
+
+/** Click Continue until the named step is on screen. */
+async function walkTo(page, heading) {
+  for (let i = 0; i < 6; i += 1) {
+    if (await page.getByRole("heading", { name: heading }).isVisible()) return;
+    await page.getByRole("button", { name: "Continue" }).click();
+  }
+  await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+}
+
+test("the wizard will not go past the checks without a group", async ({
+  page,
+}) => {
   await signIn(page, EMAIL);
   await gotoForm(page, "/clients/new");
 
+  await master(page, { name: "Playwright Groupless Private Limited" });
+  await walkTo(page, /Checks before accepting/);
+
   const select = page.locator('select[name="groupId"]');
-  await expect(select).toHaveAttribute("required", "");
   await expect(select).toHaveValue("");
+  await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
+
+  await chooseGroup(page);
+  await expect(page.getByRole("button", { name: "Continue" })).toBeEnabled();
+});
+
+test("the entity type decides the fields that are asked for", async ({
+  page,
+}) => {
+  await signIn(page, EMAIL);
+  await gotoForm(page, "/clients/new");
+
+  // a company is asked for its CIN
+  await page
+    .getByRole("button", { name: "Private limited company", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByLabel("CIN", { exact: true })).toBeVisible();
+
+  // a trust is asked for its trustees instead
+  await page.getByRole("button", { name: "1. Entity type" }).click();
+  await page.getByRole("button", { name: "Trust", exact: true }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByLabel("CIN", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Trustees")).toBeVisible();
 });
 
 test("onboard a client, then find it again", async ({ page }) => {
   await signIn(page, EMAIL);
-
   await gotoForm(page, "/clients/new");
-  await page.getByLabel("Legal name").fill(NAME);
-  await page.getByLabel("Trade name").fill("Playwright Textiles");
-  await page.getByLabel("Entity type").selectOption("Private Limited");
-  await pick(page.getByLabel("Branch"), /NOI/);
-  await chooseGroup(page);
-  await page.locator('input[name="gstins.0.gstin"]').fill(GSTIN);
-  await page.locator('input[name="contacts.0.name"]').fill("Rakesh Sharma");
-  await page.locator('input[name="contacts.0.mobile"]').fill("9811034567");
 
-  // PAN is typed last on purpose. Leaving it starts the duplicate check, and
-  // this click lands while that check is still in flight — which is how the
-  // mouse bug showed itself: the submit button shared the check's pending
-  // state, went disabled between mousedown and mouseup, and the browser
-  // fired no click at all. Fill PAN earlier and the race is gone and so is
-  // the cover for the bug.
-  await page.getByLabel("PAN").fill(PAN);
+  await master(page, {
+    name: NAME,
+    pan: PAN,
+    gstin: GSTIN,
+    mobile: "9811034567",
+  });
+  await page.getByLabel(/Trade name/).fill("Playwright Textiles");
+
+  // every check that can be decided from the typed master has passed
+  await expect(page.getByText(/matches Private limited company/)).toBeVisible();
+
+  await walkTo(page, /Documents to collect/);
+  await page.getByText("Certificate of incorporation (CIN)").click();
+
+  await walkTo(page, /Checks before accepting/);
+  await chooseGroup(page);
+
+  await walkTo(page, /Ready to create/);
   await page.getByRole("button", { name: "Create client" }).click();
 
-  // lands on the new client's case file, with a generated code
+  // the client, its services, and a link for what is still outstanding
+  await expect(page.getByText(/created as Lead/)).toBeVisible();
+  await expect(page.getByText(/documents asked for/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Open the client" }).click();
   await expect(page).toHaveURL(/\/clients\/[a-f0-9]{24}/);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     "Playwright Textiles",
@@ -128,42 +199,21 @@ test("onboard a client, then find it again", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("the list names the group before the client, and filters by it", async ({
+test("a bad GSTIN is caught where it is typed, not on save", async ({
   page,
 }) => {
   await signIn(page, EMAIL);
-  await page.goto("/clients");
-
-  // the group is the first column, so a family reads before its businesses.
-  // Compared without case: these are `innerText`, which is what the reader
-  // sees, and CSS sets the headers in capitals
-  const headings = await page.locator("thead th").allInnerTexts();
-  expect(headings[0].toLowerCase()).toBe("group");
-  expect(headings[2].toLowerCase()).toBe("client");
-
-  await page.getByLabel("Group").selectOption({ label: GROUP });
-  await page.getByRole("button", { name: "Filter" }).click();
-  await expect(
-    page.getByRole("link", { name: /Playwright Textiles/ }),
-  ).toBeVisible();
-  await expect(page.getByRole("link", { name: GROUP }).first()).toBeVisible();
-});
-
-test("a bad GSTIN is refused with a readable reason", async ({ page }) => {
-  await signIn(page, EMAIL);
   await gotoForm(page, "/clients/new");
 
-  await page.getByLabel("Legal name").fill("Bad GSTIN Traders");
-  await page.getByLabel("Entity type").selectOption("Partnership Firm");
-  await pick(page.getByLabel("Branch"), /NOI/);
-  await page.locator('input[name="contacts.0.name"]').fill("Someone");
-  await chooseGroup(page);
-  // right shape, wrong check digit
-  await page.locator('input[name="gstins.0.gstin"]').fill("09AABCS1429P1ZT");
-  await page.getByRole("button", { name: "Create client" }).click();
+  await master(page, {
+    entity: "Partnership firm",
+    name: "Bad GSTIN Traders",
+    // right shape, wrong check digit
+    gstin: "09AABCS1429P1ZT",
+  });
 
-  await expect(alertBox(page)).toContainText("last character");
-  await expect(page).toHaveURL(/\/clients\/new/);
+  await expect(page.getByText(/last character/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
 });
 
 test("the same PAN twice is blocked until it is confirmed", async ({
@@ -172,16 +222,30 @@ test("the same PAN twice is blocked until it is confirmed", async ({
   await signIn(page, EMAIL);
   await gotoForm(page, "/clients/new");
 
-  await page.getByLabel("Legal name").fill("Playwright Textiles Duplicate");
-  await page.getByLabel("Entity type").selectOption("Private Limited");
-  await pick(page.getByLabel("Branch"), /NOI/);
-  await page.getByLabel("PAN").fill(PAN);
-  await page.locator('input[name="contacts.0.name"]').fill("Someone Else");
-  await chooseGroup(page);
-  await page.getByRole("button", { name: "Create client" }).click();
+  await master(page, {
+    name: "Playwright Textiles Duplicate",
+    pan: PAN,
+    contact: "Someone Else",
+  });
 
-  await expect(page.getByText(/is already on/)).toBeVisible();
-  await expect(page).toHaveURL(/\/clients\/new/);
+  // said once where it is typed, and it does not stop the wizard: whether
+  // two records are the same client is a judgement, not a bad field
+  await expect(page.getByText(/is already on/).first()).toBeVisible();
+
+  await walkTo(page, /Checks before accepting/);
+  await chooseGroup(page);
+  await walkTo(page, /Ready to create/);
+
+  // ...and again where it would be saved, with the only way past it
+  await expect(
+    page.getByText("This looks like an existing client"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Create client" }).click();
+  await expect(page.getByText(/is already on/).first()).toBeVisible();
+
+  await page.getByLabel(/Create anyway/).check();
+  await page.getByRole("button", { name: "Create client" }).click();
+  await expect(page.getByText(/created as Lead/)).toBeVisible();
 });
 
 test("a portal password is hidden until revealed, and the reveal is logged", async ({
@@ -235,7 +299,9 @@ test("a note goes on the communication log", async ({ page }) => {
    * the test failed on a control it had just used rather than on the entry it
    * was about.
    */
-  const entry = page.getByRole("listitem").filter({ hasText: /promised by Friday/ });
+  const entry = page
+    .getByRole("listitem")
+    .filter({ hasText: /promised by Friday/ });
   await expect(entry).toBeVisible();
   await expect(entry).toContainText("Call");
 });

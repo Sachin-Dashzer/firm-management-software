@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatPaise } from "@/lib/money";
 import Action from "@/components/ui/Action";
+import Notice, { Result } from "@/components/ui/Notice";
+import { Table, Head, Th, Tr, Td, Num } from "@/components/ui/Table";
 import { setTds26AS } from "../invoices/payments";
 
 /**
@@ -14,6 +16,10 @@ import { setTds26AS } from "../invoices/payments";
  * other change (the action writes the entry) and it is reversible from the
  * matched list — ticking the wrong receipt is the likeliest mistake on this
  * screen, and there has to be a way back.
+ *
+ * A quarter is a panel with its own subtotal, because 26AS is read a
+ * quarter at a time and the figure somebody is reconciling against is the
+ * quarter's, not the year's. The year's total is said once, above them.
  */
 export default function TdsRows({ rows, matched, canTick, whyNot }) {
   const router = useRouter();
@@ -42,103 +48,106 @@ export default function TdsRows({ rows, matched, canTick, whyNot }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {message?.ok && (
-        <p
-          role="status"
-          className="rounded-ledger border-filed bg-filed-wash text-13 text-filed border px-3 py-2"
-        >
-          {message.ok}
-        </p>
-      )}
-      {message?.error && (
-        <p
-          role="alert"
-          className="rounded-ledger border-redpen bg-redpen-wash text-13 text-redpen border px-3 py-2"
-        >
-          {message.error}
-        </p>
-      )}
+      <Result message={message} />
 
       {rows.length === 0 ? (
-        <p className="rounded-ledger border-rule bg-surface text-14 border px-4 py-3">
+        <Notice tone="flat">
           {matched
             ? "Nothing has been ticked off yet."
             : "No TDS is waiting to be matched. Every receipt with TDS on it has been found in 26AS."}
-        </p>
+        </Notice>
       ) : (
         <>
           <p className="text-14">
             <strong className="num">{formatPaise(total)}</strong> across{" "}
-            <strong>{rows.length}</strong>{" "}
+            <strong className="num">{rows.length}</strong>{" "}
             {rows.length === 1 ? "receipt" : "receipts"}
-            {matched ? " ticked off." : " still to find in 26AS."}
+            {matched ? " ticked off" : " still to find in 26AS"}, in{" "}
+            {quarters.length} {quarters.length === 1 ? "quarter" : "quarters"}.
           </p>
 
           {quarters.map((quarter) => (
-            <section key={quarter.label} className="flex flex-col gap-2">
-              <h2 className="text-13 text-ink-muted font-medium">
-                {quarter.label}
-                <span className="num">
-                  {" · "}
-                  {formatPaise(
-                    quarter.rows.reduce((sum, row) => sum + row.tdsPaise, 0),
-                  )}
+            <section
+              key={quarter.label}
+              className="rounded-table border-rule bg-surface overflow-hidden border"
+            >
+              <div className="border-rule flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b px-4 py-2.5">
+                <h3 className="font-display text-15 font-semibold">
+                  {quarter.label}
+                  <span className="num text-ink-muted ml-1.5 font-normal">
+                    ·{" "}
+                    {formatPaise(
+                      quarter.rows.reduce((sum, row) => sum + row.tdsPaise, 0),
+                    )}
+                  </span>
+                </h3>
+                <span className="text-12 text-ink-muted">
+                  {quarter.rows.length}{" "}
+                  {quarter.rows.length === 1 ? "receipt" : "receipts"}
                 </span>
-              </h2>
-
-              <div className="rounded-table border-rule bg-surface overflow-x-auto border">
-                <table className="text-14 w-full">
-                  <thead>
-                    <tr className="border-rule text-12 text-faint border-b text-left font-normal">
-                      <th className="px-3 py-2 font-medium">Received</th>
-                      <th className="px-3 py-2 font-medium">Client</th>
-                      <th className="px-3 py-2 font-medium">Against</th>
-                      <th className="px-3 py-2 font-medium">Reference</th>
-                      <th className="px-3 py-2 text-right font-medium">TDS</th>
-                      <th className="px-3 py-2 font-medium">
-                        <span className="sr-only">In 26AS</span>
-                      </th>
-                    </tr>
-                  </thead>
+              </div>
+              <div className="overflow-x-auto">
+                <Table fixed caption={`TDS deducted in ${quarter.label}`}>
+                  <colgroup>
+                    <col className="w-[8rem]" />
+                    <col />
+                    <col className="w-[13rem]" />
+                    <col className="w-[12rem]" />
+                    <col className="w-[9.5rem]" />
+                    <col className="w-[11rem]" />
+                  </colgroup>
+                  <Head>
+                    <Th>Received</Th>
+                    <Th>Client</Th>
+                    <Th>Against</Th>
+                    <Th>Reference</Th>
+                    <Th align="right" rule>
+                      TDS
+                    </Th>
+                    <Th align="right">
+                      <span className="sr-only">In 26AS</span>
+                    </Th>
+                  </Head>
                   <tbody>
                     {quarter.rows.map((row) => (
-                      <tr
-                        key={row.id}
-                        className="border-rule border-b last:border-0"
-                      >
-                        <td className="num text-13 px-3 py-2">{row.date}</td>
-                        <td className="px-3 py-2">
+                      <Tr key={row.id}>
+                        <Td className="num text-13 text-ink-muted">
+                          {row.date}
+                        </Td>
+                        <Td className="truncate">
                           <Link
                             href={`/clients/${row.clientId}?tab=ledger`}
-                            className="underline underline-offset-4"
+                            className="font-medium underline-offset-4 hover:underline"
                           >
                             {row.client}
                           </Link>
-                        </td>
-                        <td className="text-13 px-3 py-2 font-mono">
+                        </Td>
+                        <Td className="num text-13">
                           {row.against.length === 0 ? (
-                            <span className="text-ink-muted">on account</span>
+                            <span className="text-ink-muted font-sans">
+                              on account
+                            </span>
                           ) : (
                             row.against.map((invoice, index) => (
                               <span key={invoice.id}>
                                 {index > 0 && ", "}
                                 <Link
                                   href={`/invoices/${invoice.id}`}
-                                  className="underline underline-offset-4"
+                                  className="underline-offset-4 hover:underline"
                                 >
                                   {invoice.number}
                                 </Link>
                               </span>
                             ))
                           )}
-                        </td>
-                        <td className="text-13 text-ink-muted px-3 py-2">
+                        </Td>
+                        <Td className="text-13 text-ink-muted truncate">
                           {row.reference || "—"}
-                        </td>
-                        <td className="num px-3 py-2 text-right">
-                          {formatPaise(row.tdsPaise)}
-                        </td>
-                        <td className="px-3 py-2">
+                        </Td>
+                        <Td align="right" rule>
+                          <Num paise={row.tdsPaise} strong />
+                        </Td>
+                        <Td align="right">
                           <Action
                             id={`tds-${row.id}`}
                             tone="plain"
@@ -148,11 +157,11 @@ export default function TdsRows({ rows, matched, canTick, whyNot }) {
                           >
                             {matched ? "Not in 26AS" : "Seen in 26AS"}
                           </Action>
-                        </td>
-                      </tr>
+                        </Td>
+                      </Tr>
                     ))}
                   </tbody>
-                </table>
+                </Table>
               </div>
             </section>
           ))}

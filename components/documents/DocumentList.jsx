@@ -71,6 +71,7 @@ export default function DocumentList({
             <span className="min-w-0">
               <span className="text-14 block truncate">{d.name}</span>
               <span className="text-12 text-ink-muted">
+                {d.origin === "firm" ? "Issued by us · " : ""}
                 {formatSize(d.size)}
                 {d.versions > 0 &&
                   ` · ${d.versions} earlier ${d.versions === 1 ? "version" : "versions"}`}

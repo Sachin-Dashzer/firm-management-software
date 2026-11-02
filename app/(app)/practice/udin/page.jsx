@@ -7,6 +7,7 @@ import Client from "@/models/Client";
 import Engagement from "@/models/Engagement";
 import User from "@/models/User";
 import Document from "@/models/Document";
+import Invoice from "@/models/Invoice";
 import { formatISTDate, financialYearStart, istDate } from "@/lib/dates";
 import UdinRegister from "./UdinRegister";
 
@@ -79,6 +80,38 @@ export default async function UdinPage({ searchParams }) {
     clients.map((c) => [String(c._id), c.tradeName || c.legalName]),
   );
   const engagementById = new Map(engagements.map((e) => [String(e._id), e]));
+
+  /**
+   * Has the work behind this number been billed?
+   *
+   * Derived, never stored: an invoice line carries the engagement it is for,
+   * so the register can read the answer instead of asking somebody to keep a
+   * tick box in step with the billing screen — a flag like that is wrong
+   * within a month and then nobody trusts the column.
+   *
+   * Drafts and cancelled invoices do not count as billed, because neither
+   * has been sent to anybody. A certificate issued outside any engagement
+   * has nothing to trace, and says so rather than guessing.
+   */
+  const engagementIds = rows.map((r) => r.engagementId).filter(Boolean);
+  const invoices = engagementIds.length
+    ? await Invoice.find({
+        "lines.engagementId": { $in: engagementIds },
+        status: { $nin: ["Draft", "Cancelled"] },
+      })
+        .select("number lines.engagementId")
+        .lean()
+    : [];
+
+  /** engagement id → the first invoice that billed it. */
+  const billedBy = new Map();
+  for (const invoice of invoices) {
+    for (const line of invoice.lines ?? []) {
+      if (!line.engagementId) continue;
+      const key = String(line.engagementId);
+      if (!billedBy.has(key)) billedBy.set(key, invoice.number ?? "");
+    }
+  }
   const memberById = new Map(members.map((m) => [String(m._id), m]));
 
   const fileCount = new Map();
@@ -103,6 +136,14 @@ export default async function UdinPage({ searchParams }) {
           }`
         : "",
       documentType: row.documentType,
+      billed: !row.engagementId
+        ? "untraceable"
+        : billedBy.has(String(row.engagementId))
+          ? "billed"
+          : "unbilled",
+      invoiceNumber: row.engagementId
+        ? (billedBy.get(String(row.engagementId)) ?? "")
+        : "",
       generatedOn: formatISTDate(row.generatedOn),
       member: row.memberId
         ? (memberById.get(String(row.memberId))?.name ?? "")

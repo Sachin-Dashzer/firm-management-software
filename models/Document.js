@@ -57,6 +57,28 @@ const documentSchema = new mongoose.Schema(
     /** What it is: PAN card, engagement letter, acknowledgement… */
     kind: { type: String, default: "", trim: true },
 
+    /**
+     * Whose paper this is: one the client gave us, or one the firm prepared
+     * and issued to them.
+     *
+     * Two different things used to sit in one list under one word, "file":
+     * the bank statement a client emailed and the signed certificate the
+     * firm issued against it. They are not the same record — one is evidence
+     * we were given, the other is work the firm is answerable for — and
+     * "send me everything we issued to this client last year" had no answer
+     * except reading every name in the list.
+     *
+     * `client` is the default because that is what most of the vault is, and
+     * because being wrong in that direction understates what the firm claims
+     * to have produced rather than overstating it.
+     */
+    origin: {
+      type: String,
+      enum: ["client", "firm"],
+      default: "client",
+      index: true,
+    },
+
     clientId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Client",

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import Chip from "@/components/ui/Chip";
 import { linkToDocument } from "./actions";
 
 /**
@@ -31,7 +32,7 @@ export default function DocumentSearch({ rows, filters, years, services }) {
     <div className="flex flex-col gap-4">
       <form
         method="get"
-        className="rounded-ledger border-rule bg-surface grid gap-3 border p-3 sm:grid-cols-2 lg:grid-cols-5"
+        className="rounded-ledger border-rule bg-surface grid gap-3 border p-3 sm:grid-cols-2 lg:grid-cols-6"
       >
         <label className="flex flex-col gap-1 lg:col-span-2">
           <span className="text-13 text-ink-muted font-medium">
@@ -79,6 +80,21 @@ export default function DocumentSearch({ rows, filters, years, services }) {
           </select>
         </label>
 
+        <label className="flex flex-col gap-1">
+          <span className="text-13 text-ink-muted font-medium">
+            Document type
+          </span>
+          <select
+            name="origin"
+            defaultValue={filters.origin}
+            className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
+          >
+            <option value="">Any</option>
+            <option value="client">From the client</option>
+            <option value="firm">Issued by us</option>
+          </select>
+        </label>
+
         <div className="flex flex-wrap items-end gap-3">
           <label className="text-13 flex items-center gap-2">
             <input
@@ -112,6 +128,7 @@ export default function DocumentSearch({ rows, filters, years, services }) {
           <thead>
             <tr className="border-rule text-12 text-faint border-b text-left font-normal">
               <th className="px-3 py-2 font-medium">File</th>
+              <th className="px-3 py-2 font-medium">Type</th>
               <th className="px-3 py-2 font-medium">Client</th>
               <th className="px-3 py-2 font-medium">Where</th>
               <th className="px-3 py-2 font-medium">Year</th>
@@ -130,6 +147,11 @@ export default function DocumentSearch({ rows, filters, years, services }) {
                       · {r.versions} earlier
                     </span>
                   )}
+                </td>
+                <td className="px-3 py-2">
+                  <Chip tone={r.origin === "firm" ? "info" : "neutral"}>
+                    {r.origin === "firm" ? "Issued by us" : "From client"}
+                  </Chip>
                 </td>
                 <td className="px-3 py-2">
                   <Link
@@ -178,7 +200,7 @@ export default function DocumentSearch({ rows, filters, years, services }) {
             {rows.length === 0 && (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   className="text-ink-muted px-3 py-6 text-center"
                 >
                   Nothing matches.

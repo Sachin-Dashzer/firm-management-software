@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { can, whyNot } from "@/lib/permissions";
+import Segmented from "@/components/ui/Segmented";
 import Payment from "@/models/Payment";
 import Client from "@/models/Client";
 import Invoice from "@/models/Invoice";
@@ -78,19 +78,35 @@ export default async function TdsToMatch({
 
   return (
     <>
-      <p className={`text-14 max-w-[75ch] ${intro ? "" : "sr-only"}`}>
-        {showMatched
-          ? "TDS already ticked off against Form 26AS. Untick one if it turns out not to be there."
-          : "TDS a client deducted, which has not been found in Form 26AS yet. Read the quarter in the traces portal, then tick what is there."}{" "}
-        <Link
-          href={
-            showMatched ? "/billing?tab=tds" : "/billing?tab=tds&matched=yes"
-          }
-          className="text-13 text-ink-muted underline underline-offset-4"
-        >
-          {showMatched ? "Show what is still to match" : "Show what is matched"}
-        </Link>
-      </p>
+      {intro ? (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <Segmented
+            label="TDS credit"
+            value={showMatched ? "matched" : "open"}
+            items={[
+              {
+                key: "open",
+                label: "Still to match",
+                href: "/billing?tab=tds",
+              },
+              {
+                key: "matched",
+                label: "Matched",
+                href: "/billing?tab=tds&matched=yes",
+              },
+            ]}
+          />
+          <p className="text-13 text-ink-muted max-w-[60ch]">
+            {showMatched
+              ? "Already ticked off against Form 26AS. Untick one if it turns out not to be there."
+              : "Read the quarter in the traces portal, then tick what is there. Nothing about this is automatic."}
+          </p>
+        </div>
+      ) : (
+        <p className="sr-only">
+          TDS a client deducted, which has not been found in Form 26AS yet.
+        </p>
+      )}
 
       <TdsRows
         rows={rows}

@@ -25,11 +25,19 @@ export default function Uploader({
   label = "Attach files",
   onDone,
   disabled = false,
+  origin: initialOrigin = "client",
 }) {
   const input = useRef(null);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(null);
   const [message, setMessage] = useState(null);
+  /**
+   * Whose paper this is. Asked here rather than guessed, because the person
+   * holding the file is the only one who knows — and asked *before* the
+   * file is chosen, so the answer is not a second step after the upload has
+   * already finished.
+   */
+  const [origin, setOrigin] = useState(initialOrigin);
 
   async function send(files) {
     if (disabled || files.length === 0) return;
@@ -78,6 +86,7 @@ export default function Uploader({
         udinId,
         permanent,
         replacesId,
+        origin,
         key: ticket.key,
         fy: ticket.fy,
         filename: file.name,
@@ -126,6 +135,20 @@ export default function Uploader({
         >
           {busy ? "Uploading…" : label}
         </button>
+        <label className="text-13 text-ink-muted flex items-center gap-1.5">
+          <span className="sr-only sm:not-sr-only">Type</span>
+          <select
+            value={origin}
+            disabled={disabled || Boolean(busy)}
+            onChange={(event) => setOrigin(event.target.value)}
+            aria-label="Whose document this is"
+            className="rounded-control border-rule bg-paper text-13 text-ink h-8 border px-1.5 disabled:opacity-60"
+          >
+            <option value="client">From the client</option>
+            <option value="firm">Issued by us</option>
+          </select>
+        </label>
+
         <span className="text-13 text-ink-muted">
           {busy ?? "or drop files here"}
         </span>

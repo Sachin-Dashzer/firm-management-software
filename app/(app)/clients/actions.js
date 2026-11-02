@@ -97,8 +97,17 @@ function readClientForm(formData) {
     if (formData.has(key)) plain[key] = formData.get(key);
   }
 
+  /** The entity-specific extras arrive as `profile.<key>`. */
+  const profile = {};
+  for (const [key, raw] of formData.entries()) {
+    if (key.startsWith("profile.") && typeof raw === "string") {
+      profile[key.slice("profile.".length)] = raw;
+    }
+  }
+
   return {
     ...plain,
+    ...(Object.keys(profile).length ? { profile } : {}),
     contacts: rows("contacts"),
     gstins: rows("gstins"),
     addresses: rows("addresses"),

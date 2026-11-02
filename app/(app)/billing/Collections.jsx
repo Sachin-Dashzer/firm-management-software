@@ -6,8 +6,31 @@ import { formatISTDate } from "@/lib/dates";
 import { ageReceivables, outstandingOf } from "@/lib/billing/allocation";
 import { promiseHolds, promiseBroken } from "@/lib/billing/promise";
 import { advances } from "@/lib/reports/figures";
+import Panel from "@/components/ui/Panel";
+import Chip from "@/components/ui/Chip";
+import Notice from "@/components/ui/Notice";
+import {
+  TableShell,
+  Table,
+  Head,
+  Th,
+  Tr,
+  Td,
+  Meta,
+  Num,
+  Foot,
+  Empty,
+} from "@/components/ui/Table";
 
 const BUCKETS = ["current", "0-30", "31-60", "61-90", "90+"];
+
+const BUCKET_LABELS = {
+  current: "Not yet due",
+  "0-30": "0–30 days",
+  "31-60": "31–60 days",
+  "61-90": "61–90 days",
+  "90+": "Over 90 days",
+};
 
 /**
  * What is owed and how old it is — the Collections tab (P3-22b), which is
@@ -16,6 +39,15 @@ const BUCKETS = ["current", "0-30", "31-60", "61-90", "90+"];
  * Promises and money on account sit above the ageing rather than on pages
  * of their own (P3-3): the person reading what is owed is the person who
  * should be applying a receipt or ringing about a broken promise.
+ *
+ * Redrawn 02-11-2026. Two things were wrong with it as a screen. The
+ * ageing was five identical bordered cards, which is the lazy container
+ * the house style refuses — it is **one** figure cut five ways, so it is
+ * one band now, divided by hairlines, reading left to right from money
+ * that is fine to money that is not. And the per-client table was a wall
+ * of numbers with no shape: the client's worst bucket now carries the
+ * weight, the row says how much of its total is late, and the firm's own
+ * totals sit under the column they total.
  */
 export default async function Collections({ scope, actor }) {
   const invoices = await Invoice.find({
@@ -54,6 +86,7 @@ export default async function Collections({ scope, actor }) {
     .map(([clientId, list]) => ({
       clientId,
       name: clientName.get(clientId) ?? "Client",
+      count: list.length,
       ...ageReceivables(list),
     }))
     .filter((row) => row.total > 0)
@@ -86,181 +119,227 @@ export default async function Collections({ scope, actor }) {
     creditNames.map((c) => [String(c._id), c.tradeName || c.legalName]),
   );
 
+  const late = firmTotal["0-30"] + firmTotal["31-60"] + firmTotal["61-90"] + firmTotal["90+"];
+
   return (
     <>
+      {/*
+        The ageing: one figure, cut five ways. The hairlines carry the
+        division and only the last cell is marked, because a band where
+        every cell is tinted says nothing about which end to start at.
+      */}
+      <section
+        aria-label="Ageing"
+        className="rounded-ledger border-rule bg-surface divide-rule grid divide-y border sm:grid-cols-5 sm:divide-x sm:divide-y-0"
+      >
+        {BUCKETS.map((bucket) => {
+          const bad = bucket === "90+" && firmTotal[bucket] > 0;
+          return (
+            <div
+              key={bucket}
+              className={`flex flex-col gap-1 px-4 py-3 ${
+                bad ? "bg-redpen-wash" : ""
+              }`}
+            >
+              <span className="text-11 text-ink-muted font-semibold tracking-wide uppercase">
+                {BUCKET_LABELS[bucket]}
+              </span>
+              <span
+                className={`num font-display text-20 leading-none font-semibold ${
+                  bad ? "text-redpen" : firmTotal[bucket] ? "" : "text-faint"
+                }`}
+              >
+                {formatPaise(firmTotal[bucket])}
+              </span>
+            </div>
+          );
+        })}
+      </section>
+
+      <p className="text-13 text-ink-muted">
+        <span className="num text-ink font-medium">
+          {formatPaise(firmTotal.total)}
+        </span>{" "}
+        outstanding across {rows.length}{" "}
+        {rows.length === 1 ? "client" : "clients"}
+        {late > 0 && (
+          <>
+            , of which{" "}
+            <span className="num text-redpen">{formatPaise(late)}</span> is past
+            its date
+          </>
+        )}
+        . Worst ageing first.
+      </p>
+
       {credit.length > 0 && (
-        <section className="rounded-ledger border-carbon bg-carbon-wash flex flex-col gap-2 border p-4">
-          <h2 className="font-display text-18">
-            Credit on account ·{" "}
-            <span className="num">
-              {formatPaise(credit.reduce((s, c) => s + c.paise, 0))}
-            </span>
-          </h2>
-          <p className="text-13 text-ink-muted">
-            Received and not yet put against an invoice. Apply it when recording
-            the next payment for that client, or from their ledger.
-          </p>
-          <ul className="flex flex-col gap-1">
+        <Panel
+          title="Credit on account"
+          count={formatPaise(credit.reduce((s, c) => s + c.paise, 0))}
+          hint="Apply it on the next receipt, or from the client’s ledger"
+        >
+          <ul className="divide-rule flex flex-col divide-y">
             {credit.map((row) => (
-              <li key={row.clientId} className="text-13">
+              <li
+                key={row.clientId}
+                className="text-13 flex flex-wrap items-baseline justify-between gap-x-3 py-1.5 first:pt-0 last:pb-0"
+              >
                 <Link
                   href={`/clients/${row.clientId}?tab=ledger`}
-                  className="underline underline-offset-4"
+                  className="font-medium underline-offset-4 hover:underline"
                 >
                   {creditName.get(row.clientId) ?? "Client"}
-                </Link>{" "}
-                · <span className="num">{formatPaise(row.paise)}</span>{" "}
+                </Link>
                 <span className="text-ink-muted">
                   from {row.payments.length}{" "}
                   {row.payments.length === 1 ? "receipt" : "receipts"}, oldest{" "}
-                  {formatISTDate(row.payments[row.payments.length - 1].date)}
+                  <span className="num">
+                    {formatISTDate(row.payments[row.payments.length - 1].date)}
+                  </span>
+                </span>
+                <span className="num ms-auto font-medium">
+                  {formatPaise(row.paise)}
                 </span>
               </li>
             ))}
           </ul>
-        </section>
+        </Panel>
       )}
 
-      {(broken.length > 0 || holding.length > 0) && (
-        <section className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4">
-          <h2 className="font-display text-18">Payment promises</h2>
-
-          {broken.length > 0 && (
-            <div className="flex flex-col gap-1">
-              <p className="text-13 text-redpen font-medium">
-                {broken.length === 1
-                  ? "One promise has passed without payment"
-                  : `${broken.length} promises have passed without payment`}
-              </p>
-              <ul className="flex flex-col gap-1">
-                {broken.map((invoice) => (
-                  <li key={String(invoice._id)} className="text-13">
-                    <Link
-                      href={`/invoices/${invoice._id}`}
-                      className="underline underline-offset-4"
-                    >
-                      {invoice.number}
-                    </Link>{" "}
-                    {clientName.get(String(invoice.clientId))} ·{" "}
-                    <span className="num">
-                      {formatPaise(invoice.outstandingPaise)}
-                    </span>{" "}
-                    <span className="text-ink-muted">
-                      promised {formatISTDate(invoice.promise.date)}
-                      {invoice.promise.note ? ` · ${invoice.promise.note}` : ""}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {holding.length > 0 && (
-            <div className="flex flex-col gap-1">
-              <p className="text-13 text-ink-muted">
-                Not being chased: {holding.length}{" "}
-                {holding.length === 1 ? "invoice" : "invoices"} with a date
-                still to come. Reminders restart on their own the day after.
-              </p>
-              <ul className="flex flex-col gap-1">
-                {holding.map((invoice) => (
-                  <li key={String(invoice._id)} className="text-13">
-                    <Link
-                      href={`/invoices/${invoice._id}`}
-                      className="underline underline-offset-4"
-                    >
-                      {invoice.number}
-                    </Link>{" "}
-                    {clientName.get(String(invoice.clientId))} ·{" "}
-                    <span className="num">
-                      {formatPaise(invoice.outstandingPaise)}
-                    </span>{" "}
-                    <span className="text-ink-muted">
-                      by {formatISTDate(invoice.promise.date)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </section>
+      {broken.length > 0 && (
+        <Notice
+          tone="bad"
+          title={
+            broken.length === 1
+              ? "One promise has passed without payment"
+              : `${broken.length} promises have passed without payment`
+          }
+        >
+          <ul className="mt-1 flex flex-col gap-1">
+            {broken.map((invoice) => (
+              <li key={String(invoice._id)}>
+                <Link
+                  href={`/invoices/${invoice._id}`}
+                  className="font-mono underline-offset-4 hover:underline"
+                >
+                  {invoice.number}
+                </Link>{" "}
+                {clientName.get(String(invoice.clientId))} ·{" "}
+                <span className="num font-medium">
+                  {formatPaise(invoice.outstandingPaise)}
+                </span>{" "}
+                <span className="text-ink-muted">
+                  promised{" "}
+                  <span className="num">
+                    {formatISTDate(invoice.promise.date)}
+                  </span>
+                  {invoice.promise.note ? ` · ${invoice.promise.note}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Notice>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-5">
-        {BUCKETS.map((bucket) => (
-          <div
-            key={bucket}
-            className={`rounded-ledger border p-3 ${
-              bucket === "90+" && firmTotal[bucket] > 0
-                ? "border-redpen bg-redpen-wash"
-                : "border-rule bg-surface"
-            }`}
-          >
-            <p className="num font-display text-20">
-              {formatPaise(firmTotal[bucket])}
-            </p>
-            <p className="text-12 text-ink-muted">
-              {bucket === "current" ? "Not yet due" : `${bucket} days`}
-            </p>
-          </div>
-        ))}
-      </div>
+      {holding.length > 0 && (
+        <Panel
+          title="Promised, not being chased"
+          count={String(holding.length)}
+          hint="Reminders restart by themselves the day after each date"
+        >
+          <ul className="divide-rule flex flex-col divide-y">
+            {holding.map((invoice) => (
+              <li
+                key={String(invoice._id)}
+                className="text-13 flex flex-wrap items-baseline gap-x-3 py-1.5 first:pt-0 last:pb-0"
+              >
+                <Link
+                  href={`/invoices/${invoice._id}`}
+                  className="font-mono underline-offset-4 hover:underline"
+                >
+                  {invoice.number}
+                </Link>
+                <span>{clientName.get(String(invoice.clientId))}</span>
+                <Chip tone="soon" mono>
+                  by {formatISTDate(invoice.promise.date)}
+                </Chip>
+                <span className="num ms-auto font-medium">
+                  {formatPaise(invoice.outstandingPaise)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
 
-      <div className="rounded-table border-rule bg-surface overflow-x-auto border">
-        <table className="text-14 w-full">
-          <thead>
-            <tr className="border-rule text-12 text-faint border-b text-left font-normal">
-              <th className="px-3 py-2 font-medium">Client</th>
-              {BUCKETS.map((b) => (
-                <th key={b} className="px-3 py-2 text-right font-medium">
-                  {b === "current" ? "Not due" : b}
-                </th>
-              ))}
-              <th className="px-3 py-2 text-right font-medium">Total</th>
-            </tr>
-          </thead>
+      <TableShell>
+        <Table fixed caption="What each client owes, by age, worst first">
+          <colgroup>
+            <col />
+            <col className="w-[8.5rem]" />
+            <col className="w-[8.5rem]" />
+            <col className="w-[8.5rem]" />
+            <col className="w-[8.5rem]" />
+            <col className="w-[8.5rem]" />
+            <col className="w-[9.5rem]" />
+          </colgroup>
+          <Head>
+            <Th>Client</Th>
+            {BUCKETS.map((b, index) => (
+              <Th key={b} align="right" rule={index === 0}>
+                {b === "current" ? "Not due" : b}
+              </Th>
+            ))}
+            <Th align="right">Owed</Th>
+          </Head>
           <tbody>
             {rows.map((row) => (
-              <tr
-                key={row.clientId}
-                className="border-rule border-b last:border-0"
-              >
-                <td className="px-3 py-2">
+              <Tr key={row.clientId}>
+                <Td className="truncate">
                   <Link
                     href={`/clients/${row.clientId}?tab=invoices`}
-                    className="underline underline-offset-4"
+                    className="font-medium underline-offset-4 hover:underline"
                   >
                     {row.name}
                   </Link>
-                </td>
-                {BUCKETS.map((b) => (
-                  <td
-                    key={b}
-                    className={`num px-3 py-2 text-right ${
-                      b === "90+" && row[b] > 0 ? "text-redpen" : ""
-                    }`}
-                  >
-                    {row[b] ? formatPaise(row[b]) : "—"}
-                  </td>
+                  <Meta>
+                    <span className="num">{row.count}</span>{" "}
+                    {row.count === 1 ? "invoice" : "invoices"}
+                  </Meta>
+                </Td>
+                {BUCKETS.map((b, index) => (
+                  <Td key={b} align="right" rule={index === 0}>
+                    <Num paise={row[b]} tone={b === "90+" ? "late" : undefined} />
+                  </Td>
                 ))}
-                <td className="num px-3 py-2 text-right font-medium">
-                  {formatPaise(row.total)}
-                </td>
-              </tr>
+                <Td align="right">
+                  <Num paise={row.total} strong />
+                </Td>
+              </Tr>
             ))}
             {rows.length === 0 && (
-              <tr>
-                <td
-                  colSpan={7}
-                  className="text-ink-muted px-3 py-6 text-center"
-                >
-                  Nothing is outstanding.
-                </td>
-              </tr>
+              <Empty colSpan={7}>Nothing is outstanding.</Empty>
             )}
           </tbody>
-        </table>
-      </div>
+          {rows.length > 0 && (
+            <Foot>
+              <Td className="text-ink-muted">The firm</Td>
+              {BUCKETS.map((b, index) => (
+                <Td key={b} align="right" rule={index === 0}>
+                  <Num
+                    paise={firmTotal[b]}
+                    strong
+                    tone={b === "90+" ? "late" : undefined}
+                  />
+                </Td>
+              ))}
+              <Td align="right">
+                <Num paise={firmTotal.total} strong />
+              </Td>
+            </Foot>
+          )}
+        </Table>
+      </TableShell>
     </>
   );
 }

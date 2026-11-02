@@ -4588,3 +4588,303 @@ settings routes. `scripts/shots.mjs` now lists six of them
 (`settings-setup`, `-services`, `-permissions`, `-due-dates`, `-messages`,
 `-icai`), so `node scripts/shots.mjs settings settings-permissions`
 photographs the area in both themes against a running dev server.
+
+## The three registers, and whose document is whose (owner request, 02-11-2026)
+
+Four things, one round: a document's **type**, one control that moves
+between the three registers, **billed** on the UDIN register, and a
+password a Partner or CA can actually read from the vault.
+
+### A document is either theirs or ours
+
+`Document.origin` — `client` or `firm`, defaulting to `client`. The bank
+statement a client emailed and the certificate the firm signed sat in one
+list under one word, "file", and "send me everything we issued to this
+client last year" had no answer but reading every name.
+
+It is **asked, not guessed**: the person holding the file is the only one
+who knows, so `Uploader` carries the choice next to its button (From the
+client / Issued by us) and sends it with the upload. The UDIN panel starts
+on *Issued by us*, because what is attached there is usually the signed
+certificate. `/documents` filters on it and shows it as a column; the
+client's own portal upload stays on the default, which is what it is.
+
+Nothing derives it from `sharedWithClient` or from who uploaded it. A
+portal flag is not provenance, and "The client" in `uploadedByName` only
+covers the public request route.
+
+### One control for UDIN, DSC and the logins vault
+
+`components/practice/RegisterTabs.jsx` on all three pages. The same
+question asked three ways — what have we signed, what is about to expire,
+what can we get into — and somebody checking one checks the next. They
+were reachable only from the left rail, in two different sections.
+
+`FilterChip` now also renders as a link, so the vault's portal filter
+(which lives in the URL) stops drawing its own pill.
+
+### Billed, on the UDIN register
+
+Derived from the invoices, never stored: an invoice line carries its
+engagement, so the register reads the answer rather than asking anybody to
+keep a tick box in step with the billing screen — a flag like that is
+wrong within a month and then nobody trusts the column. Drafts and
+cancelled invoices are not billed. A certificate issued outside any
+engagement says **No engagement** rather than guessing either way, and the
+new *Unbilled* chip counts only what can be traced.
+
+### A password, from the vault, after typing a code
+
+The vault could list two hundred logins and reveal none of them: revealing
+was possible only on a client's own page. That was the right instinct and
+the wrong outcome — the list that knows which login you want could not
+give it to you.
+
+The decryption is **not written again**. `revealCredential()` in the
+clients actions stays the only door: it re-checks `clientCredentials`
+against that client's branch, writes the `credentialReveal` audit entry in
+the same transaction and stamps `lastRevealedAt`. `registers/vault/actions.js`
+adds the gate in front of it.
+
+The gate is five characters typed by hand (`lib/captcha.js`): an expiry
+plus an HMAC over the code, so nothing is kept between the two requests
+and the answer never travels in the token. It is **not bot defence** — the
+code is on the screen — it is deliberateness, so a password is never one
+stray press or one mis-click away. A revealed password clears itself off
+the screen after a minute, counting down, as it does on the client page.
+
+Who may do it was already settled and is unchanged: `clientCredentials` is
+`edit` for a Partner and a CA and `none` for everybody else, and no grant
+widens it (spec section 2).
+
+### Not done
+
+No tests, no lint, no build, no screenshots — logic and UI only, by the
+owner's standing instruction for this page-by-page pass.
+
+## Billing, redrawn (owner request, 02-11-2026)
+
+The four tabs each worked. The *page* did not: it opened on a list of
+invoices and said nothing, so what the firm is owed, how much of that is
+late, what is finished and unbilled and what TDS is still missing were
+four tabs away from one another and the figure that mattered that morning
+was whichever tab somebody happened to open.
+
+### The band above the tabs
+
+Four figures — Outstanding, Overdue, Ready to bill, TDS to match — each a
+`StatTile` linking to the tab it came from, and the tab it belongs to is
+marked while you are on it. Each one asks the **same question its tab
+asks**, which is the rule `lib/nav/counts.js` is built on and for the same
+reason: a headline that disagrees with the list under it is worse than no
+headline. `outstandingSummary()` and `scopeOf()` do the arithmetic, so
+retainer and waived work is not counted as money owed (P3-4).
+
+The tabs are the kit's `Segmented`, and only the ones with something
+waiting carry a number. There is deliberately **no badge on Invoices**: a
+bare count on a tab called Invoices reads as "this many invoices", and the
+number that would have been useful there is drafts.
+
+Export moved into the head and is available to anybody who may read the
+money; New invoice stays behind `edit` on invoices.
+
+### Invoices
+
+The hand-built four-column filter form is `FilterBar` with one
+`FilterSelect` for status, so it matches `/clients` and `/engagements`.
+The number is now the only link in the row — a row where the number, the
+client and the status are all underlined has no primary action. Overdue
+says how many days under the date instead of trailing after it,
+`settled` is a word rather than ₹0, and the page's own totals sit in a
+`tfoot` under the columns they total. Paging keeps the search and status
+in the URL, which it did not: turning to page 2 silently dropped the
+filter.
+
+### Collections
+
+The ageing was five identically bordered cards, the lazy container the
+house style refuses. It is **one** figure cut five ways, so it is one band
+divided by hairlines, reading left to right from money that is fine to
+money that is not, with only the 90+ cell marked.
+
+Credit on account and promises-being-held are `Panel`s; a broken promise
+is a `Notice` in the red, because it is the one actionable thing on the
+screen. The per-client table gained the invoice count, greys its empty
+cells so the eye lands on the figures, and carries the firm's own totals
+in a `tfoot`.
+
+### Ready to bill
+
+The three groups on that list — waiting on a partner, chargeable, settled
+another way — were a paragraph of prose above one undifferentiated table.
+They are `FilterChip`s now, with a search box, so the list can be narrowed
+to the group being worked through. The fee state is a chip (red when it
+blocks billing), "Bill it" is a bordered control rather than a sentence
+with an underline in it, and the chargeable total of what is on screen
+sits under the Fee column.
+
+### TDS credit
+
+Still to match / Matched is a `Segmented` pair instead of a sentence with
+a link in it. Each quarter is its own panel with its own subtotal, because
+26AS is reconciled a quarter at a time; the year's figure is said once,
+above them. The tick itself is untouched — same action, same audit entry,
+same way back from a wrong tick.
+
+### Not changed
+
+No query, no permission check and no figure's definition. Every tab reads
+what it read before; `ReadyToBill`, `TdsToMatch`'s data pass and the
+accounts desk's use of it (`intro={false}`, oldest ten) all still work as
+they did.
+
+### Not done
+
+No tests, no lint, no build, no screenshots — logic and UI only, by the
+owner's standing instruction for this pass.
+
+### The tables themselves (same request, later the same day)
+
+The owner's note on the redrawn billing page was that the tables were the
+part of it that still looked unmade. They were: four tables on one screen,
+each having written out its own bordered scroller, its own `px-3 py-2` and
+its own 12px grey header row.
+
+`components/ui/Table.jsx` is that table, once — `TableShell`, `Table`,
+`Head`, `Th`, `Tr`, `Td`, `Meta`, `Num`, `Foot`, `Empty` — and all four
+billing tables are built from it now. What changed in the look:
+
+- **The header is the kit's label style**: 11px, uppercase, tracked, in
+  `ink-muted`, the same band as a stat tile's caption. At 12px sentence
+  case it read as another row of data rather than as the top of a column.
+- **Rows breathe**: `px-4 py-3`. These rows carry a second muted line
+  often enough that at the old density every row touched the ones above
+  and below it.
+- **Figures are a block behind a hairline.** `Num` right-aligns in the
+  mono face (D79) and the money columns open with one vertical rule, which
+  is what a ledger does; before, the figures were simply the last few
+  columns of the same grid. `Num` also draws nothing for nought — a column
+  of ₹0 reads as money the firm has.
+- **Widths are declared once**, in a `colgroup` with `table-fixed`. A
+  column as wide as whatever is in it moves between page one and page two,
+  and a column that moves cannot be read down.
+
+No sticky header, deliberately: these tables sit in the page's own scroll
+and `overflow-x-auto` makes the box a scroll container in both axes, so a
+sticky header inside one sticks to nothing — the permission matrix learnt
+that the expensive way.
+
+The row data is unchanged. The one visible addition is the invoice count
+under each client on the ageing table.
+
+## Raising an invoice, redrawn (owner request, 02-11-2026)
+
+`/invoices/new` was a `<select>` of up to two thousand clients followed by
+a list of checkboxes. Which meant the one thing this screen exists to
+prevent — finishing work and forgetting to charge for it — was invisible
+until you had already guessed which client to look at.
+
+**The clients with work waiting are the screen now.** The whole unbilled
+list is loaded in one query and grouped by client, so the picker says who
+is waiting, for how many jobs and for how much, worth the most first; the
+search box reaches every other client, for the invoice that was never
+recorded as a job. The rows for the client that is chosen come out of that
+same list, so choosing one costs no extra query — it is the one trip the
+page already made.
+
+Also:
+
+- The head says what is true of the whole firm: *"14 jobs are finished and
+  not billed, across 9 clients."*
+- Who the invoice is for is a band in the accent, with the client's credit
+  period on it and the way back out of it ("Change client") — the old
+  screen left the chosen client in a dropdown you had to re-read.
+- The work list is the shared table: a tick column with **tick-all on the
+  chargeable rows**, period and engagement code as the quiet second line,
+  the fee in the ledger column, and the ticked total in the footer.
+- A job that cannot be billed keeps its row and says why in a chip, rather
+  than being a greyed line at 70% opacity (P3-4 again: nobody should
+  wonder where a job went).
+- **Two outcomes, two buttons.** One button that renamed itself from
+  "Start an empty draft" to "Draft an invoice for 3 jobs" depending on
+  what was ticked is a button nobody can predict. The primary one carries
+  the count and the money; the empty draft is its own quiet control.
+- A link naming a client this person cannot bill — closed, or another
+  branch — now says so instead of silently showing the picker.
+
+`createDraft` is untouched: same action, same refusal when a waiver is
+pending or no fee is agreed, same audit entry. Money is passed in paise
+and printed by `formatPaise`, where the old screen divided by 100 in the
+page and formatted by hand in the component.
+
+### Not done
+
+No tests, no lint, no build, no screenshots — logic and UI only, by the
+owner's standing instruction for this pass.
+
+## New client onboarding — a seven-step wizard (02-11-2026)
+
+`/clients/new` was one long form: every field for every kind of client, all
+at once. It is now the seven steps the owner drew — entity type, client
+master, documents, services and fees, checks, engagement pack, create — and
+**the entity type decides everything after it.**
+
+One file holds that knowledge: `lib/clients/entityTypes.js`, a table of
+twelve entity types, each carrying its label, the acceptable 4th character
+of its PAN, the documents to collect, the master fields only it has, the
+registrations to look at, the services to suggest and the letters in its
+pack. Each step reads the column it needs, so there is one place to change
+when the firm changes its mind.
+
+- **Step 1** — twelve cards, each saying what PAN its entity carries and how
+  many documents it brings.
+- **Step 2** — the common master, then the entity's own block (a company's
+  CIN, authorised capital and directors; a trust's trustees and 12A). The
+  PAN / GSTIN / CIN checks tick along underneath as it is typed.
+- **Step 3** — the documents to collect, ticked if already in hand, with the
+  entity's registrations named underneath.
+- **Step 4** — the firm's live service catalog with a fee, a **billing
+  basis** and a GST treatment per service. Billing basis is not recurrence:
+  a monthly GST return is often billed quarterly, and conflating the two is
+  how a client gets invoiced twelve times for four.
+- **Step 5** — the six checks read back together, plus the group (required)
+  and a suggestion of which family this entity may belong to.
+- **Step 6** — the engagement pack, drafted from what was typed. Letters the
+  firm has written wording for open as a draft; the rest say so plainly
+  rather than pretending to exist.
+- **Step 7** — everything the six steps collected, then one button.
+
+Creating writes three audited things: the client (through the existing
+`createClient`, so the validation, the duplicate block and the audit entry
+are the ones already in place), a `clientServices` row per ticked service,
+and one upload link for every document not ticked as received.
+
+### Decisions
+
+- **D-ONB-1 (02-11-2026).** Three entity types added — Proprietorship, One
+  Person Company, Section 8 Company — and AOP's card now reads "AOP / BOI".
+  Additive: no stored `entityType` changed.
+- **D-ONB-2.** `panMatchesEntityType` now takes a *set* of acceptable
+  characters, because a society may be registered as either A or T and the
+  AOP / BOI card covers both A and B.
+- **D-ONB-3.** A duplicate PAN no longer stops the wizard; it stops the
+  creation, on step 7, where a person can tick to say they have looked and
+  these are different clients. A malformed field still blocks at step 2.
+- **D-ONB-4.** Clients carry a `profile` map for the facts only one kind of
+  entity has. Nothing sensitive goes in it.
+
+### For the owner to verify
+
+- The **document lists, suggested services and registrations** for the
+  eleven entity types that were not in the drawings. They are a first
+  draft, like the starter service catalog.
+- **Fees are not seeded from the drawings.** Step 4 reads the catalog in
+  Settings → Services, where most fees are still ₹0.
+- Five of the eight pack letters — proposal, KYC request, portal authority,
+  WhatsApp welcome, audit engagement letter — have **no wording yet** and
+  say so on screen.
+
+### Left over
+
+- The **edit** screen still uses the old `ClientForm`, so the entity's own
+  fields can be set at onboarding but not changed afterwards.

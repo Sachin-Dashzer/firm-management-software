@@ -124,6 +124,10 @@ export default async function DocumentsPage({ searchParams }) {
     query.engagementId = { $in: forService.map((e) => e._id) };
   }
   if (params.permanent) query.isPermanent = true;
+  // ours or theirs (see models/Document.js: origin)
+  if (params.origin === "client" || params.origin === "firm") {
+    query.origin = params.origin;
+  }
 
   if (search) {
     const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -179,6 +183,7 @@ export default async function DocumentsPage({ searchParams }) {
             clientId: String(d.clientId),
             fy: d.fy || "—",
             isPermanent: Boolean(d.isPermanent),
+            origin: d.origin === "firm" ? "firm" : "client",
             where: engagement
               ? `${engagement.templateSnapshot?.name ?? ""} · ${engagement.periodLabel || engagement.period}`
               : d.isPermanent
@@ -192,6 +197,8 @@ export default async function DocumentsPage({ searchParams }) {
           fy: params.fy ?? "",
           service: params.service ?? "",
           permanent: Boolean(params.permanent),
+          origin: params.origin ?? "",
+          q: search,
         }}
         years={years.filter(Boolean).sort().reverse()}
         services={templates.map((t) => ({ id: String(t._id), name: t.name }))}

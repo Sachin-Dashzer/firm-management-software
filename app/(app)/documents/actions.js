@@ -216,6 +216,8 @@ export async function confirmUpload(input) {
           checksum: input.checksum,
           fy: input.fy ?? "",
           kind: input.kind ?? "",
+          /* ours or theirs — anything unrecognised is the client's */
+          origin: input.origin === "firm" ? "firm" : "client",
           isPermanent: Boolean(input.permanent),
           clientId: client._id,
           engagementId: engagement?._id ?? null,
@@ -490,6 +492,7 @@ export async function documentsForEngagement(engagementId) {
     checklistItemId: d.checklistItemId ? String(d.checklistItemId) : null,
     versions: (d.versions ?? []).length,
     uploadedByName: d.uploadedByName,
+    origin: d.origin === "firm" ? "firm" : "client",
   }));
 }
 
@@ -523,6 +526,7 @@ export async function documentsForUdin(udinId) {
     mime: d.mime,
     versions: (d.versions ?? []).length,
     uploadedByName: d.uploadedByName,
+    origin: d.origin === "firm" ? "firm" : "client",
   }));
 }
 

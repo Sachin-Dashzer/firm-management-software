@@ -97,9 +97,14 @@ test("an unfinished client comes back, without its PAN", async ({
   await signIn(page, fx.partner);
   await page.goto("/clients/new");
 
+  // the entity type comes first; the master is step 2
+  await page
+    .getByRole("button", { name: "Private limited company", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Continue" }).click();
   await page.getByLabel(/Legal name/).fill(fx.clientName);
   await page.getByLabel(/^PAN/).fill(PAN);
-  await page.getByRole("button", { name: "Keep for later" }).click();
+  await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByRole("status")).toContainText(/PAN is not kept/);
 
   // the phone call ends and they come back to it
@@ -107,7 +112,11 @@ test("an unfinished client comes back, without its PAN", async ({
   await expect(page.getByText(/unfinished client from/)).toBeVisible();
   await expect(page.getByText(/PAN was not kept/)).toBeVisible();
 
+  // carrying on lands back on the master, with the entity type remembered
   await page.getByRole("button", { name: "Carry on with it" }).click();
+  await expect(
+    page.getByRole("heading", { name: /Client master/ }),
+  ).toBeVisible();
   await expect(page.getByLabel(/Legal name/)).toHaveValue(fx.clientName);
   await expect(page.getByLabel(/^PAN/)).toHaveValue("");
 

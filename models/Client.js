@@ -161,6 +161,17 @@ const clientSchema = new mongoose.Schema(
     creditDays: { type: Number, default: 15, min: 0, max: 365 },
     invoiceEmail: { type: String, default: "", lowercase: true, trim: true },
 
+    /**
+     * The handful of facts only one kind of entity ever has: a company's
+     * authorised capital, a trust's 12A number, an HUF's Karta.
+     *
+     * A map rather than fifty mostly-empty columns, because the list is
+     * owned by `lib/clients/entityTypes.js` and changes when the firm
+     * decides it should. Nothing sensitive goes in here — PAN, Aadhaar and
+     * credentials have their own encrypted homes (CLAUDE.md rule 7).
+     */
+    profile: { type: Map, of: String, default: () => ({}) },
+
     // --- the quote captured while still a lead (spec section 3) ---
     proposedServices: { type: String, default: "" },
     quotedAmountPaise: { type: Number, default: 0, min: 0 },

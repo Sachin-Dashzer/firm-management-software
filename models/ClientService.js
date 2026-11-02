@@ -27,6 +27,25 @@ const clientServiceSchema = new mongoose.Schema(
 
     /** The agreed fee for this client, which may differ from the catalog. */
     feePaise: { type: Number, default: 0, min: 0 },
+
+    /**
+     * How often the fee is billed, which is **not** how often the work is
+     * done: a monthly GST return is often billed quarterly. The invoice
+     * reads this; the recurring-work generator reads the template's
+     * `recurrence`. Conflating the two is how a client ends up invoiced
+     * twelve times for work they agreed to pay for four times.
+     */
+    billingBasis: {
+      type: String,
+      enum: ["per month", "per quarter", "per year", "per engagement"],
+      default: "per engagement",
+    },
+    /** Whether the agreed fee has GST on top of it or inside it. */
+    gstTreatment: {
+      type: String,
+      enum: ["plus GST", "inclusive of GST", "no GST"],
+      default: "plus GST",
+    },
     /** The first period to generate work for, e.g. "2026-10". */
     startPeriod: { type: String, default: "", trim: true },
 

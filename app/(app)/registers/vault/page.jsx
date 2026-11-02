@@ -8,6 +8,11 @@ import ClientCredential from "@/models/ClientCredential";
 import { clientListFilter } from "@/lib/access/clientAccess";
 import { formatISTDate } from "@/lib/dates";
 import { PORTALS } from "@/lib/validators";
+import PageHead from "@/components/ui/PageHead";
+import Panel from "@/components/ui/Panel";
+import FilterChip from "@/components/ui/FilterChip";
+import RegisterTabs from "@/components/practice/RegisterTabs";
+import VaultTable from "./VaultTable";
 
 export const metadata = { title: "Logins vault · PHMG" };
 export const dynamic = "force-dynamic";
@@ -15,16 +20,14 @@ export const dynamic = "force-dynamic";
 /**
  * Every portal login the firm holds, in one list (P3-22b).
  *
- * **Nothing is revealed here, and nothing can be.** Revealing a password is
- * a deliberate act on one client's own page, audited every time (spec
- * section 11), and that stays exactly where it is: a screen that could
- * decrypt two hundred passwords is a different risk from one that decrypts
- * one, however the buttons are labelled. What this page answers is the
- * question that was unanswerable — *do we hold a TRACES login for every
- * client we file TDS for?* — and it answers it from the metadata alone.
+ * The list is built from metadata alone: the ciphertext is `select: false`
+ * on the model, so nothing on this page's first paint has ever been
+ * decrypted. A password arrives only when somebody presses Reveal and types
+ * the code it asks for — one credential, one deliberate act, one audit entry
+ * (`actions.js` here, and `revealCredential()` behind it).
  *
- * The ciphertext is `select: false` on the model, so the rows below were
- * read without it: there is no password in this page's memory to leak.
+ * What the list itself answers is the question that was unanswerable: *do we
+ * hold a TRACES login for every client we file TDS for?*
  *
  * Only a Partner and a CA get here at all (`clientCredentials` in spec
  * section 2, which no grant widens), and a CA sees their branches, because
@@ -73,7 +76,9 @@ export default async function LoginsVaultPage({ searchParams }) {
         portal: credential.portal,
         label: credential.label ?? "",
         username: credential.username,
-        lastRevealedAt: credential.lastRevealedAt,
+        lastRevealed: credential.lastRevealedAt
+          ? formatISTDate(new Date(credential.lastRevealedAt))
+          : "never",
       };
     })
     .sort(
@@ -94,131 +99,68 @@ export default async function LoginsVaultPage({ searchParams }) {
   );
 
   return (
-    <div className="mx-auto flex max-w-[1200px] flex-col gap-5 p-4 md:p-6">
-      <div>
-        <h1 className="font-display text-24 font-bold tracking-tight">
-          Logins vault
-        </h1>
-        <p className="text-13 text-ink-muted max-w-[70ch]">
-          Which logins the firm holds, and when each was last used. Revealing a
-          password stays on the client&rsquo;s own page, where it is audited
-          every time.
-        </p>
-      </div>
+    <div className="mx-auto flex max-w-[1380px] flex-col gap-5 p-4 md:p-6">
+      <PageHead
+        title="Logins vault"
+        sub={
+          <>
+            {rows.length} {rows.length === 1 ? "login" : "logins"} held across{" "}
+            {new Set(rows.map((row) => row.clientId)).size} clients. A password
+            is shown one at a time, to whoever types the code, and every reveal
+            is in the audit log.
+          </>
+        }
+      >
+        <RegisterTabs current="vault" />
+      </PageHead>
 
-      <nav className="flex flex-wrap gap-2" aria-label="Portals">
-        <Link
-          href="/registers/vault"
-          aria-current={portal ? undefined : "page"}
-          className={`rounded-control text-13 border px-3 py-1.5 ${
-            portal
-              ? "border-rule hover:bg-carbon-wash"
-              : "border-carbon bg-carbon-wash text-carbon"
-          }`}
-        >
-          All · <span className="num">{credentials.length}</span>
-        </Link>
+      <nav
+        className="flex flex-wrap items-center gap-1.5"
+        aria-label="Portals"
+      >
+        <FilterChip href="/registers/vault" on={!portal} count={rows.length}>
+          All
+        </FilterChip>
         {PORTALS.map((name) => (
-          <Link
+          <FilterChip
             key={name}
             href={`/registers/vault?portal=${encodeURIComponent(name)}`}
-            aria-current={portal === name ? "page" : undefined}
-            className={`rounded-control text-13 border px-3 py-1.5 ${
-              portal === name
-                ? "border-carbon bg-carbon-wash text-carbon"
-                : held.get(name)
-                  ? "border-rule hover:bg-carbon-wash"
-                  : "border-rule text-ink-muted"
-            }`}
+            on={portal === name}
+            count={held.get(name) ?? 0}
           >
             {name}
-            {held.get(name) ? (
-              <span className="num"> · {held.get(name)}</span>
-            ) : null}
-          </Link>
+          </FilterChip>
         ))}
       </nav>
 
-      <div className="rounded-table border-rule bg-surface overflow-x-auto border">
-        <table className="text-14 w-full">
-          <thead>
-            <tr className="border-rule text-12 text-faint border-b text-left font-normal">
-              <th className="px-3 py-2 font-medium">Client</th>
-              <th className="px-3 py-2 font-medium">Portal</th>
-              <th className="px-3 py-2 font-medium">Which login</th>
-              <th className="px-3 py-2 font-medium">Username</th>
-              <th className="px-3 py-2 font-medium">Last revealed</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="border-rule border-b last:border-0">
-                <td className="px-3 py-2">
-                  <Link
-                    href={`/clients/${row.clientId}`}
-                    className="underline underline-offset-4"
-                  >
-                    {row.client}
-                  </Link>
-                  {row.code && (
-                    <span className="text-12 text-ink-muted font-mono">
-                      {" "}
-                      {row.code}
-                    </span>
-                  )}
-                </td>
-                <td className="text-13 px-3 py-2">{row.portal}</td>
-                <td className="text-13 text-ink-muted px-3 py-2">
-                  {row.label || "—"}
-                </td>
-                <td className="text-13 px-3 py-2 font-mono">{row.username}</td>
-                <td className="num text-13 text-ink-muted px-3 py-2">
-                  {row.lastRevealedAt
-                    ? formatISTDate(new Date(row.lastRevealedAt))
-                    : "never"}
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr>
-                <td
-                  colSpan={5}
-                  className="text-ink-muted px-3 py-6 text-center"
-                >
-                  {portal
-                    ? `No ${portal} login is held.`
-                    : "No logins are held yet. They are added on a client's own page."}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <VaultTable
+        rows={rows}
+        mayEdit={can(actor, "edit", "clientCredentials")}
+      />
 
       {withoutAny.length > 0 && (
-        <section className="rounded-ledger border-rule bg-surface flex flex-col gap-2 border p-4">
-          <h2 className="font-display text-18">
-            Clients with no login held
-            <span className="num text-ink-muted"> · {withoutAny.length}</span>
-          </h2>
+        <Panel
+          title="Clients with no login held"
+          count={String(withoutAny.length)}
+          hint="Worth knowing before a deadline, not during one"
+        >
           <p className="text-13 text-ink-muted max-w-[70ch]">
-            Not a fault in itself — a client may file their own returns, or hold
-            their own credentials. It is worth knowing before a deadline rather
-            than during one.
+            Not a fault in itself — a client may file their own returns, or
+            hold their own credentials.
           </p>
           <ul className="text-13 flex flex-wrap gap-x-4 gap-y-1">
             {withoutAny.map((client) => (
               <li key={String(client._id)}>
                 <Link
                   href={`/clients/${client._id}`}
-                  className="underline underline-offset-4"
+                  className="underline-offset-4 hover:underline"
                 >
                   {client.tradeName || client.legalName}
                 </Link>
               </li>
             ))}
           </ul>
-        </section>
+        </Panel>
       )}
     </div>
   );
