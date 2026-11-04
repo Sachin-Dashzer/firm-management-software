@@ -86,13 +86,22 @@ export default function Onboarding({
   services,
   packTemplates = [],
   draft = null,
+  lead = null,
 }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [furthest, setFurthest] = useState(0);
   const [groups, setGroups] = useState(knownGroups);
   const [entityType, setEntityType] = useState("");
-  const [values, setValues] = useState({});
+  /**
+   * Prefilled when somebody pressed Convert on the initiative register
+   * (04-11-2026). The four fields a conversation has are filled in and
+   * everything else is asked as usual — a lead does not know its own
+   * entity type, and guessing one would be the worst possible field to
+   * get wrong.
+   */
+  const [values, setValues] = useState(lead?.values ?? {});
+  const [carry, setCarry] = useState(lead);
   const [documents, setDocuments] = useState([]);
   const [pack, setPack] = useState([]);
   const [received, setReceived] = useState([]);
@@ -259,6 +268,9 @@ export default function Onboarding({
    * possible thing to get wrong.
    */
   function onboardAnother() {
+    /* the register row belongs to the client just created, not to the next
+       one, so the carry-over goes with the rest of the details */
+    setCarry(null);
     setValues({
       branchId: values.branchId,
       clientPartnerId: values.clientPartnerId,
@@ -307,6 +319,9 @@ export default function Onboarding({
         services: services
           .filter((service) => fees[service.code]?.on)
           .map((service) => ({ code: service.code, ...fees[service.code] })),
+        /* the register row this came from, so it is marked converted and
+           linked rather than left looking like an open conversation */
+        initiativeId: carry?.id,
       });
 
       if (result?.error && !result.id) {
@@ -348,6 +363,22 @@ export default function Onboarding({
           </button>
         )}
       </div>
+
+      {carry && !created && (
+        <div className="rounded-ledger border-carbon bg-carbon-wash flex flex-col gap-1 border px-3 py-2">
+          <p className="text-14">
+            Carried over from the initiative register:{" "}
+            <strong>{carry.name}</strong>. Check the legal name and the contact
+            person — the register keeps one name for both — and the row is
+            marked converted once this client exists.
+          </p>
+          {carry.remarks && (
+            <p className="text-13 text-ink-muted whitespace-pre-line">
+              {carry.remarks}
+            </p>
+          )}
+        </div>
+      )}
 
       {draftOpen && (
         <div className="rounded-ledger border-waiting bg-waiting-wash flex flex-wrap items-center gap-3 border px-3 py-2">
@@ -1511,6 +1542,18 @@ function Done({ created, pack, router, onAnother }) {
             : ", nothing outstanding"}
           .
         </p>
+        {created.fromRegister && (
+          <p className="text-13 text-ink-muted mt-1">
+            {created.fromRegister} is marked converted on the{" "}
+            <Link
+              href="/initiatives"
+              className="hover:text-ink underline underline-offset-4"
+            >
+              initiative register
+            </Link>
+            , and the row now points at this client.
+          </p>
+        )}
       </div>
 
       {created.error && (

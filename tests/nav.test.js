@@ -44,16 +44,18 @@ const labels = (groups) =>
   }));
 
 describe("the menu is the shape the owner asked for", () => {
-  it("has ten groups and 59 links for a partner", () => {
+  it("has ten groups and 60 links for a partner", () => {
     expect(PARTNER_NAV).toHaveLength(10);
     // 58 until P3-34 phase 4 split the compliance calendar into an
-    // overview and three frequency routes, which is one link more
-    expect(links(PARTNER_NAV)).toHaveLength(59);
+    // overview and three frequency routes, which is one link more; 60
+    // since the initiative register joined the Clients group (04-11-2026)
+    expect(links(PARTNER_NAV)).toHaveLength(60);
   });
 
-  it("has eight groups and 24 links for staff", () => {
+  it("has eight groups and 25 links for staff", () => {
     expect(STAFF_NAV).toHaveLength(8);
-    expect(links(STAFF_NAV)).toHaveLength(24);
+    // 24 before the initiative register, which staff read too
+    expect(links(STAFF_NAV)).toHaveLength(25);
   });
 
   /**
@@ -144,7 +146,7 @@ describe("the three bands of the rail (P3-34 phase 2)", () => {
 
 describe("what each role is actually shown", () => {
   it("shows a partner everything", () => {
-    expect(links(menuFor(actor("partner")))).toHaveLength(59);
+    expect(links(menuFor(actor("partner")))).toHaveLength(60);
   });
 
   /**
@@ -217,7 +219,7 @@ describe("a switched-off module disappears, and takes its headings with it", () 
   });
 
   it("is all on when nobody has said otherwise", () => {
-    expect(links(menuFor(actor("partner"), {}))).toHaveLength(59);
+    expect(links(menuFor(actor("partner"), {}))).toHaveLength(60);
   });
 });
 

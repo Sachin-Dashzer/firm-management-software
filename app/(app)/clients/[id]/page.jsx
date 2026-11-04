@@ -8,6 +8,7 @@ import Client from "@/models/Client";
 import Branch from "@/models/Branch";
 import User from "@/models/User";
 import ClientGroup from "@/models/ClientGroup";
+import Initiative from "@/models/Initiative";
 import { siblingsOf } from "@/lib/groups/summary";
 import ClientCredential from "@/models/ClientCredential";
 import Comment from "@/models/Comment";
@@ -165,21 +166,24 @@ export default async function ClientPage({ params, searchParams }) {
   const active = tabs.some((t) => t.key === tab) ? tab : tabs[0]?.key;
   if (!active) redirect("/clients");
 
-  const [branch, partner, manager, group, siblings] = await Promise.all([
-    Branch.findById(client.branchId).select("code name").lean(),
-    client.clientPartnerId
-      ? User.findById(client.clientPartnerId).select("name").lean()
-      : null,
-    client.relationshipManagerId
-      ? User.findById(client.relationshipManagerId).select("name").lean()
-      : null,
-    client.groupId
-      ? ClientGroup.findById(client.groupId).select("name").lean()
-      : null,
-    // the owner's other businesses (P2-11) — each one a client record of its
-    // own, scoped so this shows only the ones this person may open
-    siblingsOf(actor, client),
-  ]);
+  const [branch, partner, manager, group, siblings, fromRegister] =
+    await Promise.all([
+      Branch.findById(client.branchId).select("code name").lean(),
+      client.clientPartnerId
+        ? User.findById(client.clientPartnerId).select("name").lean()
+        : null,
+      client.relationshipManagerId
+        ? User.findById(client.relationshipManagerId).select("name").lean()
+        : null,
+      client.groupId
+        ? ClientGroup.findById(client.groupId).select("name").lean()
+        : null,
+      // the owner's other businesses (P2-11) — each one a client record of its
+      // own, scoped so this shows only the ones this person may open
+      siblingsOf(actor, client),
+      /* which conversation they came from, for the one tab that shows it */
+      active === "overview" ? cameFrom(actor, id) : null,
+    ]);
 
   const primary =
     client.contacts?.find((c) => c.primary) ?? client.contacts?.[0] ?? null;
@@ -328,6 +332,7 @@ export default async function ClientPage({ params, searchParams }) {
           seeVault={seeVault}
           mayEditVault={can(actor, "edit", "clientCredentials", scope)}
           seeDsc={can(actor, "view", "dsc", scope)}
+          fromRegister={fromRegister}
           clientId={id}
         />
       )}
@@ -403,6 +408,7 @@ async function Overview({
   mayEditVault,
   clientId,
   seeDsc,
+  fromRegister,
 }) {
   /**
    * Their digital signature certificates (P2-7). A line and a link rather
@@ -466,6 +472,45 @@ async function Overview({
         <Row label="Industry" value={client.industry || "—"} />
         <Row label="Turnover band" value={client.turnoverBand || "—"} />
         <Row label="Referral source" value={client.referralSource || "—"} />
+        {/**
+         * Where they came from, when they came from the initiative register
+         * (04-11-2026). The link was one-way until now: a converted row
+         * pointed at its client and the client's own file said nothing, so
+         * "who brought this one in, and what did we promise them?" meant
+         * remembering that the register exists and searching it.
+         *
+         * The remarks are shown, not copied. They stay the register's — one
+         * place to correct them, and the audit trail of what was said stays
+         * on the row it was said about.
+         */}
+        {fromRegister && (
+          <Row
+            label="Came from"
+            value={
+              <>
+                <Link
+                  href={`/initiatives?state=Converted&q=${encodeURIComponent(
+                    fromRegister.name,
+                  )}`}
+                  className="underline underline-offset-4"
+                >
+                  {fromRegister.name}
+                </Link>
+                <span className="text-ink-muted">
+                  {" · initiative register"}
+                  {fromRegister.by
+                    ? ` · written down by ${fromRegister.by}`
+                    : ""}
+                </span>
+                {fromRegister.remarks && (
+                  <span className="text-13 text-ink-muted mt-0.5 block whitespace-pre-line">
+                    {fromRegister.remarks}
+                  </span>
+                )}
+              </>
+            }
+          />
+        )}
         <Row
           label="Onboarded"
           value={
@@ -1249,6 +1294,33 @@ function Panel({ title, className = "", children }) {
       {children}
     </section>
   );
+}
+
+/**
+ * The conversation this client was before they were a client (04-11-2026).
+ *
+ * Read through the matrix like everything else: an intern keeps their own
+ * conversations, so a row somebody else wrote is simply not shown rather
+ * than shown without a name on it. Nothing here is on the client record
+ * itself — the register owns it, and this is a look across at it.
+ */
+async function cameFrom(actor, clientId) {
+  const row = await Initiative.findOne({ clientId })
+    .select("name remarks createdBy createdByName branchId convertedAt")
+    .lean();
+  if (!row) return null;
+
+  const mayRead = can(actor, "view", "initiatives", {
+    branchId: String(row.branchId ?? ""),
+    userId: String(row.createdBy ?? ""),
+  });
+  if (!mayRead) return null;
+
+  return {
+    name: row.name,
+    remarks: row.remarks ?? "",
+    by: row.createdByName ?? "",
+  };
 }
 
 function Row({ label, value, mono }) {

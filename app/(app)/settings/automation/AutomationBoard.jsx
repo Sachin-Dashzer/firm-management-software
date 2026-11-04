@@ -11,6 +11,7 @@ import {
   setRuleTrusted,
   setRuleEnabled,
   setAutomationPaused,
+  setClientMail,
   retryMessage,
 } from "./actions";
 
@@ -27,6 +28,13 @@ import {
  * *then* this — with two switches that do different jobs: **on** is the
  * kill switch and **trusted** decides only whether a partner sees it
  * first. Both are a partner's.
+ *
+ * Above them are the two switches that govern the lot (04-11-2026). They
+ * sit side by side because they are constantly mistaken for each other,
+ * and a sentence each is the only way to tell them apart: **client email**
+ * is the channel, and **the pause** is the automatic senders. Switching
+ * client email on is the one control on this screen that cannot be undone
+ * quietly — a letter a client has read has been read — so it asks twice.
  */
 
 const STATUS_WORDS = {
@@ -62,6 +70,7 @@ export default function AutomationBoard({
   log,
   recipes,
   failed,
+  clientMail,
   paused,
   pausedAt,
   mayDecide,
@@ -74,6 +83,7 @@ export default function AutomationBoard({
   const [open, setOpen] = useState(null);
   const [declining, setDeclining] = useState(null);
   const [reason, setReason] = useState("");
+  const [arming, setArming] = useState(false);
 
   function run(action) {
     startTransition(async () => {
@@ -121,39 +131,142 @@ export default function AutomationBoard({
         </p>
       </section>
 
-      {/* --- the pause ---------------------------------------------------- */}
-      <section
-        className={`rounded-ledger flex flex-wrap items-center justify-between gap-3 border p-4 ${
-          paused ? "border-redpen bg-redpen-wash" : "border-rule bg-surface"
-        }`}
-      >
-        <div>
-          <h2 className="text-16 font-semibold">
-            {paused
-              ? "Everything automatic is paused"
-              : "Automation is running"}
-          </h2>
-          <p className="text-13 text-ink-muted max-w-[70ch]">
-            {paused
-              ? `Paused ${pausedAt ?? ""}. Nothing automated reaches a client until this is lifted. Anything a person sends by hand still goes.`
-              : "The one switch that stops every automatic message to a client at once — for the morning a client list has gone in wrong."}
-          </p>
-        </div>
-        {mayDecide && (
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => run(() => setAutomationPaused(!paused))}
-            className={`rounded-control text-14 h-9 px-4 font-medium disabled:opacity-60 ${
-              paused
-                ? "bg-carbon text-on-carbon"
-                : "border-redpen text-redpen border"
-            }`}
-          >
-            {paused ? "Start sending again" : "Pause everything"}
-          </button>
-        )}
-      </section>
+      {/* --- the two switches over everything ----------------------------- */}
+      <div className="grid items-stretch gap-3 md:grid-cols-2">
+        {/* the channel: may a client be written to at all */}
+        <section
+          className={`rounded-ledger flex flex-col gap-3 border p-4 ${
+            clientMail.on
+              ? "border-rule bg-surface"
+              : "border-waiting bg-waiting-wash"
+          }`}
+        >
+          <div className="flex flex-col gap-1">
+            <h2 className="text-16 font-semibold">
+              {clientMail.on
+                ? "Client email is on"
+                : "Clients are not being emailed"}
+            </h2>
+            <p className="text-13 text-ink-muted">
+              {clientMail.on
+                ? "Messages to clients are delivered as well as logged. Every limit on this screen still applies."
+                : "Messages to clients are composed and kept on the log, and nothing is delivered. Messages to the team are unaffected."}
+            </p>
+            {clientMail.on && clientMail.never && (
+              <p className="text-12 text-ink-muted">
+                Switched on by the deployment&rsquo;s own setting, not from this
+                screen.
+              </p>
+            )}
+            {clientMail.on && clientMail.at && (
+              <p className="text-12 text-ink-muted">
+                On since {clientMail.at}
+                {clientMail.byName ? ` · ${clientMail.byName}` : ""}
+              </p>
+            )}
+            {/* this switch is not the last word: two settings upstream of it
+                would stop the post anyway, and a firm that threw it should
+                not have to work out why nothing arrived */}
+            {clientMail.systemOff && (
+              <p className="text-12 text-redpen">
+                Email is switched off for the whole system, so nothing goes out
+                either way — team mail included.
+              </p>
+            )}
+            {!clientMail.systemOff && clientMail.noMailbox && (
+              <p className="text-12 text-waiting">
+                No mailbox is configured yet, so messages are written to the
+                server log instead of posted. Settings &rarr; Messages says what
+                is missing.
+              </p>
+            )}
+          </div>
+
+          {mayDecide &&
+            (arming ? (
+              <div className="flex flex-col gap-2">
+                <p className="text-13">
+                  From now on, clients receive the invoices, reminders and
+                  letters these recipes produce. Nothing already on the log is
+                  sent again.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => {
+                      setArming(false);
+                      run(() => setClientMail(true));
+                    }}
+                    className="rounded-control bg-carbon text-on-carbon text-14 h-9 px-4 font-medium disabled:opacity-60"
+                  >
+                    Yes — email clients
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setArming(false)}
+                    className="rounded-control border-rule text-14 h-9 border px-4 font-medium"
+                  >
+                    Not yet
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() =>
+                  clientMail.on
+                    ? run(() => setClientMail(false))
+                    : setArming(true)
+                }
+                className={`rounded-control text-14 mt-auto h-9 w-fit px-4 font-medium disabled:opacity-60 ${
+                  clientMail.on
+                    ? "border-redpen text-redpen border"
+                    : "bg-carbon text-on-carbon"
+                }`}
+              >
+                {clientMail.on
+                  ? "Stop emailing clients"
+                  : "Switch client email on"}
+              </button>
+            ))}
+        </section>
+
+        {/* the senders: is the automation running */}
+        <section
+          className={`rounded-ledger flex flex-col gap-3 border p-4 ${
+            paused ? "border-redpen bg-redpen-wash" : "border-rule bg-surface"
+          }`}
+        >
+          <div className="flex flex-col gap-1">
+            <h2 className="text-16 font-semibold">
+              {paused
+                ? "Everything automatic is paused"
+                : "Automation is running"}
+            </h2>
+            <p className="text-13 text-ink-muted">
+              {paused
+                ? `Paused ${pausedAt ?? ""}. Nothing automated reaches a client until this is lifted. Anything a person sends by hand still goes.`
+                : "The one switch that stops every automatic message at once — for the morning a client list has gone in wrong. A person can still write by hand."}
+            </p>
+          </div>
+          {mayDecide && (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => run(() => setAutomationPaused(!paused))}
+              className={`rounded-control text-14 mt-auto h-9 w-fit px-4 font-medium disabled:opacity-60 ${
+                paused
+                  ? "bg-carbon text-on-carbon"
+                  : "border-redpen text-redpen border"
+              }`}
+            >
+              {paused ? "Start sending again" : "Pause everything"}
+            </button>
+          )}
+        </section>
+      </div>
 
       {/* --- the four figures --------------------------------------------- */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -192,10 +305,9 @@ export default function AutomationBoard({
             Approval queue · {queued.length}
           </h2>
           <p className="text-13 text-ink-muted max-w-[70ch]">
-            Nothing here reaches a client until you approve it. Approving
-            sends them now, and each one is checked again as it goes: a client
-            who has sent their documents in the meantime is not chased for
-            them.
+            Nothing here reaches a client until you approve it. Approving sends
+            them now, and each one is checked again as it goes: a client who has
+            sent their documents in the meantime is not chased for them.
           </p>
         </div>
 
@@ -381,9 +493,9 @@ export default function AutomationBoard({
           </h2>
           <p className="text-13 text-ink-muted max-w-[70ch]">
             <strong>On</strong> is the kill switch: off means it runs for
-            nobody. <strong>Trusted</strong> decides something narrower — that
-            a partner does not read it first — and it is still bound by the
-            limits above. Both are a partner&rsquo;s.
+            nobody. <strong>Trusted</strong> decides something narrower — that a
+            partner does not read it first — and it is still bound by the limits
+            above. Both are a partner&rsquo;s.
           </p>
         </div>
 

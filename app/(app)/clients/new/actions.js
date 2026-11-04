@@ -2,11 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/auth";
-import { assertCan } from "@/lib/permissions";
+import { assertCan, can } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import { audited } from "@/lib/audit/request";
 import Client from "@/models/Client";
 import ClientGroup from "@/models/ClientGroup";
+import Initiative from "@/models/Initiative";
 import ClientService from "@/models/ClientService";
 import ServiceTemplate from "@/models/ServiceTemplate";
 import DocTemplate from "@/models/DocTemplate";
@@ -36,6 +37,47 @@ import { createClient } from "../actions";
  * and the two records that follow a new client: its service subscriptions
  * and the one document request that asks for everything still missing.
  */
+
+/**
+ * Mark the initiative-register row this client came from (04-11-2026).
+ *
+ * The register hands its four fields to the wizard and the wizard links
+ * the two records on the way out, which is what keeps one path into the
+ * client list: the conversion is the *client* being created, so there is
+ * no window where a row claims a client that does not exist.
+ *
+ * Everything here is deliberately forgiving. The client has already been
+ * created and audited by the time this runs, so a row that has since been
+ * removed, or belongs to an office this person cannot read, or was
+ * converted by somebody else a minute ago, must not turn a finished
+ * onboarding into an error — it leaves the register alone and says so by
+ * returning the name, or nothing.
+ *
+ * @returns {Promise<string>} the name on the row, when one was marked
+ */
+async function markInitiativeConverted(actor, id, clientId) {
+  if (!/^[a-f\d]{24}$/i.test(String(id ?? ""))) return "";
+
+  const row = await Initiative.findById(String(id));
+  if (!row || row.status === "Converted") return "";
+
+  const mayChange = can(actor, "edit", "initiatives", {
+    branchId: String(row.branchId ?? ""),
+    userId: String(row.createdBy ?? ""),
+  });
+  if (!mayChange) return "";
+
+  await audited(actor, async (session) => {
+    row.status = "Converted";
+    row.clientId = clientId;
+    row.convertedAt = new Date();
+    row.updatedBy = actor.id;
+    await row.save({ session });
+  });
+
+  revalidatePath("/initiatives");
+  return row.name;
+}
 
 /** The three checks that need the database, for steps 2 and 5. */
 export async function onboardingLookups(input) {
@@ -366,10 +408,17 @@ export async function createFromOnboarding(payload) {
     link = requestLink(token);
   }
 
+  const fromRegister = await markInitiativeConverted(
+    actor,
+    payload.initiativeId,
+    clientId,
+  );
+
   revalidatePath("/clients");
   return {
     ok: created.ok,
     id: clientId,
+    fromRegister,
     services,
     outstanding: outstanding.length,
     requestDays: REQUEST_DAYS,

@@ -352,7 +352,11 @@ Three records do that.
 ### Step 4 — test it on yourself before any client
 
 1. Add `EMAIL_REDIRECT_TO` in Vercel, set to your own address, and
-   `EMAIL_CLIENTS_ENABLED=true`. Redeploy.
+   redeploy. Then switch client email on in the app: **Settings →
+   Automation runs and approvals → Switch client email on**. (A partner
+   only, and it is audited. `EMAIL_CLIENTS_ENABLED` still answers on a
+   deployment where nobody has thrown that switch, which is why it is the
+   second place to look if client mail is not going out.)
 2. Every message now goes to you, whoever it was addressed to, with the
    intended recipient shown in the subject in square brackets.
 3. Issue a test invoice to a test client. You should receive it, with the
@@ -365,8 +369,9 @@ Three records do that.
 Only when steps 3 and 4 are both clean:
 
 1. **Remove** `EMAIL_REDIRECT_TO` from Vercel.
-2. Keep `EMAIL_CLIENTS_ENABLED=true`.
-3. Redeploy.
+2. Redeploy.
+3. Leave client email on — it is already on from step 4, and it is a
+   setting in the database now, so a redeploy does not reset it.
 
 From this moment clients receive invoices and reminders. Until it,
 **Settings → Messages** shows everything that was held back and why.
@@ -555,9 +560,10 @@ step 3 is much easier than the same problem found at step 8.
 11. **Walk `docs/ACCEPTANCE.md`** with a partner and mark it off. Run
     `npm run doctor` once more: the "still to do" list at the foot of it
     should be empty.
-12. **Turn client email on**: `EMAIL_CLIENTS_ENABLED=true`, and remove
-    `EMAIL_REDIRECT_TO`. This is the point of no return for anything that
-    reaches a client, so it is deliberately last.
+12. **Turn client email on**: **Settings → Automation runs and approvals →
+    Switch client email on**, and remove `EMAIL_REDIRECT_TO` from Vercel.
+    This is the point of no return for anything that reaches a client, so
+    it is deliberately last.
 13. **Pilot at Noida for one compliance month, in parallel with the
     spreadsheets** (spec §17). Retire the sheets only after a full month has
     gone through both.
@@ -567,7 +573,8 @@ step 3 is much easier than the same problem found at step 8.
 | To stop | Do this |
 | --- | --- |
 | all email | `EMAIL_ENABLED=false`, redeploy |
-| client email only | `EMAIL_CLIENTS_ENABLED=false` |
+| client email only | Settings → Automation → **Stop emailing clients**. No redeploy, takes effect within a minute |
+| the automatic senders, leaving people able to write by hand | Settings → Automation → **Pause everything** |
 | the background jobs | remove the cron job; the queue waits |
 | the whole app | Vercel → Deployments → promote the previous deployment |
 

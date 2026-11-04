@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/auth";
-import { assertCan, can } from "@/lib/permissions";
+import { assertCan, can, scopeOf } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import { audited } from "@/lib/audit/request";
 import Todo from "@/models/Todo";
@@ -89,10 +89,31 @@ export async function addTodo(_prev, formData) {
     if (!found || found.active === false) {
       return { error: "That person is not on the team." };
     }
-    assertCan(actor, "edit", "todos", {
-      branchId: String(found.branchIds?.[0] ?? ""),
-      userId: String(found._id),
-    });
+
+    /**
+     * Reachable, by the same rule the composer's own list is built on
+     * (`/todos/page.jsx`): everybody when this person's to-do scope is the
+     * whole firm, otherwise somebody who shares a branch with them.
+     *
+     * This used to ask `assertCan(actor, "edit", "todos", { userId })`,
+     * which is a different question — *is that person's list yours to
+     * edit?* — and under the matrix only a partner can answer it yes. The
+     * composer offers the whole reachable team to everybody, so every role
+     * but partner picked a colleague and got a thrown "Not allowed".
+     *
+     * Whose list you may **read** is what the to-do scope governs. Writing
+     * one down for a colleague is something every role may do — it is what
+     * the matrix means by "their own plus anything they wrote down for
+     * somebody else", and what `mayChange` above means by "a to-do you
+     * wrote for a colleague stays yours to correct". The row keeps
+     * `createdByName`, so it says who put it there.
+     */
+    const shared = (found.branchIds ?? []).some((id) =>
+      (actor.branchIds ?? []).includes(String(id)),
+    );
+    if (scopeOf(actor, "todos") !== "all" && !shared) {
+      return { error: "That person is not in your branch." };
+    }
     owner = found;
   } else {
     const me = await User.findById(actor.id).select("branchIds").lean();

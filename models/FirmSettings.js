@@ -40,13 +40,6 @@ const firmSettingsSchema = new mongoose.Schema(
     headOffice: { type: String, trim: true, default: "", maxlength: 300 },
 
     /**
-     * One switch that stops every automatic message to a client (P3-10).
-     *
-     * For the morning somebody notices a rule is wrong: the firm can stop
-     * the sending without switching rules off one by one, and without
-     * anybody editing an environment variable on Vercel.
-     */
-    /**
      * Which modules are switched on (P3-22a). Absent means on, so a
      * database written before this field existed behaves as it always did.
      * Switching one off hides its menu group and makes its pages answer
@@ -92,6 +85,37 @@ const firmSettingsSchema = new mongoose.Schema(
       default: () => ({}),
     },
 
+    /**
+     * May a client be emailed at all (04-11-2026)?
+     *
+     * This lived in `EMAIL_CLIENTS_ENABLED` and nowhere else, so the one
+     * switch between "composed and logged" and "the client has read it"
+     * could only be thrown by somebody with the Vercel dashboard open, and
+     * took a redeploy to land. The firm owner is the person who should be
+     * throwing it, from the screen that shows what it governs.
+     *
+     * **`null` means the firm has never said**, and then the environment
+     * variable still answers — the same arrangement as the notification
+     * rules, where the code holds the defaults and the database holds only
+     * what the firm has changed. So this field appearing changes nothing
+     * about an existing deployment until somebody opens the screen.
+     *
+     * Not the same switch as `automationPaused` below. This is whether
+     * client email works at all; that is whether the *automatic* senders
+     * may use it. Paused automation still lets a person write to a client
+     * by hand; this does not.
+     */
+    clientMailOn: { type: Boolean, default: null },
+    clientMailBy: { type: String, default: null },
+    clientMailByName: { type: String, default: "" },
+    clientMailAt: { type: Date, default: null },
+
+    /**
+     * One switch that stops every automatic message to a client (P3-10).
+     *
+     * For the morning somebody notices a rule is wrong: the firm can stop
+     * the sending without switching rules off one by one.
+     */
     automationPaused: { type: Boolean, default: false },
     automationPausedBy: { type: String, default: null },
     automationPausedAt: { type: Date, default: null },

@@ -14,6 +14,8 @@ import {
   QUIET_FROM_HOUR,
   QUIET_UNTIL_HOUR,
 } from "@/lib/mailer/gate";
+import { clientMailFrom, mailSettings } from "@/lib/mailer/guard";
+import { transportName } from "@/lib/mailer";
 import { FirmWide } from "@/components/shell/ViewNote";
 import AutomationBoard from "./AutomationBoard";
 import SettingsScreen from "../Shell";
@@ -59,7 +61,9 @@ export default async function AutomationPage() {
         .limit(60)
         .lean(),
       FirmSettings.findOne({ key: "firm" })
-        .select("automationPaused automationPausedAt")
+        .select(
+          "automationPaused automationPausedAt clientMailOn clientMailByName clientMailAt",
+        )
         .lean(),
       loadRules({ fresh: true }),
       SendBatch.countDocuments({ createdAt: { $gte: dayStart } }),
@@ -114,6 +118,18 @@ export default async function AutomationPage() {
           error: row.error,
           at: formatISTDateTime(row.createdAt),
         }))}
+        clientMail={{
+          on: clientMailFrom(firm),
+          /* two things upstream of this switch that would stop the post
+             anyway, so throwing it is not mistaken for being finished */
+          systemOff: !mailSettings().enabled,
+          noMailbox: transportName() === "log",
+          /* nobody has thrown it either way, so the deployment's own
+             default is still answering and the screen should say so */
+          never: typeof firm?.clientMailOn !== "boolean",
+          byName: firm?.clientMailByName ?? "",
+          at: firm?.clientMailAt ? formatISTDateTime(firm.clientMailAt) : null,
+        }}
         paused={Boolean(firm?.automationPaused)}
         pausedAt={
           firm?.automationPausedAt

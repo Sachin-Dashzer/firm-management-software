@@ -1,3 +1,4 @@
+import Link from "next/link";
 import Chip from "@/components/ui/Chip";
 import Panel from "@/components/ui/Panel";
 import Segmented from "@/components/ui/Segmented";
@@ -95,7 +96,11 @@ export default function Messages({
             href: href({ tab: "log" }),
             badge: { value: total },
           },
-          { key: "templates", label: "Templates", href: href({ tab: "templates" }) },
+          {
+            key: "templates",
+            label: "Templates",
+            href: href({ tab: "templates" }),
+          },
           {
             key: "channels",
             label: "Channels and consent",
@@ -147,18 +152,25 @@ export default function Messages({
           {!settings.clientsEnabled && (
             <p className="rounded-ledger border-waiting bg-waiting-wash text-13 border px-3 py-2">
               <strong>Clients are not being emailed yet.</strong> Messages to
-              clients are composed and logged here but not delivered — they
-              show as held back. Set <code>EMAIL_CLIENTS_ENABLED</code> at
-              go-live. Messages to the team{" "}
-              {settings.enabled ? "are being sent" : "are switched off"}.
+              clients are composed and logged here but not delivered — they show
+              as held back. Messages to the team{" "}
+              {settings.enabled ? "are being sent" : "are switched off"}. A
+              partner switches client email on from{" "}
+              <Link
+                href="/settings/automation"
+                className="hover:text-carbon underline underline-offset-4"
+              >
+                Automation runs and approvals
+              </Link>
+              .
             </p>
           )}
 
           {log.length === 0 ? (
             <p className="rounded-ledger border-rule bg-surface text-14 text-ink-muted border px-4 py-8 text-center">
-              Nothing has been sent yet. Messages appear here when a rule
-              fires, when a batch is approved, or when somebody writes to a
-              client from a job.
+              Nothing has been sent yet. Messages appear here when a rule fires,
+              when a batch is approved, or when somebody writes to a client from
+              a job.
             </p>
           ) : (
             <ul className="flex flex-col gap-2">
@@ -167,8 +179,8 @@ export default function Messages({
                   key={row.id}
                   className={`rounded-ledger bg-surface flex flex-col gap-1 border px-3 py-2.5 ${
                     row.direction === "in"
-                      ? "border-rule bg-sunk border-s-4 border-s-filed"
-                      : "border-rule border-s-4 border-s-carbon"
+                      ? "border-rule bg-sunk border-s-filed border-s-4"
+                      : "border-rule border-s-carbon border-s-4"
                   }`}
                 >
                   <div className="text-12 flex flex-wrap items-center gap-2">
@@ -177,7 +189,8 @@ export default function Messages({
                     </Chip>
                     <strong className="text-13">
                       {row.direction === "in" ? "From" : "To"}{" "}
-                      {row.client || (row.audience === "team" ? "the team" : "a client")}
+                      {row.client ||
+                        (row.audience === "team" ? "the team" : "a client")}
                     </strong>
                     {row.to && <span className="text-faint">{row.to}</span>}
                     <span className="ms-auto flex items-center gap-2">
@@ -200,7 +213,9 @@ export default function Messages({
                   {row.why && (
                     <p
                       className={`text-12 ${
-                        row.status === "failed" ? "text-redpen" : "text-ink-muted"
+                        row.status === "failed"
+                          ? "text-redpen"
+                          : "text-ink-muted"
                       }`}
                     >
                       {row.why}
@@ -293,7 +308,7 @@ export default function Messages({
                   value={
                     settings.clientsEnabled
                       ? "On. Messages to clients are delivered as well as logged."
-                      : "Off until go-live. Composed, logged, not delivered."
+                      : "Off. Composed, logged, not delivered. A partner switches it on from Settings → Automation runs and approvals."
                   }
                 />
                 <Line
@@ -329,7 +344,10 @@ export default function Messages({
                   term="Quiet hours"
                   value={`${String(settings.quietFrom).padStart(2, "0")}:00–${String(
                     settings.quietUntil,
-                  ).padStart(2, "0")}:00 IST, and Sundays. Automated messages wait rather than queue; a statutory deadline is the exception.`}
+                  ).padStart(
+                    2,
+                    "0",
+                  )}:00 IST, and Sundays. Automated messages wait rather than queue; a statutory deadline is the exception.`}
                 />
                 <Line
                   term="Numbers held"
@@ -369,10 +387,7 @@ export default function Messages({
                             <>
                               {row.requestsTo.name}
                               <Meta>
-                                {[
-                                  row.requestsTo.email,
-                                  row.requestsTo.mobile,
-                                ]
+                                {[row.requestsTo.email, row.requestsTo.mobile]
                                   .filter(Boolean)
                                   .join(" · ") || "no address or number"}
                               </Meta>
@@ -393,7 +408,9 @@ export default function Messages({
                         <Td>
                           <span className="flex flex-wrap gap-1">
                             {row.email && <Chip tone="info">Email</Chip>}
-                            {row.whatsapp && <Chip tone="neutral">Number held</Chip>}
+                            {row.whatsapp && (
+                              <Chip tone="neutral">Number held</Chip>
+                            )}
                             {!row.email && !row.whatsapp && (
                               <span className="text-redpen text-13">
                                 No way to reach them
@@ -419,11 +436,11 @@ export default function Messages({
               </Table>
             </TableShell>
             <p className="text-12 text-ink-muted">
-              Consent is recorded on the client&rsquo;s own record when they
-              are taken on, which is what the DPDP Act and WhatsApp&rsquo;s own
-              policy ask for. A client who asks to stop keeps getting email:
-              the two are separate switches, and neither is a reason to stop
-              telling somebody their return was filed.
+              Consent is recorded on the client&rsquo;s own record when they are
+              taken on, which is what the DPDP Act and WhatsApp&rsquo;s own
+              policy ask for. A client who asks to stop keeps getting email: the
+              two are separate switches, and neither is a reason to stop telling
+              somebody their return was filed.
             </p>
           </Panel>
         </>
@@ -441,11 +458,7 @@ function Line({ term, value, tone = "" }) {
       </dt>
       <dd
         className={`min-w-[14rem] flex-1 ${
-          tone === "bad"
-            ? "text-redpen"
-            : tone === "warn"
-              ? "text-waiting"
-              : ""
+          tone === "bad" ? "text-redpen" : tone === "warn" ? "text-waiting" : ""
         }`}
       >
         {value}

@@ -7,7 +7,11 @@ import Comment from "@/models/Comment";
 import Client from "@/models/Client";
 import ClientUser from "@/models/ClientUser";
 import { formatISTDateTime } from "@/lib/dates";
-import { mailSettings, HOURLY_LIMIT } from "@/lib/mailer/guard";
+import {
+  mailSettings,
+  clientMailAllowed,
+  HOURLY_LIMIT,
+} from "@/lib/mailer/guard";
 import { transportName, verifyTransport } from "@/lib/mailer";
 import { loadRules, rulesForDisplay } from "@/lib/mailer/rules";
 import { QUIET_FROM_HOUR, QUIET_UNTIL_HOUR } from "@/lib/mailer/gate";
@@ -55,9 +59,7 @@ export default async function MessagesPage({ searchParams }) {
   /** The outbound log, narrowed by whichever chip is lit. */
   const query = {
     ...(status ? { status } : {}),
-    ...(channel === "whatsapp" || channel === "email"
-      ? { channel }
-      : {}),
+    ...(channel === "whatsapp" || channel === "email" ? { channel } : {}),
   };
 
   const [sent, replies, counts, byChannel, transport, rules] =
@@ -79,7 +81,9 @@ export default async function MessagesPage({ searchParams }) {
   /** Names for the rows that carry a client, in one query. */
   const clientIds = [
     ...new Set(
-      [...sent, ...replies].map((row) => String(row.clientId ?? "")).filter(Boolean),
+      [...sent, ...replies]
+        .map((row) => String(row.clientId ?? ""))
+        .filter(Boolean),
     ),
   ];
   const named = clientIds.length
@@ -179,7 +183,12 @@ export default async function MessagesPage({ searchParams }) {
     };
   });
 
-  const settings = mailSettings();
+  // the firm's switch, not the environment variable it used to be: see
+  // `clientMailAllowed` in lib/mailer/guard.js
+  const settings = {
+    ...mailSettings(),
+    clientsEnabled: await clientMailAllowed(),
+  };
   const contactsWithWhatsapp = audience.filter((row) => row.whatsapp).length;
 
   return (

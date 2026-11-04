@@ -122,7 +122,7 @@ export function checkEnv(env) {
 
   if (env.EMAIL_CLIENTS_ENABLED === "true" && !env.EMAIL_REDIRECT_TO) {
     warnings.push(
-      "Client email is ON and nothing is redirected: messages will reach real clients.",
+      "Client email is ON in the environment and nothing is redirected: messages will reach real clients. The firm's own switch, on Settings -> Automation, overrides this line either way once a partner has thrown it.",
     );
   }
   if (env.AUTH_SKIP_2FA === "true") {

@@ -11,6 +11,8 @@ import NotificationRule from "@/models/NotificationRule";
 import FirmSettings from "@/models/FirmSettings";
 import MessageLog from "@/models/MessageLog";
 import { sendBatch } from "@/lib/mailer/batches";
+import { clientMailAllowed } from "@/lib/mailer/guard";
+import { clearFirmCache } from "@/lib/firm/settings";
 import { RULE_DEFAULTS } from "@/lib/mailer/rules";
 import { enqueue } from "@/lib/jobs/queue";
 
@@ -174,6 +176,81 @@ export async function setRuleTrusted(key, trusted) {
     ok: on
       ? "That rule can now send without waiting for you — within the limits below."
       : "That rule will wait for you again.",
+  };
+}
+
+/**
+ * Switch client email on, or off (04-11-2026).
+ *
+ * The switch that decides whether a client is written to **at all**, moved
+ * here from `EMAIL_CLIENTS_ENABLED`: it used to take the Vercel dashboard
+ * and a redeploy, which put the most consequential setting in the system
+ * out of the owner's reach and left no record of who threw it.
+ *
+ * Partner-only, like everything else in this file, and audited — "when did
+ * we start emailing clients" is a question with one right answer.
+ *
+ * It is not the same switch as the pause below:
+ *
+ *  - this one is the channel. Off, nothing reaches a client, whether a rule
+ *    worked it out or a person typed it, and every message is still
+ *    composed and logged so the firm can see what it would have said.
+ *  - the pause is the automatic senders. Paused, a person can still write
+ *    to a client by hand.
+ *
+ * @param {boolean} on
+ */
+export async function setClientMail(on) {
+  const actor = await requireUser();
+  gate(actor);
+  await connectDB();
+
+  const wanted = Boolean(on);
+  const before = await clientMailAllowed();
+
+  await audited(actor, async (session) => {
+    // upsert, for the same reason the pause does: a firm that has not
+    // opened the ICAI screen yet has no settings document, and a switch
+    // that silently writes nothing is worse than no switch
+    const firm = await FirmSettings.findOneAndUpdate(
+      { key: "firm" },
+      {
+        $set: {
+          clientMailOn: wanted,
+          clientMailBy: actor.id,
+          clientMailByName: actor.name,
+          clientMailAt: new Date(),
+          updatedBy: actor.id,
+        },
+      },
+      { new: true, upsert: true, session },
+    );
+
+    await recordAudit(
+      {
+        action: ACTIONS.update,
+        entityType: "FirmSettings",
+        entityId: firm?._id,
+        diff: { clientMailOn: [before, wanted] },
+        note: wanted
+          ? "client email switched on: messages to clients are delivered from now on"
+          : "client email switched off: messages to clients are composed and logged, and not delivered",
+      },
+      session,
+    );
+  });
+
+  // read through the firm's one-minute cache, so clear it or the next
+  // message decides on the old answer
+  clearFirmCache();
+
+  revalidatePath("/settings/automation");
+  revalidatePath("/settings/messages");
+  revalidatePath("/settings");
+  return {
+    ok: wanted
+      ? "Client email is on. Anything a rule sends from now on reaches the client — within the limits on this screen."
+      : "Client email is off. Messages to clients are still composed and logged here, but nothing is delivered.",
   };
 }
 

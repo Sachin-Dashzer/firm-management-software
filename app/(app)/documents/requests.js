@@ -18,7 +18,7 @@ import {
 } from "@/lib/storage/requests";
 import { notify } from "@/lib/mailer/notify";
 import { isSettled, needsReview } from "@/lib/engagements/checklist";
-import { mailSettings } from "@/lib/mailer/guard";
+import { clientMailAllowed } from "@/lib/mailer/guard";
 
 /**
  * Asking a client for documents (spec section 6).
@@ -159,7 +159,7 @@ export async function createDocRequest(engagementId, options = {}) {
   // if client email is not switched on yet, say so plainly and hand the
   // link back: better that the firm sends it themselves than believes a
   // client was written to who was not
-  const delivered = options.email && mailSettings().clientsEnabled;
+  const delivered = options.email && (await clientMailAllowed());
 
   return {
     ok: delivered

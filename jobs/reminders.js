@@ -5,18 +5,20 @@ import Client from "../models/Client.js";
 import Invoice from "../models/Invoice.js";
 import DocRequest from "../models/DocRequest.js";
 import Dsc from "../models/Dsc.js";
+import Initiative from "../models/Initiative.js";
 import MessageLog from "../models/MessageLog.js";
 import { connectDB } from "../lib/db.js";
 import { loadRules } from "../lib/mailer/rules.js";
 import { notify, peopleFor } from "../lib/mailer/notify.js";
 import { gateBatch } from "../lib/mailer/batches.js";
-import { mailSettings } from "../lib/mailer/guard.js";
+import { clientMailAllowed } from "../lib/mailer/guard.js";
 import { TEMPLATES } from "../lib/mailer/templates.js";
 import { startOfISTDay } from "../lib/dates.js";
 import {
   documentReminders,
   dscReminders,
   engagementReminders,
+  initiativeReminders,
   invoiceReminders,
   perRecipient,
   SWEEP_OPEN_STATUSES,
@@ -27,6 +29,16 @@ import {
   requestExpiry,
   requestLink,
 } from "../lib/storage/requests.js";
+
+/**
+ * Where this deployment is reachable, for the links inside the messages.
+ * The same reading `jobs/digest.js` and `lib/mailer/events.js` make.
+ */
+const appUrl = () =>
+  (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(
+    /\/+$/,
+    "",
+  );
 
 /**
  * The morning sweep (spec section 12).
@@ -203,6 +215,28 @@ export async function reminders(options = {}) {
   }
 
   /**
+   * Leads who are due a call (owner request, 04-11-2026).
+   *
+   * Only the ones whose date has arrived, and only while the conversation
+   * is live — so a register of hundreds costs one small indexed query, and
+   * the rule's own ladder decides which of them is owed a nudge today.
+   */
+  const followUpRule = rules.initiativeFollowUp;
+  const leads = followUpRule?.enabled
+    ? await Initiative.find({
+        status: "Talking",
+        followUpOn: { $ne: null, $lte: startOfISTDay(now) },
+      })
+        .sort({ followUpOn: 1 })
+        .limit(limit)
+        .lean()
+    : [];
+
+  for (const initiative of leads) {
+    planned.push(...initiativeReminders({ initiative }, rules, now));
+  }
+
+  /**
    * While client email is switched off, client-facing reminders are not
    * composed at all — unlike an invoice, where a held copy of what we
    * would have said is the record of an event.
@@ -212,7 +246,7 @@ export async function reminders(options = {}) {
    * is allowed without a single one arriving, so the chasing simply
    * starts on the day the firm switches client email on.
    */
-  const clientsOn = mailSettings().clientsEnabled;
+  const clientsOn = await clientMailAllowed();
   const withheld = [];
 
   // --- expand to one message per person, drop what has already gone -------
@@ -261,6 +295,20 @@ export async function reminders(options = {}) {
     // one is kept — so each reminder mints a new token for the same request
     if (item.rule === "documentsPending") {
       values.link = await refreshRequestLink(item.about.entityId);
+    }
+
+    /**
+     * A link in an email has to be a link (04-11-2026).
+     *
+     * `lib/mailer/sweep.js` is pure and names paths — `/engagements/<id>`,
+     * `/initiatives?due=now` — which is right for a screen and dead in an
+     * inbox: five of these templates have been going out with a bare path
+     * where the address should be. The absolute form is made here, in the
+     * layer that is allowed to read the environment, and once for every
+     * rule rather than per rule.
+     */
+    if (typeof values.link === "string" && values.link.startsWith("/")) {
+      values.link = `${appUrl()}${values.link}`;
     }
 
     if (TEMPLATES[item.rule]?.audience === "client") {

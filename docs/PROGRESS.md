@@ -394,7 +394,7 @@ whose cost grows every week it waits.
 | 17-10-2026 | Discounts above 10% need a partner to approve them | Agent, owner to confirm |
 | 17-10-2026 | An invoice is settled when cash plus TDS credited covers the total — a client who pays 90% and deducts 10% TDS has paid in full and is not chased | Agent |
 | 17-10-2026 | A receipt belongs to the client, not to one invoice: allocations are embedded on the payment and anything unallocated sits as credit | Agent |
-| 17-10-2026 | Client-facing email is off behind EMAIL_CLIENTS_ENABLED and stays off until go-live; held messages are still composed, logged and visible. A redirect-all address allows testing the real SMTP path without touching a client | Agent |
+| 17-10-2026 | Client-facing email is off behind EMAIL_CLIENTS_ENABLED and stays off until go-live; held messages are still composed, logged and visible. A redirect-all address allows testing the real SMTP path without touching a client. *(The switch itself moved into the app on 04-11-2026 — see the foot of this file. The environment variable is now only the answer until the firm throws it.)* | Agent |
 | 17-10-2026 | Nothing sends inline: every message is queued and drained under an hourly cap, so a slow mailbox cannot slow a save and a burst cannot get the domain throttled | Agent |
 | 17-10-2026 | Notifications and message logs are written in the same transaction as the thing they describe, so nobody is told about a change that was rolled back | Agent |
 | 17-10-2026 | Notifications carry no audit plugin and expire after 60 days; message logs are kept, because what a client was told is a record | Agent |
@@ -5182,3 +5182,215 @@ The rest were the specs describing screens that had moved on:
   own 200 and reported that `/clients/export` had been served. It asks with
   `maxRedirects: 0` now. The refusal itself was correct — `currentUser()`
   refuses a `kind: "client"` token outright.
+
+## The client-email switch moved into the app (owner request, 04-11-2026)
+
+The owner asked how the firm sends clients email automatically, and the
+honest answer named a Vercel environment variable: `EMAIL_CLIENTS_ENABLED`.
+That is the single most consequential setting in the system — the line
+between "composed, logged, undelivered" and "the client has read it" — and
+it sat where the owner could not reach it, needed a redeploy to take
+effect, and left no record of who threw it or when. So it is a switch on
+**Settings → Automation runs and approvals** now, beside the firm-wide
+pause.
+
+- **`firmSettings.clientMailOn`** is the switch. `null` means the firm has
+  never said, and then the environment variable still answers — the same
+  arrangement as the notification rules, where code holds the defaults and
+  the database holds only what the firm has changed. A deployment that
+  never opens the screen behaves exactly as it did before.
+- **`clientMailAllowed()`** in `lib/mailer/guard.js` is the one place that
+  knows the fallback. `applyGuard` takes the answer as an argument rather
+  than fetching it, so the rule that holds a client's message stays pure
+  and testable without a database, and no message is ever held or sent on a
+  value that is not visible in the call. The Automation screen reads the
+  firm document directly through `clientMailFrom()` so its own switch shows
+  the firm's answer the instant it is thrown, rather than up to a minute of
+  cache later.
+- **Partner-only and audited**, like the pause, the trust flag and the
+  per-rule kill switch beside it: "when did we start emailing clients" is a
+  question with one right answer. The action clears the firm cache, so the
+  next message decides on the new value rather than the old one.
+- **Switching it on asks twice.** Every other control on that screen can be
+  undone; a letter a client has read cannot. The confirm step names what
+  happens — "clients receive the invoices, reminders and letters these
+  recipes produce" — and says that nothing already on the log is sent again.
+- **Two switches, two sentences, side by side.** They are constantly
+  mistaken for each other, so they now sit in one row with a sentence each:
+  client email is **the channel** (off, nothing reaches a client at all,
+  whether a recipe worked it out or a person typed it), the pause is **the
+  automatic senders** (paused, a person can still write by hand).
+- The "Client email is switched off" attention item now points at
+  Automation rather than at Messages: an item that names a problem should
+  land on the control for it, not on the log that shows the consequence.
+  `docs/DEPLOY.md` steps 4, 5 and 12 and the "if you need to stop" table
+  say screen rather than variable, and `npm run doctor` says its env check
+  is overridden by the firm's own switch.
+
+Not done: `scripts/doctor.js` still reads only the environment, so on a
+firm that has thrown the switch on screen it cannot tell whether client
+mail is live. It would need a database read to say, and the screen already
+says it plainly.
+
+## The initiative register (owner request, 04-11-2026)
+
+> "where i can register those client which are just a new lead of on
+> conversation phase here we only store client name, number, remarks, mail
+> thats it — and if any one of them ready to take our services then we can
+> convert them from our initiative to real client"
+
+`/initiatives`, in the Clients group of the rail. Four fields, three
+states, and one way out of it.
+
+**Why it is not a `Client` with `status: "Lead"`.** That status exists and
+is what onboarding writes, but Mongoose will not accept a client without a
+code, a legal name, an entity type and a branch, and the wizard that fills
+those in is seven steps long. A conversation has none of them. If writing
+an enquiry down costs more than a note in somebody's phone, it is written
+in the phone instead — which is how a firm loses a lead. So
+`models/Initiative.js` holds name, mobile, email, remarks, and nothing is
+required of a conversation that a conversation does not have.
+
+**The one rule it enforces:** a name with no mobile and no email is
+refused. A lead nobody can reach is a note, not a lead.
+
+**Remarks are one field, not a thread.** Every edit is audited with its
+before and after (CLAUDE.md rule 2), so the history of the conversation is
+already kept where nobody can tidy it up, and the field stays something a
+person fixes after a phone call. They are edited in place in the table —
+Enter saves, and the Save button only appears once the cell has the focus,
+so a column of rows is not a column of buttons.
+
+**Converting does not create a client.** `Convert to client` is a link to
+`/clients/new?from=<id>`: the four fields are carried into the wizard, the
+wizard asks for everything else exactly as it always did, and
+`createFromOnboarding` marks the row `Converted` and stores `clientId` on
+its way out. One path into the client list is what makes the duplicate
+check, the service subscriptions and the engagement pack worth anything —
+a second, lighter client-creation path would have been a way to get a
+client record past all three. The entity type is **not** guessed from the
+name: it drives every other question in the wizard and is the worst
+possible field to get wrong.
+
+**Duplicates are blocked, not warned.** The register is read by a whole
+office, so two people taking the same enquiry is the normal failure. A
+number or email already in the register is refused with the name and who
+wrote it down — and the check is deliberately not branch-filtered, since
+somebody needs to be told about a row they cannot read. A number that
+belongs to an **existing client** is said out loud and allowed: that is
+information, not a mistake.
+
+**A new permission area, `initiatives`, wider than `clients`.** A client
+file holds a PAN, an Aadhaar, bank details and a credentials vault, which
+is why an employee reaches one only through work on their desk or a grant.
+A lead holds a name and a line of remarks, and the person who meets the
+lead is usually the one at the front desk. So partner `all`, CA and
+employee their branch, intern their own, accounts read-only — and
+"are we already talking to this person" cannot be answered from your own
+rows alone, which is why an employee reads the whole office's. Onboarding
+still asks `edit` on `clients`, so writing a lead down and turning one
+into a client remain two different permissions.
+
+**Dropped is kept.** "Not going ahead" stays on the register so nobody
+rings them again next quarter; Remove is a soft delete for the row typed
+in twice, and asks first. `Converted` cannot be set by hand — a row may
+only claim a client the client list has actually heard of.
+
+Not done, deliberately:
+
+- **No reminder.** The follow-up date was added the same day (see below)
+  and the screen counts what is owed; nothing is emailed about it, which
+  would want a rule key, a template and quiet hours behind it.
+- **No tests yet**, per the owner's standing instruction that tests, lint
+  and the build wait until the whole run of changes is finished.
+
+### The link goes both ways (owner request, same day)
+
+The client's own file now says which conversation it came from: a **Came
+from** line in the Firm side panel of the Overview, with the name linking
+into the register filtered to that row, who wrote it down, and the remarks
+underneath.
+
+The remarks are **shown, not copied**. One place to correct them, and the
+audit trail of what was said stays on the row it was said about — a copy on
+the client record would have been a second version of the promise, aging
+separately from the one the register keeps. The lookup is `Initiative`
+`findOne({ clientId })`, indexed, read only for the Overview tab and only
+when the matrix allows: an intern keeps their own conversations, so a row
+somebody else wrote is not shown rather than shown anonymously.
+
+### The follow-up date (owner request, same day)
+
+`followUpOn` on the initiative — an IST day or null, and null is the common
+case rather than a gap in the record: plenty of enquiries are "he will ring
+us".
+
+- **In the composer**, a native `<input type="date">`: its own picker, its
+  own keyboard on a phone, its own locale. Read through `istDayFromInput`,
+  so a date box cannot land a day out, and it tells an empty box from a bad
+  one — the first is an answer, the second is an error.
+- **In the row it shares the remarks' form.** One act: you put the phone
+  down, you write what was said and when to ring again. One save, one audit
+  entry, and no way to save half of it. `setRemarks` became
+  `updateInitiative(id, formData)`; the date is compared as the *day* it
+  names rather than as two instants, or a stored IST midnight and what the
+  box just sent would read as a change on every save.
+- **"Owed a call" leads the tiles** — still talking, has a date, and the
+  date is today or past — and the list is banded by it: the calls first and
+  soonest first, then conversations with no date, then everything settled.
+  The query still asks for last-touched order and `sort` is stable, so that
+  is what orders rows inside a band. The top of the register is the
+  morning's work rather than whatever was typed in last.
+- **How late it is, is said in words** — "today", "3 days late" — with the
+  colour agreeing rather than carrying it (D35).
+
+Still nothing is sent. A date that emails the firm is the notification
+rules' job: a rule key, a template, a sweep and quiet hours. The register
+counts what is owed and leads with it instead, which is what a register on
+a screen somebody opens every morning can do honestly.
+
+### The follow-up is a notification rule now (owner request, 05-11-2026)
+
+`initiativeFollowUp`, through the same machinery as every other reminder:
+a key in `RULE_DEFAULTS`, a template in `TEMPLATES`, a pure function in
+`lib/mailer/sweep.js`, and one more pass in the morning sweep. So it can be
+switched off, retimed and reworded from Settings → Automation like the rest,
+it is logged in `messageLogs`, it obeys the hourly rate limit, and it shows
+up in the run log — none of which a bespoke mailer would have given it.
+
+- **On the day, then every three days, three times in all** (`when:
+  "repeat"`, `everyDays: 3`, `maxReminders: 3`), and then it stops: the row
+  still says "nine days late" on the register for whoever looks. A register
+  that mails somebody every morning for a month is one they filter.
+- **Which nudge is worked out from how late the call is, not from a counter
+  on the row.** `nudge = min(floor(late / everyDays), maxReminders - 1)`,
+  and the dedupe key carries it. So a sweep that did not run on the day
+  still sends that nudge the next morning (the key is unused), and a sweep
+  that runs twice sends nothing twice (the key collides with the unique
+  index). Nothing stored, nothing to get out of step — unlike
+  `documentsPending`, which has to keep a count because each chaser mints a
+  fresh upload link.
+- **Internal, to whoever wrote the lead down, and nobody else.** They are
+  the one who knows what was said; a lead has no partner on it and no file
+  to put it in. Nothing in this rule ever writes to the lead. Being
+  `audience: "team"` it also flows straight through the approval gate,
+  which is right: nobody needs a partner's permission to be reminded of
+  their own phone call.
+- `{lead}`, not `{name}`: `compose` merges the recipient over the values,
+  so `{name}` is always the person being written to — using it for the lead
+  would have addressed the email to itself. `{contact}` and `{remarks}`
+  always say something, because `fill` leaves an empty placeholder standing
+  as `{x}` rather than printing nothing.
+- The bell notification lands on `/initiatives?due=now`, so the link in the
+  inbox is the list of calls owed rather than the register's front page.
+  The inbox classifier files it under "My work" by its default, which is
+  where a call I owe belongs.
+
+**One thing fixed on the way through.** `lib/mailer/sweep.js` is pure and
+names paths — `/engagements/<id>`, `/practice/dsc` — which is right for a
+screen and dead in an inbox: five team templates have been going out with a
+bare path where the address should be. `jobs/reminders.js` now makes any
+`values.link` that starts with `/` absolute from `NEXT_PUBLIC_APP_URL`, in
+the layer that is allowed to read the environment and once for every rule.
+No client-facing reminder is affected: `invoiceReminder` carries no link and
+`documentsPending`'s is minted absolute already.
