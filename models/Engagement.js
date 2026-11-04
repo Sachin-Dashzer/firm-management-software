@@ -79,6 +79,20 @@ const checklistItemSchema = new mongoose.Schema(
     mandatory: { type: Boolean, default: true },
 
     /**
+     * Which step of this job the item belongs to, copied in from the
+     * template at creation (owner request, 03-11-2026).
+     *
+     * A position in `tasks`, snapshotted like everything else: reordering
+     * the catalog's steps next month must not shuffle the checklist of a
+     * job already under way.
+     *
+     * `null` means it belongs to the job rather than to one step, which is
+     * what every row written before this field meant. Those are shown on
+     * step one, where the single undivided checklist effectively lived.
+     */
+    stepIndex: { type: Number, default: null, min: 0 },
+
+    /**
      * Requested → Received → Format checked → Accepted, or Replacement
      * requested, or Not required (P3-2, spec section 6).
      *

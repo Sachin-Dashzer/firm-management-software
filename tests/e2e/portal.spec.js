@@ -8,6 +8,8 @@ import Client from "../../models/Client.js";
 import ClientUser from "../../models/ClientUser.js";
 import { hashPassword, decryptField } from "../../lib/crypto.js";
 import { systemAudit } from "../../lib/audit/system.js";
+// where a staff sign-in lands, from the one place that decides it
+import { LANDING } from "../../lib/nav/landing.js";
 
 /**
  * The client portal's door (P2-9a).
@@ -156,7 +158,7 @@ async function signInAsStaff(page, email) {
 
   await page.getByLabel("6-digit code").fill(code);
   await page.getByRole("button", { name: /Sign in|Turn on 2FA/ }).click();
-  await expect(page).toHaveURL(/\/issues$/);
+  await expect(page).toHaveURL(new RegExp(`${LANDING}$`));
 }
 
 test("a client signs in and lands in their own portal", async ({
@@ -199,8 +201,13 @@ test("a client's export and API guesses come back empty-handed", async ({
   const fx = names(testInfo.project.name);
   await signInAsClient(page, fx.portal);
 
+  /*
+   * `maxRedirects: 0`, or the refusal is invisible: a staff route refuses a
+   * portal session by sending it to the staff login, and the request
+   * context follows that redirect and reports the login page's own 200.
+   */
   for (const path of ["/clients/export", "/team/export"]) {
-    const response = await page.request.get(path);
+    const response = await page.request.get(path, { maxRedirects: 0 });
     expect([302, 303, 307, 401, 403, 404], path).toContain(response.status());
   }
 });

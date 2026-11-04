@@ -31,6 +31,7 @@ import { periodFor, parsePeriod } from "@/lib/engagements/period";
 import { buildEngagement } from "@/lib/engagements/create";
 import { checkAssignment, roleName, stepFloor } from "@/lib/engagements/assign";
 import { nextEngagementCode } from "@/lib/engagements/code";
+import { stepBlock } from "@/lib/engagements/steps";
 import {
   recordFiling,
   correctFiling,
@@ -60,6 +61,7 @@ import {
 } from "@/lib/engagements/checklist";
 import {
   checkStatusChange,
+  checkReviewer,
   canEditWork,
   isRework,
   PRIORITIES,
@@ -662,7 +664,9 @@ export async function saveAssignment(id, input) {
   /** Only what moved goes in the audit diff. */
   const diff = {};
   for (const key of Object.keys(after)) {
-    const was = Array.isArray(before[key]) ? before[key].join(",") : before[key];
+    const was = Array.isArray(before[key])
+      ? before[key].join(",")
+      : before[key];
     const now = Array.isArray(after[key]) ? after[key].join(",") : after[key];
     if (was !== now) diff[key] = [was, now];
   }
@@ -850,6 +854,20 @@ export async function setTaskDone(id, taskId, done) {
   const jumped = outOfOrder(engagement, task, done);
   const mayJump = actor.role === "ca" || actor.role === "partner";
   if (jumped && !mayJump) return { error: jumped };
+
+  /**
+   * The step's own precondition, which is a different thing from the
+   * order (owner, 03-11-2026). “Collect documents” is not finished
+   * because somebody ticked it; it is finished when the documents are
+   * in. The screen now hides every step after the open one, so this is
+   * the rule that hiding is a courtesy to — and a CA or a Partner may
+   * push past it, the same override the order rule already gives them.
+   */
+  const at = engagement.tasks.findIndex(
+    (row) => String(row._id) === String(task._id),
+  );
+  const blocked = done ? stepBlock(engagement, at) : null;
+  if (blocked && !mayJump) return { error: blocked.say };
 
   let bump = null;
   await audited(actor, async (session) => {
@@ -1188,15 +1206,38 @@ export async function answerChecklistQuestion(id, itemId, formData) {
   return { ok: "Answered. The client sees it on their portal." };
 }
 
-/** The reviewer's own checklist (spec section 5). */
+/**
+ * The reviewer's own checklist (spec section 5), which is the
+ * second-to-last step on the screen since 03-11-2026.
+ *
+ * This used to carry its own idea of who the reviewer is — the named
+ * reviewer, **or any partner**. Two things were wrong with it. A partner
+ * who had done the work themselves could tick their own review, which is
+ * CLAUDE.md rule 4 broken by the one person nobody would question; and the
+ * tier's review floor was not consulted at all, so an L3 job's points
+ * could be ticked by a CA.
+ *
+ * `checkReviewer` is where that rule lives, and completing an engagement
+ * and approving a version both already ask it. A second copy of a
+ * maker-checker rule is a second rule, and the second one is always the
+ * loose one — so this asks the same function.
+ */
 export async function setReviewItem(id, itemId, checked) {
   const actor = await requireUser();
   const engagement = await loadForWork(actor, id);
 
-  const isReviewer =
-    String(engagement.reviewerId ?? "") === actor.id ||
-    actor.role === "partner";
-  if (!isReviewer) return { error: "Only the reviewer ticks these." };
+  const allowed = checkReviewer(
+    actor,
+    {
+      status: engagement.status,
+      assigneeId: engagement.assigneeId,
+      reviewerId: engagement.reviewerId,
+      minReviewRole: engagement.templateSnapshot?.minReviewRole ?? "",
+      level: engagement.templateSnapshot?.level ?? "",
+    },
+    { act: "tick these", instead: "review it", only: "tick these" },
+  );
+  if (!allowed.ok) return { error: allowed.error };
 
   const item = engagement.reviewChecklist.id(itemId);
   if (!item) return { error: "That review point is gone." };

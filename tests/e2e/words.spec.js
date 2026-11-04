@@ -117,7 +117,11 @@ test("renaming a client renames the menu and nothing else", async ({
   /* The rail is in the app layout, so this proves the layout went stale
      and came back. */
   const rail = page.getByRole("navigation").first();
-  await expect(rail.getByText("Parties")).toBeVisible();
+  // the group's own name, not the items under it ("All parties", "Awaited
+  // from parties") which the rename reaches as well
+  await expect(
+    rail.getByRole("link", { name: "Parties", exact: true }),
+  ).toBeVisible();
 
   /* And the link under the renamed group still goes where it always did:
      the word reaches the label, not the href. */

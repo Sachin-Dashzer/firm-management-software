@@ -35,7 +35,9 @@ import CountBadge from "./CountBadge";
  *
  * @param {object} props
  * @param {string} props.action the list's own path: where Clear goes, and where this submits
- * @param {string} props.label the accessible name for the search box
+ * @param {string} [props.label] the accessible name for the search box
+ * @param {boolean} [props.search] draw the search box; off for a list
+ *   whose query builder has no free-text condition
  * @param {string} [props.placeholder] an example of what can be typed
  * @param {string} [props.value] the current search text
  * @param {boolean} [props.active] anything filtered at all, so Clear is worth drawing
@@ -56,6 +58,7 @@ export default function FilterBar({
   primary,
   toggles,
   children,
+  search = true,
 }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
@@ -100,25 +103,39 @@ export default function FilterBar({
     >
       {hidden}
 
-      <label className="rounded-control border-rule bg-paper focus-within:border-carbon flex h-8 w-full min-w-0 items-center gap-2 border px-2.5 sm:w-72">
-        <MagnifyingGlass
-          size={14}
-          weight="bold"
-          aria-hidden="true"
-          className="text-faint shrink-0"
-        />
-        <span className="sr-only">{label}</span>
-        <input
-          type="search"
-          name="q"
-          defaultValue={value}
-          placeholder={placeholder ?? label}
-          className="text-13 placeholder:text-faint w-full min-w-0 bg-transparent outline-none"
-        />
-      </label>
+      {/*
+        `search={false}` is for a list whose query builder has no free-text
+        condition — the compliance screens, which filter by service,
+        partner, year and branch and nothing else. Drawing the box there
+        would put a control on the toolbar that silently does nothing,
+        which is worse than not offering it.
+      */}
+      {search && (
+        <>
+          <label className="rounded-control border-rule bg-paper focus-within:border-carbon flex h-8 w-full min-w-0 items-center gap-2 border px-2.5 sm:w-72">
+            <MagnifyingGlass
+              size={14}
+              weight="bold"
+              aria-hidden="true"
+              className="text-faint shrink-0"
+            />
+            <span className="sr-only">{label}</span>
+            <input
+              type="search"
+              name="q"
+              defaultValue={value}
+              placeholder={placeholder ?? label}
+              className="text-13 placeholder:text-faint w-full min-w-0 bg-transparent outline-none"
+            />
+          </label>
 
-      {/* the hairline between what you type and what you choose */}
-      <span aria-hidden="true" className="bg-rule hidden h-5 w-px sm:block" />
+          {/* the hairline between what you type and what you choose */}
+          <span
+            aria-hidden="true"
+            className="bg-rule hidden h-5 w-px sm:block"
+          />
+        </>
+      )}
 
       {primary}
       {toggles}

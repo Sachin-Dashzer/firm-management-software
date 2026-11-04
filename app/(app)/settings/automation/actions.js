@@ -186,6 +186,17 @@ export async function setAutomationPaused(paused) {
   const on = Boolean(paused);
 
   await audited(actor, async (session) => {
+    /*
+     * `upsert`, like the other two writes in this file (03-11-2026).
+     *
+     * Without it the kill switch did nothing at all on a firm whose
+     * settings record had not been created yet — `findOneAndUpdate`
+     * matched nothing, wrote nothing and returned null, and the screen
+     * came back still saying automation was running. A switch that fails
+     * silently is worse than one that is missing, and "the morning a
+     * client list has gone in wrong" is exactly when a new firm would
+     * reach for it.
+     */
     const firm = await FirmSettings.findOneAndUpdate(
       { key: "firm" },
       {
@@ -196,7 +207,7 @@ export async function setAutomationPaused(paused) {
           updatedBy: actor.id,
         },
       },
-      { new: true, session },
+      { new: true, upsert: true, session },
     );
 
     await recordAudit(

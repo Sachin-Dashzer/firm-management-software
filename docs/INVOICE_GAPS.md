@@ -5,7 +5,7 @@ system has ever been renumbered, and none will be.** An issued number is
 spent, and a gap in a series is evidence of something that happened — so
 the right answer to one is this explanation, kept on file.
 
-Written 01-11-2026 against `phmg`.
+Written 04-11-2026 against `phmg`.
 
 ## How a gap happens here
 
@@ -21,65 +21,9 @@ number is not reusable. Every gap below is one of those, and the audit log
 names it: the log is a hash chain, verified intact, so an entry in it
 could not have been edited to say something else.
 
-## DEL/26-27
-
-1 invoice(s) on file, counter at 3.
-
-| Number | What the audit log says | When |
-| --- | --- | --- |
-| DEL/26-27/0001 | No `invoice_issue` entry names this number. See "Numbers with no issue entry" below. | — |
-| DEL/26-27/0002 | No `invoice_issue` entry names this number. See "Numbers with no issue entry" below. | — |
-
-## DKL/26-27
-
-0 invoice(s) on file, counter at 2.
-
-| Number | What the audit log says | When |
-| --- | --- | --- |
-| DKL/26-27/0001 | Issued and later removed — `DKL/26-27/0001 issued for 3540.00` (audit entry #5200, by Playwright Desk Partner) | 29-10-2026 |
-| DKL/26-27/0002 | Issued and later removed — `DKL/26-27/0002 issued for 3540.00` (audit entry #5237, by Playwright Desk Partner) | 29-10-2026 |
-
-## DKP/26-27
-
-0 invoice(s) on file, counter at 1.
-
-| Number | What the audit log says | When |
-| --- | --- | --- |
-| DKP/26-27/0001 | Issued and later removed — `DKP/26-27/0001 issued for 3540.00` (audit entry #5255, by Playwright Desk Partner) | 29-10-2026 |
-
-## LDH/26-27
-
-1 invoice(s) on file, counter at 3.
-
-| Number | What the audit log says | When |
-| --- | --- | --- |
-| LDH/26-27/0001 | No `invoice_issue` entry names this number. See "Numbers with no issue entry" below. | — |
-| LDH/26-27/0002 | No `invoice_issue` entry names this number. See "Numbers with no issue entry" below. | — |
-
-## NOI/26-27
-
-2 invoice(s) on file, counter at 3.
-
-| Number | What the audit log says | When |
-| --- | --- | --- |
-| NOI/26-27/0001 | No `invoice_issue` entry names this number. See "Numbers with no issue entry" below. | — |
-
 ## Summary
 
-8 missing number(s) across 5 series, 3 of them explained by an audit entry.
-
-## Numbers with no issue entry
-
-5 number(s) have no `invoice_issue` entry naming them: DEL/26-27/0001, DEL/26-27/0002, LDH/26-27/0001, LDH/26-27/0002, NOI/26-27/0001.
-
-What the log does show, firm-wide: **136 invoice records were created and 4 still carry a number.** Not every path that takes a number writes an `invoice_issue` entry — the sample seeder (`scripts/sample.js`) issues through the same counter inside a transaction but records the save rather than an issue — so an invoice seeded and later cleared away leaves a spent number and no issue entry. That matches the counts above.
-
-The other way to reach this state is a transaction that takes a number
-and then fails before writing the invoice. That is designed behaviour —
-the alternative is reusing a number — but it is worth knowing which you
-are looking at. If numbers start appearing here during ordinary work,
-rather than only in series created while testing, the invoice screen is
-failing at its last step and that needs reading.
+No series has a gap.
 
 If this database has been used for testing, expect gaps in series whose
 prefix you do not recognise, and in real series from before the firm

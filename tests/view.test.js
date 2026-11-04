@@ -9,7 +9,7 @@ import {
   VIEW_MINE,
 } from "../lib/access/view.js";
 import { branchFilter } from "../lib/permissions.js";
-import { engagementQuery } from "../lib/engagements/filter.js";
+import { engagementQuery, assignedTo } from "../lib/engagements/filter.js";
 
 /**
  * Access versus view (P3-7).
@@ -114,10 +114,7 @@ describe("the query a view produces", () => {
 describe('"my work across branches"', () => {
   it("returns the jobs you prepare or review, inside your access", () => {
     const query = engagementQuery({ ...manager, view: VIEW_MINE }, {});
-    expect(query.$or).toEqual([
-      { assigneeId: manager.id },
-      { reviewerId: manager.id },
-    ]);
+    expect(query.$or).toEqual(assignedTo(manager.id));
     // and still only their branches: the view narrowed, it did not replace
     expect(query.branchId).toEqual({ $in: [NOI, LDH] });
   });

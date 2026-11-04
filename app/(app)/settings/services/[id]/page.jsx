@@ -41,6 +41,18 @@ export default async function EditServicePage({ params }) {
       name: c.name,
       side: c.side,
       mandatory: c.mandatory !== false,
+      /**
+       * Which step wants it. Anything pointing past the end of `steps` —
+       * a step deleted in an earlier edit — comes back as a whole-job item
+       * rather than a dangling position, which is also what the form would
+       * have to show it as.
+       */
+      stepIndex:
+        Number.isInteger(c.stepIndex) &&
+        c.stepIndex >= 0 &&
+        c.stepIndex < (doc.steps ?? []).length
+          ? c.stepIndex
+          : null,
     })),
     steps: (doc.steps ?? []).map((s) => ({
       name: s.name,

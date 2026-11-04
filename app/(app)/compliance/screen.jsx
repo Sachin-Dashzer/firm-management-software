@@ -110,6 +110,15 @@ export default async function ComplianceScreen({ params = {}, force = {} }) {
         recurrence: t.recurrence,
       })),
     freq,
+    /**
+     * Which answers the **route** fixed, rather than the query string
+     * (P3-34 phase 4). The three sub-routes force a frequency and the
+     * grid, and the view tabs went on rendering as though they could
+     * change either — on `/compliance/monthly` pressing "Calendar" set
+     * `?view=calendar`, which `force` then overrode, so the control did
+     * nothing. A screen has to know what it cannot offer.
+     */
+    forced: { freq: Boolean(force.freq), view: Boolean(force.view) },
     team: team.map((u) => ({ id: String(u._id), name: u.name })),
     partners: partners.map((u) => ({
       id: String(u._id),
@@ -213,8 +222,33 @@ async function HeadsView({ actor, params, shared, clientIds }) {
 
 /** Clients down the side, periods across the top (spec section 8). */
 async function GridView({ actor, params, shared, clientIds }) {
+  /**
+   * Which service to open on.
+   *
+   * It was `services[0]`, which is the catalog in name order — so
+   * `/compliance/monthly` opened on Bookkeeping, which nobody is signed up
+   * for, and the first thing the screen said was "No client is signed up
+   * for Bookkeeping yet." The page looks broken and the reader has to
+   * guess that the filter above is the way out.
+   *
+   * So: the first service in catalog order that somebody is actually
+   * signed up for, and only `services[0]` if none of them are. The same
+   * rule the GST board already applies when it picks a month — a board
+   * that opens empty teaches people the page is broken.
+   */
+  const subscribed = new Set(
+    (
+      await ClientService.distinct("serviceTemplateId", {
+        active: true,
+        serviceTemplateId: { $in: shared.services.map((s) => s.id) },
+        ...(clientIds ? { clientId: { $in: clientIds } } : {}),
+      })
+    ).map(String),
+  );
+
   const service =
     shared.services.find((s) => s.id === params.service) ??
+    shared.services.find((s) => subscribed.has(s.id)) ??
     shared.services[0] ??
     null;
 
@@ -326,7 +360,13 @@ async function GridView({ actor, params, shared, clientIds }) {
       {...shared}
       grid={{
         ...grid,
-        periods: periods.map((p) => ({ code: p.code, short: p.short })),
+        /* `label` as well as `short`: the column heading is "Aug", and the
+           box that opens over a cell has to name the period in full. */
+        periods: periods.map((p) => ({
+          code: p.code,
+          short: p.short,
+          label: p.label,
+        })),
       }}
       gridService={service}
       neverCreated={neverCreated}

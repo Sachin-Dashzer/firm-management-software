@@ -64,9 +64,19 @@ export default function Notice({
  */
 export function Result({ message }) {
   if (!message?.ok && !message?.error) return null;
+  /*
+   * A refusal is `alert`, a save is `status` (02-11-2026).
+   *
+   * Both were `status` — polite — which means a screen reader finishes
+   * whatever it was saying before mentioning that the save was refused, and
+   * on a form somebody has just submitted that is the one message they need
+   * now. It is also what every spec in the suite waits on: `alertBox()`
+   * looks for `role="alert"`, and several of them had quietly stopped
+   * finding the error they were asserting.
+   */
   return (
     <Notice
-      role="status"
+      role={message.error ? "alert" : "status"}
       tone={message.ok ? "good" : "bad"}
       title={message.ok || message.error}
     />

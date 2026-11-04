@@ -45,6 +45,7 @@ import {
   diffReport,
   unwritten,
 } from "@/lib/audit-studio/report700";
+import Segmented from "@/components/ui/Segmented";
 import AuditStudio from "./AuditStudio";
 import ReportPanel from "./ReportPanel";
 
@@ -117,9 +118,38 @@ function structureOf(file) {
  * two years later by somebody who does not care what the engagement's
  * billing status was.
  */
-export default async function AuditFilePage({ params }) {
+/**
+ * The five stages of one audit file (owner, 03-11-2026).
+ *
+ * `AuditStudio` and `ReportPanel` together were 1,555 lines down one
+ * column — the stage, the materiality figures, the working papers,
+ * everything the audit found, the ledger tests, what carries into the
+ * report, CARO, 3CD, the opinion, the report in SA 700 order and the
+ * signing panel. All of an audit, in one scroll, for a file that is worked
+ * over weeks.
+ *
+ * The tabs follow the order the audit is actually done in rather than the
+ * order the panels were built in: **Plan** (where it is, what is
+ * material), **File** (the papers and the findings), **Testing** (the
+ * evidence and what carries), **Compliance** (CARO and 3CD clause by
+ * clause), **Report** (the opinion, the wording, the signature).
+ *
+ * In the URL, like the engagement screen, so a link to an audit's opinion
+ * is a link to an audit's opinion.
+ */
+const TABS = [
+  { key: "plan", label: "Plan" },
+  { key: "file", label: "File" },
+  { key: "testing", label: "Testing" },
+  { key: "compliance", label: "Compliance" },
+  { key: "report", label: "Report" },
+];
+
+export default async function AuditFilePage({ params, searchParams }) {
   const actor = await requireUser();
   const { id } = await params;
+  const query = (await searchParams) ?? {};
+  const tab = TABS.some((row) => row.key === query.tab) ? query.tab : "plan";
 
   await connectDB();
   const engagement = await Engagement.findById(id)
@@ -324,14 +354,44 @@ export default async function AuditFilePage({ params }) {
         </p>
       </div>
 
+      {/*
+        The tab bar, with what is outstanding on the two tabs that can
+        carry a number. A tab nobody can see into has to say whether there
+        is anything behind it — the unraised flags are the ones that would
+        otherwise be found by a reviewer rather than by the person testing.
+      */}
+      {view.open && (
+        <Segmented
+          label="Which part of the audit file"
+          variant="underline"
+          value={tab}
+          items={TABS.map(({ key, label }) => ({
+            key,
+            label,
+            href:
+              key === "plan"
+                ? `/practice/audit/${id}`
+                : `/practice/audit/${id}?tab=${key}`,
+            badge:
+              key === "testing" && report?.unraisedFlags?.length
+                ? { value: report.unraisedFlags.length, tone: "late" }
+                : key === "report" && report?.blocking
+                  ? { value: "!", tone: "soon" }
+                  : undefined,
+          }))}
+        />
+      )}
+
       <AuditStudio
+        tab={tab}
         file={view}
         mayEdit={can(actor, "edit", "practice", target)}
         isPartner={can(actor, "approve", "feeWriteOff")}
       />
 
-      {report && (
+      {report && ["testing", "compliance", "report"].includes(tab) && (
         <ReportPanel
+          tab={tab}
           report={report}
           engagementId={id}
           mayEdit={can(actor, "edit", "practice", target)}

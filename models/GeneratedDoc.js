@@ -14,9 +14,18 @@ import { auditPlugin } from "./plugins/audit.js";
  * — and it avoids inventing a server-side write to the file gateway, which
  * only ever takes uploads from a browser with a signed ticket.
  *
- * A draft holds no text at all: it is re-resolved from live data every time
- * it is opened, because a draft that quietly went stale would be the one
- * thing worse than no draft. Issuing freezes the words.
+ * A draft holds no text at all **until somebody edits it**: it is
+ * re-resolved from live data every time it is opened, because a draft that
+ * quietly went stale would be the one thing worse than no draft. Issuing
+ * freezes the words.
+ *
+ * Hand-editing is the exception the owner asked for (03-11-2026). A
+ * template cannot know everything a particular letter has to say, and the
+ * alternative people actually used was to export to Word, edit there, and
+ * send a file the firm has no record of. So a draft may be edited in
+ * place — and the moment it is, `edited` goes true and the re-resolving
+ * **stops**, because re-reading the record over somebody's own words would
+ * throw them away. From then on the stored `bodyText` is the draft.
  */
 
 const generatedDocSchema = new mongoose.Schema(
@@ -49,9 +58,36 @@ const generatedDocSchema = new mongoose.Schema(
 
     state: { type: String, enum: ["draft", "final"], default: "draft" },
 
-    /** The words, frozen at issue. Empty on a draft, which re-resolves. */
+    /**
+     * The words. Frozen at issue; empty on a draft that still re-resolves,
+     * and the draft itself once somebody has edited it by hand.
+     */
     title: { type: String, default: "", trim: true },
     bodyText: { type: String, default: "", maxlength: 40000 },
+
+    /**
+     * Has a person written in this draft?
+     *
+     * The flag rather than "is `bodyText` empty", because somebody is
+     * entitled to delete a paragraph down to nothing and that must not
+     * silently hand the letter back to the resolver.
+     */
+    edited: { type: Boolean, default: false },
+    editedAt: { type: Date, default: null },
+    editedBy: { type: String, default: null },
+    editedByName: { type: String, default: "" },
+
+    /**
+     * When the issued document was emailed to the client, and to whom.
+     *
+     * Kept on the document rather than left in the mail log because "has
+     * the client got this?" is a question about the letter, and the answer
+     * has to survive the mail queue being pruned.
+     */
+    sentAt: { type: Date, default: null },
+    sentBy: { type: String, default: null },
+    sentByName: { type: String, default: "" },
+    sentTo: { type: [String], default: [] },
 
     /** Copied at issue so the document prints what it was signed with. */
     udin: { type: String, default: "", trim: true },

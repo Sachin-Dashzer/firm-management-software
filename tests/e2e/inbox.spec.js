@@ -186,7 +186,8 @@ test("a mention arrives in the inbox, and can be put off without being lost", as
   await expect(page.getByRole("status")).toContainText(/was told/);
 
   // the preview says exactly what each person would get, before sending
-  await page.getByText("Reviewing it").click();
+  // exact: other screens have a sentence with "reviewing it" in it
+  await page.getByText("Reviewing it", { exact: true }).click();
   await page.getByLabel("Subject").fill("October figures");
   await page
     .getByLabel("Message")

@@ -11,6 +11,8 @@ import { APPROVED_LEAVE } from "@/lib/team/leave";
 import ServiceTemplate from "@/models/ServiceTemplate";
 import { CLOSED_STATUSES } from "@/lib/engagements/status";
 import { planFor, weeksFrom } from "@/lib/team/plan";
+import PageHead from "@/components/ui/PageHead";
+import Notice from "@/components/ui/Notice";
 import PlanBoard from "./PlanBoard";
 
 export const metadata = { title: "The week · PHMG" };
@@ -120,41 +122,50 @@ export default async function PlanPage({ searchParams }) {
     }),
   ]);
 
+  const loaded = plan.rows.filter(
+    (row) => row.prepare.jobs.length || row.review.jobs.length,
+  ).length;
+
   return (
-    <div className="mx-auto flex max-w-[1200px] flex-col gap-5 p-4 md:p-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <div>
-          <h1 className="font-display text-24 font-bold tracking-tight">
-            The week
-          </h1>
-          <p className="text-13 text-ink-muted max-w-[70ch]">
-            Two lanes for each person, because they are two different weeks:
-            work is due to be prepared four working days before its statutory
-            date and reviewed two. A reviewer&rsquo;s week fills up before the
-            work reaches them.
-          </p>
-        </div>
-        <Link href="/team" className="text-13 underline underline-offset-4">
+    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-4 p-4 md:p-6">
+      <PageHead
+        title="The week"
+        sub={
+          <>
+            {chosen.label} · <span className="num">{loaded}</span> of{" "}
+            <span className="num">{people.length}</span> have something targeted
+            at it. Work is prepared four working days before its statutory date
+            and reviewed two, so a reviewer&rsquo;s week fills up before the
+            work reaches them — which is why each person has two lanes.
+          </>
+        }
+      >
+        <Link
+          href="/team"
+          className="text-13 text-ink-muted hover:text-carbon underline underline-offset-4"
+        >
           The team
         </Link>
-      </div>
+      </PageHead>
 
       {estimated < services && (
-        <p className="rounded-ledger border-waiting bg-waiting-wash text-13 border px-3 py-2">
-          <strong>
-            {services - estimated} of {services}
-          </strong>{" "}
-          services have no effort estimate, so lanes containing them are counted
-          in jobs rather than hours. A part-total would read as the whole and
-          say somebody is free when they are not. Set the hours on{" "}
-          <Link
-            href="/settings/services"
-            className="underline underline-offset-4"
-          >
-            the service catalog
-          </Link>
-          .
-        </p>
+        <Notice
+          tone="warn"
+          title={`${services - estimated} of ${services} services have no effort estimate`}
+        >
+          <p>
+            A lane holding one of them is counted in jobs rather than hours, and
+            gets no capacity bar: a part-total reads as the whole and would say
+            somebody is free when they are not. Set the hours on{" "}
+            <Link
+              href="/settings/services"
+              className="text-carbon hover:text-carbon-ink underline underline-offset-4"
+            >
+              the service catalog
+            </Link>
+            .
+          </p>
+        </Notice>
       )}
 
       <PlanBoard

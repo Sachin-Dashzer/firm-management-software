@@ -88,10 +88,14 @@ test("a register is read, mapped, and checked", async ({ page }, testInfo) => {
     mimeType: "text/csv",
     buffer: Buffer.from(SHEET, "utf8"),
   });
-  await page.getByRole("button", { name: "Read it" }).click();
+  // exact: the file input beside it is named "Read a file Save it as CSV",
+  // which a bare "Read it" also matches
+  await page.getByRole("button", { name: "Read it", exact: true }).click();
 
   // it says what the columns look like, and decides nothing
-  await expect(page.getByText("sales.csv · 4 rows")).toBeVisible();
+  // the file's name is the heading; its shape is a chip beside it
+  await expect(page.getByRole("heading", { name: "sales.csv" })).toBeVisible();
+  await expect(page.getByText(/4 rows · \d+ columns/)).toBeVisible();
   // the heading, not the sentence above it that also names the step
   await expect(
     page.getByRole("heading", { name: "Which column is which" }),

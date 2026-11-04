@@ -33,53 +33,88 @@ const checklistItem = z.object({
   name: z.string().trim().min(1, "A checklist item cannot be blank"),
   side: z.enum(["client", "firm"]),
   mandatory: z.boolean().default(true),
+  /**
+   * Which step wants this item, by position (owner request, 03-11-2026).
+   *
+   * `null` means the whole job rather than one step, which is what every
+   * item meant before the catalog could divide a checklist. The range is
+   * checked against the steps posted in the same save — see `inRange`
+   * below, which is where it can be — so a checklist can never point at a
+   * step that is not there.
+   */
+  stepIndex: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? null : v),
+    z.coerce.number().int().min(0).nullable(),
+  ),
 });
 
-const serviceInput = z.object({
-  id: z.string().optional(),
-  name: z.string().trim().min(3, "Name is too short"),
-  code: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .regex(/^[A-Z0-9-]{2,16}$/, "Code: 2-16 letters, digits or hyphens"),
-  category: z.enum(SERVICE_CATEGORIES),
-  level: z.enum(SERVICE_LEVELS),
-  minExecRole: z.enum(EXEC_ROLES),
-  // only a CA or a Partner can sign work off (spec section 5)
-  minReviewRole: z.enum(REVIEW_ROLES),
-  // blank means "a statutory date or an agreement decides it", not zero days
-  turnaroundDays: z.preprocess(
-    (v) => (v === "" || v === null || v === undefined ? null : v),
-    z.coerce.number().int().min(0).max(365).nullable(),
-  ),
-  turnaroundNote: z.string().trim().max(120).default(""),
-  // blank means "nobody has estimated it", which is not the same as zero
-  effortHours: z.preprocess(
-    (v) => (v === "" || v === null || v === undefined ? null : v),
-    z.coerce.number().min(0).max(200).nullable(),
-  ),
-  recurrence: z.enum(RECURRENCES),
-  sac: z
-    .string()
-    .trim()
-    .regex(/^\d{6}$/, "A SAC code is 6 digits")
-    .or(z.literal("")),
-  defaultFee: z.string().trim().default("0"),
-  gstRate: z.coerce.number().min(0).max(28),
-  udinRequired: z.boolean().default(false),
-  checklist: z.array(checklistItem).default([]),
-  steps: z
-    .array(
-      z.object({
-        name: z.string().trim().min(1),
-        // blank means the step inherits the service's own `minExecRole`
-        minRole: z.enum(["", ...EXEC_ROLES]).default(""),
-      }),
-    )
-    .default([])
-    .refine((s) => s.length > 0, "Add at least one step"),
-});
+const serviceInput = z
+  .object({
+    id: z.string().optional(),
+    name: z.string().trim().min(3, "Name is too short"),
+    code: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .regex(/^[A-Z0-9-]{2,16}$/, "Code: 2-16 letters, digits or hyphens"),
+    category: z.enum(SERVICE_CATEGORIES),
+    level: z.enum(SERVICE_LEVELS),
+    minExecRole: z.enum(EXEC_ROLES),
+    // only a CA or a Partner can sign work off (spec section 5)
+    minReviewRole: z.enum(REVIEW_ROLES),
+    // blank means "a statutory date or an agreement decides it", not zero days
+    turnaroundDays: z.preprocess(
+      (v) => (v === "" || v === null || v === undefined ? null : v),
+      z.coerce.number().int().min(0).max(365).nullable(),
+    ),
+    turnaroundNote: z.string().trim().max(120).default(""),
+    // blank means "nobody has estimated it", which is not the same as zero
+    effortHours: z.preprocess(
+      (v) => (v === "" || v === null || v === undefined ? null : v),
+      z.coerce.number().min(0).max(200).nullable(),
+    ),
+    recurrence: z.enum(RECURRENCES),
+    sac: z
+      .string()
+      .trim()
+      .regex(/^\d{6}$/, "A SAC code is 6 digits")
+      .or(z.literal("")),
+    defaultFee: z.string().trim().default("0"),
+    gstRate: z.coerce.number().min(0).max(28),
+    udinRequired: z.boolean().default(false),
+    checklist: z.array(checklistItem).default([]),
+    steps: z
+      .array(
+        z.object({
+          name: z.string().trim().min(1),
+          // blank means the step inherits the service's own `minExecRole`
+          minRole: z.enum(["", ...EXEC_ROLES]).default(""),
+        }),
+      )
+      .default([])
+      .refine((s) => s.length > 0, "Add at least one step"),
+  })
+  /**
+   * A checklist item cannot belong to a step that does not exist.
+   *
+   * Checked here rather than on the item, because an item alone cannot
+   * know how many steps the service has — this is the first point where
+   * both lists are in hand. Deleting a step in the form re-homes its items
+   * before posting, so reaching this is either a stale tab or somebody
+   * posting by hand; both deserve a sentence rather than a dangling
+   * pointer.
+   */
+  .superRefine((data, ctx) => {
+    for (const [i, item] of data.checklist.entries()) {
+      if (item.stepIndex !== null && item.stepIndex >= data.steps.length) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["checklist", i, "stepIndex"],
+          message: `“${item.name}” is attached to a step this service no longer has. Move it to a step, or to the whole job.`,
+        });
+      }
+    }
+  });
 
 /**
  * The checklist and the steps arrive as JSON from the form, which keeps the

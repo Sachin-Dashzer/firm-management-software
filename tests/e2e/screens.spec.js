@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn } from "./signin.js";
+import { alertBox } from "./alerts.js";
 import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
 import Branch from "../../models/Branch.js";
@@ -197,9 +198,12 @@ test("the day splits in two: my tasks, and the firm dashboard", async ({
 
   await page.getByRole("link", { name: "Firm dashboard" }).first().click();
   await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(
-    page.getByRole("heading", { name: "Firm dashboard", level: 1 }),
-  ).toBeVisible();
+  /*
+   * A partner's board opens by greeting them and dating the day — the
+   * "Firm dashboard" heading belongs to the *employee* fallback, which the
+   * next assertion checks is absent.
+   */
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   // a partner has a board, so the employee fallback must not be shown
   await expect(page.getByText("Your own work is your dashboard")).toHaveCount(
     0,
@@ -252,7 +256,10 @@ test("TDS credit can be ticked off against 26AS, and unticked", async ({
 
   await page.goto("/billing?tab=tds");
   // grouped by the quarter it is matched in, not the calendar quarter
-  await expect(page.getByText("Q3 2026-27")).toBeVisible();
+  // the quarter is a heading; its table also names it in an sr-only caption
+  await expect(
+    page.getByRole("heading", { name: /Q3 2026-27/ }),
+  ).toBeVisible();
   await expect(page.getByText("PW-TDS-0001")).toBeVisible();
   await expect(
     page.getByRole("link", { name: `${fx.branchCode}/26-27/0001` }),
@@ -266,7 +273,8 @@ test("TDS credit can be ticked off against 26AS, and unticked", async ({
 
   // it leaves the list of what is still to match, and is reversible
   await expect(page.getByText("PW-TDS-0001")).toHaveCount(0);
-  await page.getByRole("link", { name: "Show what is matched" }).click();
+  // the two halves are a segmented pair now, not a sentence with a link
+  await page.getByRole("link", { name: "Matched", exact: true }).click();
   await expect(page.getByText("PW-TDS-0001")).toBeVisible();
   await page.getByRole("button", { name: "Not in 26AS" }).first().click();
   await expect(page.getByText("Unticked.")).toBeVisible();
@@ -313,9 +321,23 @@ test("the logins vault lists what is held and reveals nothing", async ({
   await expect(page.getByText("PWTRACES0001")).toBeVisible();
   await expect(page.getByText("Company deductor")).toBeVisible();
 
-  // the password is nowhere on the page, and there is no way to ask for it
+  /*
+   * Nothing is decrypted into the page: the ciphertext is select: false, so
+   * the list is built from metadata alone.
+   */
   expect(await page.content()).not.toContain(PORTAL_PASSWORD);
-  await expect(page.getByRole("button", { name: /Reveal/ })).toHaveCount(0);
+
+  /*
+   * Since 02-11-2026 a Partner or a CA may reveal one from here — behind a
+   * code typed by hand, so a password is never one stray press away. A
+   * wrong code reveals nothing.
+   */
+  await page.getByRole("button", { name: "Reveal" }).click();
+  await expect(page.getByText("Type this code")).toBeVisible();
+  await page.getByLabel("The code shown").fill("ZZZZZ");
+  await page.getByRole("button", { name: "Reveal" }).click();
+  await expect(alertBox(page)).toContainText(/not the code on screen/);
+  expect(await page.content()).not.toContain(PORTAL_PASSWORD);
 
   // the portal filter narrows to what is held
   await page.getByRole("link", { name: /^TRACES/ }).click();
@@ -368,7 +390,7 @@ test("leave and cover is a firm-wide board", async ({ page }, testInfo) => {
 
   await page.goto("/team/leave");
   await expect(
-    page.getByRole("heading", { name: "Leave and cover", level: 1 }),
+    page.getByRole("heading", { name: "Leave and attendance", level: 1 }),
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: /Away now/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: /Coming up/ })).toBeVisible();

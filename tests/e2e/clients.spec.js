@@ -93,7 +93,7 @@ async function master(page, fields) {
     mobile,
   } = fields;
 
-  await page.getByRole("button", { name: entity, exact: true }).click();
+  await page.getByRole("button", { name: new RegExp(`^${entity}`) }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(
     page.getByRole("heading", { name: /Client master/ }),
@@ -122,7 +122,7 @@ test("the wizard will not go past the checks without a group", async ({
   page,
 }) => {
   await signIn(page, EMAIL);
-  await gotoForm(page, "/clients/new");
+  await gotoForm(page, "/clients/new", "section");
 
   await master(page, { name: "Playwright Groupless Private Limited" });
   await walkTo(page, /Checks before accepting/);
@@ -139,18 +139,21 @@ test("the entity type decides the fields that are asked for", async ({
   page,
 }) => {
   await signIn(page, EMAIL);
-  await gotoForm(page, "/clients/new");
+  await gotoForm(page, "/clients/new", "section");
 
   // a company is asked for its CIN
   await page
-    .getByRole("button", { name: "Private limited company", exact: true })
+    /* the card carries its own second line — "PAN 4th character: C · 7
+       documents" — so its accessible name starts with the label rather
+       than being it */
+    .getByRole("button", { name: /^Private limited company/ })
     .click();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByLabel("CIN", { exact: true })).toBeVisible();
 
   // a trust is asked for its trustees instead
   await page.getByRole("button", { name: "1. Entity type" }).click();
-  await page.getByRole("button", { name: "Trust", exact: true }).click();
+  await page.getByRole("button", { name: /^Trust/ }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByLabel("CIN", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("Trustees")).toBeVisible();
@@ -158,7 +161,7 @@ test("the entity type decides the fields that are asked for", async ({
 
 test("onboard a client, then find it again", async ({ page }) => {
   await signIn(page, EMAIL);
-  await gotoForm(page, "/clients/new");
+  await gotoForm(page, "/clients/new", "section");
 
   await master(page, {
     name: NAME,
@@ -203,7 +206,7 @@ test("a bad GSTIN is caught where it is typed, not on save", async ({
   page,
 }) => {
   await signIn(page, EMAIL);
-  await gotoForm(page, "/clients/new");
+  await gotoForm(page, "/clients/new", "section");
 
   await master(page, {
     entity: "Partnership firm",
@@ -220,7 +223,7 @@ test("the same PAN twice is blocked until it is confirmed", async ({
   page,
 }) => {
   await signIn(page, EMAIL);
-  await gotoForm(page, "/clients/new");
+  await gotoForm(page, "/clients/new", "section");
 
   await master(page, {
     name: "Playwright Textiles Duplicate",

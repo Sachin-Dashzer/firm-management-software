@@ -1,7 +1,7 @@
 "use client";
 
 import { saving } from "@/lib/forms/saving";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createCertificate } from "../actions";
 
@@ -20,7 +20,19 @@ export default function NewCertificate({ clients, client, types, levels }) {
 
   const chosen = types.find((row) => row.key === type);
 
-  if (state?.id) router.push(`/practice/certificates/${state.id}`);
+  /**
+   * Navigating away is an effect, not part of rendering.
+   *
+   * This used to call `router.push` in the render body: React runs that
+   * while it is still working out what to draw, and the navigation then
+   * races the action's own response — which is one way a save ends in
+   * “An unexpected response was received from the server” rather than
+   * on the new page. An effect runs after the commit, when the draft
+   * genuinely exists and there is something to navigate to.
+   */
+  useEffect(() => {
+    if (state?.id) router.push(`/practice/certificates/${state.id}`);
+  }, [state?.id, router]);
 
   return (
     <form onSubmit={saving(action)} className="flex flex-col gap-4">

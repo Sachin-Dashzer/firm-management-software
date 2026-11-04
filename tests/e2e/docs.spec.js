@@ -208,7 +208,15 @@ test("a draft fills itself in from the record", async ({ page }, testInfo) => {
   await signIn(page, fx.ca);
   await page.goto(`/engagements/${ids.engagement}`);
 
-  await pick(page.getByLabel("Start a draft from"), /not approved yet/);
+  /*
+   * This spec's own template, by name. "not approved yet" is on several of
+   * the seeded ones too, so matching the suffix picked whichever came
+   * first — and the test then read a letter it had not written.
+   */
+  await pick(
+    page.getByLabel("Start a draft from"),
+    /Playwright engagement letter/,
+  );
   await page.getByRole("button", { name: "Start the draft" }).click();
   await expect(page.getByRole("status")).toContainText("Draft");
 
@@ -250,9 +258,12 @@ test("approving the wording is a partner's, and a CA still cannot issue A-tier w
 }, testInfo) => {
   const fx = names(testInfo.project.name);
 
-  // a CA sees the template but no approve button
+  /*
+   * The wording tab: the screen opens on "Use one", and the approval state
+   * and its button are on "Wording and approval".
+   */
   await signIn(page, fx.ca);
-  await page.goto("/settings/doc-templates");
+  await page.goto("/settings/doc-templates?tab=wording");
   await expect(page.getByText(/not approved/i).first()).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Approve the wording" }),
@@ -261,7 +272,7 @@ test("approving the wording is a partner's, and a CA still cannot issue A-tier w
   // the partner approves it
   await page.context().clearCookies();
   await signIn(page, fx.partner);
-  await page.goto("/settings/doc-templates");
+  await page.goto("/settings/doc-templates?tab=wording");
   await page
     .getByRole("listitem")
     .filter({ hasText: fx.templateCode })

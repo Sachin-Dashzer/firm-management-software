@@ -180,7 +180,10 @@ test("an employee can read the catalog but cannot change it", async ({
     0,
   );
 
-  // and the screen behind the button is closed too
-  await gotoForm(page, "/settings/services/new");
+  /*
+   * And the screen behind the button is closed too. A plain goto, not
+   * gotoForm: this person is redirected, so there is no form to wait for.
+   */
+  await page.goto("/settings/services/new");
   await expect(page).toHaveURL(/\/settings\/services$/);
 });

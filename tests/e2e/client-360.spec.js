@@ -242,14 +242,18 @@ test("a divider's count matches the rows behind it", async ({
   await page.goto(`/clients/${ids.client}`);
 
   // one open engagement (June); April is completed and so nobody's problem
-  const tab = page.getByRole("link", { name: /^Engagements/ });
+  // the case file's own dividers: the left rail has links of these names too
+  const tabs = page.getByRole("navigation", { name: "Client sections" });
+  const tab = tabs.getByRole("link", { name: /^Engagements/ });
   await expect(tab).toContainText("1");
 
   await tab.click();
-  await expect(page.getByRole("link", { name: /PW3-/ })).toHaveCount(2);
+  // the row's link is the service, with the engagement code in mono under
+  // it, so the codes are read as text rather than as link names
+  await expect(page.getByText(/PW3-/)).toHaveCount(2);
 
   // one unpaid bill
-  await expect(page.getByRole("link", { name: /^Invoices/ })).toContainText(
+  await expect(tabs.getByRole("link", { name: /^Invoices/ })).toContainText(
     "1",
   );
 });

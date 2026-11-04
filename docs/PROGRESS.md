@@ -4995,7 +4995,7 @@ playbooks, its sample sheets — comes in as real data.
   only way to restore a soft-deleted file, and four of them are referenced
   by the attention strip and the setup checklist.
 
-## Engagements: three owner requests (02-11-2026) — part done
+## Engagements: three owner requests (02-11-2026)
 
 ### 1. New engagement: searchable pickers and "Other" (done)
 
@@ -5055,13 +5055,130 @@ Done, server side:
   catalog entry requires a UDIN, because `changeStatus` would refuse the
   completion anyway.
 
-**Not done:** the UI for all of item 3 — the Assignment panel as a form
-with a Save button and a helpers picker, the Steps panel redrawn as a
-locked stepper (done steps stamped with who and when, the current one open,
-later ones locked, a review step saying it is with a CA), the UDIN question
-panel, and the UDIN register prefilling from
-`/practice/udin?new=1&client=…&engagement=…`.
+And the UI, finished in the next session:
 
-**One behaviour is already live without its UI:** out-of-order ticks are
-refused for an employee or intern with a message naming the step to finish
-first. The checkboxes are not yet drawn as locks.
+- `[id]/AssignmentPanel.jsx` — the panel is a **form with a Save button**.
+  The helpers are tick boxes, not a multi-select: five names are five
+  ctrl-clicks, and who is on the job is what this panel exists to answer at
+  a glance. The button is dead until something actually differs from what
+  is stored, and the line beside it says which of the two states you are
+  looking at.
+- `[id]/StepsPanel.jsx` — the steps are a **stepper**. Everything before
+  the open one is stamped with who finished it and when, exactly one step
+  is open, and the rest are locked saying which step they are waiting on. A
+  CA or Partner gets a "Tick out of order" link, which is the override the
+  action already allows them.
+- **A step that is not yours to tick says so.** When the open step needs a
+  CA and an employee is looking at it, they get *"With a CA — you will be
+  told when it comes back"* rather than a disabled checkbox to puzzle over.
+  That was the owner's own sentence for it.
+- **The UDIN question** sits under the last step once every step is done:
+  *Yes* goes to `/practice/udin?new=1&client=…&engagement=…`, where the
+  register's form now opens with the client and the engagement filled in;
+  *No* is recorded so it is asked once. It is not offered at all where the
+  service's catalog entry requires a UDIN, because the pipeline would
+  refuse the completion anyway.
+- The summary list above gained **Also on it**, so the helpers are visible
+  without opening the assignment panel.
+
+`EngagementWork.jsx` lost its local `Picker` and three imports with it;
+the two panels are their own files, which is 230 lines out of a component
+that was over twelve hundred.
+
+## The verification pass (02-11-2026)
+
+The owner's standing instruction to skip tests, lint and build during the
+page-by-page rounds was lifted, so everything built since it started was
+checked at once.
+
+**Lint.** Clean, after one fix that was not about this work: `eslint .`
+was reading `.next-build-check/` and `.next-e2e/` — the deploy check's and
+the Playwright runner's build outputs — and reporting ten errors inside
+minified route files nobody wrote. The ignore is `.next*/**` now rather
+than `.next/**`.
+
+**Vitest.** 1,816 pass. Five had to change, all the same assertion: "work
+that is mine" is three conditions now, not two, since a helper is on the
+job as well as the assignee and the reviewer (`assignedTo`). They assert
+through the helper rather than against a literal `$or`, so the next
+condition added cannot leave one screen's definition behind another's.
+
+**`next build`.** Compiles.
+
+**Playwright.** The browser suite had drifted during the page-by-page
+rounds, which is exactly what skipping it costs. What was wrong, and what
+it says about the UI:
+
+- `/engagements/new` and `/invoices/new` no longer have a client
+  `<select>`. The specs drive the combobox and the client list through two
+  helpers in `tests/e2e/alerts.js` (`pickFrom`, `chooseClient`) rather than
+  each spec knowing the markup.
+- A bare `getByRole("button", { name: "Apply" })` matches three controls
+  on `/engagements` since D107 — the filter strip's, its panel's "Apply
+  filters" and the bulk bar's. The bulk one is addressed through its own
+  region now.
+- The checklist stopped being a dropdown of four states at P3-2 and the
+  spec never noticed: it was still selecting "Verified" on a control that
+  has not existed for weeks. It waives both items with a reason now, which
+  is the real path for work with nothing uploaded.
+- **Three ticks were asserted as if they were local.** A step, a review
+  point and a waiver all round-trip to the server, so `.check()` — which
+  asserts the state changed by the time the click returns — was racing the
+  render. They click and then wait for the state. The review points also
+  need `force`: `AuditTick` is an sr-only input under a drawn tick, so the
+  SVG takes the pointer.
+- Ticking "everything not yet ticked" cannot be done through a
+  `:not(:checked)` locator, because it re-resolves to a different element
+  the moment one lands. The ids are collected first.
+- A step that is not this reader's is no longer a disabled checkbox with
+  "not yours to tick" beside it — it says where the work is — so the tier
+  spec asserts the new sentence and that no control is offered at all.
+
+### What the browser suite found beyond this work
+
+Running it for the first time in several page-by-page rounds turned up
+drift from those rounds, and two real faults in the shared blocks:
+
+- **A refused save was announced politely.** `Result` in
+  `components/ui/Notice.jsx` gave both outcomes `role="status"`, so a
+  screen reader finished whatever it was saying before mentioning that the
+  save had been refused — on a form somebody has just submitted, that is
+  the one message they need now. An error is `role="alert"` now and a save
+  stays `status`. Forty-two screens use `Result`, and several specs had
+  quietly stopped finding the refusal they were asserting.
+- **The revoke box on the UDIN register had no useful name.** Its visible
+  title asks "Why was it revoked?" while the input's own label said "The
+  reason". They are the same words now.
+
+The rest were the specs describing screens that had moved on:
+
+- the client wizard has had no `<form>` since the page-by-page pass, so
+  `gotoForm` was waiting for an element that no longer exists;
+- the entity cards carry their own second line ("PAN 4th character: C · 7
+  documents"), so their accessible name starts with the label rather than
+  being it;
+- a bare "Documents" link matches the left rail's as well as the case
+  file's tabs;
+- "Read it" also matches a file input named "Read a file Save it as CSV";
+- the engagement row on a client's file links by service name with the
+  code in mono under it, not by code;
+- a checklist item's name appears in the activity feed as well as on the
+  checklist, so the row filter matched two list items;
+- staff land on `/dashboard`, not `/issues`, since the rail was rebuilt.
+
+### Two faults the browser suite found in the harness itself (03-11-2026)
+
+- **Every upload in the suite was sent to the wrong port.** The local
+  storage driver signs an upload ticket against `NEXT_PUBLIC_APP_URL`, and
+  `.env.test` names port 3000 while the suite runs the server on 3147 — so
+  the browser, which uploads straight to the gateway, got "Failed to fetch"
+  on every attach. `playwright.config.mjs` passes the run's own base URL to
+  the server now. The two-step upload is the point of that design, so the
+  address in the ticket has to be reachable from the browser and not only
+  from the server.
+- **A portal session's refusal was invisible to the assertion.** A staff
+  route refuses a portal user by redirecting to the staff login, and
+  `page.request.get` follows redirects, so the spec read the login page's
+  own 200 and reported that `/clients/export` had been served. It asks with
+  `maxRedirects: 0` now. The refusal itself was correct — `currentUser()`
+  refuses a `kind: "client"` token outright.

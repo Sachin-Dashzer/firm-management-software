@@ -31,6 +31,9 @@ import { useEffect, useId, useRef, useState } from "react";
  * @param {string} [props.triggerClassName]
  * @param {object} [props.triggerProps] anything the grid needs on the box
  *   itself — `tabIndex` and `onKeyDown` for roving focus, `style`
+ * @param {string} [props.wrapClassName] the positioning wrapper's own
+ *   classes; `block w-full` for a grid cell, the default inline for a
+ *   popover sitting among other controls
  * @param {React.ReactNode} props.trigger what is drawn in the box
  * @param {React.ReactNode|((close: () => void) => React.ReactNode)} props.children
  */
@@ -40,6 +43,7 @@ export default function CellPopover({
   triggerLabel,
   triggerClassName = "",
   triggerProps = {},
+  wrapClassName = "inline-block",
   children,
 }) {
   const [open, setOpen] = useState(false);
@@ -88,8 +92,16 @@ export default function CellPopover({
     };
   }, [open]);
 
+  /*
+   * `inline-block` shrinks to its content, so a trigger asking for
+   * `w-full` inside it got the width of its own glyph — which is how the
+   * compliance grid's cells came out as 4px slivers of tint in 52px
+   * columns while the plain cells beside them filled properly.
+   * `wrapClassName` lets a grid cell say `block w-full`; inline is still
+   * right for a popover sitting among other buttons in a row.
+   */
   return (
-    <span ref={wrap} className="relative inline-block">
+    <span ref={wrap} className={`relative ${wrapClassName}`}>
       <button
         ref={button}
         type="button"

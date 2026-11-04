@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn } from "./signin.js";
-import { alertBox, pick } from "./alerts.js";
+import { alertBox, pickFrom } from "./alerts.js";
 import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
 import Branch from "../../models/Branch.js";
@@ -159,8 +159,9 @@ test("an engagement goes out for review, comes back, and is completed", async ({
   // --- a partner creates it ------------------------------------------------
   await signIn(page, fx.partner);
   await page.goto("/engagements/new");
-  await pick(page.locator('select[name="clientId"]'), /Playwright Works/);
-  await pick(page.getByLabel("Service"), fx.serviceCode);
+  // both are searchable comboboxes since D109, not selects
+  await pickFrom(page, "Client", "Playwright Works");
+  await pickFrom(page, "Service", fx.serviceCode);
   /**
    * By name, not by label: the reviewer's field carries the hint "Must be
    * someone other than the person doing the work", which is part of its
@@ -202,16 +203,45 @@ test("an engagement goes out for review, comes back, and is completed", async ({
   await page.getByRole("button", { name: "In progress" }).click();
   await expect(page.getByText("Moved to In progress")).toBeVisible();
 
-  await page.getByLabel("Collect data").check();
-  await page.getByLabel("Sales register status").selectOption("Verified");
-  await page
-    .getByLabel("Filed acknowledgement status")
-    .selectOption("Verified");
+  // a step's tick round-trips to the server, so wait for the state rather
+  // than asserting it the instant the click returns
+  await page.getByLabel("Collect data").click();
+  await expect(page.getByLabel("Collect data")).toBeChecked();
+  /*
+   * The checklist has not been a dropdown of four states since P3-2: it is
+   * the state in words and only the buttons that apply to it, because three
+   * of the six moves need a reason and a dropdown cannot ask why. Nothing is
+   * uploaded in this test, so both mandatory items are waived with one —
+   * which is exactly what the completion gate at the end accepts.
+   */
+  /*
+   * Waiving settles an item and takes its own button away, so the first one
+   * left is always the next item to deal with. `exact` matters: a bare
+   * "Not required" also matches the form's own "Mark not required", and
+   * each save is waited for, because the row re-renders when it lands and a
+   * form still open at that moment is a form that closes under the click.
+   */
+  let settled = 0;
+  for (const item of ["Sales register", "Filed acknowledgement"]) {
+    await page
+      .getByRole("button", { name: "Not required", exact: true })
+      .first()
+      .click();
+    // by name: the label is a sentence and a half, and only one waive form
+    // is ever open at a time
+    await page
+      .locator('input[name="reason"]')
+      .fill(`${item} is not held for this period`);
+    await page.getByRole("button", { name: "Mark not required" }).click();
+    settled += 1;
+    await expect(page.getByText(/Not required:/)).toHaveCount(settled);
+  }
+
   await page.getByRole("button", { name: "Under review" }).click();
   await expect(page.getByText("Moved to Under review")).toBeVisible();
 
-  // the work has left their hands
-  await expect(page.getByLabel("Sales register status")).toBeDisabled();
+  // the work has left their hands: the open step is no longer theirs to tick
+  await expect(page.getByLabel("File", { exact: true })).toBeDisabled();
   await signOut(page);
 
   // --- the reviewer sends it back -----------------------------------------
@@ -227,8 +257,11 @@ test("an engagement goes out for review, comes back, and is completed", async ({
   const reworked = await Engagement.findById(stored._id);
   expect(reworked.status).toBe("In progress");
   expect(reworked.reworkCount).toBe(1);
-  // the reason is on the thread, where the maker will read it
-  await expect(page.getByText(/October figures do not tie/)).toBeVisible();
+  // the reason is on the thread, where the maker will read it — and on the
+  // status line and in the activity feed, so the first of the three will do
+  await expect(
+    page.getByText(/October figures do not tie/).first(),
+  ).toBeVisible();
   await signOut(page);
 
   // --- round two, then signed off -----------------------------------------
@@ -245,10 +278,25 @@ test("an engagement goes out for review, comes back, and is completed", async ({
   await page.getByRole("button", { name: "Completed" }).click();
   await expect(alertBox(page)).toContainText("every review point");
 
-  for (const item of await page
-    .getByRole("checkbox", { checked: false })
-    .all()) {
-    if (await item.isEnabled()) await item.check();
+  /*
+   * Tick everything that can be ticked — the review points and the last
+   * step — **by id**, collected first.
+   *
+   * Two things make the obvious loop wrong. The review points are an
+   * `AuditTick`: an sr-only input under a drawn tick, so the SVG takes the
+   * pointer and only `force` reaches the control. And every tick is a
+   * server round trip, so each has to be waited for — which cannot be done
+   * through a ":not(:checked)" locator, because that one re-resolves to a
+   * *different* element the moment the tick lands.
+   */
+  const toTick = await page
+    .locator('input[type="checkbox"][id]:not(:checked):not(:disabled)')
+    .evaluateAll((boxes) => boxes.map((box) => box.id));
+
+  for (const id of toTick) {
+    const box = page.locator(`#${id}`);
+    await box.click({ force: true });
+    await expect(box).toBeChecked();
   }
   await page.getByRole("button", { name: "Completed" }).click();
   await expect(page.getByText("Moved to Completed")).toBeVisible();
@@ -411,7 +459,12 @@ test("filters, the board, the calendar and a bulk action", async ({
     .getByRole("region", { name: "Bulk actions" })
     .getByLabel("Move to")
     .selectOption("Under review");
-  await page.getByRole("button", { name: "Apply" }).click();
+  // scoped: the filter strip has an Apply of its own, and its panel an
+  // "Apply filters" (D107), both of which match the bare name
+  await page
+    .getByRole("region", { name: "Bulk actions" })
+    .getByRole("button", { name: "Apply" })
+    .click();
   await expect(page.getByText(/1 of 2 moved to Under review/)).toBeVisible();
   await expect(page.getByText(/cannot go straight to/)).toBeVisible();
 

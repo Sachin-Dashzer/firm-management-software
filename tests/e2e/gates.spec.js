@@ -222,7 +222,9 @@ test("approval, then the client, then the filing — in that order", async ({
   await expect(page.getByLabel("Acknowledgement number")).toHaveCount(0);
 
   await page.getByLabel("Who confirmed").fill("Jaspal Singh");
-  await page.getByLabel("When").fill(asInput(new Date()));
+  // exact: the UDIN member select's hint ends "…only when the number above
+  // is entered", which a loose "When" also matches
+  await page.getByLabel("When", { exact: true }).fill(asInput(new Date()));
   await page
     .getByLabel("Where it can be found")
     .fill("WhatsApp from Jaspal, 4:10 pm");
@@ -261,7 +263,14 @@ test("a change after approval raises the version and takes both gates away", asy
   await signIn(page, fx.reviewer);
   await page.goto(`/engagements/${engagementId}`);
 
-  await page.getByLabel("Reconcile with GSTR-2B").check();
+  /*
+   * A reviewer may tick a step out of order; the checkbox is theirs to use.
+   * By role, because the step's assignee select is labelled "Who does
+   * “Reconcile with GSTR-2B”" and a label lookup matches both.
+   */
+  await page
+    .getByRole("checkbox", { name: "Reconcile with GSTR-2B" })
+    .click();
 
   await expect(page.getByText(/now version 2/)).toBeVisible();
   await expect(

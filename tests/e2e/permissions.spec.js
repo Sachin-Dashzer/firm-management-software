@@ -117,11 +117,14 @@ test("an unconnected intern is turned away and the tab title says nothing", asyn
 
   await page.goto(`/clients/${clientId}`);
 
-  // turned away from the case file
-  await expect(page).toHaveURL(/\/clients$/);
+  /*
+   * Turned away from the case file — to the screen that says somebody can
+   * open it for you, rather than back to the list as if the record did not
+   * exist (P3-7).
+   */
+  await expect(page).toHaveURL(/\/no-access/);
 
   // and the name never reached the tab on the way past
-  expect(await page.title()).toBe("Client · PHMG");
   expect(await page.title()).not.toContain("Kesarwani");
 
   // nor is the client in their list

@@ -151,12 +151,26 @@ test.beforeAll(async ({}, testInfo) => {
       { session, ordered: true },
     );
 
-    /** Work already at the status the test needs, so no flow is re-run here. */
-    async function engagement(template, code, status, assigneeId, reviewerId) {
+    /**
+     * Work already at the status the test needs, so no flow is re-run here.
+     *
+     * `when` shifts the period back a month or a year: one client cannot
+     * have the same service twice in one period (the unique index on
+     * clientId + serviceTemplateId + period), and two of these rows are the
+     * same routine service.
+     */
+    async function engagement(
+      template,
+      code,
+      status,
+      assigneeId,
+      reviewerId,
+      when = new Date(),
+    ) {
       const fields = buildEngagement({
         template,
         client,
-        period: periodFor(template.recurrence),
+        period: periodFor(template.recurrence, when),
         assigneeId,
         reviewerId,
       });
@@ -193,6 +207,8 @@ test.beforeAll(async ({}, testInfo) => {
       "Under review",
       maker._id,
       reviewer._id,
+      // last month: the same service for the same client, one period back
+      new Date(Date.now() - 40 * 86_400_000),
     );
     // a partner did this one, so the CA is not refused for self-approval:
     // the only rule left to refuse them is the tier's own
@@ -225,12 +241,21 @@ test("a step reserved for a CA is not the employee's to tick", async ({
   await page.goto(`/engagements/${made.working}`);
 
   // the step they may do
-  await page.getByLabel("Collect data").check();
+  await page.getByLabel("Collect data").click();
   await expect(page.getByText("Collect data done")).toBeVisible();
 
-  // and the one they may not, said on the row rather than left to fail
-  await expect(page.getByLabel(/Sign the report/)).toBeDisabled();
-  await expect(page.getByText("not yours to tick")).toBeVisible();
+  /*
+   * And the one they may not. Since the steps became a stepper
+   * (02-11-2026) a step that is not this reader's is not offered as a
+   * control at all — they are told where it is, which is the honest state
+   * of their own job.
+   */
+  await expect(
+    page.getByText(/you will be told when it comes back/),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("checkbox", { name: /Sign the report/ }),
+  ).toHaveCount(0);
 
   const stored = await Engagement.findById(made.working);
   expect(stored.tasks.find((t) => t.name === "Sign the report").done).toBe(

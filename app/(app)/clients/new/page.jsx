@@ -37,8 +37,15 @@ export default async function NewClientPage() {
         .select("code name recurrence defaultFeePaise category")
         .sort({ category: 1, name: 1 })
         .lean(),
-      /** Only the letters that actually have wording behind them. */
-      DocTemplate.find({ active: true }).select("code").lean(),
+      /**
+       * Only the letters that actually have wording behind them — with
+       * their names, because step 6 now lets somebody add one to a
+       * client's pack and a code is not something to choose from a list.
+       */
+      DocTemplate.find({ active: true })
+        .select("code name kind")
+        .sort({ kind: 1, name: 1 })
+        .lean(),
       /** Their own unfinished one, if the phone rang last time (P3-18b). */
       FormDraft.findOne({ userId: actor.id, kind: "client" }).lean(),
     ]);
@@ -57,8 +64,13 @@ export default async function NewClientPage() {
         name: s.name,
         recurrence: s.recurrence,
         defaultFeePaise: s.defaultFeePaise ?? 0,
+        category: s.category ?? "",
       }))}
-      packCodes={packTemplates.map((t) => t.code)}
+      packTemplates={packTemplates.map((t) => ({
+        code: t.code,
+        label: t.name,
+        kind: t.kind,
+      }))}
       draft={
         draft
           ? {

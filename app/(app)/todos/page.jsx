@@ -74,25 +74,22 @@ export default async function TodosPage({ searchParams }) {
 
   const rows = [...open, ...done];
 
-  const [people, clients] = await Promise.all([
-    /** Who a to-do can be given to: the team this person may reach. */
-    User.find({
-      active: true,
-      ...(scope === "all" ? {} : { branchIds: { $in: actor.branchIds ?? [] } }),
-    })
-      .select("name role")
-      .sort({ name: 1 })
-      .limit(200)
-      .lean(),
-    Client.find({
-      ...(branchFilter(actor, "clients") ?? {}),
-      status: { $ne: "Closed" },
-    })
-      .select("legalName tradeName code")
-      .sort({ legalName: 1 })
-      .limit(500)
-      .lean(),
-  ]);
+  /**
+   * Who a to-do can be given to: the team this person may reach.
+   *
+   * The five-hundred-client query that used to run alongside this one is
+   * gone with the composer's client picker (owner, 03-11-2026). The
+   * `clientNames` lookup below is a different thing and stays — it names
+   * the clients on rows that already have one.
+   */
+  const people = await User.find({
+    active: true,
+    ...(scope === "all" ? {} : { branchIds: { $in: actor.branchIds ?? [] } }),
+  })
+    .select("name role")
+    .sort({ name: 1 })
+    .limit(200)
+    .lean();
 
   const personName = new Map(
     people.map((person) => [String(person._id), person.name]),
@@ -233,14 +230,7 @@ export default async function TodosPage({ searchParams }) {
         />
       </div>
 
-      <AddTodo
-        people={team}
-        clients={clients.map((client) => ({
-          id: String(client._id),
-          name: `${client.tradeName || client.legalName} · ${client.code}`,
-        }))}
-        me={actor.id}
-      />
+      <AddTodo people={team} me={actor.id} />
 
       <ScrollArea className="flex flex-col gap-5">
         {buckets.length === 0 && due !== "done" ? (

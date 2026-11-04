@@ -295,8 +295,48 @@ export async function createFromOnboarding(payload) {
   }
 
   // --- one request for everything not already in hand ---
-  const outstanding = (entity.documents ?? []).filter(
-    (name) => !(payload.received ?? []).includes(name),
+  /*
+   * The list the person edited on step 3, not the entity's standard one
+   * (04-11-2026). These names are read by the client on the upload page, so
+   * they are cleaned here and not merely on the way in: trimmed, collapsed,
+   * de-duplicated case-insensitively, each capped at the length the
+   * DocRequest item allows, and the whole list capped — a request with two
+   * hundred rows is a mistake, not an instruction.
+   *
+   * An empty list is honoured as an empty list. Somebody who takes every row
+   * off has said "ask this client for nothing", and falling back to the
+   * standard list there would be the system overruling them quietly.
+   */
+  const asked = Array.isArray(payload.documents)
+    ? payload.documents
+    : (entity.documents ?? []);
+
+  const seen = new Set();
+  const wanted = [];
+  for (const row of asked) {
+    const name = String(row ?? "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 160);
+    const key = name.toLowerCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    wanted.push(name);
+    if (wanted.length === 60) break;
+  }
+
+  // matched on the same normal form, or "PAN  card" ticked as received
+  // would come back as a row the client is asked for again
+  const received = new Set(
+    (payload.received ?? []).map((name) =>
+      String(name ?? "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase(),
+    ),
+  );
+  const outstanding = wanted.filter(
+    (name) => !received.has(name.toLowerCase()),
   );
   let link = null;
   if (outstanding.length && payload.requestDocuments !== false) {

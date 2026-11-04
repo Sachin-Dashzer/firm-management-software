@@ -22,8 +22,11 @@ import { addTodo } from "./actions";
  *
  * The form clears itself and keeps the focus in the title box, because
  * the way anybody uses this is three in a row.
+ *
+ * **It has no client picker** (owner, 03-11-2026): four controls, and the
+ * client goes in the words like it always did.
  */
-export default function AddTodo({ people, clients, me }) {
+export default function AddTodo({ people, me }) {
   const router = useRouter();
   const [state, action, pending] = useActionState(addTodo, null);
   const form = useRef(null);
@@ -80,19 +83,16 @@ export default function AddTodo({ people, clients, me }) {
         </label>
       )}
 
-      {clients.length > 0 && (
-        <label className="flex min-w-[9rem] flex-1 items-center">
-          <span className="sr-only">About a client (optional)</span>
-          <select name="clientId" defaultValue="" className={`${field} w-full`}>
-            <option value="">— about a client —</option>
-            {clients.map((client) => (
-              <option key={client.id} value={client.id}>
-                {client.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+      {/*
+        The client picker is gone (owner request, 03-11-2026).
+
+        It was a five-hundred-option `<select>` in a composer meant to be
+        filled in in one pass, and it took a fifth of the row for something
+        almost no line needed — the client is usually in the title anyway
+        ("Ring Jaspal about the GST notice"). The field itself is untouched
+        on the record: `addTodo` still reads `clientId`, and to-dos that
+        already have one keep showing it in the list.
+      */}
 
       <label className="flex min-w-[10rem] flex-[2] items-center">
         <span className="sr-only">Anything else (optional)</span>

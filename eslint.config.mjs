@@ -14,7 +14,11 @@ const eslintConfig = [
   {
     ignores: [
       "node_modules/**",
-      ".next/**",
+      // every build output, not just the default one: `next build` is run
+      // into .next-build-check by the deploy check and .next-e2e by the
+      // Playwright runner, and linting a 600KB minified route file reports
+      // ten errors about code nobody wrote
+      ".next*/**",
       "out/**",
       "build/**",
       "next-env.d.ts",

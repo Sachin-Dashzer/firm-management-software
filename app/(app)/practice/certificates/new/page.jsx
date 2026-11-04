@@ -21,14 +21,28 @@ export default async function NewCertificatePage({ searchParams }) {
   const params = (await searchParams) ?? {};
 
   await connectDB();
-  const clients = await Client.find({
-    ...(branchFilter(actor, "clients") ?? {}),
-    status: { $ne: "Closed" },
-  })
-    .select("legalName tradeName code")
-    .sort({ legalName: 1 })
-    .limit(1000)
-    .lean();
+  /**
+   * The list is narrowed by what this person can **certify for**, not by
+   * what they can read.
+   *
+   * Those are two different areas — `clients` and `udin` — and a CA can
+   * see a client in another branch while having no right to sign a
+   * certificate for it. The dropdown used to offer every readable client
+   * and the action then refused the choice, so the only way to find out
+   * was to fill the form in and submit it.
+   */
+  const clients = (
+    await Client.find({
+      ...(branchFilter(actor, "clients") ?? {}),
+      status: { $ne: "Closed" },
+    })
+      .select("legalName tradeName code branchId")
+      .sort({ legalName: 1 })
+      .limit(1000)
+      .lean()
+  ).filter((row) =>
+    can(actor, "edit", "udin", { branchId: String(row.branchId) }),
+  );
 
   return (
     <div className="mx-auto flex max-w-[760px] flex-col gap-5 p-4 md:p-6">
@@ -48,6 +62,17 @@ export default async function NewCertificatePage({ searchParams }) {
           while it is a draft.
         </p>
       </div>
+
+      {clients.length === 0 && (
+        <p
+          role="status"
+          className="rounded-ledger border-waiting bg-waiting-wash text-13 text-waiting border px-3 py-2"
+        >
+          There is no client you can issue a certificate for. Certificates are
+          scoped to your own branch — ask a partner to assign you to the branch,
+          or to issue it themselves.
+        </p>
+      )}
 
       <NewCertificate
         clients={clients.map((row) => ({

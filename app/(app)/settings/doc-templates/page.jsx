@@ -73,9 +73,17 @@ export default async function DocTemplatesPage({ searchParams }) {
       <SettingsScreen
         wide
         title="Templates"
-        sub={`${rows.length} letters, certificates and messages. ${
-          rows.filter((row) => row.verified).length
-        } approved; the rest make watermarked drafts until a partner reads the wording.`}
+        sub={
+          <>
+            <span className="num">{rows.length}</span> letters, certificates and
+            messages.{" "}
+            <span className="num">
+              {rows.filter((row) => row.verified).length}
+            </span>{" "}
+            approved; the rest make watermarked drafts until a partner reads the
+            wording.
+          </>
+        }
       >
         <Tabs tab={tab} />
         <TemplateAdmin

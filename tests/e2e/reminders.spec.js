@@ -194,7 +194,8 @@ test("switching a rule off in settings stops it being sent", async ({
   const fx = names(testInfo.project.name);
   await signIn(page, fx.partner);
 
-  await page.goto("/settings/messages");
+  // the rules live on the Templates tab; the screen opens on the log
+  await page.goto("/settings/messages?tab=templates");
 
   const row = page
     .locator("li")

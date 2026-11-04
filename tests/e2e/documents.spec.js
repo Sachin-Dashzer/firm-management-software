@@ -222,9 +222,18 @@ test("attach a file to a checklist item, download it, delete and restore it", as
   expect(binned.deletedAt).toBeTruthy();
   expect(binned.fileKey).not.toBe("");
 
+  /*
+   * Restore *this* file. The bin is the whole firm's, so the first Restore
+   * on the page belonged to whatever another spec deleted most recently —
+   * which left this one in the bin and the assertion below reading null.
+   */
   await page.goto("/documents/bin");
-  await expect(page.getByText("october-sales.pdf")).toBeVisible();
-  await page.getByRole("button", { name: "Restore" }).first().click();
+  const inBin = page
+    .getByRole("row")
+    .filter({ hasText: "october-sales.pdf" })
+    .first();
+  await expect(inBin).toBeVisible();
+  await inBin.getByRole("button", { name: "Restore" }).click();
   await expect(page.getByText(/restored/)).toBeVisible();
 
   const back = await DocumentModel.findById(document._id);
@@ -257,7 +266,8 @@ test("a client sends documents through the link, with no account", async ({
   // the firm makes the link
   await signIn(page, fx.partner);
   await page.goto(`/engagements/${engagementId}`);
-  await page.getByRole("button", { name: "Make an upload link" }).click();
+  // the panel offers emailing the link or just making one (P3-2)
+  await page.getByRole("button", { name: "Just make a link" }).click();
   await expect(page.getByText(/Link made for/)).toBeVisible();
 
   const link = await page.getByLabel("Upload link for the client").inputValue();

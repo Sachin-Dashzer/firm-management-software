@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { engagementQuery, dueRange } from "../lib/engagements/filter.js";
+import {
+  engagementQuery,
+  dueRange,
+  assignedTo,
+} from "../lib/engagements/filter.js";
 import { startOfISTDay } from "../lib/dates.js";
 
 /**
@@ -26,16 +30,16 @@ describe("scope comes first", () => {
 
   it("holds an employee to their own work, whatever the URL says", () => {
     const query = engagementQuery(employee, { assignee: "someone-else" }, NOW);
-    expect(query.$or).toEqual([{ assigneeId: "e1" }, { reviewerId: "e1" }]);
+    // preparing, reviewing or helping (02-11-2026): asserted through the
+    // helper, so adding a fourth way to be on a job cannot leave one
+    // screen's definition of "mine" behind another's
+    expect(query.$or).toEqual(assignedTo("e1"));
     // the assignee filter from the URL is not allowed to widen it
     expect(query.assigneeId).toBeUndefined();
   });
 
   it("holds an intern to their own work too", () => {
-    expect(engagementQuery(intern, {}, NOW).$or).toEqual([
-      { assigneeId: "i1" },
-      { reviewerId: "i1" },
-    ]);
+    expect(engagementQuery(intern, {}, NOW).$or).toEqual(assignedTo("i1"));
   });
 
   it("lets a partner filter by one person", () => {
@@ -45,10 +49,9 @@ describe("scope comes first", () => {
   });
 
   it("honours 'only mine' for a partner", () => {
-    expect(engagementQuery(partner, { mine: "1" }, NOW).$or).toEqual([
-      { assigneeId: "p1" },
-      { reviewerId: "p1" },
-    ]);
+    expect(engagementQuery(partner, { mine: "1" }, NOW).$or).toEqual(
+      assignedTo("p1"),
+    );
   });
 });
 

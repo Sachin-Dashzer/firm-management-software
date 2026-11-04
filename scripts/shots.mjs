@@ -20,12 +20,80 @@
 
 import { chromium } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
+import { TOTP, Secret } from "otpauth";
 import { connectDB } from "../lib/db.js";
-import { signIn, PASSWORD } from "../tests/e2e/signin.js";
 import User from "../models/User.js";
 import Branch from "../models/Branch.js";
-import { hashPassword } from "../lib/crypto.js";
+import { hashPassword, decryptField } from "../lib/crypto.js";
 import { systemAudit } from "../lib/audit/system.js";
+
+/**
+ * Its own sign-in, as of 04-11-2026, rather than the suite's.
+ *
+ * This script used to import `signIn` from `tests/e2e/signin.js`, which
+ * calls `assertSafeDb` on import — the guard that stops a spec deleting
+ * the firm's records. The guard is right, and this script is not a spec:
+ * it creates one account and removes it again. Borrowing the helper meant
+ * the only way to photograph a screen was to set
+ * `E2E_ALLOW_REMOTE_DB=i-understand-this-deletes-data`, which is a promise
+ * this script does not need to make and should not be teaching anyone to
+ * make for a screenshot.
+ *
+ * So: the same two steps, written here. The password is generated per run
+ * and never leaves the process.
+ */
+const PASSWORD = `shots-${randomBytes(12).toString("base64url")}`;
+
+/** The code an authenticator would be showing for this account now. */
+async function codeFor(email) {
+  const user = await User.findOne({ email }).select("+totpSecret");
+  if (!user?.totpSecret) return null;
+  await User.updateOne({ email }, { $set: { lastTotpCounter: 0 } });
+  return new TOTP({
+    issuer: "PHMG & Associates",
+    label: email,
+    algorithm: "SHA1",
+    digits: 6,
+    period: 30,
+    secret: Secret.fromBase32(decryptField(user.totpSecret)),
+  }).generate();
+}
+
+/**
+ * Sign in. Either a code is wanted or the application is already open —
+ * `AUTH_SKIP_2FA` is the server's decision, so both are raced rather than
+ * assumed.
+ */
+async function signIn(page, email) {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(PASSWORD);
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  const codeBox = page.getByLabel("6-digit code");
+  const asked = await codeBox
+    .waitFor({ state: "visible", timeout: 8000 })
+    .then(() => true)
+    .catch(() => false);
+
+  if (asked) {
+    const code = await codeFor(email);
+    if (!code) {
+      throw new Error(
+        "A code was asked for and this account has no TOTP secret yet.",
+      );
+    }
+    await codeBox.fill(code);
+    await page
+      .getByRole("button", { name: /verify|continue|sign in/i })
+      .click();
+  }
+
+  await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
+    timeout: 20_000,
+  });
+}
 
 const BASE = process.env.SHOTS_BASE ?? "http://localhost:3001";
 
@@ -58,6 +126,17 @@ const SCREENS = [
   ["settings-due-dates", "/settings/due-dates"],
   ["settings-messages", "/settings/messages"],
   ["settings-icai", "/settings/icai"],
+  // the twelve redrawn on 04-11-2026
+  ["inbox", "/inbox"],
+  ["team-plan", "/team/plan"],
+  ["compliance", "/compliance"],
+  ["compliance-monthly", "/compliance/monthly"],
+  ["compliance-quarterly", "/compliance/quarterly"],
+  ["compliance-annual", "/compliance/annual"],
+  ["gst-cycle", "/gst-cycle"],
+  ["settings-branches", "/settings/branches"],
+  ["settings-doc-templates", "/settings/doc-templates"],
+  ["settings-doc-wording", "/settings/doc-templates?tab=wording"],
 ];
 
 const args = process.argv.slice(2);

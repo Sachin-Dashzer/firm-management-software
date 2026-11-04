@@ -34,6 +34,28 @@ const checklistItemSchema = new mongoose.Schema(
     /** "client" = we need it from them, "firm" = we produce it. */
     side: { type: String, enum: ["client", "firm"], required: true },
     mandatory: { type: Boolean, default: true },
+    /**
+     * Which step this item belongs to, by position in `steps` (owner
+     * request, 03-11-2026).
+     *
+     * One checklist for a whole job was a list of twenty things in no
+     * order, half of them irrelevant to whatever anybody was doing that
+     * afternoon. A step has its own list: "Collect data" wants the bank
+     * statements and the 26AS, "Prepare the computation" wants the
+     * reconciliation tied out and last year's return to hand.
+     *
+     * `null` means the item belongs to the job rather than to one step —
+     * which is what every item meant before this field existed, so
+     * existing services and every engagement already created keep working
+     * exactly as they did. Those items are gathered under step one, where
+     * the old single checklist effectively sat.
+     *
+     * It is a **position, not an id**: the steps are reordered and
+     * rewritten as one array by the catalog form, and an id would be
+     * orphaned by the next edit. `lib/services/catalog.js` re-maps these
+     * when steps move, and anything out of range falls back to `null`.
+     */
+    stepIndex: { type: Number, default: null, min: 0 },
   },
   { _id: true },
 );

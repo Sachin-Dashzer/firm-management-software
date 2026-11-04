@@ -50,6 +50,18 @@ export default async function ServicesPage({ searchParams }) {
     udinRequired: Boolean(t.udinRequired),
     checklistCount: (t.checklist ?? []).length,
     stepCount: (t.steps ?? []).length,
+    /**
+     * Documents still attached to the whole job rather than to a step.
+     *
+     * The signal worth surfacing since a checklist can be divided by step
+     * (03-11-2026): these are the services nobody has divided up yet, and
+     * every one of their documents lands on step one. Not an error — an
+     * item can legitimately belong to the whole job — but on a service
+     * with seven steps and fourteen undivided documents it is a to-do.
+     */
+    looseItems: (t.checklist ?? []).filter(
+      (c) => !Number.isInteger(c.stepIndex),
+    ).length,
     version: t.version ?? 1,
     active: t.active !== false,
   }));
@@ -71,34 +83,29 @@ export default async function ServicesPage({ searchParams }) {
         </>
       }
       actions={
-        <>
+        editable && (
           <Link
-            href={showArchived ? "/settings/services" : "?archived=1"}
-            className="text-13 text-ink-muted hover:text-carbon underline underline-offset-4"
+            href="/settings/services/new"
+            className="rounded-control bg-carbon text-14 text-on-carbon hover:bg-carbon-ink flex h-9 items-center px-3 font-medium"
           >
-            {showArchived ? "Hide archived" : "Show archived"}
+            New service
           </Link>
-          {editable && (
-            <Link
-              href="/settings/services/new"
-              className="rounded-control bg-carbon text-14 text-on-carbon hover:bg-carbon-ink flex h-9 items-center px-3 font-medium"
-            >
-              Add a service
-            </Link>
-          )}
-        </>
+        )
       }
     >
       <FirmWide />
 
-      {rows.some((r) => !r.sac) && (
-        <p className="rounded-ledger border-waiting bg-waiting-wash text-13 border px-3 py-2">
-          Some services have no SAC code yet. A SAC code goes on the GST
-          invoice, so fill them in before billing that service.
-        </p>
-      )}
-
-      <CatalogList rows={rows} categories={categories} editable={editable} />
+      {/*
+        The missing-SAC banner used to live here, as a sentence that named
+        no service and led nowhere. It is a counted filter in the toolbar
+        now: the same fact, and clicking it shows you which ones.
+      */}
+      <CatalogList
+        rows={rows}
+        categories={categories}
+        editable={editable}
+        showArchived={showArchived}
+      />
     </SettingsScreen>
   );
 }

@@ -3,6 +3,7 @@
 import { useState, useMemo, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { X } from "@phosphor-icons/react";
 import {
   ENTITY_CONFIGS,
   ENTITY_BY_KEY,
@@ -63,13 +64,27 @@ const GST_TREATMENTS = ["plus GST", "inclusive of GST", "no GST"];
  * state, which is what makes "Save draft" and stepping backwards cheap — and
  * what makes the checks safe to run as often as they like, since they only
  * ever read.
+ *
+ * ## The two lists are the firm's, not ours (04-11-2026)
+ *
+ * The document list and the engagement pack were read straight out of
+ * `entityTypes.js` and drawn as fact. That file says of itself that it is a
+ * first draft nobody has certified — and the person onboarding a real client
+ * is the one who knows that this company's auditor has already been
+ * communicated with, or that this individual has no bank account in his own
+ * name yet. Both lists are now seeded from the entity type and then owned by
+ * the person on the screen: rows come off, rows go on.
+ *
+ * The documents list is the one that has teeth. What is left unticked on it
+ * becomes the upload link the client receives, so the server takes the
+ * edited list rather than the entity's — see `createFromOnboarding`.
  */
 export default function Onboarding({
   branches,
   partners,
   groups: knownGroups,
   services,
-  packCodes,
+  packTemplates = [],
   draft = null,
 }) {
   const router = useRouter();
@@ -78,6 +93,8 @@ export default function Onboarding({
   const [groups, setGroups] = useState(knownGroups);
   const [entityType, setEntityType] = useState("");
   const [values, setValues] = useState({});
+  const [documents, setDocuments] = useState([]);
+  const [pack, setPack] = useState([]);
   const [received, setReceived] = useState([]);
   const [fees, setFees] = useState({});
   const [groupId, setGroupId] = useState("");
@@ -110,6 +127,8 @@ export default function Onboarding({
   function chooseEntity(key) {
     setEntityType(key);
     setReceived([]);
+    setDocuments(ENTITY_BY_KEY[key]?.documents ?? []);
+    setPack(ENTITY_BY_KEY[key]?.pack ?? []);
     const suggested = ENTITY_BY_KEY[key]?.services ?? [];
     setFees(
       Object.fromEntries(
@@ -246,6 +265,8 @@ export default function Onboarding({
     });
     setEntityType("");
     setReceived([]);
+    setDocuments([]);
+    setPack([]);
     setFees({});
     setGroupId("");
     setAddToSuggested(false);
@@ -277,6 +298,7 @@ export default function Onboarding({
       const result = await createFromOnboarding({
         entityType,
         values,
+        documents,
         received,
         groupId: addToSuggested
           ? (lookups?.group?.suggestGroupId ?? groupId)
@@ -390,7 +412,12 @@ export default function Onboarding({
         className="anim-pop rounded-ledger border-rule bg-surface border p-4 md:p-5"
       >
         {created ? (
-          <Done created={created} router={router} onAnother={onboardAnother} />
+          <Done
+            created={created}
+            pack={pack}
+            router={router}
+            onAnother={onboardAnother}
+          />
         ) : (
           <>
             {step === 0 && (
@@ -410,12 +437,19 @@ export default function Onboarding({
             {step === 2 && (
               <DocumentsStep
                 entity={entity}
+                documents={documents}
+                setDocuments={setDocuments}
                 received={received}
                 setReceived={setReceived}
               />
             )}
             {step === 3 && (
-              <ServicesStep services={services} fees={fees} setFees={setFees} />
+              <ServicesStep
+                entity={entity}
+                services={services}
+                fees={fees}
+                setFees={setFees}
+              />
             )}
             {step === 4 && (
               <ChecksStep
@@ -436,7 +470,9 @@ export default function Onboarding({
             {step === 5 && (
               <PackStep
                 entity={entity}
-                packCodes={packCodes}
+                pack={pack}
+                setPack={setPack}
+                templates={packTemplates}
                 onOpen={openDraft}
                 preview={preview}
                 onClose={() => setPreview(null)}
@@ -448,6 +484,8 @@ export default function Onboarding({
                 values={values}
                 services={services}
                 fees={fees}
+                documents={documents}
+                pack={pack}
                 received={received}
                 checks={checks}
                 groups={groups}
@@ -542,7 +580,11 @@ function StepHead({ title, note }) {
   return (
     <header className="mb-4">
       <h2 className="font-display text-20 font-semibold">{title}</h2>
-      {note && <p className="text-13 text-ink-muted mt-0.5">{note}</p>}
+      {/* a note is read, so it is set to a measure rather than to the
+          width of a 1440px panel */}
+      {note && (
+        <p className="text-13 text-ink-muted mt-0.5 max-w-[78ch]">{note}</p>
+      )}
     </header>
   );
 }
@@ -662,7 +704,15 @@ function article(label) {
 
 // --- step 3 -----------------------------------------------------------------
 
-function DocumentsStep({ entity, received, setReceived }) {
+function DocumentsStep({
+  entity,
+  documents,
+  setDocuments,
+  received,
+  setReceived,
+}) {
+  const [adding, setAdding] = useState("");
+
   const toggle = (name) =>
     setReceived(
       received.includes(name)
@@ -670,16 +720,68 @@ function DocumentsStep({ entity, received, setReceived }) {
         : [...received, name],
     );
 
+  /** Off the list, and out of what is ticked as received along with it. */
+  function remove(name) {
+    setDocuments(documents.filter((n) => n !== name));
+    setReceived(received.filter((n) => n !== name));
+  }
+
+  /**
+   * A native form, so Enter adds the row — somebody typing six documents in
+   * a row should never have to reach for the mouse between them.
+   */
+  function add(event) {
+    event.preventDefault();
+    const name = adding.trim().replace(/\s+/g, " ");
+    if (!name) return;
+    // the same paper asked for twice is still one paper
+    const already = documents.some(
+      (row) => row.toLowerCase() === name.toLowerCase(),
+    );
+    setDocuments(already ? documents : [...documents, name]);
+    setAdding("");
+  }
+
+  const standard = entity.documents;
+  const edited =
+    documents.length !== standard.length ||
+    documents.some((name, index) => name !== standard[index]);
+  const outstanding = documents.filter((name) => !received.includes(name));
+
   return (
     <>
       <StepHead
         title={`Documents to collect — ${entity.label}`}
-        note="Tick what is already in hand. Everything left unticked goes to the client as one upload link when you create them."
+        note={`The standard ${entity.label.toLowerCase()} list, yours to correct — take a row off, or add one at the bottom. Tick what is already in hand; the rest goes to the client as one upload link.`}
       />
+
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <p className="text-13 text-ink-muted">
+          <span className="num text-ink">{documents.length}</span> on the list ·{" "}
+          <span className="num text-ink">{received.length}</span> in hand ·{" "}
+          <span className="num text-ink">{outstanding.length}</span> to ask for
+        </p>
+        {edited && (
+          <button
+            type="button"
+            onClick={() => {
+              setDocuments(standard);
+              setReceived(received.filter((name) => standard.includes(name)));
+            }}
+            className="text-13 text-ink-muted hover:text-carbon underline underline-offset-4"
+          >
+            Put the standard list back
+          </button>
+        )}
+      </div>
+
       <ul className="border-rule divide-rule divide-y rounded border">
-        {entity.documents.map((name) => (
-          <li key={name}>
-            <label className="hover:bg-carbon-wash flex cursor-pointer items-center gap-3 px-3 py-2.5">
+        {documents.map((name) => (
+          <li
+            key={name}
+            className="group hover:bg-carbon-wash flex items-center gap-3 px-3 py-2.5"
+          >
+            <label className="flex flex-1 cursor-pointer items-center gap-3">
               <input
                 type="checkbox"
                 checked={received.includes(name)}
@@ -687,8 +789,34 @@ function DocumentsStep({ entity, received, setReceived }) {
               />
               <span className="text-14">{name}</span>
             </label>
+            <Remove label={name} onClick={() => remove(name)} />
           </li>
         ))}
+
+        {documents.length === 0 && (
+          <li className="text-13 text-ink-muted px-3 py-6 text-center">
+            Nothing on the list. No upload link is made for this client.
+          </li>
+        )}
+
+        <li className="bg-sunk">
+          <form onSubmit={add} className="flex items-center gap-2 p-2">
+            <input
+              value={adding}
+              onChange={(event) => setAdding(event.target.value)}
+              placeholder="Another paper to ask this client for"
+              aria-label="Add a document to the list"
+              className="rounded-control border-rule bg-paper text-14 h-9 min-w-0 flex-1 border px-3"
+            />
+            <button
+              type="submit"
+              disabled={!adding.trim()}
+              className="rounded-control border-rule bg-surface text-13 hover:bg-carbon-wash h-9 shrink-0 border px-3 font-medium disabled:opacity-40"
+            >
+              Add
+            </button>
+          </form>
+        </li>
       </ul>
       <p className="rounded-ledger border-rule bg-sunk text-13 mt-3 border px-3 py-2">
         <span className="text-ink-muted">
@@ -702,29 +830,93 @@ function DocumentsStep({ entity, received, setReceived }) {
 
 // --- step 4 -----------------------------------------------------------------
 
-function ServicesStep({ services, fees, setFees }) {
+/**
+ * What this client is taken on for, and at what fee.
+ *
+ * It used to be the firm's whole catalogue — fifteen rows, each with a
+ * checkbox and three controls, of which two were ticked. It asked somebody
+ * to read fifteen fee boxes belonging to work this client will never have,
+ * and the two that mattered were lost among them.
+ *
+ * So the list is **this client's services**: seeded from what the entity
+ * type suggests, a row taken off when it does not apply and a row put on
+ * from the catalogue underneath. The catalogue has not gone anywhere — it is
+ * the picker, where a service is chosen by name rather than hunted for down
+ * a column of ticks.
+ */
+function ServicesStep({ entity, services, fees, setFees }) {
+  const [picked, setPicked] = useState("");
+
   const patch = (code, change) =>
     setFees((previous) => ({
       ...previous,
       [code]: { ...previous[code], ...change },
     }));
 
-  const total = services.reduce((sum, service) => {
-    const row = fees[service.code];
-    if (!row?.on) return sum;
-    const rupees = Number(String(row.fee ?? "").replace(/[₹,\s]/g, ""));
+  const chosen = services.filter((service) => fees[service.code]?.on);
+  const spare = services.filter((service) => !fees[service.code]?.on);
+  const suggested = entity.services ?? [];
+  const edited =
+    chosen.length !== suggested.length ||
+    chosen.some((service) => !suggested.includes(service.code));
+
+  /** The catalogue's own shelves, so the picker is not one long list. */
+  const shelves = [...new Set(spare.map((service) => service.category || ""))];
+
+  const total = chosen.reduce((sum, service) => {
+    const rupees = Number(
+      String(fees[service.code]?.fee ?? "").replace(/[₹,\s]/g, ""),
+    );
     return Number.isFinite(rupees) ? sum + rupees : sum;
   }, 0);
+
+  function add(event) {
+    event.preventDefault();
+    if (!picked) return;
+    // the fee, basis and GST treatment this code was seeded with are still
+    // in `fees`, so putting a row back brings its figures with it
+    patch(picked, { on: true });
+    setPicked("");
+  }
 
   return (
     <>
       <StepHead
         title="Services and fees"
-        note="Tick what you will do and type the agreed fee. The billing basis is how often you bill — it can differ from how often the return is filed, for example a monthly GST return billed quarterly. The fee and basis become this client's defaults."
+        note="What the firm is taking this client on for, suggested from the entity type and yours to correct. Type the agreed fee against each. The billing basis is how often you bill — it can differ from how often the return is filed, say a monthly GST return billed quarterly."
       />
 
-      <div className="hidden grid-cols-[1.2rem_1fr_7rem_9rem_10rem] gap-3 px-2 pb-2 md:grid">
-        {["", "Service", "Fee (₹)", "Billing basis", "GST"].map((head, i) => (
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <p className="text-13 text-ink-muted">
+          <span className="num text-ink">{chosen.length}</span>{" "}
+          {chosen.length === 1 ? "service" : "services"} of{" "}
+          <span className="num">{services.length}</span> in the firm's catalogue
+        </p>
+        {edited && (
+          <button
+            type="button"
+            onClick={() =>
+              setFees((previous) =>
+                Object.fromEntries(
+                  services.map((service) => [
+                    service.code,
+                    {
+                      ...previous[service.code],
+                      on: suggested.includes(service.code),
+                    },
+                  ]),
+                ),
+              )
+            }
+            className="text-13 text-ink-muted hover:text-carbon underline underline-offset-4"
+          >
+            Put the suggested services back
+          </button>
+        )}
+      </div>
+
+      <div className="hidden grid-cols-[1fr_7rem_9rem_10rem_1.75rem] gap-3 px-2 pb-2 md:grid">
+        {["Service", "Fee (₹)", "Billing basis", "GST", ""].map((head, i) => (
           <span
             key={i}
             className="text-12 text-ink-muted font-semibold tracking-wide uppercase"
@@ -735,21 +927,18 @@ function ServicesStep({ services, fees, setFees }) {
       </div>
 
       <ul className="divide-rule border-rule divide-y rounded border">
-        {services.map((service) => {
+        {chosen.map((service) => {
           const row = fees[service.code] ?? {};
           return (
             <li
               key={service.code}
-              className="grid grid-cols-1 gap-2 p-2 md:grid-cols-[1.2rem_1fr_7rem_9rem_10rem] md:items-center md:gap-3"
+              className="group hover:bg-carbon-wash grid grid-cols-1 gap-2 p-2 md:grid-cols-[1fr_7rem_9rem_10rem_1.75rem] md:items-center md:gap-3"
             >
-              <label className="flex items-center gap-3 md:contents">
-                <input
-                  type="checkbox"
-                  checked={Boolean(row.on)}
-                  onChange={(e) =>
-                    patch(service.code, { on: e.target.checked })
-                  }
-                />
+              {/* on a phone the name and its remove share the first line,
+                  rather than the remove sitting on a line of its own; on a
+                  laptop `contents` hands both to the grid and `order-last`
+                  sends the remove to the column after GST */}
+              <div className="flex items-start justify-between gap-2 md:contents">
                 <span className="text-14">
                   {service.name}
                   <span className="text-12 text-ink-muted block">
@@ -758,7 +947,13 @@ function ServicesStep({ services, fees, setFees }) {
                       : `filed ${service.recurrence}`}
                   </span>
                 </span>
-              </label>
+                <span className="md:order-last md:flex md:justify-end">
+                  <Remove
+                    label={service.name}
+                    onClick={() => patch(service.code, { on: false })}
+                  />
+                </span>
+              </div>
               {/* on a phone the three controls share one row; on a laptop
                   they are three columns of the table above */}
               <div className="grid grid-cols-[4.5rem_minmax(0,1fr)_minmax(0,1fr)] gap-2 md:contents">
@@ -798,6 +993,49 @@ function ServicesStep({ services, fees, setFees }) {
             </li>
           );
         })}
+
+        {chosen.length === 0 && (
+          <li className="text-13 text-ink-muted px-3 py-6 text-center">
+            No services yet. A client can be created without any — add them when
+            the engagement is agreed.
+          </li>
+        )}
+
+        <li className="bg-sunk">
+          <form onSubmit={add} className="flex items-center gap-2 p-2">
+            <select
+              value={picked}
+              onChange={(event) => setPicked(event.target.value)}
+              aria-label="Add a service from the catalogue"
+              disabled={spare.length === 0}
+              className="rounded-control border-rule bg-paper text-14 h-9 min-w-0 flex-1 border px-2 disabled:opacity-60"
+            >
+              <option value="">
+                {spare.length === 0
+                  ? "Every service in the catalogue is on this client"
+                  : "— another service from the catalogue —"}
+              </option>
+              {shelves.map((shelf) => (
+                <optgroup key={shelf} label={shelf || "Other"}>
+                  {spare
+                    .filter((service) => (service.category || "") === shelf)
+                    .map((service) => (
+                      <option key={service.code} value={service.code}>
+                        {service.name}
+                      </option>
+                    ))}
+                </optgroup>
+              ))}
+            </select>
+            <button
+              type="submit"
+              disabled={!picked}
+              className="rounded-control border-rule bg-surface text-13 hover:bg-carbon-wash h-9 shrink-0 border px-3 font-medium disabled:opacity-40"
+            >
+              Add
+            </button>
+          </form>
+        </li>
       </ul>
 
       <p className="text-13 text-ink-muted mt-3">
@@ -961,24 +1199,69 @@ function Mark({ state }) {
 
 // --- step 6 -----------------------------------------------------------------
 
-function PackStep({ entity, packCodes, onOpen, preview, onClose }) {
+function PackStep({
+  entity,
+  pack,
+  setPack,
+  templates,
+  onOpen,
+  preview,
+  onClose,
+}) {
+  const [picked, setPicked] = useState("");
+  const inPack = new Set(pack.map((item) => item.code));
+  const byCode = new Map(templates.map((item) => [item.code, item]));
+
+  /** Everything the firm has wording for that is not already in the pack. */
+  const spare = templates.filter((item) => !inPack.has(item.code));
+
+  const standard = entity.pack;
+  const edited =
+    pack.length !== standard.length ||
+    pack.some((item, index) => item.code !== standard[index]?.code);
+
+  function addPicked(event) {
+    event.preventDefault();
+    const template = byCode.get(picked);
+    if (!template || inPack.has(template.code)) return;
+    setPack([...pack, template]);
+    setPicked("");
+  }
+
   return (
     <>
       <StepHead
         title="Engagement pack — drafted automatically"
-        note="Filled from the master you entered. Open any draft to read it; they are generated against the client once it exists."
+        note="The letters this client gets, filled from the master you entered. Take off what does not apply and add anything else the firm has wording for. Open any draft to read it; they are generated against the client once it exists."
       />
+
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <p className="text-13 text-ink-muted">
+          <span className="num text-ink">{pack.length}</span>{" "}
+          {pack.length === 1 ? "letter" : "letters"} in the pack
+        </p>
+        {edited && (
+          <button
+            type="button"
+            onClick={() => setPack(standard)}
+            className="text-13 text-ink-muted hover:text-carbon underline underline-offset-4"
+          >
+            Put the standard pack back
+          </button>
+        )}
+      </div>
+
       <ul className="divide-rule border-rule divide-y rounded border">
-        {entity.pack.map((item) => {
-          const exists = packCodes.includes(item.code);
+        {pack.map((item) => {
+          const exists = byCode.has(item.code);
           return (
             <li
               key={item.code}
-              className="flex flex-wrap items-center gap-3 px-3 py-2.5"
+              className="group hover:bg-carbon-wash flex flex-wrap items-center gap-3 px-3 py-2.5"
             >
               <span
                 className={`text-12 rounded-control px-2 py-0.5 font-medium ${
-                  item.kind === "Audit"
+                  /audit/i.test(item.kind)
                     ? "bg-waiting-wash text-waiting"
                     : "bg-carbon-wash text-carbon"
                 }`}
@@ -990,7 +1273,7 @@ function PackStep({ entity, packCodes, onOpen, preview, onClose }) {
                 <button
                   type="button"
                   onClick={() => onOpen(item.code)}
-                  className="rounded-control border-rule text-13 hover:bg-carbon-wash h-8 border px-3"
+                  className="rounded-control border-rule text-13 hover:bg-surface h-8 border px-3"
                 >
                   Open draft
                 </button>
@@ -999,9 +1282,51 @@ function PackStep({ entity, packCodes, onOpen, preview, onClose }) {
                   No wording yet — add it in Settings → Documents
                 </span>
               )}
+              <Remove
+                label={item.label}
+                onClick={() =>
+                  setPack(pack.filter((row) => row.code !== item.code))
+                }
+              />
             </li>
           );
         })}
+
+        {pack.length === 0 && (
+          <li className="text-13 text-ink-muted px-3 py-6 text-center">
+            No letters in this client's pack.
+          </li>
+        )}
+
+        <li className="bg-sunk">
+          <form onSubmit={addPicked} className="flex items-center gap-2 p-2">
+            <select
+              value={picked}
+              onChange={(event) => setPicked(event.target.value)}
+              aria-label="Add a letter to the pack"
+              disabled={spare.length === 0}
+              className="rounded-control border-rule bg-paper text-14 h-9 min-w-0 flex-1 border px-2 disabled:opacity-60"
+            >
+              <option value="">
+                {spare.length === 0
+                  ? "Every letter the firm has is in the pack"
+                  : "— another letter from the firm's wording —"}
+              </option>
+              {spare.map((item) => (
+                <option key={item.code} value={item.code}>
+                  {item.kind} — {item.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              disabled={!picked}
+              className="rounded-control border-rule bg-surface text-13 hover:bg-carbon-wash h-9 shrink-0 border px-3 font-medium disabled:opacity-40"
+            >
+              Add
+            </button>
+          </form>
+        </li>
       </ul>
 
       {preview && (
@@ -1051,6 +1376,8 @@ function CreateStep({
   values,
   services,
   fees,
+  documents,
+  pack,
   received,
   checks,
   groups,
@@ -1060,7 +1387,7 @@ function CreateStep({
   blocking,
 }) {
   const ticked = services.filter((service) => fees[service.code]?.on);
-  const outstanding = entity.documents.filter((d) => !received.includes(d));
+  const outstanding = documents.filter((name) => !received.includes(name));
   const group = groups.find((g) => g.id === groupId);
   // the duplicate has its own block below, with the tick that overrides it
   const problems = checks.filter(
@@ -1092,6 +1419,14 @@ function CreateStep({
         <Summary
           label="Documents"
           value={`${received.length} in hand, ${outstanding.length} to ask for`}
+        />
+        <Summary
+          label="Engagement pack"
+          value={
+            pack.length
+              ? `${pack.length} ${pack.length === 1 ? "letter" : "letters"} to issue`
+              : "No letters"
+          }
         />
       </dl>
 
@@ -1163,7 +1498,7 @@ function Summary({ label, value, mono }) {
   );
 }
 
-function Done({ created, router, onAnother }) {
+function Done({ created, pack, router, onAnother }) {
   return (
     <div className="flex flex-col gap-4">
       <div>
@@ -1201,6 +1536,21 @@ function Done({ created, router, onAnother }) {
         </div>
       )}
 
+      {pack?.length > 0 && (
+        <div className="rounded-ledger border-rule bg-sunk border p-3">
+          <p className="text-13 text-ink-muted">
+            The pack you settled on, to issue from the client's documents tab:
+          </p>
+          <ul className="mt-1 flex flex-col gap-0.5">
+            {pack.map((item) => (
+              <li key={item.code} className="text-13">
+                {item.label}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {created.warnings?.length > 0 && (
         <ul className="flex flex-col gap-1">
           {created.warnings.map((warning) => (
@@ -1228,6 +1578,31 @@ function Done({ created, router, onAnother }) {
         </button>
       </div>
     </div>
+  );
+}
+
+// --- the controls the editable lists share ----------------------------------
+
+/**
+ * Take one row off a list (04-11-2026).
+ *
+ * Drawn on hover and on focus at desk sizes and always on a touch screen,
+ * where there is no hover and a control you cannot reach is not a control
+ * (the inbox rows settled this). The reason it hides at all is that these
+ * are lists somebody reads down twelve rows of: a column of twelve crosses
+ * reads as a warning, and nothing here is wrong.
+ */
+function Remove({ label, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`Take "${label}" off the list`}
+      title="Take it off the list"
+      className="rounded-control border-rule text-ink-muted hover:text-redpen hover:border-redpen flex h-7 w-7 shrink-0 items-center justify-center border opacity-100 transition-opacity duration-150 sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100"
+    >
+      <X size={14} weight="bold" aria-hidden="true" />
+    </button>
   );
 }
 

@@ -489,6 +489,70 @@ input[type="number"] {
 }
 
 /* ---------------------------------------------------------------------------
+   The surfaces we did not draw (D109, 04-11-2026)
+
+   `color-scheme` above hands the browser's own widgets to the theme
+   toggle, which fixed the option list opening white over a dark screen.
+   It does not touch three more surfaces that ship with defaults
+   belonging to no design system, and that a person touches on every
+   screen: the selection highlight, the caret, and the scrollbars.
+
+   On a product somebody reads a GSTIN out of and copies a letter from,
+   the selection is used constantly. Chrome's default is a blue that
+   exists nowhere else in this application.
+   --------------------------------------------------------------------------- */
+
+::selection {
+  /* the accent at a tint that leaves ink legible through it, rather than
+     the browser blue reversing the text to white */
+  background-color: var(--carbon-soft);
+  color: var(--ink);
+}
+
+:where(input, textarea) {
+  caret-color: var(--carbon);
+}
+
+/**
+ * Scrollbars: thin, on the ground colour, with the thumb in the rule
+ * colour the tables already use. Firefox and the WebKit pseudo-elements
+ * both, because one of them covers this firm's browsers and the other
+ * covers the owner's phone.
+ *
+ * Not `scrollbar-width: none`: a scrolling region whose scrollbar is
+ * invisible is a region nobody knows scrolls. The permission matrix and
+ * the template shelf are both that region.
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--rule);
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--ink-muted);
+}
+
+::-webkit-scrollbar-corner {
+  background-color: transparent;
+}
+
+/* ---------------------------------------------------------------------------
    Motion (D84)
 
    Four things move, and nothing else. The rule that decided the list is

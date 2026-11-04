@@ -168,9 +168,15 @@ test.afterAll(async ({}, testInfo) => {
  */
 const asInput = istInputDate;
 
-/** The row for one return, so the two forms on the panel never collide. */
+/**
+ * The row for one return, so the two forms on the panel never collide.
+ *
+ * `.first()`: the return's name also appears in its own correction history
+ * (a nested list) and in the activity feed, so the bare filter matches more
+ * than the row that holds the form.
+ */
 const row = (page, name) =>
-  page.getByRole("listitem").filter({ hasText: name });
+  page.getByRole("listitem").filter({ hasText: name }).first();
 
 test("each return is filed on its own, and both facts survive", async ({
   page,

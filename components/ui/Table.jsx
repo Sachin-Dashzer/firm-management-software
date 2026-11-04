@@ -149,7 +149,13 @@ export function Meta({ className = "", children }) {
  * @param {"late"|"muted"} [props.tone]
  * @param {string} [props.zero] what to draw instead of nought
  */
-export function Num({ paise, strong = false, tone, zero = "—", className = "" }) {
+export function Num({
+  paise,
+  strong = false,
+  tone,
+  zero = "—",
+  className = "",
+}) {
   if (!paise) {
     return <span className={`text-faint ${className}`}>{zero}</span>;
   }

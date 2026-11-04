@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/auth";
-import { assertCan } from "@/lib/permissions";
+import { assertCan, can } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import { audited } from "@/lib/audit/request";
 import { recordAudit, ACTIONS } from "@/lib/audit";
@@ -61,7 +61,26 @@ export async function createCertificate(_prev, formData) {
   const client = await Client.findById(clientId).select("branchId").lean();
   if (!client) return { error: "Choose a client." };
 
-  assertCan(actor, "edit", "udin", { branchId: String(client.branchId) });
+  /**
+   * Refused, not thrown.
+   *
+   * `assertCan` raises a bare `Error("Not allowed")`. Nothing here caught
+   * it, so a client in a branch this person cannot certify for crashed the
+   * action — Next returned a 500 and the screen said "An unexpected
+   * response was received from the server", which tells the person nothing
+   * and reads like a broken application rather than a rule.
+   *
+   * The permission itself has not changed: `can` is the same check
+   * `assertCan` runs. Only the shape of the refusal has, so it lands in the
+   * form's own error line like every other refusal (CLAUDE.md rule 1 is
+   * about the check being on the server, not about how it is worded).
+   */
+  if (!can(actor, "edit", "udin", { branchId: String(client.branchId) })) {
+    return {
+      error:
+        "That client is in a branch you cannot issue certificates for. Ask a partner, or pick a client in your own branch.",
+    };
+  }
 
   const typeKey = String(formData.get("type") ?? "");
   const type = CERTIFICATE_TYPES.find((row) => row.key === typeKey);

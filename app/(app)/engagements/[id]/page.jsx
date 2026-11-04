@@ -6,7 +6,6 @@ import { connectDB } from "@/lib/db";
 import Engagement from "@/models/Engagement";
 import Client from "@/models/Client";
 import User from "@/models/User";
-import Comment from "@/models/Comment";
 import DocumentModel from "@/models/Document";
 import DocRequest from "@/models/DocRequest";
 import AuditLog from "@/models/AuditLog";
@@ -46,6 +45,7 @@ import NotifyPanel from "./NotifyPanel";
 import { notifyAudience } from "./notify";
 import RequestPanel from "./RequestPanel";
 import DocsPanel from "./DocsPanel";
+import Segmented from "@/components/ui/Segmented";
 import { issuerFor } from "@/lib/docs/rules";
 import { DueChip, StatusChip } from "../chips";
 import { bookOf, BOOKS } from "@/lib/practice/books";
@@ -87,9 +87,38 @@ export async function generateMetadata({ params }) {
   return maySee ? { title: `${engagement.code} · PHMG` } : generic;
 }
 
-export default async function EngagementPage({ params }) {
+/**
+ * The five faces of one job (owner, 03-11-2026).
+ *
+ * This screen had thirteen panels down one column: the next action, the
+ * stamp, the pipeline, the steps, the checklist, the fee, the assignment,
+ * the audit file, the GST data, the two folded records, the document
+ * requests, the letters, the notify box and the activity feed. Everything
+ * the firm knows about a job, all of it at once, and the one thing
+ * somebody opened the page for somewhere in the middle of it.
+ *
+ * So it is five tabs, grouped by what somebody came to do rather than by
+ * what the data is:
+ *
+ *  - **Work** — the step you are on and the controls that move it. The
+ *    default, because it is the answer to "what now?".
+ *  - **Files** — what the client owes, what has arrived, what we asked
+ *    for. Things coming in.
+ *  - **Letters** — documents generated, edited and sent. Things going out.
+ *  - **Setup** — the fee, who it is on, when it is due. Settings on the
+ *    job, read once a month rather than once an hour.
+ *  - **Activity** — the audit trail.
+ *
+ * The tab lives in the URL, so a link to a job's letters is a link to a
+ * job's letters, the back button works, and none of it needs client state.
+ */
+const TABS = ["work", "files", "letters", "setup", "activity"];
+
+export default async function EngagementPage({ params, searchParams }) {
   const actor = await requireUser();
   const { id } = await params;
+  const query = (await searchParams) ?? {};
+  const tab = TABS.includes(query.tab) ? query.tab : "work";
 
   await connectDB();
   const engagement = await Engagement.findById(id).lean();
@@ -106,45 +135,33 @@ export default async function EngagementPage({ params }) {
     redirect(`/no-access?client=${engagement.clientId}`);
   }
 
-  const [
-    client,
-    assignee,
-    reviewer,
-    team,
-    comments,
-    audit,
-    documents,
-    requests,
-  ] = await Promise.all([
-    Client.findById(engagement.clientId)
-      .select("legalName tradeName code branchId")
-      .lean(),
-    engagement.assigneeId
-      ? User.findById(engagement.assigneeId).select("name role").lean()
-      : null,
-    engagement.reviewerId
-      ? User.findById(engagement.reviewerId).select("name role").lean()
-      : null,
-    User.find({ active: true })
-      .select("name role branchIds")
-      .sort({ name: 1 })
-      .lean(),
-    Comment.find({ entityType: "Engagement", entityId: engagement._id })
-      .sort({ createdAt: -1 })
-      .limit(100)
-      .lean(),
-    AuditLog.find({ entityType: "Engagement", entityId: engagement._id })
-      .sort({ ts: -1 })
-      .limit(50)
-      .lean(),
-    DocumentModel.find({ engagementId: engagement._id })
-      .sort({ createdAt: -1 })
-      .lean(),
-    DocRequest.find({ engagementId: engagement._id })
-      .sort({ createdAt: -1 })
-      .limit(20)
-      .lean(),
-  ]);
+  const [client, assignee, reviewer, team, audit, documents, requests] =
+    await Promise.all([
+      Client.findById(engagement.clientId)
+        .select("legalName tradeName code branchId")
+        .lean(),
+      engagement.assigneeId
+        ? User.findById(engagement.assigneeId).select("name role").lean()
+        : null,
+      engagement.reviewerId
+        ? User.findById(engagement.reviewerId).select("name role").lean()
+        : null,
+      User.find({ active: true })
+        .select("name role branchIds")
+        .sort({ name: 1 })
+        .lean(),
+      AuditLog.find({ entityType: "Engagement", entityId: engagement._id })
+        .sort({ ts: -1 })
+        .limit(50)
+        .lean(),
+      DocumentModel.find({ engagementId: engagement._id })
+        .sort({ createdAt: -1 })
+        .lean(),
+      DocRequest.find({ engagementId: engagement._id })
+        .sort({ createdAt: -1 })
+        .limit(20)
+        .lean(),
+    ]);
 
   // documents generated from the firm's templates (P2-8b)
   const mayGenerate = can(actor, "edit", "docGenerate", target);
@@ -398,6 +415,12 @@ export default async function EngagementPage({ params }) {
       name: c.name,
       side: c.side,
       mandatory: c.mandatory,
+      /**
+       * Which step asks for it. `null` — every row written before the
+       * catalog could divide a checklist — is shown on step one, where the
+       * single undivided list used to sit.
+       */
+      stepIndex: Number.isInteger(c.stepIndex) ? c.stepIndex : null,
       status: c.status,
       /** Which submission, why it went back, and what the client said (P3-2). */
       submissionCount: c.submissionCount ?? 0,
@@ -422,13 +445,27 @@ export default async function EngagementPage({ params }) {
       name: r.name,
       checked: r.checked,
     })),
-    statusHistory: (engagement.statusHistory ?? []).map((e) => ({
-      from: e.from,
-      to: e.to,
-      at: formatISTDateTime(e.at),
-      byName: e.byName,
-      reason: e.reason,
-    })),
+    /**
+     * How many of the client's mandatory documents are still outstanding,
+     * for the badge on the Files tab. A tab people cannot see into has to
+     * say whether there is anything behind it.
+     */
+    checklistOutstanding: (engagement.checklist ?? []).filter(
+      (item) =>
+        item.side === "client" &&
+        item.mandatory &&
+        ["Pending", "Requested", "Replacement requested"].includes(item.status),
+    ).length,
+
+    /*
+      `statusHistory` is no longer serialised for the screen (owner,
+      03-11-2026): the Pipeline history panel that read it is gone, and
+      `auditLogs` holds every status change with its reason and its hash
+      anyway — the Activity tab is the one place that tells that story.
+
+      The stored array itself is untouched; `completedBy` above still reads
+      it for the completion stamp.
+    */
   };
 
   /**
@@ -509,7 +546,73 @@ export default async function EngagementPage({ params }) {
         </div>
       </div>
 
+      {/*
+        The tab bar, and the one line that has to survive tabbing away from
+        it.
+
+        Splitting a page into tabs costs something: the thing you were not
+        looking at is now invisible rather than merely further down. The
+        next action is the one piece that cannot afford that — it is what
+        orients somebody who has just opened the job — so it is stated
+        here, above the tabs, on every tab, as a sentence with no controls
+        on it. The controls stay on Work, where `EngagementWork` owns the
+        permission and the pending state; the same button twice on one
+        screen is what P3-8 set out to stop.
+      */}
+      <div className="flex flex-col gap-2">
+        <Segmented
+          label="What to look at on this job"
+          variant="underline"
+          value={tab}
+          items={[
+            { key: "work", label: "Work", href: `/engagements/${id}` },
+            {
+              key: "files",
+              label: "Files",
+              href: `/engagements/${id}?tab=files`,
+              badge: view.checklistOutstanding
+                ? { value: view.checklistOutstanding, tone: "soon" }
+                : undefined,
+            },
+            {
+              key: "letters",
+              label: "Letters",
+              href: `/engagements/${id}?tab=letters`,
+              badge: generated.length ? { value: generated.length } : undefined,
+            },
+            {
+              key: "setup",
+              label: "Setup",
+              href: `/engagements/${id}?tab=setup`,
+            },
+            {
+              key: "activity",
+              label: "Activity",
+              href: `/engagements/${id}?tab=activity`,
+            },
+          ]}
+        />
+
+        {view.next && view.next.stance !== "done" && (
+          <p className="text-13 text-ink-muted">
+            <span className="text-ink font-medium">Next:</span> {view.next.text}
+            {tab !== "work" && (
+              <>
+                {" · "}
+                <Link
+                  href={`/engagements/${id}`}
+                  className="hover:text-carbon underline underline-offset-4"
+                >
+                  go to Work
+                </Link>
+              </>
+            )}
+          </p>
+        )}
+      </div>
+
       <EngagementWork
+        tab={tab}
         engagement={view}
         moves={offeredStatuses(actor, {
           status: engagement.status,
@@ -541,85 +644,102 @@ export default async function EngagementPage({ params }) {
           name: u.name,
           role: u.role,
         }))}
-        comments={comments.map((c) => ({
-          id: String(c._id),
-          body: c.body,
-          by: c.createdByName || "Someone",
-          at: formatISTDateTime(c.createdAt),
-          internal: c.internal,
-          /** P3-17b: whether it reached them, and whether they wrote it. */
-          sentAt: c.sentToClientAt ? formatISTDateTime(c.sentToClientAt) : "",
-          fromClient: c.kind === "Client message",
-        }))}
       />
 
-      <RequestPanel
-        engagementId={view.id}
-        mayRequest={can(actor, "edit", "documents", target)}
-        outstanding={
-          (engagement.checklist ?? []).filter(
-            (item) =>
-              item.side === "client" &&
-              !["Received", "Verified"].includes(item.status),
-          ).length
-        }
-        requests={requests.map((r) => ({
-          id: String(r._id),
-          hint: r.tokenHint,
-          items: (r.items ?? []).length,
-          uploads: r.uploadCount ?? 0,
-          expiresAt: new Date(r.expiresAt).toISOString(),
-          open: !r.revokedAt && new Date(r.expiresAt) > new Date(),
-          revoked: Boolean(r.revokedAt),
-        }))}
-      />
+      {/* --- asking the client for what is missing: Files ------------- */}
+      {tab === "files" && (
+        <RequestPanel
+          engagementId={view.id}
+          mayRequest={can(actor, "edit", "documents", target)}
+          outstanding={
+            (engagement.checklist ?? []).filter(
+              (item) =>
+                item.side === "client" &&
+                !["Received", "Verified"].includes(item.status),
+            ).length
+          }
+          requests={requests.map((r) => ({
+            id: String(r._id),
+            hint: r.tokenHint,
+            items: (r.items ?? []).length,
+            uploads: r.uploadCount ?? 0,
+            expiresAt: new Date(r.expiresAt).toISOString(),
+            open: !r.revokedAt && new Date(r.expiresAt) > new Date(),
+            revoked: Boolean(r.revokedAt),
+          }))}
+        />
+      )}
 
-      <DocsPanel
-        templates={docTemplates.map((t) => ({
-          id: String(t._id),
-          name: t.name,
-          verified: Boolean(t.verifiedAt),
-        }))}
-        mayGenerate={mayGenerate}
-        // the tier rule: a partner issues an A-tier job's letters, a CA the
-        // rest — the same ladder that signs the work off (P2-4)
-        mayIssue={
-          can(actor, "approve", "docGenerate", target) &&
-          (issuerFor(engagement.templateSnapshot?.level ?? "") !== "partner" ||
-            actor.role === "partner")
-        }
-        docs={{
-          engagementId: view.id,
-          rows: generated.map((d) => ({
-            id: String(d._id),
-            name: d.templateName,
-            final: d.state === "final",
-            version: d.templateVersion,
-            udin: d.udin,
-            byName: d.createdBy === actor.id ? "you" : "a colleague",
-            issuedByName: d.issuedByName,
-            issuedOn: d.issuedAt ? formatISTDate(d.issuedAt) : "",
-          })),
-        }}
-      />
+      {/* --- things going out: Letters -------------------------------- */}
+      {tab === "letters" && (
+        <>
+          <DocsPanel
+            templates={docTemplates.map((t) => ({
+              id: String(t._id),
+              name: t.name,
+              verified: Boolean(t.verifiedAt),
+            }))}
+            mayGenerate={mayGenerate}
+            // the tier rule: a partner issues an A-tier job's letters, a CA the
+            // rest — the same ladder that signs the work off (P2-4)
+            mayIssue={
+              can(actor, "approve", "docGenerate", target) &&
+              (issuerFor(engagement.templateSnapshot?.level ?? "") !==
+                "partner" ||
+                actor.role === "partner")
+            }
+            docs={{
+              engagementId: view.id,
+              rows: generated.map((d) => ({
+                id: String(d._id),
+                name: d.templateName,
+                final: d.state === "final",
+                version: d.templateVersion,
+                udin: d.udin,
+                byName: d.createdBy === actor.id ? "you" : "a colleague",
+                issuedByName: d.issuedByName,
+                issuedOn: d.issuedAt ? formatISTDate(d.issuedAt) : "",
+                /** Somebody has written in this draft, so it no longer re-resolves. */
+                edited: Boolean(d.edited),
+                editedByName: d.editedByName ?? "",
+                /** Whether the client has actually been sent it, and where to. */
+                sentOn: d.sentAt ? formatISTDate(d.sentAt) : "",
+                sentTo: d.sentTo ?? [],
+              })),
+            }}
+          />
 
-      {/* --- telling somebody about it (P3-17a) ------------------------- */}
-      <section className="rounded-ledger border-rule bg-surface flex flex-col gap-2 border p-4">
-        <div>
-          <h2 className="font-display text-15 font-semibold">Notify</h2>
-          <p className="text-13 text-ink-muted max-w-[70ch]">
-            One message, to the people on this job and to the client&rsquo;s own
-            contacts, in your words. You see exactly what each of them will get
-            before any of it is sent.
+          {/*
+        Notify sits with the letters, not on its own tab: both are the
+        firm saying something to somebody, and a tab with one box on it is
+        a tab nobody clicks twice.
+      */}
+          <section className="rounded-ledger border-rule bg-surface flex flex-col gap-2 border p-4">
+            <div>
+              <h2 className="font-display text-15 font-semibold">Notify</h2>
+              <p className="text-13 text-ink-muted max-w-[70ch]">
+                One message, to the people on this job and to the client&rsquo;s
+                own contacts, in your words. You see exactly what each of them
+                will get before any of it is sent.
+              </p>
+            </div>
+            <NotifyPanel {...await notifyAudience(id)} id={id} />
+          </section>
+        </>
+      )}
+
+      {/* --- how it got here: Activity -------------------------------- */}
+      {tab === "activity" && (
+        <section className="flex flex-col gap-2">
+          <h2 className="font-display text-15 font-semibold">Activity</h2>
+          <p className="text-13 text-ink-muted max-w-[72ch]">
+            Every create, change, status move and download on this job, in
+            order, hash-chained. This is the record the Pipeline history panel
+            used to tell a second time.
           </p>
-        </div>
-        <NotifyPanel {...await notifyAudience(id)} id={id} />
-      </section>
-
-      <section className="flex flex-col gap-2">
-        <h2 className="font-display text-15 font-semibold">Activity</h2>
-        <ActivityFeed entries={JSON.parse(JSON.stringify(audit))} />
-      </section>
+          <ActivityFeed entries={JSON.parse(JSON.stringify(audit))} />
+        </section>
+      )}
     </div>
   );
 }

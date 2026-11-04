@@ -127,6 +127,18 @@ export default defineConfig({
       MONGODB_URI: process.env.MONGODB_URI ?? "",
       AUTH_SKIP_2FA: "false",
       /**
+       * **The server has to know its own address.**
+       *
+       * The local storage driver signs upload tickets against
+       * `NEXT_PUBLIC_APP_URL`, and `.env.test` names port 3000 while this
+       * run is on a port of its own — so every upload in the suite was
+       * sent to a port with nothing listening and came back "Failed to
+       * fetch". The browser uploads straight to the gateway (that is the
+       * point of the two-step upload), so the URL in the ticket has to be
+       * reachable from the browser, not just from the server.
+       */
+      NEXT_PUBLIC_APP_URL: base,
+      /**
        * Its own build directory, for the same reason it has its own port: a
        * developer's `next dev` owns `.next`, and `next build` clearing it
        * mid-compile broke the dev server rather than the test run.

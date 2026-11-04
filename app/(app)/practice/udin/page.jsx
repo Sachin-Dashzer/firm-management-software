@@ -208,6 +208,21 @@ export default async function UdinPage({ searchParams }) {
         }`,
       }))}
       member={member}
+      /**
+       * Arriving from the engagement's last step, which asks whether the
+       * work needs a UDIN (02-11-2026). The form opens with the client and
+       * the engagement already in it, because somebody who has just said
+       * "yes, it needs one" should not have to find them again.
+       */
+      preset={
+        params.new === "1"
+          ? {
+              clientId: typeof params.client === "string" ? params.client : "",
+              engagementId:
+                typeof params.engagement === "string" ? params.engagement : "",
+            }
+          : null
+      }
       mayUpload={can(actor, "edit", "documents")}
     />
   );

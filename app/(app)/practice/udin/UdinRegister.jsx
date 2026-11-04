@@ -49,8 +49,11 @@ export default function UdinRegister({
   clients,
   members,
   member,
+  preset = null,
 }) {
-  const [adding, setAdding] = useState(false);
+  /* arriving from an engagement's last step with the client and the job
+     already decided (02-11-2026): the form opens, filled in */
+  const [adding, setAdding] = useState(Boolean(preset));
   const [revoking, setRevoking] = useState(null);
   const [open, setOpen] = useState(null);
   const [reason, setReason] = useState("");
@@ -208,6 +211,7 @@ export default function UdinRegister({
               <select
                 name="clientId"
                 required
+                defaultValue={preset?.clientId ?? ""}
                 className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
               >
                 <option value="">Choose a client</option>
@@ -273,6 +277,7 @@ export default function UdinRegister({
               </span>
               <input
                 name="engagementId"
+                defaultValue={preset?.engagementId ?? ""}
                 placeholder="Leave blank for a certificate outside any engagement"
                 className="rounded-control border-rule bg-paper text-14 h-10 border px-2 font-mono"
               />
@@ -518,7 +523,9 @@ export default function UdinRegister({
         <Notice tone="bad" title="Why was it revoked?">
           <div className="mt-1 flex flex-wrap items-end gap-3">
             <label className="flex min-w-60 flex-1 flex-col gap-1">
-              <span className="sr-only">The reason</span>
+              {/* the same words as the panel's title: a screen reader
+                  should hear the question, not "the reason" */}
+              <span className="sr-only">Why was it revoked?</span>
               <input
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}

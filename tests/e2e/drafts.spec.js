@@ -99,7 +99,10 @@ test("an unfinished client comes back, without its PAN", async ({
 
   // the entity type comes first; the master is step 2
   await page
-    .getByRole("button", { name: "Private limited company", exact: true })
+    /* the card carries its own second line — "PAN 4th character: C · 7
+       documents" — so its accessible name starts with the label rather
+       than being it */
+    .getByRole("button", { name: /^Private limited company/ })
     .click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByLabel(/Legal name/).fill(fx.clientName);

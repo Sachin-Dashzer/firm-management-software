@@ -223,7 +223,8 @@ test("waived work cannot be put on an invoice", async ({ page }, testInfo) => {
   await signIn(page, fx.partner);
   await page.goto(`/invoices/new?client=${ids.client}`);
 
-  const item = page.getByRole("listitem").filter({ hasText: "Playwright TDS" });
+  // the work waiting to be billed is a table of rows now, not a list
+  const item = page.getByRole("row").filter({ hasText: "Playwright TDS" });
   await expect(item).toContainText("Cannot be billed: waived");
   await expect(item.getByRole("checkbox")).toBeDisabled();
 });

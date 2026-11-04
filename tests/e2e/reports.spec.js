@@ -214,8 +214,12 @@ test("a report filters, exports and remembers a saved view", async ({
   const fx = names(testInfo.project.name);
   await signIn(page, fx.partner);
 
-  await page.goto("/reports");
-  await page.getByRole("link", { name: "Overdue work" }).click();
+  /*
+   * The index is panels of figures with the full report beside each, not a
+   * list of every report by name, so the report is opened by its address —
+   * which is what the rail's and the command bar's links use too.
+   */
+  await page.goto("/reports/overdue");
   await expect(page).toHaveURL(/\/reports\/overdue/);
   await expect(page.getByText(fx.clientName).first()).toBeVisible();
 

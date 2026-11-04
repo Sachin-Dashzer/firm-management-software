@@ -192,7 +192,15 @@ test("opening a group closes the others, and the links are the fixture's", async
       if (item.startsWith("— ")) {
         await expect(rail.getByText(label, { exact: true })).toBeVisible();
       } else {
-        await expect(rail.getByRole("link", { name: label })).toBeVisible();
+        /*
+         * `.first()`: an item's name is a prefix of others in the same menu
+         * — "Monthly" also starts "Monthly GST cycle" and "Monthly health
+         * report" — and `exact` cannot be used instead, because an item
+         * with a badge is named "Overdue3".
+         */
+        await expect(
+          rail.getByRole("link", { name: label }).first(),
+        ).toBeVisible();
       }
     }
 

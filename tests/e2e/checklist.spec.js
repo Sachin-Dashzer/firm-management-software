@@ -160,8 +160,13 @@ async function clientSends(name) {
   return String(item._id);
 }
 
+/*
+ * The checklist row, and only it: the activity feed below the page lists
+ * the same item's name in its own <li>, so the bare filter matches two
+ * elements. The checklist comes first in the document.
+ */
 const row = (page, name) =>
-  page.getByRole("listitem").filter({ hasText: name });
+  page.getByRole("listitem").filter({ hasText: name }).first();
 
 test("a wrong file goes back with a reason, and the right one is accepted", async ({
   page,

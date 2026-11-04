@@ -125,11 +125,18 @@ test("the unconfirmed rule is on the strip, and leaves it once confirmed", async
   await strip.getByText(/due-date rules have not been confirmed/).click();
   await expect(page).toHaveURL(/\/settings\/due-dates/);
 
-  // confirm every rule on the screen, including the fixture's
-  const buttons = page.getByRole("button", { name: /confirm it/ });
-  for (let i = await buttons.count(); i > 0; i -= 1) {
-    await buttons.first().click();
-    await expect(page.getByText(/confirmed\./)).toBeVisible();
+  /*
+   * Confirm every rule on the screen, including the fixture's — reading the
+   * list again each time rather than counting once and trusting the count.
+   * A confirm reloads the list, and the strip clears only when no
+   * unconfirmed rule is left anywhere, so one click lost to a re-render
+   * left the last rule unconfirmed and the assertion below unexplained.
+   */
+  for (let guard = 0; guard < 60; guard += 1) {
+    const next = page.getByRole("button", { name: /confirm it/ }).first();
+    if ((await next.count()) === 0) break;
+    await next.click();
+    await expect(page.getByText(/confirmed\./).first()).toBeVisible();
     await page.reload();
   }
 
@@ -146,11 +153,12 @@ test("the sections are grouped, not one long column", async ({
   await signIn(page, fx.partner);
   await page.goto("/settings");
 
+  // the groups as `GROUPS` in app/(app)/settings/page.jsx names them
   for (const group of [
-    "The firm",
-    "The work",
-    "The practice",
-    "Data and security",
+    "Your firm",
+    "How work runs",
+    "People and access",
+    "Your words",
   ]) {
     await expect(page.getByRole("heading", { name: group })).toBeVisible();
   }
@@ -200,15 +208,19 @@ test("the reports index carries its figures and the new reports", async ({
   await signIn(page, fx.partner);
   await page.goto("/reports");
 
-  // the headline figures, each a link to what produced them
-  await expect(page.getByText("Open work")).toBeVisible();
-  await expect(page.getByText("Filed late this year")).toBeVisible();
-  await page.getByText("Filed late this year").click();
-  // the label's own figure is the link
+  /*
+   * The index is panels of real figures now, each with the full report
+   * beside it, rather than a row of headline tiles.
+   */
+  await expect(
+    page.getByRole("heading", { name: "Management reports", level: 1 }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Filing punctuality/ }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Full report" }).first().click();
+  await expect(page).toHaveURL(/reports/);
   await page.goto("/reports");
-
-  // the categories
-  await expect(page.getByRole("heading", { name: "Compliance" })).toBeVisible();
 
   // and the reports themselves open and export
   for (const key of ["punctuality", "opinions", "rework", "tier-mix"]) {
@@ -235,14 +247,16 @@ test("the audit group in the rail opens the registers", async ({
   await signIn(page, fx.partner);
 
   const rail = page.getByRole("navigation", { name: "Main" }).first();
-  await rail.getByRole("button", { name: "Audit and certificates" }).click();
+  // a group row is a link with aria-expanded, not a button (LeftRail, P3-34)
+  await rail.getByRole("link", { name: "Audit & certificates" }).click();
 
+  /* by href: "All files" is in the documents group as well as this one */
   for (const [label, path] of [
     ["All files", "/practice/audits"],
     ["UDIN register", "/practice/udin"],
     ["Audit studio", "/practice/audit"],
   ]) {
-    await rail.getByRole("link", { name: label, exact: true }).click();
+    await rail.locator(`a[href="${path}"]`).first().click();
     await expect(page).toHaveURL(new RegExp(path.replace(/\//g, "\/")));
     // the group holding the page you are on stays open
     await expect(
@@ -259,7 +273,7 @@ test("an employee gets the group without the registers they cannot open", async 
 
   const rail = page.getByRole("navigation", { name: "Main" }).first();
   // their audit group is shorter and is called what their work is called
-  await rail.getByRole("button", { name: "Audit", exact: true }).click();
+  await rail.getByRole("link", { name: "Audit", exact: true }).click();
   await expect(
     rail.getByRole("link", { name: "Certificate studio" }),
   ).toBeVisible();
@@ -291,7 +305,9 @@ test("setting the firm up reads the records, and says what is left", async ({
    */
   const dueDates = steps.filter({ hasText: "Confirm the due-date rules" });
   await expect(dueDates).toContainText("unconfirmed");
-  await dueDates.getByRole("link", { name: "Do it now" }).click();
+  // the whole row is the link to the screen that does it — there is no
+  // separate "Do it now" any more
+  await dueDates.getByRole("link").first().click();
   await expect(page).toHaveURL(/\/settings\/due-dates$/);
 });
 
@@ -348,8 +364,17 @@ test("what's new is read from the log, not written up by hand", async ({
   // …and not events: a sign-in is not a change, and it is on the Portal log
   await expect(main.getByText(/signed in/)).toHaveCount(0);
 
-  // …nor the day's work, which is also the Portal log's
+  /*
+   * …nor the day's work, which is also the Portal log's.
+   *
+   * The headline's own shape, not the noun anywhere on the page: a
+   * document template's body is quoted in its diff lines and says "the
+   * client" a dozen times, which is the template's words and not an entry
+   * about a client.
+   */
   await expect(
-    main.getByText(/the (client|invoice|engagement|payment)\b/),
+    main.getByText(
+      /(created|changed|deleted|restored) the (client|invoice|engagement|payment)\b/,
+    ),
   ).toHaveCount(0);
 });

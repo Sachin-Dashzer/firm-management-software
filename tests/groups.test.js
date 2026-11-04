@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { engagementQuery } from "../lib/engagements/filter.js";
+import { engagementQuery, assignedTo } from "../lib/engagements/filter.js";
 import { can } from "../lib/permissions.js";
 
 /**
@@ -43,7 +43,7 @@ describe("the group filter narrows and never widens", () => {
 
   it("leaves own-work scoping in place for an employee", () => {
     const query = engagementQuery(employee, { clientIds: ["b1", "b2"] }, NOW);
-    expect(query.$or).toEqual([{ assigneeId: "e1" }, { reviewerId: "e1" }]);
+    expect(query.$or).toEqual(assignedTo("e1"));
     expect(query.clientId).toEqual({ $in: ["b1", "b2"] });
   });
 

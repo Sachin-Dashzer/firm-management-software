@@ -193,9 +193,12 @@ test("the client case file's tabs work by keyboard and keep the section in the U
   await page.goto("/clients");
   await page.getByRole("link", { name: new RegExp(fx.clientName) }).click();
 
-  await page.getByRole("link", { name: "Documents" }).click();
+  // the case file's own tabs: the left rail has a Documents link too, and
+  // it is the firm-wide one
+  const tabs = page.getByRole("navigation", { name: "Client sections" });
+  await tabs.getByRole("link", { name: "Documents" }).click();
   await expect(page).toHaveURL(/tab=documents/);
-  await expect(page.getByRole("link", { name: "Documents" })).toHaveAttribute(
+  await expect(tabs.getByRole("link", { name: "Documents" })).toHaveAttribute(
     "aria-current",
     "page",
   );

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn } from "./signin.js";
-import { pick } from "./alerts.js";
+import { chooseClient } from "./alerts.js";
 import { connectDB } from "../../lib/db.js";
 import User from "../../models/User.js";
 import Branch from "../../models/Branch.js";
@@ -116,8 +116,7 @@ test("a branch with no GSTIN can draft but not issue", async ({
   await signIn(page, fx.partner);
 
   await page.goto("/invoices/new");
-  // by name: "Client" also labels the top bar's search button (D71)
-  await pick(page.locator('select[name="clientId"]'), /Playwright Billing/);
+  await chooseClient(page, "Playwright Billing");
   await page.getByRole("button", { name: /Start an empty draft/ }).click();
   await expect(page).toHaveURL(/\/invoices\/[a-f0-9]{24}/);
 
@@ -156,8 +155,7 @@ test("once registered, an invoice issues with tax and a gapless number", async (
 
   // draft an invoice with one line
   await page.goto("/invoices/new");
-  // by name: "Client" also labels the top bar's search button (D71)
-  await pick(page.locator('select[name="clientId"]'), /Playwright Billing/);
+  await chooseClient(page, "Playwright Billing");
   await page.getByRole("button", { name: /Start an empty draft/ }).click();
   // wait for the draft before reading the address: without this the URL
   // captured is still /invoices/new, and the test reopens that later on
@@ -197,8 +195,7 @@ test("once registered, an invoice issues with tax and a gapless number", async (
 
   // --- a second invoice takes the next number, with no gap ---------------
   await page.goto("/invoices/new");
-  // by name: "Client" also labels the top bar's search button (D71)
-  await pick(page.locator('select[name="clientId"]'), /Playwright Billing/);
+  await chooseClient(page, "Playwright Billing");
   await page.getByRole("button", { name: /Start an empty draft/ }).click();
   await page.getByRole("button", { name: "Add a line" }).click();
   await page.getByLabel("Description 1").fill("Second job");

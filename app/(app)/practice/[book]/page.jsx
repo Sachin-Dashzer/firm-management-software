@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Segmented from "@/components/ui/Segmented";
 import { notFound, redirect } from "next/navigation";
 import { requireUser } from "@/auth";
 import { can } from "@/lib/permissions";
@@ -145,7 +146,32 @@ export default async function PracticeBookPage({ params, searchParams }) {
 
   const now = new Date();
   const all = engagements.map((e) => bookRow(e, lookups, now));
-  const rows = onlyState ? all.filter((r) => r.state === onlyState) : all;
+
+  /**
+   * The search, which a register of a thousand rows had no way of doing.
+   *
+   * Server-side on the rows already fetched rather than another query: the
+   * year is already in memory, the scoping has already been applied to it,
+   * and a second query could only find work this person is not allowed to
+   * see. Filtered **after** the state counts are taken, so the chips keep
+   * describing the year rather than the search.
+   */
+  const needle = String(query.q ?? "")
+    .trim()
+    .toLowerCase();
+  const matches = needle
+    ? all.filter((row) =>
+        [row.cells.client, row.cells.code, row.cells.service, row.cells.member]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(needle),
+      )
+    : all;
+
+  const rows = onlyState
+    ? matches.filter((r) => r.state === onlyState)
+    : matches;
 
   const counts = {
     late: all.filter((r) => r.state === "late").length,
@@ -172,97 +198,168 @@ export default async function PracticeBookPage({ params, searchParams }) {
             {definition.blurb}
           </p>
         </div>
-        <nav className="text-14 flex gap-3">
-          {BOOK_KEYS.map((key) => (
+        {/*
+          The three books are this page's tabs, and they are the same
+          control the engagement and settings screens use now rather than a
+          third shape for the same idea.
+        */}
+        <Segmented
+          label="Which register"
+          variant="underline"
+          value={book}
+          items={BOOK_KEYS.map((key) => ({
+            key,
+            label: BOOKS[key].title,
+            href: `/practice/${key}?fy=${fyStart}`,
+          }))}
+        />
+      </div>
+
+      {/*
+        One toolbar instead of a row of seven differently-shaped links.
+
+        The year, the two state filters and Export were all
+        `rounded-ledger border px-3 py-1` — a year, a filter and a download
+        drawn identically, so nothing told you which of them changed what
+        you were looking at. They are three kinds of control now: a search
+        box, chips that filter, and a button that leaves the page.
+
+        The search is a plain GET form, so it works without JavaScript and
+        the result is a URL somebody can keep.
+      */}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <form method="get" className="flex min-w-[14rem] flex-1 gap-2">
+            <input type="hidden" name="fy" value={fyStart} />
+            {onlyState && (
+              <input type="hidden" name="state" value={onlyState} />
+            )}
+            <label className="min-w-0 flex-1">
+              <span className="sr-only">Search this register</span>
+              <input
+                type="search"
+                name="q"
+                defaultValue={needle}
+                placeholder="Search by client, code, service or member"
+                className="rounded-control border-rule bg-paper text-14 h-9 w-full border px-2"
+              />
+            </label>
+            <button
+              type="submit"
+              className="rounded-control border-rule hover:bg-carbon-wash text-13 h-9 shrink-0 border px-3"
+            >
+              Search
+            </button>
+          </form>
+
+          <Link
+            href={`/practice/${book}/export?fy=${fyStart}${
+              onlyState ? `&state=${onlyState}` : ""
+            }`}
+            className="rounded-control bg-carbon text-14 text-on-carbon hover:bg-carbon-ink flex h-9 shrink-0 items-center px-3 font-medium"
+          >
+            Export to Excel
+          </Link>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-12 text-ink-muted mr-1">Year</span>
+          {[thisYear, thisYear - 1, thisYear - 2].map((year) => (
             <Link
-              key={key}
-              href={`/practice/${key}?fy=${fyStart}`}
-              aria-current={key === book ? "page" : undefined}
-              className={`rounded-ledger border px-3 py-1 ${
-                key === book ? "border-carbon bg-carbon-wash" : "border-rule"
+              key={year}
+              href={link({ fy: String(year), q: needle })}
+              aria-current={year === fyStart ? "page" : undefined}
+              className={`rounded-chip text-13 border px-2.5 py-0.5 ${
+                year === fyStart
+                  ? "border-carbon bg-carbon text-on-carbon"
+                  : "border-rule text-ink-muted hover:bg-carbon-wash"
               }`}
             >
-              {BOOKS[key].title}
+              {financialYearLabel(istDate(year, 6, 1))}
             </Link>
           ))}
-        </nav>
+
+          {(counts.late > 0 || counts.overdue > 0) && (
+            <span className="border-rule ml-1.5 flex flex-wrap gap-1.5 border-l pl-2.5">
+              {counts.overdue > 0 && (
+                <Link
+                  href={link({
+                    state: onlyState === "overdue" ? "" : "overdue",
+                    q: needle,
+                  })}
+                  aria-current={onlyState === "overdue" ? "page" : undefined}
+                  className={`rounded-chip text-13 border px-2.5 py-0.5 ${
+                    onlyState === "overdue"
+                      ? "border-carbon bg-carbon text-on-carbon"
+                      : "border-redpen text-redpen hover:bg-redpen-wash"
+                  }`}
+                >
+                  Past the deadline, not filed
+                  <span className="num ml-1.5 opacity-80">
+                    {counts.overdue}
+                  </span>
+                </Link>
+              )}
+              {counts.late > 0 && (
+                <Link
+                  href={link({
+                    state: onlyState === "late" ? "" : "late",
+                    q: needle,
+                  })}
+                  aria-current={onlyState === "late" ? "page" : undefined}
+                  className={`rounded-chip text-13 border px-2.5 py-0.5 ${
+                    onlyState === "late"
+                      ? "border-carbon bg-carbon text-on-carbon"
+                      : "border-waiting text-waiting hover:bg-waiting-wash"
+                  }`}
+                >
+                  Filed late
+                  <span className="num ml-1.5 opacity-80">{counts.late}</span>
+                </Link>
+              )}
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="text-14 flex flex-wrap items-center gap-3">
-        <span className="text-ink-muted">Financial year</span>
-        {[thisYear, thisYear - 1, thisYear - 2].map((year) => (
-          <Link
-            key={year}
-            href={link({ fy: String(year) })}
-            aria-current={year === fyStart ? "page" : undefined}
-            className={`rounded-ledger border px-3 py-1 ${
-              year === fyStart ? "border-carbon bg-carbon-wash" : "border-rule"
-            }`}
-          >
-            {financialYearLabel(istDate(year, 6, 1))}
-          </Link>
-        ))}
-
-        {(counts.late > 0 || counts.overdue > 0) && (
-          <span className="border-rule ml-2 flex gap-3 border-l pl-3">
-            {counts.overdue > 0 && (
-              <Link
-                href={link({ state: onlyState === "overdue" ? "" : "overdue" })}
-                aria-current={onlyState === "overdue" ? "page" : undefined}
-                className={`rounded-ledger border px-3 py-1 ${
-                  onlyState === "overdue"
-                    ? "border-carbon bg-carbon-wash"
-                    : "border-rule"
-                }`}
-              >
-                <span className="num text-redpen font-medium">
-                  {counts.overdue}
-                </span>{" "}
-                past the deadline, not filed
-              </Link>
-            )}
-            {counts.late > 0 && (
-              <Link
-                href={link({ state: onlyState === "late" ? "" : "late" })}
-                aria-current={onlyState === "late" ? "page" : undefined}
-                className={`rounded-ledger border px-3 py-1 ${
-                  onlyState === "late"
-                    ? "border-carbon bg-carbon-wash"
-                    : "border-rule"
-                }`}
-              >
-                <span className="num font-medium">{counts.late}</span> filed
-                late
-              </Link>
-            )}
-          </span>
-        )}
-
-        <Link
-          href={`/practice/${book}/export?fy=${fyStart}${
-            onlyState ? `&state=${onlyState}` : ""
-          }`}
-          className="rounded-ledger border-rule ml-auto border px-3 py-1"
-        >
-          Export
-        </Link>
-      </div>
-
+      {/*
+        The table keeps its header while the rows scroll. Ten columns over
+        a thousand rows means the labels scroll away in the first flick of
+        the wheel, and a register where you cannot tell the report date
+        from the filing date is unreadable rather than merely wide.
+      */}
       {rows.length === 0 ? (
         <p className="text-14 text-ink-muted rounded-ledger border-rule border border-dashed p-6">
-          Nothing in this book for {financialYearLabel(istDate(fyStart, 6, 1))}.
-          {onlyState
-            ? " Clear the filter above to see the rest of the year."
-            : ` A job appears here as soon as a ${definition.categories[0].toLowerCase()} service is set up for a client.`}
+          {needle ? (
+            <>
+              Nothing in this book matches &ldquo;{needle}&rdquo; in{" "}
+              {financialYearLabel(istDate(fyStart, 6, 1))}.{" "}
+              <Link
+                href={link({ q: "" })}
+                className="underline underline-offset-4"
+              >
+                Clear the search
+              </Link>
+              .
+            </>
+          ) : (
+            <>
+              Nothing in this book for{" "}
+              {financialYearLabel(istDate(fyStart, 6, 1))}.
+              {onlyState
+                ? " Clear the filter above to see the rest of the year."
+                : ` A job appears here as soon as a ${definition.categories[0].toLowerCase()} service is set up for a client.`}
+            </>
+          )}
         </p>
       ) : (
-        <div className="rounded-table border-rule overflow-x-auto border">
+        <div className="rounded-table border-rule max-h-[70vh] overflow-auto border">
           <table className="text-14 w-full border-collapse">
             <caption className="sr-only">
               {definition.title}, {financialYearLabel(istDate(fyStart, 6, 1))}
             </caption>
             <thead>
-              <tr className="border-rule bg-surface border-b text-left">
+              <tr className="border-rule bg-surface sticky top-0 z-10 border-b text-left">
                 {definition.columns.map((key) => (
                   <th
                     key={key}
@@ -312,6 +409,21 @@ export default async function PracticeBookPage({ params, searchParams }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {rows.length > 0 && (
+        <p className="text-13 text-ink-muted">
+          <span className="num">{rows.length}</span>{" "}
+          {rows.length === 1 ? "entry" : "entries"}
+          {rows.length !== all.length && (
+            <>
+              {" "}
+              of <span className="num">{all.length}</span> in{" "}
+              {financialYearLabel(istDate(fyStart, 6, 1))}
+            </>
+          )}
+          .
+        </p>
       )}
 
       {all.length >= LIMIT && (

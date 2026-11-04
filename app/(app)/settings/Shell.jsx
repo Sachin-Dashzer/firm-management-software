@@ -70,9 +70,13 @@ export default function SettingsScreen({
  * lines of prose, stacked — the shape a page takes when every step that
  * added a screen also added a card. A card is a container, and a container
  * per link says nothing about the link. These are rows: the name, the line
- * about it, and the **reading** — four offices, eleven rules, none
- * confirmed — on the ledger grid at the right, which is the part somebody
- * opening Settings is actually looking for.
+ * about it, and the **reading** on the ledger grid at the right.
+ *
+ * The index itself has since gone further and draws its own directory
+ * (04-11-2026): a full-width row per link was still a page you had to read
+ * down. What is left here is `/settings/coverage`, which is a list of
+ * statements rather than a directory — one row per thing the system does,
+ * read in order, where the full-width row is right.
  *
  * `state` is the reading. `tone` marks the one row that is wrong, and
  * nothing is marked when nothing is.
@@ -93,7 +97,8 @@ export function RowList({ as: As = "ul", children }) {
  * @param {string} [props.href]
  * @param {React.ReactNode} props.title
  * @param {React.ReactNode} [props.body]
- * @param {string} [props.state] the reading, in the ledger face
+ * @param {React.ReactNode} [props.state] the reading; mark the figure in
+ *        it with `.num` yourself when it carries words as well
  * @param {"warn"|"bad"|"good"|"quiet"} [props.tone] how it is marked
  */
 export function Row({ href, title, body, state, tone }) {
@@ -117,11 +122,21 @@ export function Row({ href, title, body, state, tone }) {
         )}
       </span>
       {state && (
-        // a figure goes on the ledger grid; a word does not — "needs you"
-        // set in the mono face reads like a code for something
+        /*
+         * A figure goes on the ledger grid; a word does not — "needs you"
+         * set in the mono face reads like a code for something.
+         *
+         * A reading is usually both ("4 offices"), so the caller may pass
+         * a node and mark the figure itself with `.num`; a bare string
+         * gets the grid only when it opens with a digit and is all
+         * figure. The test read `/^d/` until 04-11-2026 — the letter d —
+         * so no reading on this screen ever reached the grid.
+         */
         <span
           className={`text-13 shrink-0 text-right ${
-            /^d/.test(state) ? "num" : ""
+            typeof state === "string" && /^[\d₹]+$/.test(state.trim())
+              ? "num"
+              : ""
           } ${stateTone}`}
         >
           {state}

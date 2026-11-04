@@ -324,7 +324,14 @@ test("the grid shows a month nobody filed", async ({ page }, testInfo) => {
   });
 
   await signIn(page, fx.partner);
-  await page.goto(`/compliance/monthly?service=${template._id}&fy=2026`);
+  /*
+   * The status grid, explicitly. Compliance opens on the heads since P3-34
+   * — the first question of a month is which head is behind, not which
+   * client — and the client-by-period grid is the third view.
+   */
+  await page.goto(
+    `/compliance/monthly?view=grid&service=${template._id}&fy=2026`,
+  );
 
   await expect(page.getByRole("heading", { name: "Compliance" })).toBeVisible();
   await expect(page.getByText("Playwright Deadlines")).toBeVisible();

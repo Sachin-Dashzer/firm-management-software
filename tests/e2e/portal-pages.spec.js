@@ -323,7 +323,8 @@ test("a change request reaches the firm and changes nothing", async ({
 
   await page.goto("/client/profile");
   // their own details, and nothing internal
-  await expect(page.getByText("AAACP1234K")).toBeVisible();
+  // exact: their GSTIN (09AAACP1234K1Z5) carries the PAN inside it
+  await expect(page.getByText("AAACP1234K", { exact: true })).toBeVisible();
   await expect(
     page.getByText(/Client partner|Relationship manager/),
   ).toHaveCount(0);

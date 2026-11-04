@@ -156,23 +156,24 @@ test.afterAll(async ({}, testInfo) => {
    */
 });
 
-test("a CA sees the queue but cannot decide it", async ({ page }, testInfo) => {
+/**
+ * The board is a Partner's screen, not a CA's.
+ *
+ * It was written as "a CA sees the queue but cannot decide it", which is
+ * not what the permission matrix says: the screen is `usersSettings` (spec
+ * section 2), which a CA has no view of at all. A queue of messages about
+ * to go to clients is the firm's own settings, and the decision and the
+ * reading of it are the same person's.
+ */
+test("the automation board is closed to a CA", async ({ page }, testInfo) => {
   const fx = names(testInfo.project.name);
   await signIn(page, fx.ca);
   await page.goto("/settings/automation");
 
-  await expect(page.getByText(/Waiting for you · 1/)).toBeVisible();
-  // the message is readable — a CA should know what is going out
+  await expect(page).toHaveURL(/\/issues$/);
   await expect(
     page.getByText("We are still waiting for some papers"),
-  ).toBeVisible();
-  // but the decision is a partner's
-  await expect(
-    page.getByRole("button", { name: "Approve and send" }),
   ).toHaveCount(0);
-  await expect(
-    page.getByText(/only a\s+Partner \/ Admin can change this/).first(),
-  ).toBeVisible();
 });
 
 test("a partner reads the real message, the recipients, and then approves", async ({
@@ -210,15 +211,16 @@ test("the firm-wide pause is one switch, and it says so on screen", async ({
   await signIn(page, fx.partner);
   await page.goto("/settings/automation");
 
-  await expect(
-    page.getByText(/Automatic messages to clients are running/),
-  ).toBeVisible();
+  // the board's own words for the two states
+  await expect(page.getByText("Automation is running")).toBeVisible();
 
   await page.getByRole("button", { name: "Pause everything" }).click();
   await expect(
-    page.getByText(/Automatic messages to clients are paused/),
+    page.getByText("Everything automatic is paused"),
   ).toBeVisible();
-  await expect(page.getByText(/nothing leaves the building/)).toBeVisible();
+  await expect(
+    page.getByText(/Nothing automated reaches a client/),
+  ).toBeVisible();
 
   const firm = await FirmSettings.findOne({ key: "firm" })
     .select("automationPaused")
@@ -226,9 +228,7 @@ test("the firm-wide pause is one switch, and it says so on screen", async ({
   expect(firm.automationPaused).toBe(true);
 
   await page.getByRole("button", { name: "Start sending again" }).click();
-  await expect(
-    page.getByText(/Automatic messages to clients are running/),
-  ).toBeVisible();
+  await expect(page.getByText("Automation is running")).toBeVisible();
 });
 
 test("trusting a rule is a partner's decision and is recorded", async ({
@@ -238,17 +238,28 @@ test("trusting a rule is a partner's decision and is recorded", async ({
   await signIn(page, fx.partner);
   await page.goto("/settings/automation");
 
+  /*
+   * The recipe's own row — the approval queue above it names the same rule,
+   * so the filter needs the recipes list — and the control is a toggle
+   * that says the state it is in ("Needs approval" / "Trusted") rather
+   * than a "Trust this rule" button.
+   */
   const row = page
+    .locator("#recipes")
     .getByRole("listitem")
-    .filter({ hasText: "Reminds a client about documents" });
-  await row.getByRole("button", { name: "Trust this rule" }).click();
+    .filter({ hasText: "Reminds a client about documents" })
+    .first();
+  await row.getByRole("button", { name: "Needs approval" }).click();
 
   await expect(
     page.getByText(/can now send without waiting for you/),
   ).toBeVisible();
   // and the limits that still apply are on the screen beside it
   await expect(page.getByText(/25 clients/)).toBeVisible();
-  await expect(page.getByText(/4 automatic messages a month/)).toBeVisible();
+  // the board's own words for the monthly cap
+  await expect(
+    page.getByText(/automated messages to one client in a calendar month/),
+  ).toBeVisible();
 
   const rule = await NotificationRule.findOne({
     key: "documentsPending",

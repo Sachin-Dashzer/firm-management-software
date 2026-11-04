@@ -6,30 +6,44 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import FilterChip from "@/components/ui/FilterChip";
 import SearchBox, { matches } from "@/components/ui/SearchBox";
 import { ScrollArea } from "@/components/ui/Screen";
+import CellPopover from "@/components/ui/CellPopover";
 import { markAllRead, markRead, snoozeNotification, wake } from "./actions";
 import { SNOOZE_CHOICES } from "@/lib/inbox";
 
 /**
- * The inbox list (P3-17a, laid out again in D104).
+ * The inbox list (P3-17a, laid out again in D104, and again 04-11-2026).
  *
- * Unread is marked in the margin rather than shouted. What is new in
- * D104 is where the row's controls live: snooze and mark-read were
- * underlined words mixed into the meta line, so the line read
- * "Mentions · 25-10-2026 09:12 snooze mark read" and the two words that
- * did something looked exactly like the two that did not. They are now a
- * trailing column of controls at a fixed pitch, which is what the
- * app-screen study finds on every list whose rows need doing.
+ * Unread is marked in the margin rather than shouted, and the whole list
+ * is in the browser already, so the search filters it without a request.
+ * Nothing can be deleted: the nudge is about something real, and a list
+ * people clear is a list people clear without reading.
  *
- * Everything else is unchanged: nothing can be deleted, and the whole
- * list is in the browser already, so the search filters it without a
- * request.
+ * ## What changed on 04-11-2026
+ *
+ * **The row's controls wait to be asked.** D104 moved snooze and mark-read
+ * out of the meta line into a trailing column, which was right, and then
+ * drew them on all three hundred rows at once: six hundred bordered
+ * buttons down a list whose content is the thing being read. They now
+ * appear on the row under the pointer, or under the keyboard — and on a
+ * touch screen, where there is no pointer to hover, they stay drawn.
+ * Nothing became unreachable: `group-focus-within` means tabbing into a
+ * row reveals its own controls, so the keyboard path is the same as it
+ * was.
+ *
+ * **Snooze stopped moving the row.** Picking a time replaced the row's two
+ * controls with four more, so the list reflowed under the cursor and the
+ * row you were aiming at moved. The choices open over the button instead,
+ * in `CellPopover` — which closes on Escape, returns focus to the button
+ * and does not trap it.
+ *
+ * **The controls say the same kind of thing.** "Bring it back", "snooze",
+ * "mark read" were three different capitalisations in one gutter.
  */
 export default function InboxList({ rows, kinds, kind, show, counts, asleep }) {
   const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams();
   const [message, setMessage] = useState(null);
-  const [open, setOpen] = useState(null);
   const [query, setQuery] = useState("");
   const [pending, startTransition] = useTransition();
 
@@ -51,7 +65,6 @@ export default function InboxList({ rows, kinds, kind, show, counts, asleep }) {
     startTransition(async () => {
       const result = await action();
       setMessage(result);
-      setOpen(null);
       router.refresh();
     });
   }
@@ -90,7 +103,7 @@ export default function InboxList({ rows, kinds, kind, show, counts, asleep }) {
               type="button"
               disabled={pending}
               onClick={() => run(markAllRead)}
-              className="rounded-control border-rule bg-paper text-13 hover:border-carbon h-8 shrink-0 border px-3 whitespace-nowrap disabled:opacity-60"
+              className="rounded-control border-rule bg-paper text-13 hover:border-carbon h-8 shrink-0 border px-3 whitespace-nowrap transition-colors duration-150 disabled:opacity-60"
             >
               Mark everything read
             </button>
@@ -114,7 +127,7 @@ export default function InboxList({ rows, kinds, kind, show, counts, asleep }) {
           {visible.map((row) => (
             <li
               key={row.id}
-              className="border-rule hover:bg-carbon-wash flex flex-wrap items-start gap-x-3 gap-y-2 border-b px-4 py-2.5 last:border-0"
+              className="group border-rule hover:bg-carbon-wash/60 focus-within:bg-carbon-wash/60 flex flex-wrap items-start gap-x-3 gap-y-2 border-b px-4 py-2.5 transition-colors duration-100 last:border-0"
             >
               <span
                 aria-hidden="true"
@@ -128,12 +141,20 @@ export default function InboxList({ rows, kinds, kind, show, counts, asleep }) {
                   <Link
                     href={row.href}
                     onClick={() => markRead(row.id)}
-                    className="text-14 hover:text-carbon font-medium"
+                    className={`text-14 hover:text-carbon ${
+                      row.read ? "font-medium" : "font-semibold"
+                    }`}
                   >
                     {row.title}
                   </Link>
                 ) : (
-                  <p className="text-14 font-medium">{row.title}</p>
+                  <p
+                    className={`text-14 ${
+                      row.read ? "font-medium" : "font-semibold"
+                    }`}
+                  >
+                    {row.title}
+                  </p>
                 )}
                 {row.body && (
                   <p className="text-13 text-ink-muted">{row.body}</p>
@@ -144,28 +165,52 @@ export default function InboxList({ rows, kinds, kind, show, counts, asleep }) {
                 </p>
               </div>
 
-              <span className="flex shrink-0 items-center gap-1.5">
+              {/*
+                Drawn on the row being pointed at or tabbed into. Always
+                drawn where there is no pointer: `hover:` never matches on
+                a touch screen, so a finger would find nothing.
+              */}
+              <span className="flex shrink-0 items-center gap-1.5 opacity-100 transition-opacity duration-150 sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
                 {row.asleep ? (
-                  <Control onClick={() => run(() => wake(row.id))}>
+                  <Control
+                    disabled={pending}
+                    onClick={() => run(() => wake(row.id))}
+                  >
                     Bring it back
                   </Control>
-                ) : open === row.id ? (
-                  SNOOZE_CHOICES.map((choice) => (
-                    <Control
-                      key={choice.key}
-                      onClick={() =>
-                        run(() => snoozeNotification(row.id, choice.key))
-                      }
-                    >
-                      {choice.label}
-                    </Control>
-                  ))
                 ) : (
-                  <Control onClick={() => setOpen(row.id)}>snooze</Control>
+                  <CellPopover
+                    title="Bring it back"
+                    triggerLabel={`Snooze: ${row.title}`}
+                    triggerClassName="rounded-control border-rule bg-paper text-12 text-ink-muted hover:text-ink hover:border-carbon h-7 border px-2 whitespace-nowrap transition-colors duration-150"
+                    trigger="Snooze"
+                  >
+                    {(close) => (
+                      <div className="flex flex-col items-start gap-1">
+                        {SNOOZE_CHOICES.map((choice) => (
+                          <button
+                            key={choice.key}
+                            type="button"
+                            disabled={pending}
+                            onClick={() => {
+                              close(false);
+                              run(() => snoozeNotification(row.id, choice.key));
+                            }}
+                            className="rounded-control hover:bg-carbon-wash text-13 w-full px-2 py-1 text-left disabled:opacity-60"
+                          >
+                            {choice.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </CellPopover>
                 )}
                 {!row.read && (
-                  <Control onClick={() => run(() => markRead(row.id))}>
-                    mark read
+                  <Control
+                    disabled={pending}
+                    onClick={() => run(() => markRead(row.id))}
+                  >
+                    Mark read
                   </Control>
                 )}
               </span>
@@ -189,12 +234,13 @@ export default function InboxList({ rows, kinds, kind, show, counts, asleep }) {
 }
 
 /** One of a row's own controls: the same shape for every one of them. */
-function Control({ onClick, children }) {
+function Control({ onClick, disabled, children }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="rounded-control border-rule bg-paper text-12 text-ink-muted hover:text-ink hover:border-carbon h-7 border px-2 whitespace-nowrap"
+      disabled={disabled}
+      className="rounded-control border-rule bg-paper text-12 text-ink-muted hover:text-ink hover:border-carbon h-7 border px-2 whitespace-nowrap transition-colors duration-150 disabled:opacity-60"
     >
       {children}
     </button>

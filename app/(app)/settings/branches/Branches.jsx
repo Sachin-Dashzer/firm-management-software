@@ -7,13 +7,35 @@ import { updateBranch } from "./actions";
 import { Result } from "@/components/ui/Notice";
 import SettingsScreen from "../Shell";
 import Notice from "@/components/ui/Notice";
+import {
+  TableShell,
+  Table,
+  Head,
+  Th,
+  Tr,
+  Td,
+  Meta,
+  Empty,
+} from "@/components/ui/Table";
 
 /**
  * The offices, and the registration each one bills under.
  *
- * A branch with no GSTIN is called out plainly, because until it has one
- * the firm cannot raise a tax invoice from it at all — and that is not
- * obvious from anywhere else in the app.
+ * **A table, as of 04-11-2026.** This was four bordered cards stacked down
+ * an 820px column, each repeating the same six labels — GSTIN, Supplying
+ * from, Address, Series — so the one question the screen exists to answer
+ * ("which office cannot raise an invoice?") took four separate readings
+ * instead of one glance down a column. Four records with the same six
+ * fields is the definition of a table, and `components/ui/Table` already
+ * draws the firm's.
+ *
+ * Editing stays **in the row**. Two fields and no destructive consequence
+ * is not worth a dialog, and the GSTIN beside it is the thing somebody is
+ * copying from.
+ *
+ * A branch with no GSTIN is called out twice on purpose: once in the band
+ * at the top, which explains what it costs, and once as a marked row, so
+ * the explanation and the offending record are never on different screens.
  */
 export default function Branches({ rows }) {
   const router = useRouter();
@@ -25,8 +47,13 @@ export default function Branches({ rows }) {
 
   return (
     <SettingsScreen
+      wide
       title="Offices"
-      sub="Each office bills under its own GST registration and its own invoice series."
+      sub={
+        rows.length
+          ? `${rows.length} ${rows.length === 1 ? "office" : "offices"}, each billing under its own GST registration and its own invoice series.`
+          : "Each office bills under its own GST registration and its own invoice series."
+      }
     >
       {missing.length > 0 && (
         <Notice
@@ -49,112 +76,164 @@ export default function Branches({ rows }) {
 
       <Result message={message} />
 
-      {rows.map((branch) => (
-        <section
-          key={branch.id}
-          className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4"
-        >
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <div>
-              <h2 className="font-display text-15 font-semibold">
-                {branch.name}
-              </h2>
-              <p className="text-13 text-ink-muted font-mono">{branch.code}</p>
-            </div>
-            <p className="text-13 text-ink-muted">
-              Series <span className="font-mono">{branch.series}</span> ·{" "}
-              {branch.issued} issued
-            </p>
-          </div>
+      <TableShell>
+        <Table caption="Offices, their GST registrations and their invoice series">
+          <colgroup>
+            <col className="w-[22%]" />
+            <col className="w-[26%]" />
+            <col />
+            <col className="w-[20%]" />
+            <col className="w-[72px]" />
+          </colgroup>
+          <Head>
+            <Th>Office</Th>
+            <Th>GST registration</Th>
+            <Th>Address on the invoice</Th>
+            <Th rule align="right">
+              Invoice series
+            </Th>
+            <Th>
+              <span className="sr-only">Edit</span>
+            </Th>
+          </Head>
+          <tbody>
+            {rows.length === 0 && (
+              <Empty colSpan={5}>
+                No offices yet. They are created by the first-run seed — see
+                Settings → Setting the firm up.
+              </Empty>
+            )}
 
-          {editing === branch.id ? (
-            <form
-              onSubmit={saving((formData) =>
-                startTransition(async () => {
-                  setMessage(await updateBranch(branch.id, formData));
-                  setEditing(null);
-                  router.refresh();
-                }),
-              )}
-              className="grid gap-3 sm:grid-cols-2"
-            >
-              <label className="flex flex-col gap-1">
-                <span className="text-13 text-ink-muted font-medium">
-                  GSTIN
-                </span>
-                <input
-                  name="gstin"
-                  defaultValue={branch.gstin}
-                  maxLength={15}
-                  placeholder="09AABCS1429P1ZZ"
-                  className="rounded-control border-rule bg-paper text-14 h-9 border px-2 font-mono uppercase"
-                />
-                <span className="text-12 text-ink-muted">
-                  Checked properly, not just for shape.
-                </span>
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-13 text-ink-muted font-medium">
-                  Address on the invoice
-                </span>
-                <input
-                  name="address"
-                  defaultValue={branch.address}
-                  className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
-                />
-              </label>
-              <div className="flex gap-3 sm:col-span-2">
-                <button
-                  type="submit"
-                  disabled={pending}
-                  className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
+            {rows.map((branch) =>
+              editing === branch.id ? (
+                <Tr key={branch.id}>
+                  {/* the editing row gives its whole width to the form:
+                      two inputs in table cells would inherit the column
+                      widths the reading needs, not the ones typing does */}
+                  <Td colSpan={5} className="bg-sunk">
+                    <form
+                      onSubmit={saving((formData) =>
+                        startTransition(async () => {
+                          setMessage(await updateBranch(branch.id, formData));
+                          setEditing(null);
+                          router.refresh();
+                        }),
+                      )}
+                      className="flex flex-col gap-3"
+                    >
+                      <p className="text-13 text-ink-muted">
+                        Editing <span className="text-ink">{branch.name}</span>{" "}
+                        <span className="num">{branch.code}</span>
+                      </p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="flex flex-col gap-1">
+                          <span className="text-13 font-medium">GSTIN</span>
+                          <input
+                            name="gstin"
+                            defaultValue={branch.gstin}
+                            maxLength={15}
+                            autoFocus
+                            placeholder="09AABCS1429P1ZZ"
+                            className="rounded-control border-rule bg-surface text-14 focus:border-carbon h-9 border px-2 font-mono uppercase outline-none"
+                          />
+                          <span className="text-12 text-ink-muted">
+                            Checked properly, not just for shape.
+                          </span>
+                        </label>
+                        <label className="flex flex-col gap-1">
+                          <span className="text-13 font-medium">
+                            Address on the invoice
+                          </span>
+                          <input
+                            name="address"
+                            defaultValue={branch.address}
+                            className="rounded-control border-rule bg-surface text-14 focus:border-carbon h-9 border px-2 outline-none"
+                          />
+                          <span className="text-12 text-ink-muted">
+                            Printed on every invoice this office raises.
+                          </span>
+                        </label>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="submit"
+                          disabled={pending}
+                          className="rounded-control bg-carbon text-14 text-on-carbon hover:bg-carbon-ink h-9 px-3 font-medium transition-colors duration-150 disabled:opacity-60"
+                        >
+                          {pending ? "Saving…" : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditing(null)}
+                          disabled={pending}
+                          className="text-14 text-ink-muted hover:text-ink underline underline-offset-4 disabled:opacity-60"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  </Td>
+                </Tr>
+              ) : (
+                <Tr
+                  key={branch.id}
+                  tint={branch.gstin ? "" : "bg-waiting-soft"}
                 >
-                  Save
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditing(null)}
-                  className="text-14 text-ink-muted underline underline-offset-4"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          ) : (
-            <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <dl className="text-14 flex flex-wrap gap-x-6 gap-y-1">
-                <div className="flex gap-2">
-                  <dt className="text-ink-muted">GSTIN</dt>
-                  <dd className="font-mono">
-                    {branch.gstin || (
-                      <span className="text-waiting font-sans">not set</span>
+                  <Td>
+                    <span className="font-medium">{branch.name}</span>
+                    <Meta className="num">{branch.code}</Meta>
+                  </Td>
+                  <Td>
+                    {branch.gstin ? (
+                      <>
+                        <span className="num">{branch.gstin}</span>
+                        {branch.stateName && (
+                          <Meta>Supplying from {branch.stateName}</Meta>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-waiting font-medium">
+                          not set
+                        </span>
+                        <Meta>Cannot issue a tax invoice</Meta>
+                      </>
                     )}
-                  </dd>
-                </div>
-                {branch.stateName && (
-                  <div className="flex gap-2">
-                    <dt className="text-ink-muted">Supplying from</dt>
-                    <dd>{branch.stateName}</dd>
-                  </div>
-                )}
-                {branch.address && (
-                  <div className="flex gap-2">
-                    <dt className="text-ink-muted">Address</dt>
-                    <dd>{branch.address}</dd>
-                  </div>
-                )}
-              </dl>
-              <button
-                type="button"
-                onClick={() => setEditing(branch.id)}
-                className="text-13 underline underline-offset-4"
-              >
-                Edit
-              </button>
-            </div>
-          )}
-        </section>
-      ))}
+                  </Td>
+                  <Td className="text-ink-muted">
+                    {branch.address || <span className="text-faint">—</span>}
+                  </Td>
+                  <Td rule align="right">
+                    <span className="num">{branch.series}</span>
+                    {/* "at 1" was the counter's position, which reads as a
+                        code beside "none issued yet". Both say the same
+                        kind of thing now: how many have gone out. */}
+                    <Meta>
+                      {branch.issued ? (
+                        <>
+                          <span className="num">{branch.issued}</span> issued
+                        </>
+                      ) : (
+                        "none issued yet"
+                      )}
+                    </Meta>
+                  </Td>
+                  <Td align="right">
+                    <button
+                      type="button"
+                      onClick={() => setEditing(branch.id)}
+                      className="text-13 text-carbon hover:text-carbon-ink underline underline-offset-4"
+                    >
+                      Edit
+                      <span className="sr-only"> {branch.name}</span>
+                    </button>
+                  </Td>
+                </Tr>
+              ),
+            )}
+          </tbody>
+        </Table>
+      </TableShell>
     </SettingsScreen>
   );
 }

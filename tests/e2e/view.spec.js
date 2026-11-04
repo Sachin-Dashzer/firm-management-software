@@ -188,7 +188,9 @@ test("the selector offers only the branches you may see", async ({
   await signIn(page, fx.manager);
 
   const options = await selector(page).locator("option").allInnerTexts();
-  expect(options).toContain("All my branches");
+  // "All branches" means the ones this person may see, which is what the
+  // label under it says — the option was renamed when the top bar was redrawn
+  expect(options).toContain("All branches");
   expect(options).toContain("Noida (head office)");
   expect(options).toContain("Ludhiana");
   expect(options).toContain("My work across branches");
@@ -328,7 +330,7 @@ test("an empty period gets a reason, and leaves the count", async ({
 }, testInfo) => {
   const fx = names(testInfo.project.name);
   await signIn(page, fx.manager);
-  await selector(page).selectOption({ label: "All my branches" });
+  await selector(page).selectOption({ label: "All branches" });
 
   const service = await ServiceTemplate.findOne({ code: fx.code }).lean();
   await page.goto(

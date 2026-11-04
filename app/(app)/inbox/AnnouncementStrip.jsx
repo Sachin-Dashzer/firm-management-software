@@ -31,10 +31,21 @@ export default function AnnouncementStrip({ rows }) {
   }
 
   return (
+    /*
+     * The cap stops a long notice eating the inbox, and until 04-11-2026
+     * it was `max-h-44` with nothing to say so: one ordinary announcement
+     * with a body and an acknowledge button is taller than 11rem, so the
+     * button was sliced through its middle by the edge of the box and the
+     * screen read as broken rather than as scrollable.
+     *
+     * Taller, and the last line fades into the edge — a cut you can see is
+     * a cut you scroll. The fade sits inside the panel's own padding when
+     * there is nothing to scroll, so it costs nothing in the common case.
+     */
     <Panel
       title="From the firm"
       count={rows.length > 1 ? `${rows.length} up` : undefined}
-      className="max-h-44 shrink-0 overflow-y-auto"
+      className="max-h-60 shrink-0 overflow-y-auto [mask-image:linear-gradient(to_bottom,black_calc(100%-1rem),transparent)]"
     >
       {message?.ok && (
         <p role="status" className="text-13 text-filed">

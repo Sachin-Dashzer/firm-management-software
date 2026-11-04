@@ -65,7 +65,18 @@ export async function createNotice(_prev, formData) {
   const client = await Client.findById(clientId).select("branchId").lean();
   if (!client) return { error: "Choose a client." };
 
-  assertCan(actor, "edit", "practice", { branchId: String(client.branchId) });
+  /**
+   * Refused, not thrown — the same fix as `createCertificate`, for the
+   * same reason. An uncaught `assertCan` here crashed the action and the
+   * screen said "An unexpected response was received from the server"
+   * instead of naming the rule.
+   */
+  if (!can(actor, "edit", "practice", { branchId: String(client.branchId) })) {
+    return {
+      error:
+        "That client is in a branch you cannot record notices for. Ask a partner, or pick a client in your own branch.",
+    };
+  }
 
   const kind = String(formData.get("kind") ?? "");
   const entry = NOTICE_KINDS[kind];

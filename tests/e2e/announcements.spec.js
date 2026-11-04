@@ -102,9 +102,9 @@ test("an announcement reaches the firm, and says who has not read it", async ({
   await expect(page.getByRole("status")).toContainText(/Posted/);
 
   // the CA has not read it, and is named rather than counted
-  await expect(page.getByText(/Not read yet:/)).toContainText(
-    "Playwright Announce CA",
-  );
+  await expect(
+    page.locator("p").filter({ hasText: /Not read yet:/ }),
+  ).toContainText("Playwright Announce CA");
 
   // they meet it at the top of their inbox, and can say so
   await page.context().clearCookies();
@@ -112,7 +112,8 @@ test("an announcement reaches the firm, and says who has not read it", async ({
   await page.goto("/inbox");
 
   await expect(page.getByText("From the firm")).toBeVisible();
-  await expect(page.getByText(fx.title)).toBeVisible();
+  // the inbox names it twice: the band's heading and the link to the thread
+  await expect(page.getByText(fx.title).first()).toBeVisible();
   await page.getByRole("button", { name: "I have read this" }).click();
   await expect(page.getByText(/You said you had read this/)).toBeVisible();
 
@@ -120,7 +121,12 @@ test("an announcement reaches the firm, and says who has not read it", async ({
   await page.context().clearCookies();
   await signIn(page, fx.partner);
   await page.goto("/inbox/announcements");
+  /*
+   * The CA's acknowledgement is on the partner's list by name. Not
+   * "everybody has read it": the person who posted it is in the audience
+   * too, and they have not read their own notice.
+   */
   await expect(
-    page.getByText(/Everybody it reaches has read it/),
+    page.getByText(/Read by Playwright Announce CA/),
   ).toBeVisible();
 });
