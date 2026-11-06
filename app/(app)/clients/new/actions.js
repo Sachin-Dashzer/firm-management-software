@@ -7,7 +7,7 @@ import { connectDB } from "@/lib/db";
 import { audited } from "@/lib/audit/request";
 import Client from "@/models/Client";
 import ClientGroup from "@/models/ClientGroup";
-import Initiative from "@/models/Initiative";
+import Potential from "@/models/Potential";
 import ClientService from "@/models/ClientService";
 import ServiceTemplate from "@/models/ServiceTemplate";
 import DocTemplate from "@/models/DocTemplate";
@@ -39,7 +39,7 @@ import { createClient } from "../actions";
  */
 
 /**
- * Mark the initiative-register row this client came from (04-11-2026).
+ * Mark the potential-register row this client came from (04-11-2026).
  *
  * The register hands its four fields to the wizard and the wizard links
  * the two records on the way out, which is what keeps one path into the
@@ -55,13 +55,13 @@ import { createClient } from "../actions";
  *
  * @returns {Promise<string>} the name on the row, when one was marked
  */
-async function markInitiativeConverted(actor, id, clientId) {
+async function markPotentialConverted(actor, id, clientId) {
   if (!/^[a-f\d]{24}$/i.test(String(id ?? ""))) return "";
 
-  const row = await Initiative.findById(String(id));
+  const row = await Potential.findById(String(id));
   if (!row || row.status === "Converted") return "";
 
-  const mayChange = can(actor, "edit", "initiatives", {
+  const mayChange = can(actor, "edit", "potentials", {
     branchId: String(row.branchId ?? ""),
     userId: String(row.createdBy ?? ""),
   });
@@ -75,7 +75,7 @@ async function markInitiativeConverted(actor, id, clientId) {
     await row.save({ session });
   });
 
-  revalidatePath("/initiatives");
+  revalidatePath("/potentials");
   return row.name;
 }
 
@@ -408,9 +408,9 @@ export async function createFromOnboarding(payload) {
     link = requestLink(token);
   }
 
-  const fromRegister = await markInitiativeConverted(
+  const fromRegister = await markPotentialConverted(
     actor,
-    payload.initiativeId,
+    payload.potentialId,
     clientId,
   );
 

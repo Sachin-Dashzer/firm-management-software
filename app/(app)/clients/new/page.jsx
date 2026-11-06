@@ -8,7 +8,7 @@ import ClientGroup from "@/models/ClientGroup";
 import ServiceTemplate from "@/models/ServiceTemplate";
 import DocTemplate from "@/models/DocTemplate";
 import FormDraft from "@/models/FormDraft";
-import Initiative from "@/models/Initiative";
+import Potential from "@/models/Potential";
 import { draftAge } from "@/lib/forms/draft";
 import Onboarding from "./Onboarding";
 
@@ -16,7 +16,7 @@ export const metadata = { title: "New client · PHMG" };
 export const dynamic = "force-dynamic";
 
 /**
- * `?from=<id>` is somebody pressing Convert on the initiative register
+ * `?from=<id>` is somebody pressing Convert on the potential register
  * (04-11-2026). The four fields a conversation has are carried in; the
  * wizard asks for everything else exactly as it always did, and marks the
  * register row converted on its way out.
@@ -72,13 +72,13 @@ export default async function NewClientPage({ searchParams }) {
    */
   let lead = null;
   if (from) {
-    const row = await Initiative.findById(from)
+    const row = await Potential.findById(from)
       .select("name mobile email remarks status branchId createdBy")
       .lean();
     const mayRead =
       row &&
       row.status !== "Converted" &&
-      can(actor, "view", "initiatives", {
+      can(actor, "view", "potentials", {
         branchId: String(row.branchId ?? ""),
         userId: String(row.createdBy ?? ""),
       });

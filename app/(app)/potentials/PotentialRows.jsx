@@ -15,9 +15,9 @@ import {
   Empty,
 } from "@/components/ui/Table";
 import {
-  updateInitiative,
-  setInitiativeStatus,
-  removeInitiative,
+  updatePotential,
+  setPotentialStatus,
+  removePotential,
 } from "./actions";
 
 /**
@@ -42,7 +42,7 @@ import {
  * client list that the duplicate check and the engagement pack cannot
  * trust. The wizard marks this row on its way out.
  */
-export default function InitiativeRows({ rows, mayOnboard, empty }) {
+export default function PotentialRows({ rows, mayOnboard, empty }) {
   const router = useRouter();
   const [message, setMessage] = useState(null);
   const [pending, startTransition] = useTransition();
@@ -151,7 +151,7 @@ export default function InitiativeRows({ rows, mayOnboard, empty }) {
                       onSubmit={(event) => {
                         event.preventDefault();
                         const fields = new FormData(event.currentTarget);
-                        run(row.id, () => updateInitiative(row.id, fields));
+                        run(row.id, () => updatePotential(row.id, fields));
                       }}
                     >
                       <label>
@@ -231,7 +231,7 @@ export default function InitiativeRows({ rows, mayOnboard, empty }) {
                         disabled={pending && busy === row.id}
                         onClick={() =>
                           run(row.id, () =>
-                            setInitiativeStatus(row.id, "Dropped"),
+                            setPotentialStatus(row.id, "Dropped"),
                           )
                         }
                         className={quiet}
@@ -245,7 +245,7 @@ export default function InitiativeRows({ rows, mayOnboard, empty }) {
                         disabled={pending && busy === row.id}
                         onClick={() =>
                           run(row.id, () =>
-                            setInitiativeStatus(row.id, "Talking"),
+                            setPotentialStatus(row.id, "Talking"),
                           )
                         }
                         className={quiet}
@@ -264,7 +264,7 @@ export default function InitiativeRows({ rows, mayOnboard, empty }) {
                             type="button"
                             disabled={pending && busy === row.id}
                             onClick={() =>
-                              run(row.id, () => removeInitiative(row.id))
+                              run(row.id, () => removePotential(row.id))
                             }
                             className="rounded-control border-redpen text-redpen text-12 h-7 border px-2 font-medium disabled:opacity-60"
                           >

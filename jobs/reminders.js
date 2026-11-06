@@ -5,7 +5,7 @@ import Client from "../models/Client.js";
 import Invoice from "../models/Invoice.js";
 import DocRequest from "../models/DocRequest.js";
 import Dsc from "../models/Dsc.js";
-import Initiative from "../models/Initiative.js";
+import Potential from "../models/Potential.js";
 import MessageLog from "../models/MessageLog.js";
 import { connectDB } from "../lib/db.js";
 import { loadRules } from "../lib/mailer/rules.js";
@@ -18,7 +18,7 @@ import {
   documentReminders,
   dscReminders,
   engagementReminders,
-  initiativeReminders,
+  potentialReminders,
   invoiceReminders,
   perRecipient,
   SWEEP_OPEN_STATUSES,
@@ -221,9 +221,9 @@ export async function reminders(options = {}) {
    * is live — so a register of hundreds costs one small indexed query, and
    * the rule's own ladder decides which of them is owed a nudge today.
    */
-  const followUpRule = rules.initiativeFollowUp;
+  const followUpRule = rules.potentialFollowUp;
   const leads = followUpRule?.enabled
-    ? await Initiative.find({
+    ? await Potential.find({
         status: "Talking",
         followUpOn: { $ne: null, $lte: startOfISTDay(now) },
       })
@@ -232,8 +232,8 @@ export async function reminders(options = {}) {
         .lean()
     : [];
 
-  for (const initiative of leads) {
-    planned.push(...initiativeReminders({ initiative }, rules, now));
+  for (const potential of leads) {
+    planned.push(...potentialReminders({ potential }, rules, now));
   }
 
   /**
@@ -301,7 +301,7 @@ export async function reminders(options = {}) {
      * A link in an email has to be a link (04-11-2026).
      *
      * `lib/mailer/sweep.js` is pure and names paths — `/engagements/<id>`,
-     * `/initiatives?due=now` — which is right for a screen and dead in an
+     * `/potentials?due=now` — which is right for a screen and dead in an
      * inbox: five of these templates have been going out with a bare path
      * where the address should be. The absolute form is made here, in the
      * layer that is allowed to read the environment, and once for every

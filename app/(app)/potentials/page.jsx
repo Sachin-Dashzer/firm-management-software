@@ -3,20 +3,20 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/auth";
 import { can, scopeOf, branchFilter } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
-import Initiative, { INITIATIVE_STATUSES } from "@/models/Initiative";
+import Potential, { POTENTIAL_STATUSES } from "@/models/Potential";
 import Client from "@/models/Client";
 import { formatISTDate, istInputDate, daysUntil } from "@/lib/dates";
 import PageHead from "@/components/ui/PageHead";
 import Screen, { ScrollArea } from "@/components/ui/Screen";
 import StatTile from "@/components/ui/StatTile";
-import AddInitiative from "./AddInitiative";
-import InitiativeRows from "./InitiativeRows";
+import AddPotential from "./AddPotential";
+import PotentialRows from "./PotentialRows";
 
-export const metadata = { title: "Initiative clients · PHMG" };
+export const metadata = { title: "Potential clients · PHMG" };
 export const dynamic = "force-dynamic";
 
 /**
- * The initiative register (owner request, 04-11-2026).
+ * The potential register (owner request, 04-11-2026).
  *
  * People the firm is in conversation with, before any of them is a client:
  * a name, a number, an email and a line of remarks. The firm has been
@@ -30,24 +30,24 @@ export const dynamic = "force-dynamic";
  * (`createFromOnboarding`). One path into the client list is what makes
  * the duplicate check worth anything.
  *
- * Whose register you read comes from the matrix (`initiatives`, spec §2):
+ * Whose register you read comes from the matrix (`potentials`, spec §2):
  * a partner the firm's, a CA and an employee their office's, an intern
  * their own.
  */
-export default async function InitiativesPage({ searchParams }) {
+export default async function PotentialsPage({ searchParams }) {
   const actor = await requireUser();
-  if (!can(actor, "view", "initiatives")) redirect("/issues");
+  if (!can(actor, "view", "potentials")) redirect("/issues");
 
   const params = (await searchParams) ?? {};
   const search = String(params.q ?? "").trim();
-  const state = INITIATIVE_STATUSES.includes(params.state) ? params.state : "";
+  const state = POTENTIAL_STATUSES.includes(params.state) ? params.state : "";
   /** The one filter that is not a state: who is owed a call today. */
   const dueNow = params.due === "now";
   const now = new Date();
 
   await connectDB();
 
-  const scope = scopeOf(actor, "initiatives");
+  const scope = scopeOf(actor, "potentials");
   /**
    * What this person may read. `branchFilter` answers "own" with a branch
    * condition, which is wider than the matrix allows, so the two cases are
@@ -56,7 +56,7 @@ export default async function InitiativesPage({ searchParams }) {
   const readable =
     scope === "own"
       ? { createdBy: actor.id }
-      : (branchFilter(actor, "initiatives") ?? {});
+      : (branchFilter(actor, "potentials") ?? {});
 
   /**
    * ponytail: the whole readable register is read in one go and the state
@@ -65,7 +65,7 @@ export default async function InitiativesPage({ searchParams }) {
    * plus a text index would be three more things to keep in step. If this
    * ever grows past the limit, the tiles become `countDocuments`.
    */
-  const rows = await Initiative.find(readable)
+  const rows = await Potential.find(readable)
     .sort({ updatedAt: -1 })
     .limit(500)
     .lean();
@@ -129,7 +129,7 @@ export default async function InitiativesPage({ searchParams }) {
         : 0),
   );
 
-  const mayWrite = can(actor, "edit", "initiatives");
+  const mayWrite = can(actor, "edit", "potentials");
   /** Onboarding is a different area: a partner or a CA, not everybody. */
   const mayOnboard = can(actor, "edit", "clients");
 
@@ -181,13 +181,13 @@ export default async function InitiativesPage({ searchParams }) {
     if (due) query.set("due", due);
     if (search) query.set("q", search);
     const tail = query.toString();
-    return `/initiatives${tail ? `?${tail}` : ""}`;
+    return `/potentials${tail ? `?${tail}` : ""}`;
   };
 
   return (
     <Screen>
       <PageHead
-        title="Initiative clients"
+        title="Potential clients"
         sub={
           <>
             People the firm is talking to who are not clients yet. When one says
@@ -248,7 +248,7 @@ export default async function InitiativesPage({ searchParams }) {
 
       <form
         method="get"
-        action="/initiatives"
+        action="/potentials"
         className="flex shrink-0 flex-wrap items-center gap-2"
       >
         {state && <input type="hidden" name="state" value={state} />}
@@ -270,7 +270,7 @@ export default async function InitiativesPage({ searchParams }) {
         </button>
         {(search || state || dueNow) && (
           <Link
-            href="/initiatives"
+            href="/potentials"
             className="rounded-control border-rule text-13 hover:bg-carbon-wash h-8 border px-3 leading-8"
           >
             Clear
@@ -281,10 +281,10 @@ export default async function InitiativesPage({ searchParams }) {
         </span>
       </form>
 
-      {mayWrite && <AddInitiative />}
+      {mayWrite && <AddPotential />}
 
       <ScrollArea>
-        <InitiativeRows
+        <PotentialRows
           rows={shown.map(shape)}
           mayOnboard={mayOnboard}
           empty={

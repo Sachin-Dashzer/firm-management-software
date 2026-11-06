@@ -5,13 +5,13 @@ import { requireUser } from "@/auth";
 import { assertCan, can } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import { audited } from "@/lib/audit/request";
-import Initiative, { INITIATIVE_STATUSES } from "@/models/Initiative";
+import Potential, { POTENTIAL_STATUSES } from "@/models/Potential";
 import Client from "@/models/Client";
 import { checkMobile, checkEmail } from "@/lib/validators";
 import { istDayFromInput, istInputDate, formatISTDate } from "@/lib/dates";
 
 /**
- * The initiative register's own server side (owner request, 04-11-2026).
+ * The potential register's own server side (owner request, 04-11-2026).
  *
  * Four fields and three verbs: write one down, keep the remarks up to
  * date, and say it is not going anywhere. The fourth thing somebody does
@@ -37,10 +37,10 @@ async function mine(actor, id) {
   if (!/^[a-f\d]{24}$/i.test(String(id ?? ""))) return null;
 
   await connectDB();
-  const row = await Initiative.findById(String(id));
+  const row = await Potential.findById(String(id));
   if (!row) return null;
 
-  assertCan(actor, "edit", "initiatives", {
+  assertCan(actor, "edit", "potentials", {
     branchId: String(row.branchId ?? ""),
     userId: String(row.createdBy ?? ""),
   });
@@ -105,9 +105,9 @@ function read(formData) {
 }
 
 /** Write one down. */
-export async function addInitiative(_prev, formData) {
+export async function addPotential(_prev, formData) {
   const actor = await requireUser();
-  assertCan(actor, "edit", "initiatives");
+  assertCan(actor, "edit", "potentials");
 
   const input = read(formData);
   if (!input.ok) return { error: input.error };
@@ -131,7 +131,7 @@ export async function addInitiative(_prev, formData) {
     ...(input.mobile ? [{ mobile: input.mobile }] : []),
     ...(input.email ? [{ email: input.email }] : []),
   ];
-  const already = await Initiative.findOne({ $or: reach })
+  const already = await Potential.findOne({ $or: reach })
     .select("name status createdByName")
     .lean();
   if (already) {
@@ -158,7 +158,7 @@ export async function addInitiative(_prev, formData) {
     .lean();
 
   const row = await audited(actor, async (session) => {
-    const [created] = await Initiative.create(
+    const [created] = await Potential.create(
       [
         {
           name: input.name,
@@ -180,7 +180,7 @@ export async function addInitiative(_prev, formData) {
     return created;
   });
 
-  revalidatePath("/initiatives");
+  revalidatePath("/potentials");
   return {
     ok: client
       ? `Written down. Note that ${client.tradeName || client.legalName} is already a client on that number or email.`
@@ -203,7 +203,7 @@ export async function addInitiative(_prev, formData) {
  * after, which is the conversation's history kept somewhere nobody can
  * tidy it up.
  */
-export async function updateInitiative(id, formData) {
+export async function updatePotential(id, formData) {
   const actor = await requireUser();
   const row = await mine(actor, id);
   if (!row) return { error: "That one is no longer in the register." };
@@ -229,7 +229,7 @@ export async function updateInitiative(id, formData) {
     await row.save({ session });
   });
 
-  revalidatePath("/initiatives");
+  revalidatePath("/potentials");
   return {
     ok: !dateChanged
       ? "Saved."
@@ -247,11 +247,11 @@ export async function updateInitiative(id, formData) {
  * do — otherwise the register would be able to claim a client the client
  * list has never heard of.
  */
-export async function setInitiativeStatus(id, status) {
+export async function setPotentialStatus(id, status) {
   const actor = await requireUser();
 
   const wanted = String(status ?? "");
-  if (!INITIATIVE_STATUSES.includes(wanted)) {
+  if (!POTENTIAL_STATUSES.includes(wanted)) {
     return { error: "There is no such state." };
   }
   if (wanted === "Converted") {
@@ -274,7 +274,7 @@ export async function setInitiativeStatus(id, status) {
     await row.save({ session });
   });
 
-  revalidatePath("/initiatives");
+  revalidatePath("/potentials");
   return {
     ok:
       wanted === "Dropped"
@@ -291,7 +291,7 @@ export async function setInitiativeStatus(id, status) {
  * For a lead who said no, **Dropped** is the right answer and keeps them
  * in sight; this is for the row typed in twice or into the wrong field.
  */
-export async function removeInitiative(id) {
+export async function removePotential(id) {
   const actor = await requireUser();
   const row = await mine(actor, id);
   if (!row) return { error: "That one is no longer in the register." };
@@ -307,6 +307,6 @@ export async function removeInitiative(id) {
     await row.softDelete(actor.id, { session });
   });
 
-  revalidatePath("/initiatives");
+  revalidatePath("/potentials");
   return { ok: "Taken off the register." };
 }

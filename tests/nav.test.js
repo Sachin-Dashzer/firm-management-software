@@ -48,13 +48,13 @@ describe("the menu is the shape the owner asked for", () => {
     expect(PARTNER_NAV).toHaveLength(10);
     // 58 until P3-34 phase 4 split the compliance calendar into an
     // overview and three frequency routes, which is one link more; 60
-    // since the initiative register joined the Clients group (04-11-2026)
+    // since the potential register joined the Clients group (04-11-2026)
     expect(links(PARTNER_NAV)).toHaveLength(60);
   });
 
   it("has eight groups and 25 links for staff", () => {
     expect(STAFF_NAV).toHaveLength(8);
-    // 24 before the initiative register, which staff read too
+    // 24 before the potential register, which staff read too
     expect(links(STAFF_NAV)).toHaveLength(25);
   });
 

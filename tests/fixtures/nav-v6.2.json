@@ -35,7 +35,7 @@
       "items": [
         "All clients",
         "Groups",
-        "Initiative clients",
+        "Potential clients",
         "New client",
         "Bulk client data",
         "— Client experience",
@@ -142,7 +142,7 @@
       "label": "My clients",
       "items": [
         "Client list",
-        "Initiative clients",
+        "Potential clients",
         "Bulk client data"
       ]
     },

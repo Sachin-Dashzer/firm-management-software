@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { saving } from "@/lib/forms/saving";
-import { addInitiative } from "./actions";
+import { addPotential } from "./actions";
 
 /**
  * One row at the top of the register (owner request, 04-11-2026).
@@ -20,9 +20,9 @@ import { addInitiative } from "./actions";
  * and keeps the focus in the name box, because the way this gets used is
  * three enquiries in a row after a morning of calls.
  */
-export default function AddInitiative() {
+export default function AddPotential() {
   const router = useRouter();
-  const [state, action, pending] = useActionState(addInitiative, null);
+  const [state, action, pending] = useActionState(addPotential, null);
   const form = useRef(null);
   const name = useRef(null);
 

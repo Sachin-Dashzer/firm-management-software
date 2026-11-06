@@ -4,11 +4,11 @@ import mongoose from "mongoose";
 import { softDeletePlugin } from "./plugins/softDelete.js";
 import { auditPlugin } from "./plugins/audit.js";
 
-export const INITIATIVE_STATUSES = ["Talking", "Converted", "Dropped"];
+export const POTENTIAL_STATUSES = ["Talking", "Converted", "Dropped"];
 
 /**
  * Somebody the firm is talking to, who is not a client yet (owner request,
- * 04-11-2026). The firm's own word for it is an **initiative client**.
+ * 04-11-2026). The firm's own word for it is a **potential client**.
  *
  * ## Why this is not a `Client` with `status: "Lead"`
  *
@@ -23,7 +23,7 @@ export const INITIATIVE_STATUSES = ["Talking", "Converted", "Dropped"];
  * So four fields, and nothing is required of a conversation that a
  * conversation does not have. What it must have is a way to reach them:
  * a name with no number and no email is a note, not a lead, and the
- * action refuses it (see `app/(app)/initiatives/actions.js`).
+ * action refuses it (see `app/(app)/potentials/actions.js`).
  *
  * ## What happens when they say yes
  *
@@ -42,7 +42,7 @@ export const INITIATIVE_STATUSES = ["Talking", "Converted", "Dropped"];
  * where it cannot be edited, and the field stays something a person can
  * fix after a phone call rather than a log they have to curate.
  */
-const initiativeSchema = new mongoose.Schema(
+const potentialSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true, maxlength: 120 },
 
@@ -71,7 +71,7 @@ const initiativeSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: INITIATIVE_STATUSES,
+      enum: POTENTIAL_STATUSES,
       default: "Talking",
     },
 
@@ -100,22 +100,22 @@ const initiativeSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-initiativeSchema.plugin(softDeletePlugin);
-initiativeSchema.plugin(auditPlugin, {
-  entityType: "Initiative",
+potentialSchema.plugin(softDeletePlugin);
+potentialSchema.plugin(auditPlugin, {
+  entityType: "Potential",
   /* once converted, the trail belongs on the client's own activity tab too */
   clientIdField: "clientId",
 });
 
 /** "Who are we talking to, most recently touched first." */
-initiativeSchema.index({ status: 1, updatedAt: -1 });
+potentialSchema.index({ status: 1, updatedAt: -1 });
 /** "Who is due a call?" — the register's opening question. */
-initiativeSchema.index({ status: 1, followUpOn: 1 });
-initiativeSchema.index({ branchId: 1, status: 1, updatedAt: -1 });
+potentialSchema.index({ status: 1, followUpOn: 1 });
+potentialSchema.index({ branchId: 1, status: 1, updatedAt: -1 });
 /** "Are we already talking to this number?" — the duplicate check. */
-initiativeSchema.index({ mobile: 1 });
+potentialSchema.index({ mobile: 1 });
 /** "Which conversation did this client come from?" — the client's own file. */
-initiativeSchema.index({ clientId: 1 });
+potentialSchema.index({ clientId: 1 });
 
-export default mongoose.models.Initiative ??
-  mongoose.model("Initiative", initiativeSchema);
+export default mongoose.models.Potential ??
+  mongoose.model("Potential", potentialSchema);

@@ -94,7 +94,7 @@ export default function Onboarding({
   const [groups, setGroups] = useState(knownGroups);
   const [entityType, setEntityType] = useState("");
   /**
-   * Prefilled when somebody pressed Convert on the initiative register
+   * Prefilled when somebody pressed Convert on the potential register
    * (04-11-2026). The four fields a conversation has are filled in and
    * everything else is asked as usual — a lead does not know its own
    * entity type, and guessing one would be the worst possible field to
@@ -321,7 +321,7 @@ export default function Onboarding({
           .map((service) => ({ code: service.code, ...fees[service.code] })),
         /* the register row this came from, so it is marked converted and
            linked rather than left looking like an open conversation */
-        initiativeId: carry?.id,
+        potentialId: carry?.id,
       });
 
       if (result?.error && !result.id) {
@@ -367,7 +367,7 @@ export default function Onboarding({
       {carry && !created && (
         <div className="rounded-ledger border-carbon bg-carbon-wash flex flex-col gap-1 border px-3 py-2">
           <p className="text-14">
-            Carried over from the initiative register:{" "}
+            Carried over from the potential register:{" "}
             <strong>{carry.name}</strong>. Check the legal name and the contact
             person — the register keeps one name for both — and the row is
             marked converted once this client exists.
@@ -1546,10 +1546,10 @@ function Done({ created, pack, router, onAnother }) {
           <p className="text-13 text-ink-muted mt-1">
             {created.fromRegister} is marked converted on the{" "}
             <Link
-              href="/initiatives"
+              href="/potentials"
               className="hover:text-ink underline underline-offset-4"
             >
-              initiative register
+              potential register
             </Link>
             , and the row now points at this client.
           </p>

@@ -8,7 +8,7 @@ import Client from "@/models/Client";
 import Branch from "@/models/Branch";
 import User from "@/models/User";
 import ClientGroup from "@/models/ClientGroup";
-import Initiative from "@/models/Initiative";
+import Potential from "@/models/Potential";
 import { siblingsOf } from "@/lib/groups/summary";
 import ClientCredential from "@/models/ClientCredential";
 import Comment from "@/models/Comment";
@@ -473,7 +473,7 @@ async function Overview({
         <Row label="Turnover band" value={client.turnoverBand || "—"} />
         <Row label="Referral source" value={client.referralSource || "—"} />
         {/**
-         * Where they came from, when they came from the initiative register
+         * Where they came from, when they came from the potential register
          * (04-11-2026). The link was one-way until now: a converted row
          * pointed at its client and the client's own file said nothing, so
          * "who brought this one in, and what did we promise them?" meant
@@ -489,7 +489,7 @@ async function Overview({
             value={
               <>
                 <Link
-                  href={`/initiatives?state=Converted&q=${encodeURIComponent(
+                  href={`/potentials?state=Converted&q=${encodeURIComponent(
                     fromRegister.name,
                   )}`}
                   className="underline underline-offset-4"
@@ -497,7 +497,7 @@ async function Overview({
                   {fromRegister.name}
                 </Link>
                 <span className="text-ink-muted">
-                  {" · initiative register"}
+                  {" · potential register"}
                   {fromRegister.by
                     ? ` · written down by ${fromRegister.by}`
                     : ""}
@@ -1305,12 +1305,12 @@ function Panel({ title, className = "", children }) {
  * itself — the register owns it, and this is a look across at it.
  */
 async function cameFrom(actor, clientId) {
-  const row = await Initiative.findOne({ clientId })
+  const row = await Potential.findOne({ clientId })
     .select("name remarks createdBy createdByName branchId convertedAt")
     .lean();
   if (!row) return null;
 
-  const mayRead = can(actor, "view", "initiatives", {
+  const mayRead = can(actor, "view", "potentials", {
     branchId: String(row.branchId ?? ""),
     userId: String(row.createdBy ?? ""),
   });
