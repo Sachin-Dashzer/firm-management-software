@@ -5474,3 +5474,47 @@ mailbox — and answered the five open questions.
 
 Tests: 1821 passing (was 1814 passing, 2 failing). Lint and `next build`
 clean.
+
+---
+
+## 06-11-2026 — The onboarding quotation
+
+The wizard already settled a fee, a billing basis and a GST treatment for
+every service ticked on step 4, wrote them to `clientServices`, and showed
+the client none of it. The first the client heard of a number was an
+invoice, months later. Now the fees go out the same day, in the firm's own
+words, which is the only moment at which "that is not what we agreed"
+costs nothing to fix.
+
+- **`lib/clients/quotation.js`** turns the ticked rows into the lines of a
+  quotation. Pure, so step 7 shows the client exactly what the email will
+  say before anybody presses Create. Two rules in it, both deliberate:
+  - fees of **different billing bases are never added together** — ₹2,000 a
+    month and ₹5,000 a year are not ₹7,000 of anything. Totals are per
+    basis: "₹2,000 per month · ₹5,000 per engagement".
+  - a fee of zero reads as **"fee to be agreed"**, never as ₹0, which a
+    client reads as free. The email says the firm will come back on it.
+- **`quotation` message template and rule.** `audience: "client"`, so it is
+  behind the client-email switch and the mail guard like every other
+  client-facing message, and it has an off switch and a reword box on
+  Settings → Notifications. Nothing leaves until client email is on.
+- **Step 7 shows it** with the recipient's address and a tick, on by
+  default, to not send it. No email address on the contact disables the
+  tick and says why. The Done screen reports who it was queued to, or the
+  single sentence saying why it was not — a held quotation never fails a
+  created client.
+- **Audited on the client** (`update`, with the addresses) in the same
+  transaction as the message log row.
+
+**What this is not.** It is a *mini* quotation: an email, in the body, no
+PDF and no signature. The formal `PROPOSAL` letter in the engagement pack
+is still the document version, and its `[Services and fees]` line is still
+a placeholder a person fills — wiring that to the client's services needs
+a `client.services` field in `lib/docs/resolve.js`, and the seeded template
+in the database would need the new placeholder put into it. **Owner to
+say** whether the letter should quote automatically too, or stay written by
+hand. There is also no "send the quotation again" button on the client
+record yet; a revised quote goes out as a message for now.
+
+Tests: 1829 passing (8 new in `tests/quotation.test.js`). Lint and
+`next build` clean.

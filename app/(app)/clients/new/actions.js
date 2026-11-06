@@ -5,6 +5,7 @@ import { requireUser } from "@/auth";
 import { assertCan, can } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import { audited } from "@/lib/audit/request";
+import { recordAudit, ACTIONS } from "@/lib/audit";
 import Client from "@/models/Client";
 import ClientGroup from "@/models/ClientGroup";
 import Potential from "@/models/Potential";
@@ -13,6 +14,8 @@ import ServiceTemplate from "@/models/ServiceTemplate";
 import DocTemplate from "@/models/DocTemplate";
 import DocRequest from "@/models/DocRequest";
 import { findDuplicates } from "@/lib/clients/duplicates";
+import { feeToPaise, quotation } from "@/lib/clients/quotation";
+import { quotationToClient } from "@/lib/mailer/events";
 import { ENTITY_BY_KEY, entityLabel } from "@/lib/clients/entityTypes";
 import { checkPAN, checkGSTIN } from "@/lib/validators";
 import { firmProfile } from "@/lib/firm/settings";
@@ -301,29 +304,37 @@ export async function createFromOnboarding(payload) {
 
   // --- the service subscriptions, which become this client's defaults ---
   let services = 0;
+  /** The same rows, in the words the client is quoted them in. */
+  const quoteRows = [];
   if (ticked.length) {
     try {
       await audited(actor, async (session) => {
         for (const row of ticked) {
           const template = byCode.get(row.code);
           if (!template) continue;
-          const rupees = Number(String(row.fee ?? "").replace(/[₹,\s]/g, ""));
+          const feePaise = feeToPaise(row.fee, template.defaultFeePaise ?? 0);
+          const billingBasis = row.billingBasis || "per engagement";
+          const gstTreatment = row.gstTreatment || "plus GST";
           await ClientService.create(
             [
               {
                 clientId,
                 serviceTemplateId: template._id,
-                feePaise: Number.isFinite(rupees)
-                  ? Math.round(rupees * 100)
-                  : (template.defaultFeePaise ?? 0),
-                billingBasis: row.billingBasis || "per engagement",
-                gstTreatment: row.gstTreatment || "plus GST",
+                feePaise,
+                billingBasis,
+                gstTreatment,
                 createdBy: actor.id,
                 updatedBy: actor.id,
               },
             ],
             { session },
           );
+          quoteRows.push({
+            name: template.name,
+            feePaise,
+            billingBasis,
+            gstTreatment,
+          });
           services += 1;
         }
       });
@@ -333,6 +344,55 @@ export async function createFromOnboarding(payload) {
         id: clientId,
         error: `The client was created, but its services were not: ${err.message}`,
       };
+    }
+  }
+
+  /* read once, for the quotation and for the document request below */
+  const client = await Client.findById(clientId)
+    .select("branchId legalName tradeName contacts")
+    .lean();
+
+  /*
+   * --- the quotation (06-11-2026) ---
+   *
+   * The fees that were just written to `clientServices`, sent to the
+   * client in the same words the firm recorded them in. It goes out here
+   * rather than being left for somebody to remember, because the day a
+   * client is taken on is the day a wrong fee costs nothing to correct.
+   *
+   * It is the last thing that can go wrong and the least important: a
+   * client whose quotation was held by the guard, or who has no email
+   * address yet, is still a created client with its services on record.
+   * So every failure here comes back as a sentence on the Done screen and
+   * nothing more.
+   */
+  const quote = quotation(quoteRows);
+  /** @type {string[]} */
+  let quotedTo = [];
+  let quoteError = "";
+  if (quote.lines.length && payload.emailQuotation !== false) {
+    try {
+      await audited(actor, async (session) => {
+        const outcome = await quotationToClient(client, quote, actor, session);
+        quotedTo = outcome.sent;
+        quoteError = outcome.error ?? "";
+        if (!outcome.sent.length) return;
+
+        await recordAudit(
+          {
+            action: ACTIONS.update,
+            entityType: "Client",
+            entityId: clientId,
+            clientId,
+            note: `Quotation for ${quote.lines.length} ${
+              quote.lines.length === 1 ? "service" : "services"
+            } emailed to ${outcome.sent.join(", ")}`,
+          },
+          session,
+        );
+      });
+    } catch (err) {
+      quoteError = `The quotation could not be sent: ${err.message}`;
     }
   }
 
@@ -383,7 +443,6 @@ export async function createFromOnboarding(payload) {
   let link = null;
   if (outstanding.length && payload.requestDocuments !== false) {
     const token = newRequestToken();
-    const client = await Client.findById(clientId).select("branchId").lean();
     await audited(actor, async (session) => {
       await DocRequest.create(
         [
@@ -420,6 +479,9 @@ export async function createFromOnboarding(payload) {
     id: clientId,
     fromRegister,
     services,
+    quotedTo,
+    quoteError,
+    quoteLines: quote.lines.length,
     outstanding: outstanding.length,
     requestDays: REQUEST_DAYS,
     link,

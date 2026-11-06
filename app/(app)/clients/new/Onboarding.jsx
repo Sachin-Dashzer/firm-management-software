@@ -10,6 +10,7 @@ import {
   panCharLabel,
 } from "@/lib/clients/entityTypes";
 import { onboardingChecks, checksPass } from "@/lib/clients/checks";
+import { feeToPaise, quotation } from "@/lib/clients/quotation";
 import { formatPaise } from "@/lib/money";
 import { keepDraft, dropDraft } from "../../drafts/actions";
 import { createGroup } from "../actions";
@@ -109,6 +110,13 @@ export default function Onboarding({
   const [groupId, setGroupId] = useState("");
   const [newGroup, setNewGroup] = useState("");
   const [addToSuggested, setAddToSuggested] = useState(false);
+  /**
+   * Email the client their quotation on the way out (06-11-2026). On by
+   * default — the fees were just agreed out loud, and the client should
+   * have them in writing the same day — but a tick, because sending it is
+   * the firm speaking to a client and that is never done silently.
+   */
+  const [emailQuotation, setEmailQuotation] = useState(true);
   const [lookups, setLookups] = useState(null);
   const [confirmDuplicates, setConfirmDuplicates] = useState(false);
   const [message, setMessage] = useState(null);
@@ -282,6 +290,7 @@ export default function Onboarding({
     setFees({});
     setGroupId("");
     setAddToSuggested(false);
+    setEmailQuotation(true);
     setLookups(null);
     setConfirmDuplicates(false);
     setCreated(null);
@@ -316,6 +325,7 @@ export default function Onboarding({
           ? (lookups?.group?.suggestGroupId ?? groupId)
           : groupId,
         confirmDuplicates,
+        emailQuotation,
         services: services
           .filter((service) => fees[service.code]?.on)
           .map((service) => ({ code: service.code, ...fees[service.code] })),
@@ -523,6 +533,8 @@ export default function Onboarding({
                 groupId={groupId}
                 confirmDuplicates={confirmDuplicates}
                 setConfirmDuplicates={setConfirmDuplicates}
+                emailQuotation={emailQuotation}
+                setEmailQuotation={setEmailQuotation}
                 blocking={lookups?.blocking ?? []}
               />
             )}
@@ -1415,10 +1427,22 @@ function CreateStep({
   groupId,
   confirmDuplicates,
   setConfirmDuplicates,
+  emailQuotation,
+  setEmailQuotation,
   blocking,
 }) {
   const ticked = services.filter((service) => fees[service.code]?.on);
   const outstanding = documents.filter((name) => !received.includes(name));
+  /* exactly the lines the email will carry: the same function builds both */
+  const quote = quotation(
+    ticked.map((service) => ({
+      name: service.name,
+      feePaise: feeToPaise(fees[service.code]?.fee, service.defaultFeePaise),
+      billingBasis: fees[service.code]?.billingBasis,
+      gstTreatment: fees[service.code]?.gstTreatment,
+    })),
+  );
+  const quoteEmail = String(values["contacts.0.email"] ?? "").trim();
   const group = groups.find((g) => g.id === groupId);
   // the duplicate has its own block below, with the tick that overrides it
   const problems = checks.filter(
@@ -1460,6 +1484,54 @@ function CreateStep({
           }
         />
       </dl>
+
+      {quote.lines.length > 0 && (
+        <div className="rounded-ledger border-rule bg-sunk mt-4 border p-3">
+          <p className="text-12 text-ink-muted font-semibold tracking-wide uppercase">
+            Quotation
+          </p>
+          <ul className="mt-2 flex flex-col gap-1">
+            {quote.lines.map((line) => (
+              <li key={line} className="text-13">
+                {line}
+              </li>
+            ))}
+          </ul>
+          {quote.totalLine && (
+            <p className="text-13 border-rule mt-2 border-t pt-2 font-medium">
+              {quote.totalLine}
+            </p>
+          )}
+          <label className="text-13 border-rule mt-3 flex items-start gap-2 border-t pt-3">
+            <input
+              type="checkbox"
+              checked={emailQuotation && Boolean(quoteEmail)}
+              disabled={!quoteEmail}
+              onChange={(e) => setEmailQuotation(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span>
+              {quoteEmail ? (
+                <>
+                  Email this to{" "}
+                  <span className="text-ink font-medium">{quoteEmail}</span>{" "}
+                  when the client is created
+                  <span className="text-ink-muted">
+                    {" "}
+                    — fees exclusive of GST, holding for 30 days. Nothing is
+                    billed by it.
+                  </span>
+                </>
+              ) : (
+                <span className="text-ink-muted">
+                  No email address for the contact, so the quotation cannot be
+                  sent. Add one on step 2 and it goes out with the client.
+                </span>
+              )}
+            </span>
+          </label>
+        </div>
+      )}
 
       {outstanding.length > 0 && (
         <p className="rounded-ledger border-rule bg-sunk text-13 mt-4 border px-3 py-2">
@@ -1559,6 +1631,20 @@ function Done({ created, pack, router, onAnother }) {
       {created.error && (
         <p className="rounded-ledger border-waiting bg-waiting-wash text-13 text-waiting border px-3 py-2">
           {created.error}
+        </p>
+      )}
+
+      {created.quotedTo?.length > 0 && (
+        <p className="rounded-ledger border-rule bg-sunk text-13 border px-3 py-2">
+          The quotation for {created.quoteLines}{" "}
+          {created.quoteLines === 1 ? "service" : "services"} is queued to{" "}
+          {created.quotedTo.join(", ")}. It leaves with the next mail run.
+        </p>
+      )}
+
+      {created.quoteError && (
+        <p className="rounded-ledger border-waiting bg-waiting-wash text-13 text-waiting border px-3 py-2">
+          {created.quoteError}
         </p>
       )}
 

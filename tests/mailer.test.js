@@ -187,7 +187,7 @@ describe("filling a template in", () => {
       (t) => t.audience === "client",
     );
     /**
-     * Exactly these ten leave the building; everything else is internal,
+     * Exactly these eleven leave the building; everything else is internal,
      * and the guard only holds back what is marked "client".
      *
      * This list is an allow-list on purpose, so adding a client-facing
@@ -214,6 +214,9 @@ describe("filling a template in", () => {
       "invoiceReminder",
       "messageToClient",
       "paymentReceived",
+      /* the fees a new client is taken on at, sent at the end of
+         onboarding (06-11-2026) */
+      "quotation",
     ]);
   });
 
