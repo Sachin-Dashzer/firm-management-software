@@ -219,7 +219,9 @@ describe("the one next thing on a job", () => {
     approve(e, CA);
     const step = nextStep(e, CA, names);
     expect(step.text).toBe("The client confirms version 1 of the figures");
-    expect(step.action.href).toBe("#approval");
+    // `#approval` until the Approval panel was folded into the steps panel
+    // (see EngagementWork.jsx); the anchor moved and this test did not
+    expect(step.action.href).toBe("#steps");
   });
 
   it("moves to the filing once the client has confirmed", () => {

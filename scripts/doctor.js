@@ -118,6 +118,11 @@ export function checkEnv(env) {
     ]) {
       if (!env[name]) problems.push(`${name} is needed to send over SMTP.`);
     }
+    if (!env.EMAIL_REPLY_TO) {
+      warnings.push(
+        "EMAIL_REPLY_TO is not set, so replies go to the sending mailbox and nothing reads it. Four templates invite the client to reply. Set it to a mailbox a person opens.",
+      );
+    }
   }
 
   if (env.EMAIL_CLIENTS_ENABLED === "true" && !env.EMAIL_REDIRECT_TO) {
@@ -235,6 +240,57 @@ export function checkEnv(env) {
 const pass = (m) => console.log(`  PASS  ${m}`);
 const warn = (m) => console.log(`  WARN  ${m}`);
 const fail = (m) => console.log(`  FAIL  ${m}`);
+
+/**
+ * Are clients actually being emailed?
+ *
+ * The environment check above can only read `EMAIL_CLIENTS_ENABLED`, and
+ * since 04-11-2026 that variable is merely the fallback: the real switch is
+ * `firmSettings.clientMailOn`, thrown by a partner on Settings →
+ * Automation. So on a firm that has used the screen — which is every firm
+ * past go-live — `doctor` was reporting the wrong answer to the single most
+ * consequential question it asks, and reporting it confidently.
+ *
+ * It goes through `clientMailFrom` rather than reading the field, so there
+ * stays exactly one place that knows the variable is the fallback. A second
+ * copy of that rule is a `doctor` that can disagree with the sender.
+ *
+ * Never a failure. Client email being off is the correct state for most of
+ * the build and a deliberate state afterwards; what was wrong was not
+ * knowing which state the firm was in.
+ *
+ * @returns {Promise<number>} failures
+ */
+async function checkClientMail() {
+  const { firmProfile } = await import("../lib/firm/settings.js");
+  const { clientMailFrom, mailSettings } =
+    await import("../lib/mailer/guard.js");
+
+  const firm = await firmProfile();
+  const thrown = typeof firm?.clientMailOn === "boolean";
+  const on = clientMailFrom(firm);
+  const source = thrown
+    ? "the firm's own switch, on Settings -> Automation"
+    : "EMAIL_CLIENTS_ENABLED, because nobody has thrown the switch on screen";
+  const { redirectTo } = mailSettings();
+
+  if (!on) {
+    pass(
+      `client email is OFF (${source}). Messages are composed, logged and visible on Settings -> Messages, and do not leave the building.`,
+    );
+    return 0;
+  }
+
+  if (redirectTo) {
+    warn(
+      `client email is ON (${source}) but everything is redirected to ${redirectTo}. This is the right state for testing and the wrong one for go-live — no client is receiving anything.`,
+    );
+    return 0;
+  }
+
+  pass(`client email is ON (${source}). Clients are receiving mail.`);
+  return 0;
+}
 
 /**
  * Is the queue being worked?
@@ -703,6 +759,9 @@ async function main() {
 
   console.log("\nBackground jobs");
   failures += await checkJobQueue();
+
+  console.log("\nClient email");
+  failures += await checkClientMail();
 
   console.log("\nThe browser suite");
   failures += checkE2eGuard();

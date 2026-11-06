@@ -94,6 +94,59 @@ describe("the daily digest", () => {
     );
     expect(built.lines).toContain("(no date)");
   });
+
+  /**
+   * Late to-dos in the morning email (the gap P3-9b left open: a to-do
+   * that was late emailed nobody at all).
+   */
+  it("carries late to-dos, with how late and who they are about", () => {
+    const built = digestFor(
+      {
+        todos: [
+          {
+            title: "Ring about the bank statement",
+            dueDate: istDate(2026, 10, 16),
+            clientName: "Rao & Co",
+          },
+          { title: "Chase the challan", dueDate: istDate(2026, 10, 18) },
+        ],
+      },
+      now,
+    );
+
+    expect(built.empty).toBe(false);
+    expect(built.lines).toContain("Your to-dos, late (2)");
+    expect(built.lines).toContain(
+      "- Ring about the bank statement · Rao & Co (16-10-2026) — 3 days late",
+    );
+    // no client on it, so no stray separator
+    expect(built.lines).toContain(
+      "- Chase the challan (18-10-2026) — 1 day late",
+    );
+  });
+
+  it("sends a digest of to-dos alone, when that is all there is", () => {
+    const built = digestFor(
+      {
+        todos: [{ title: "Chase the challan", dueDate: istDate(2026, 10, 1) }],
+      },
+      now,
+    );
+    expect(built.empty).toBe(false);
+  });
+
+  it("puts to-dos after the firm's work, not before it", () => {
+    const built = digestFor(
+      {
+        overdue: [row()],
+        todos: [{ title: "Chase the challan", dueDate: istDate(2026, 10, 1) }],
+      },
+      now,
+    );
+    expect(built.lines.indexOf("Overdue (1)")).toBeLessThan(
+      built.lines.indexOf("Your to-dos, late"),
+    );
+  });
 });
 
 describe("the Monday summary", () => {

@@ -1965,7 +1965,7 @@ From spec §18 — none answered yet. These block later steps, not Step 0:
 - [x] Export target: **Tally** (D95)
 - [x] Can interns see fees / invoice amounts? **No** (D96)
 - [x] Is a separate Accounts / Billing role needed? **Yes — and it already exists** (D97)
-- [ ] **WhatsApp provider still unanswered** — the owner asked on 30-10-2026 for `/client-experience` to be built, which needs one. Recommendation: Meta's own WhatsApp Cloud API, no BSP in between
+- [x] **WhatsApp provider: Meta's WhatsApp Cloud API, direct, no BSP** (D103, 06-11-2026). The owner is setting it up and will supply the Phone Number ID and the WABA ID. The channel itself is still unbuilt — go-live is on email only
 - [ ] Client portal logins in phase 3, or upload links only?
 - [x] Where existing data lives today and how far back to migrate: **Excel, two financial years** (D98)
 - [ ] Budget and target go-live date
@@ -1973,13 +1973,12 @@ From spec §18 — none answered yet. These block later steps, not Step 0:
 
 ## Owner tasks outstanding
 
-- [ ] Create MongoDB Atlas cluster, DB user, network access — **blocks Step 1**
+- [x] MongoDB Atlas account, Vercel project (**Pro**, CRM live on it) and the `notices@phmgindia.com` mailbox all exist — owner confirmed 06-11-2026
 - [ ] Decide on a GitHub (or other) remote for the code, under the firm's account
-- [ ] Create Vercel project + env vars (needed before the first deploy)
 - [ ] **Atlas: restrict the app's database user on `auditLogs` to `find` and `insert` only** (spec §11). The application already refuses to edit or delete entries; this stops anything else. Needs a custom role in Atlas — I will give click-by-click steps at go-live.
 - [ ] Atlas: set up Online Archive for `auditLogs` entries older than 2 years (spec §11), to keep the live collection fast
-- [ ] BigRock: `files.` subdomain, PHP gateway, cron jobs (Steps 6 and 7)
-- [ ] `notices@` mailbox + SPF/DKIM/DMARC (Step 9)
+- [ ] BigRock: `files.` subdomain, PHP gateway (Step 6). **Cron is no longer needed there** — D100 puts the runner on Vercel Cron
+- [ ] **Email go-live, in order:** the five environment variables in Vercel → SPF, DKIM and DMARC at GoDaddy → `JOBS_SECRET` so the runner starts → `npm run jobs:backlog` before the first tick → test on yourself with `EMAIL_REDIRECT_TO` → remove the redirect and throw the switch on Settings → Automation
 
 ## Left over / known gaps
 
@@ -5232,14 +5231,21 @@ firm that has thrown the switch on screen it cannot tell whether client
 mail is live. It would need a database read to say, and the screen already
 says it plainly.
 
-## The initiative register (owner request, 04-11-2026)
+## The potential register (owner request, 04-11-2026)
+
+**Renamed 06-11-2026 (owner request): "initiative client" is now "potential
+client" everywhere.** Route `/initiatives` → `/potentials`, model
+`Initiative` → `Potential`, permission area and nav `area` `initiatives` →
+`potentials`, mail rule key `initiativeFollowUp` → `potentialFollowUp`, audit
+`entityType` `Initiative` → `Potential`. The owner's words below are left as
+they were said.
 
 > "where i can register those client which are just a new lead of on
 > conversation phase here we only store client name, number, remarks, mail
 > thats it — and if any one of them ready to take our services then we can
 > convert them from our initiative to real client"
 
-`/initiatives`, in the Clients group of the rail. Four fields, three
+`/potentials`, in the Clients group of the rail. Four fields, three
 states, and one way out of it.
 
 **Why it is not a `Client` with `status: "Lead"`.** That status exists and
@@ -5248,7 +5254,7 @@ code, a legal name, an entity type and a branch, and the wizard that fills
 those in is seven steps long. A conversation has none of them. If writing
 an enquiry down costs more than a note in somebody's phone, it is written
 in the phone instead — which is how a firm loses a lead. So
-`models/Initiative.js` holds name, mobile, email, remarks, and nothing is
+`models/Potential.js` holds name, mobile, email, remarks, and nothing is
 required of a conversation that a conversation does not have.
 
 **The one rule it enforces:** a name with no mobile and no email is
@@ -5280,7 +5286,7 @@ somebody needs to be told about a row they cannot read. A number that
 belongs to an **existing client** is said out loud and allowed: that is
 information, not a mistake.
 
-**A new permission area, `initiatives`, wider than `clients`.** A client
+**A new permission area, `potentials`, wider than `clients`.** A client
 file holds a PAN, an Aadhaar, bank details and a credentials vault, which
 is why an employee reaches one only through work on their desk or a grant.
 A lead holds a name and a line of remarks, and the person who meets the
@@ -5314,14 +5320,14 @@ underneath.
 The remarks are **shown, not copied**. One place to correct them, and the
 audit trail of what was said stays on the row it was said about — a copy on
 the client record would have been a second version of the promise, aging
-separately from the one the register keeps. The lookup is `Initiative`
+separately from the one the register keeps. The lookup is `Potential`
 `findOne({ clientId })`, indexed, read only for the Overview tab and only
 when the matrix allows: an intern keeps their own conversations, so a row
 somebody else wrote is not shown rather than shown anonymously.
 
 ### The follow-up date (owner request, same day)
 
-`followUpOn` on the initiative — an IST day or null, and null is the common
+`followUpOn` on the potential — an IST day or null, and null is the common
 case rather than a gap in the record: plenty of enquiries are "he will ring
 us".
 
@@ -5332,7 +5338,7 @@ us".
 - **In the row it shares the remarks' form.** One act: you put the phone
   down, you write what was said and when to ring again. One save, one audit
   entry, and no way to save half of it. `setRemarks` became
-  `updateInitiative(id, formData)`; the date is compared as the *day* it
+  `updatePotential(id, formData)`; the date is compared as the *day* it
   names rather than as two instants, or a stored IST midnight and what the
   box just sent would read as a change on every save.
 - **"Owed a call" leads the tiles** — still talking, has a date, and the
@@ -5351,7 +5357,7 @@ a screen somebody opens every morning can do honestly.
 
 ### The follow-up is a notification rule now (owner request, 05-11-2026)
 
-`initiativeFollowUp`, through the same machinery as every other reminder:
+`potentialFollowUp`, through the same machinery as every other reminder:
 a key in `RULE_DEFAULTS`, a template in `TEMPLATES`, a pure function in
 `lib/mailer/sweep.js`, and one more pass in the morning sweep. So it can be
 switched off, retimed and reworded from Settings → Automation like the rest,
@@ -5381,7 +5387,7 @@ up in the run log — none of which a bespoke mailer would have given it.
   would have addressed the email to itself. `{contact}` and `{remarks}`
   always say something, because `fill` leaves an empty placeholder standing
   as `{x}` rather than printing nothing.
-- The bell notification lands on `/initiatives?due=now`, so the link in the
+- The bell notification lands on `/potentials?due=now`, so the link in the
   inbox is the list of calls owed rather than the register's front page.
   The inbox classifier files it under "My work" by its default, which is
   where a call I owe belongs.
@@ -5394,3 +5400,77 @@ bare path where the address should be. `jobs/reminders.js` now makes any
 the layer that is allowed to read the environment and once for every rule.
 No client-facing reminder is affected: `invoiceReminder` carries no link and
 `documentsPending`'s is minted absolute already.
+
+## Email go-live: the owner's five decisions, and the three gaps closed (06-11-2026)
+
+The owner confirmed the infrastructure is already in place — Vercel **Pro**
+with the CRM live on it, the Atlas account, and the `notices@phmgindia.com`
+mailbox — and answered the five open questions.
+
+**Decisions recorded**
+
+- **D100 — the runner is Vercel Cron**, every five minutes, as `vercel.json`
+  already carries it. Pro, so `*/5 * * * *` runs as written rather than
+  being silently collapsed to daily. No BigRock cron, no external pinger,
+  and no third party holding `JOBS_SECRET`.
+- **D101 — overdue work for partners stays in the digest.** Spec §12 lists
+  Partner on the overdue row; the assignee and reviewer get the daily
+  email, and the partner's morning digest carries the firm's whole overdue
+  list with names against it. One email a day beats one per job, which is a
+  rule people mute. The question P3-9b left open is now answered.
+- **D102 — the Monday summary is right as built.** Work started and
+  completed last week, overdue now, awaiting review, completed-but-unbilled,
+  total receivable with how much is past due, and overdue by person.
+- **D103 — go live on email only.** WhatsApp stays unbuilt. The owner is
+  setting up **Meta's WhatsApp Cloud API directly, no reseller**, and will
+  supply the Phone Number ID and the WABA ID. Spec §18's longest-standing
+  open question is half-answered: the provider is chosen, the channel is
+  still not built, and `NOT_COVERED` keeps its entry until it is.
+- **D104 — DMARC reports go to `caankit@phmgindia.com`**, changed in
+  `docs/DEPLOY.md` §3. `SPEC.md` §529 still names `associatesphmg@gmail.com`
+  and was deliberately left alone: that line is about who *owns* the Atlas
+  and hosting accounts, not where DMARC reports land.
+
+**The three gaps closed**
+
+- **Late to-dos are in the morning digest.** `digestFor` gained a `todos`
+  block and `jobs/digest.js` fetches them; they sit last, after the firm's
+  work, because an overdue filing outranks a phone call. Only the **late**
+  ones — a to-do due today is on the screen the digest links to, and a
+  morning email listing everything is one nobody reads. A to-do lands on
+  its owner's pile and nowhere else: unlike an engagement it has no
+  reviewer and no partner, so there is nobody else it could honestly go to.
+  The client lookup was widened rather than duplicated, so the digest is
+  still one pass.
+- **`npm run doctor` reads the in-app switch.** A new live check asks
+  `clientMailFrom(firmProfile())` and says whether client mail is on, *and
+  which of the two answered* — the firm's switch or the environment
+  variable behind it. Since 04-11-2026 `doctor` had been reporting the
+  environment's answer to the most consequential question it asks, which on
+  any firm past go-live is the wrong one. Never a failure: off is the
+  correct state for most of the build. It also warns now when
+  `EMAIL_REPLY_TO` is unset on an SMTP deployment.
+- **Client replies reach a person.** `EMAIL_REPLY_TO` adds a `Reply-To`
+  header to every message, shown on Settings → Messages with a plain
+  warning when it is blank. `from` stays `notices@`, so SPF and DKIM still
+  pass on the signing domain. Applied to internal mail too — a reply to the
+  morning digest was as lost as a client's reply to an invoice.
+  - **This is the small version on purpose.** It makes a reply reach a
+    human; it does **not** read the mailbox and post replies into the
+    client's thread. That needs an IMAP dependency, quoted-text stripping
+    and thread matching, and a mis-match would put one client's words on
+    another client's record — a confidentiality fault, not a cosmetic one.
+    Recommended against for a firm of five. **Owner to confirm.**
+
+**Two stale tests fixed, both stale in the harmless direction**
+
+- `tests/mailer.test.js` asserted nine client-facing templates against an
+  allow-list that never gained `clientDocument`. The template was marked
+  `audience: "client"` correctly all along, so the guard held it and
+  nothing leaked — the allow-list was the stale half. Now ten.
+- `tests/issues.test.js` expected `#approval` on the client-confirmation
+  step. That anchor was deliberately replaced by `#steps` when the Approval
+  panel was folded into the steps panel; the test was never updated.
+
+Tests: 1821 passing (was 1814 passing, 2 failing). Lint and `next build`
+clean.

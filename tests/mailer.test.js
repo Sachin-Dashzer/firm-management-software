@@ -17,6 +17,7 @@ beforeEach(() => {
   delete process.env.EMAIL_ENABLED;
   delete process.env.EMAIL_CLIENTS_ENABLED;
   delete process.env.EMAIL_REDIRECT_TO;
+  delete process.env.EMAIL_REPLY_TO;
 });
 
 afterEach(() => {
@@ -112,6 +113,21 @@ describe("settings read from the environment", () => {
     expect(settings.enabled).toBe(true);
     expect(settings.clientsEnabled).toBe(false);
   });
+
+  /**
+   * Four templates invite the client to reply, and `notices@` is a sending
+   * mailbox nobody opens. Blank is the old behaviour and has to stay
+   * blank — a default address here would send the firm's replies somewhere
+   * nobody chose.
+   */
+  it("has no reply address until one is set", () => {
+    expect(mailSettings().replyTo).toBe("");
+  });
+
+  it("trims the reply address, so a stray space is not a header", () => {
+    process.env.EMAIL_REPLY_TO = "  caankit@phmgindia.com  ";
+    expect(mailSettings().replyTo).toBe("caankit@phmgindia.com");
+  });
 });
 
 describe("filling a template in", () => {
@@ -171,7 +187,7 @@ describe("filling a template in", () => {
       (t) => t.audience === "client",
     );
     /**
-     * Exactly these nine leave the building; everything else is internal,
+     * Exactly these ten leave the building; everything else is internal,
      * and the guard only holds back what is marked "client".
      *
      * This list is an allow-list on purpose, so adding a client-facing
@@ -180,10 +196,17 @@ describe("filling a template in", () => {
      * a question the client asked. P3-17a added `messageToClient`, which is
      * the only one whose words are a person's own rather than a template -
      * and being on this list is what puts it behind the client-email switch.
+     *
+     * `clientDocument` was added to `templates.js` without being added
+     * here, so this test failed from then until the email go-live work
+     * (06-11-2026). It was marked `audience: "client"` correctly, so the
+     * guard held it all along and nothing leaked — the allow-list was the
+     * stale half, which is the harmless direction for this to break in.
      */
     expect(clientFacing.map((t) => t.key).sort()).toEqual([
       "checklistAnswer",
       "checklistReplacement",
+      "clientDocument",
       "clientThreadMessage",
       "documentRequest",
       "documentsPending",

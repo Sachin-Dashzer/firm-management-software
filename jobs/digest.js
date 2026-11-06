@@ -3,6 +3,7 @@
 import Engagement from "../models/Engagement.js";
 import Client from "../models/Client.js";
 import Invoice from "../models/Invoice.js";
+import Todo from "../models/Todo.js";
 import User from "../models/User.js";
 import { connectDB } from "../lib/db.js";
 import { loadRules } from "../lib/mailer/rules.js";
@@ -37,7 +38,7 @@ export async function dailyDigest(options = {}) {
   const rules = await loadRules({ fresh: true });
   if (!rules.dailyDigest?.enabled) return { skipped: "rule switched off" };
 
-  const { engagements, clientName } = await openWork(
+  const { engagements, lateTodos, clientName } = await openWork(
     now,
     options.limit ?? 2000,
   );
@@ -50,7 +51,7 @@ export async function dailyDigest(options = {}) {
   const pile = (id) => {
     const key = String(id);
     if (!piles.has(key)) {
-      piles.set(key, { overdue: [], dueToday: [], toReview: [] });
+      piles.set(key, { overdue: [], dueToday: [], toReview: [], todos: [] });
     }
     return piles.get(key);
   };
@@ -95,6 +96,19 @@ export async function dailyDigest(options = {}) {
     }
   }
 
+  // a late to-do lands on its owner's pile, nowhere else: unlike an
+  // engagement it has no reviewer and no partner, so there is nobody else
+  // it could honestly be shown to
+  for (const todo of lateTodos) {
+    pile(todo.ownerId).todos.push({
+      title: todo.title,
+      dueDate: todo.dueDate,
+      clientName: todo.clientId
+        ? (clientName.get(String(todo.clientId)) ?? "")
+        : "",
+    });
+  }
+
   const stamp = formatISTDate(now);
   let sent = 0;
   const empty = [];
@@ -104,6 +118,7 @@ export async function dailyDigest(options = {}) {
       overdue: [],
       dueToday: [],
       toReview: [],
+      todos: [],
     };
     // partners see the firm's overdue list here instead of one email per
     // overdue job
@@ -262,26 +277,54 @@ export async function weeklySummary(options = {}) {
   return { partners: partners.length, sent };
 }
 
-/** Open work with a date on it, plus the client names to print. */
+/**
+ * Open work with a date on it, the late to-dos, and the client names both
+ * of them print.
+ *
+ * One client query for the two of them. The names are the only reason this
+ * function exists, and running a second lookup for the to-dos would read
+ * the same documents twice for a list that is usually shorter than ten.
+ */
 async function openWork(now, limit) {
-  const engagements = await Engagement.find({
-    status: SWEEP_OPEN_STATUSES,
-  })
-    .select(
-      "clientId templateSnapshot.name period periodLabel status statutoryDue internalDue assigneeId reviewerId",
-    )
-    .sort({ statutoryDue: 1, internalDue: 1 })
-    .limit(limit)
-    .lean();
+  const [engagements, lateTodos] = await Promise.all([
+    Engagement.find({
+      status: SWEEP_OPEN_STATUSES,
+    })
+      .select(
+        "clientId templateSnapshot.name period periodLabel status statutoryDue internalDue assigneeId reviewerId",
+      )
+      .sort({ statutoryDue: 1, internalDue: 1 })
+      .limit(limit)
+      .lean(),
+    /*
+     * Late, not "due today": today's are on the screen the digest links to.
+     * `deletedAt` is handled by the soft-delete plugin's own query hook, so
+     * a binned to-do cannot be chased.
+     */
+    Todo.find({
+      done: false,
+      dueDate: { $ne: null, $lt: startOfISTDay(now) },
+    })
+      .select("title dueDate ownerId clientId")
+      .sort({ dueDate: 1 })
+      .limit(limit)
+      .lean(),
+  ]);
+
+  const clientIds = new Set(engagements.map((e) => String(e.clientId)));
+  for (const todo of lateTodos) {
+    if (todo.clientId) clientIds.add(String(todo.clientId));
+  }
 
   const clients = await Client.find({
-    _id: { $in: [...new Set(engagements.map((e) => String(e.clientId)))] },
+    _id: { $in: [...clientIds] },
   })
     .select("legalName tradeName")
     .lean();
 
   return {
     engagements,
+    lateTodos,
     clientName: new Map(
       clients.map((c) => [String(c._id), c.tradeName || c.legalName]),
     ),

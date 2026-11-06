@@ -320,6 +320,13 @@ Add to Vercel (**Settings → Environment Variables**):
 | `SMTP_USER` | `notices@phmgindia.com` |
 | `SMTP_PASSWORD` | the password from step 1 |
 | `EMAIL_FROM` | `PHMG & Associates <notices@phmgindia.com>` |
+| `EMAIL_REPLY_TO` | a mailbox a person actually reads, e.g. `caankit@phmgindia.com` |
+
+`EMAIL_REPLY_TO` matters more than it looks. `notices@` is a sending
+mailbox and nobody opens it, but four of the templates invite the client to
+reply — so without this a client who presses Reply is writing into a drawer.
+The `from` stays `notices@` either way, so SPF and DKIM still pass on the
+domain that signs the mail.
 
 Redeploy, then open **Settings → Messages**. The delivery line should say
 the mailbox answered. If it does not, the message there says why.
@@ -341,7 +348,7 @@ Three records do that.
 4. Add a third record yourself, for DMARC: TXT, host `_dmarc`, value:
 
    ```
-   v=DMARC1; p=none; rua=mailto:associatesphmg@gmail.com
+   v=DMARC1; p=none; rua=mailto:caankit@phmgindia.com
    ```
 
    `p=none` means "watch and report, do not block" — the right setting

@@ -291,6 +291,14 @@ export default function Messages({
               <dl className="text-13 flex flex-col gap-2">
                 <Line term="Sends from" value={settings.from} />
                 <Line
+                  term="Replies go to"
+                  value={
+                    settings.replyTo ||
+                    "Nowhere anybody reads. notices@ is a sending mailbox and nothing opens it, so a client who presses Reply is writing into a drawer. Set EMAIL_REPLY_TO to a mailbox a person reads."
+                  }
+                  tone={settings.replyTo ? "" : "bad"}
+                />
+                <Line
                   term="Delivery"
                   value={
                     settings.transport === "log"
