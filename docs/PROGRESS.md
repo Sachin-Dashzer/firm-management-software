@@ -5518,3 +5518,33 @@ record yet; a revised quote goes out as a message for now.
 
 Tests: 1829 passing (8 new in `tests/quotation.test.js`). Lint and
 `next build` clean.
+
+## 06-11-2026 — Going live with the self-firing rules off
+
+Owner's decision: nothing automated runs on its own at go-live except the
+onboarding quotation, and the rest get turned on one at a time once each
+has been watched.
+
+- `mergeRules` now holds off every rule whose `when` is `before`, `daily`,
+  `repeat` or `time` — the nine that fire by themselves: `internalDueSoon`,
+  `statutoryDueSoon`, `engagementOverdue`, `documentsPending`,
+  `invoiceReminder`, `potentialFollowUp`, `dailyDigest`, `weeklySummary`,
+  `dscExpiring`.
+- Read off `when` rather than a list of keys, so a rule added later is off
+  if it sweeps and on if a person triggers it, and nobody has to remember
+  this decision.
+- **Everything a person sets off stays on**, deliberately: a document
+  somebody presses send on, a message somebody writes, the upload link, and
+  the in-app bell for assignment, review and mentions. Every notification
+  in the app goes through `notify` and is gated by its rule, so switching
+  those off would not have turned automation down — it would have broken a
+  button and emptied the inbox. The first shape of this change did exactly
+  that for a few minutes; the narrower one is what shipped.
+- The quotation is `immediate`, so it needs no exception: it is on because
+  a person onboarding a client is what sets it off.
+- A row in `notificationRules` still wins. Switching any of the nine on from
+  Settings → Automation works as it always did, and a rule switched on
+  before today stays on — the screen's "N of 25 on" is the truth, not this
+  default.
+
+Tests: 1833 passing. Lint and `next build` clean.

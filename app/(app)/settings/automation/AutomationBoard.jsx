@@ -497,6 +497,14 @@ export default function AutomationBoard({
             partner does not read it first — and it is still bound by the limits
             above. Both are a partner&rsquo;s.
           </p>
+          <p className="text-13 text-ink-muted max-w-[70ch]">
+            Every rule that <strong>fires by itself</strong> — the chasers,
+            the reminders, the digests — starts <strong>Off</strong>, and the
+            firm turns them on one at a time once each has been watched. The
+            ones a person sets off, and the bell that says work is yours, run
+            as normal. Switching one on here is all that is needed; it holds
+            from the next run.
+          </p>
         </div>
 
         <ul className="rounded-ledger border-rule bg-surface flex flex-col border">

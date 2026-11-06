@@ -21,7 +21,20 @@ import { istDate } from "../lib/dates.js";
  * after, against the spec's own timings.
  */
 
-const rules = mergeRules([]);
+/**
+ * Every rule on, which is not what the firm is running.
+ *
+ * Since 06-11-2026 `LIVE_RULES` holds every rule off by default and the
+ * firm turns them on one at a time from Settings → Automation, which is a
+ * row in the database — exactly what is passed in here. These tests are
+ * about *when* a rule fires once it is on; whether it is on yet is
+ * `allOff` below.
+ */
+const allOn = Object.keys(RULE_DEFAULTS).map((key) => ({
+  key,
+  enabled: true,
+}));
+const rules = mergeRules(allOn);
 
 /** 09:00 IST on a given Indian date, which is when the sweep runs. */
 const at = (year, month, day) =>
@@ -369,8 +382,65 @@ describe("invoice payment reminders", () => {
   });
 });
 
+describe("going live one rule at a time (06-11-2026)", () => {
+  const shipped = mergeRules([]);
+
+  it("holds every rule that fires by itself off", () => {
+    const off = Object.values(shipped)
+      .filter((rule) => !rule.enabled)
+      .map((rule) => rule.key)
+      .sort();
+    expect(off).toEqual([
+      "dailyDigest",
+      "documentsPending",
+      "dscExpiring",
+      "engagementOverdue",
+      "internalDueSoon",
+      "invoiceReminder",
+      "potentialFollowUp",
+      "statutoryDueSoon",
+      "weeklySummary",
+    ]);
+  });
+
+  it("leaves everything a person sets off alone, the bell included", () => {
+    // switching these off would break a button, not turn automation down
+    for (const key of [
+      "quotation",
+      "mentioned",
+      "engagementAssigned",
+      "engagementForReview",
+      "messageToClient",
+      "clientDocument",
+      "documentRequest",
+      "clientChangeRequest",
+    ]) {
+      expect(shipped[key].enabled, key).toBe(true);
+    }
+  });
+
+  it("sweeps nothing until a rule is switched on", () => {
+    expect(
+      engagementReminders(
+        { engagement: engagement({ statutoryDue: istDate(2026, 10, 20) }) },
+        shipped,
+        at(2026, 10, 15),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("runs a rule the firm switches on from the screen", () => {
+    const merged = mergeRules([{ key: "statutoryDueSoon", enabled: true }]);
+    expect(merged.statutoryDueSoon.enabled).toBe(true);
+    expect(merged.engagementOverdue.enabled).toBe(false);
+  });
+});
+
 describe("a switched-off rule", () => {
-  const off = mergeRules([{ key: "engagementOverdue", enabled: false }]);
+  const off = mergeRules([
+    ...allOn.filter((row) => row.key !== "engagementOverdue"),
+    { key: "engagementOverdue", enabled: false },
+  ]);
 
   it("sends nothing at all", () => {
     const out = engagementReminders(
@@ -389,7 +459,7 @@ describe("a switched-off rule", () => {
 describe("the firm's own timings", () => {
   it("replaces the days the spec starts with", () => {
     const merged = mergeRules([
-      { key: "statutoryDueSoon", daysBefore: [10, 3] },
+      { key: "statutoryDueSoon", enabled: true, daysBefore: [10, 3] },
     ]);
     expect(merged.statutoryDueSoon.daysBefore).toEqual([10, 3]);
 
