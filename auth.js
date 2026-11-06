@@ -38,28 +38,62 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // the password was already checked; this exchanges challenge + code
       credentials: { challenge: {}, code: {} },
       async authorize({ challenge, code }) {
+        /**
+         * Every refusal below returns the same `null`, and the login screen
+         * turns that into "that code is not right" — which is a lie for
+         * four of the five reasons, and left nothing in the server log to
+         * tell them apart. The reason is logged; the answer to the browser
+         * stays deliberately uniform.
+         */
+        const refuse = (reason) => {
+          console.error(`[login] refused: ${reason}`);
+          return null;
+        };
+
         const userId = readChallenge(String(challenge ?? ""));
         // a portal challenge is prefixed `client:` and is not a staff
         // challenge however valid its signature is (P2-9a)
-        if (!userId || userId.includes(":")) return null;
+        if (!userId || userId.includes(":")) {
+          return refuse(
+            userId
+              ? "portal challenge offered at the staff door"
+              : "challenge forged, altered or older than 5 minutes",
+          );
+        }
 
         await connectDB();
         const user = await User.findById(userId).select(
           "+totpSecret +lastTotpCounter",
         );
-        if (!user || !user.active) return null;
+        if (!user) return refuse(`no user ${userId}`);
+        if (!user.active) return refuse(`${user.email} is deactivated`);
+
+        let secret = null;
+        if (user.totpSecret) {
+          try {
+            secret = decryptField(user.totpSecret);
+          } catch {
+            // the stored secret was encrypted with a different key than
+            // this deployment holds, so no code can ever match it
+            return refuse(
+              `${user.email}: stored TOTP secret will not decrypt — FIELD_ENCRYPTION_KEY does not match the one it was enrolled with`,
+            );
+          }
+        }
 
         const result = skip2fa()
           ? { ok: true, counter: user.lastTotpCounter }
-          : user.totpSecret
+          : secret
             ? verifyTotp({
-                secret: decryptField(user.totpSecret),
+                secret,
                 email: user.email,
                 code: String(code ?? ""),
                 lastCounter: user.lastTotpCounter,
               })
-            : { ok: false };
-        if (!result.ok) return null;
+            : { ok: false, reason: "not enrolled" };
+        if (!result.ok) {
+          return refuse(`${user.email}: code ${result.reason}`);
+        }
 
         const actor = {
           id: String(user._id),
