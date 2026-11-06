@@ -5548,3 +5548,32 @@ has been watched.
   default.
 
 Tests: 1833 passing. Lint and `next build` clean.
+
+## 06-11-2026 — The job runner was never reachable on Vercel
+
+A Vercel log for `GET /api/jobs/run`, user agent `vercel-cron/1.0`:
+**307, redirect location `/login`**. Every five minutes, since go-live.
+Nothing scheduled has ever run on Vercel — no reminders, no digests, no
+mail leaving the queue — and nothing in the app could say so, because the
+queue simply grew.
+
+- **Cause:** `middleware.js` sends every cookieless request to `/login`,
+  and its matcher excluded only `api/auth`. A cron job has no session
+  cookie and never will, so the wall was asking the one question the caller
+  could not answer. The route itself was correct all along: it compares
+  `JOBS_SECRET` in constant time and fails closed when it is unset.
+- **Fix:** `api/jobs` and `api/storage` are out of the matcher, with the
+  reason written where the matcher is. Both carry a stronger guard than a
+  session cookie — a secret and a signed ticket. `api/search` stays behind
+  the wall; it reads client data.
+- `tests/middleware.test.js` pins the matcher: the app walled, the front
+  doors and the two self-guarding routes open, `api/search` walled. Nothing
+  tested that regex before, which is how it was wrong for weeks.
+- **Second cause, in the owner's hands:** Vercel's scheduler cannot be
+  given a custom header, so `CRON_SECRET` is the only secret it can
+  present, and it sends no header at all unless that variable exists.
+  `.env.example` and `DEPLOY.md` called it optional. Both now say it is
+  required on Vercel and must hold the same value as `JOBS_SECRET`, with
+  the 307 / 404 / 500 answers written down.
+
+Tests: 1837 passing. Lint and `next build` clean.

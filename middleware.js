@@ -47,8 +47,29 @@ export const config = {
    *
    * `client/login` is excluded the same way `login` is — it is a front door,
    * so requiring a session to reach it would be a redirect loop.
+   *
+   * ## The two API routes that carry their own key (06-11-2026)
+   *
+   * A cookie is the wrong question to ask of a caller that was never going
+   * to have one, and asking it anyway is not a stricter wall — it is a
+   * broken one. Both of these refuse on their own terms, which is a
+   * stronger guard than a session cookie, not a weaker one:
+   *
+   *  - `api/jobs/run` — the job runner, called by cron. It compares
+   *    `JOBS_SECRET` in constant time and fails closed when it is unset.
+   *    Vercel Cron called it every five minutes from go-live and **every
+   *    single call was redirected to `/login`**, so nothing scheduled has
+   *    ever run on Vercel: no reminders, no digests, no mail. That is what
+   *    this exclusion fixes.
+   *  - `api/storage/local` — the development stand-in for the PHP gateway.
+   *    It checks the same signed, short-lived ticket the gateway checks and
+   *    404s outright unless the app is configured for the local driver, so
+   *    it cannot become a second way in on the live site.
+   *
+   * `api/search` is deliberately **not** here: it reads client data and
+   * scopes it to the signed-in person.
    */
   matcher: [
-    "/((?!login|client/login|upload/|api/auth|_next/static|_next/image|favicon.ico|.*\.png$).*)",
+    "/((?!login|client/login|upload/|api/auth|api/jobs|api/storage|_next/static|_next/image|favicon.ico|.*\.png$).*)",
   ],
 };

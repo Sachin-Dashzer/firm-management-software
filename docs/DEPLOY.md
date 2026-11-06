@@ -226,10 +226,23 @@ and weeks stale — see section 2c.
 ```
 
 1. Make a secret and add it to Vercel as `JOBS_SECRET` (see Option 2 step 1).
-   Vercel also sends its own `CRON_SECRET` as a bearer token if you set
-   one; the route accepts either name.
-2. Redeploy. Vercel picks the schedule up from `vercel.json` on deploy.
-3. Check **Settings → Background jobs** after five minutes.
+2. **Add the same value again as `CRON_SECRET`.** This is not optional on
+   Vercel and it is the step that was missed at go-live: Vercel's scheduler
+   cannot be given a custom header, so `CRON_SECRET` is the only secret it
+   can present (as `Authorization: Bearer`), and it sends no header at all
+   unless that variable exists. Without it every five-minute call is
+   refused and nothing scheduled ever runs.
+3. Redeploy. Vercel picks the schedule up from `vercel.json` on deploy.
+4. Check **Settings → Background jobs** after five minutes.
+
+> **Fixed 06-11-2026.** Until this date `middleware.js` sent every
+> cookieless request to `/login`, `/api/jobs/run` included, so Vercel Cron
+> got a `307` redirect every five minutes and the runner never started. The
+> route is now excluded from the session wall — it has always guarded itself
+> with the secret. If the Vercel log for `/api/jobs/run` shows **307** with
+> `Redirect Location: /login`, the deployment predates this fix; redeploy
+> `main`. A **404** means the secret is wrong or `CRON_SECRET` is missing
+> (step 2); a **500** means `JOBS_SECRET` is unset or under 24 characters.
 
 **The catch, and it matters:** on the Vercel **Hobby** plan cron jobs run
 **once a day**, not every five minutes — Vercel silently treats
