@@ -17,7 +17,7 @@ export const metadata = { title: "Not found · PHMG" };
 
 export default function NotFound() {
   return (
-    <main className="bg-paper text-ink mx-auto flex min-h-dvh max-w-xl flex-col justify-center gap-4 px-4">
+    <main className="bg-paper text-ink mx-auto flex min-h-[70vh] max-w-xl flex-col justify-center gap-4 px-4 py-10">
       <h1 className="font-display text-24 font-bold tracking-tight">
         There is nothing here.
       </h1>
