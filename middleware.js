@@ -22,9 +22,38 @@ const SESSION_COOKIES = [
   "__Secure-authjs.session-token",
 ];
 
+/**
+ * A server action POST, which Next marks with its own header
+ * (QA 09-11-2026, #8).
+ *
+ * Redirecting one of these to `/login` is what produced "An unexpected
+ * response was received from the server": the browser followed the
+ * redirect, the action client was handed a page of HTML where it expected
+ * a React payload, could make nothing of it, and the button appeared to do
+ * nothing at all. An expired session is the commonest thing that happens
+ * to a form somebody has been filling in for half an hour, and it has to
+ * say so.
+ *
+ * @param {import("next/server").NextRequest} request
+ */
+const isServerAction = (request) =>
+  request.method === "POST" && request.headers.has("next-action");
+
 export function middleware(request) {
   const signedIn = SESSION_COOKIES.some((c) => request.cookies.has(c));
   if (signedIn) return NextResponse.next();
+
+  /*
+   * 401 rather than a redirect: the action never runs, and the client — see
+   * `runAction` in lib/forms/runAction.js — asks whether the session is
+   * still there and says "you have been signed out" rather than guessing.
+   */
+  if (isServerAction(request)) {
+    return new NextResponse("Signed out", {
+      status: 401,
+      headers: { "x-phmg-signed-out": "1" },
+    });
+  }
 
   const { pathname, search } = request.nextUrl;
   const portal = pathname.startsWith("/client");

@@ -12,11 +12,14 @@ import { formatPaise } from "@/lib/money";
 import { formatISTDate, daysUntil } from "@/lib/dates";
 import { StatusChip } from "../../clients/page";
 import { StatusChip as WorkChip, DueChip } from "../../engagements/chips";
+import { isId } from "@/lib/routes/id";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }) {
   const { id } = await params;
+  // a mistyped URL is not a page title (#7)
+  if (!isId(id)) return { title: "Group · PHMG" };
   await connectDB();
   const group = await ClientGroup.findById(id).select("name").lean();
   return { title: `${group?.name ?? "Group"} · PHMG` };
@@ -36,6 +39,8 @@ export default async function GroupPage({ params }) {
   if (!can(actor, "view", "clients")) redirect("/issues");
 
   const { id } = await params;
+  // a mistyped URL is a 404, not a cast error (#7)
+  if (!isId(id)) notFound();
   await connectDB();
 
   const group = await ClientGroup.findById(id).select("name notes").lean();

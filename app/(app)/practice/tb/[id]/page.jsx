@@ -25,11 +25,14 @@ import Mapping from "./Mapping";
 import Journal from "./Journal";
 import Notes from "./Notes";
 import Settle from "./Settle";
+import { isId } from "@/lib/routes/id";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }) {
   const { id } = await params;
+  // a mistyped URL is not a page title (#7)
+  if (!isId(id)) return { title: "Financial statements · PHMG" };
   await connectDB();
   const tb = await TrialBalance.findById(id).select("fyLabel").lean();
   return {
@@ -66,6 +69,8 @@ export default async function TbSetPage({ params, searchParams }) {
   if (!can(actor, "view", "practice")) redirect("/issues");
 
   const { id } = await params;
+  // a mistyped URL is a 404, not a cast error (#7)
+  if (!isId(id)) notFound();
   const query = (await searchParams) ?? {};
 
   await connectDB();

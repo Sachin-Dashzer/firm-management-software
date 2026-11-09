@@ -21,11 +21,14 @@ import {
   nextDue,
 } from "@/lib/practice/notices";
 import NoticeMatter from "./NoticeMatter";
+import { isId } from "@/lib/routes/id";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }) {
   const { id } = await params;
+  // a mistyped URL is not a page title (#7)
+  if (!isId(id)) return { title: "Notice · PHMG" };
   await connectDB();
   const notice = await Notice.findById(id).select("section kind").lean();
   const label = notice
@@ -45,6 +48,8 @@ export async function generateMetadata({ params }) {
 export default async function NoticePage({ params }) {
   const actor = await requireUser();
   const { id } = await params;
+  // a mistyped URL is a 404, not a cast error (#7)
+  if (!isId(id)) notFound();
 
   await connectDB();
   const notice = await Notice.findById(id).lean();

@@ -20,6 +20,7 @@ import Leave from "@/models/Leave";
 import { LEAVE_KINDS, coversDay, statusOf, leaveDays } from "@/lib/team/leave";
 import AdminActions from "./AdminActions";
 import LeavePanel from "./LeavePanel";
+import { isId } from "@/lib/routes/id";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,8 @@ export async function generateMetadata({ params }) {
   if (!actor) return generic;
 
   const { id } = await params;
+  // a mistyped URL is not a page title (#7)
+  if (!isId(id)) return generic;
   await connectDB();
   const person = await User.findById(id).select("name branchIds").lean();
   if (!person) return generic;
@@ -57,6 +60,8 @@ export async function generateMetadata({ params }) {
 export default async function TeamMemberPage({ params, searchParams }) {
   const actor = await requireUser();
   const { id } = await params;
+  // a mistyped URL is a 404, not a cast error (#7)
+  if (!isId(id)) notFound();
   const tab = (await searchParams)?.tab ?? "profile";
 
   await connectDB();

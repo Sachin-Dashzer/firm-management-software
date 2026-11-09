@@ -20,6 +20,7 @@ import {
 import { peekInvoiceNumber, issueWarning } from "@/lib/billing/number";
 import InvoiceEditor from "./InvoiceEditor";
 import { promiseHolds, promiseBroken } from "@/lib/billing/promise";
+import { isId } from "@/lib/routes/id";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,8 @@ export async function generateMetadata({ params }) {
   if (!actor) return generic;
 
   const { id } = await params;
+  // a mistyped URL is not a page title (#7)
+  if (!isId(id)) return generic;
   await connectDB();
   const invoice = await Invoice.findById(id).select("number branchId").lean();
   if (!invoice) return generic;
@@ -43,6 +46,8 @@ export async function generateMetadata({ params }) {
 export default async function InvoicePage({ params }) {
   const actor = await requireUser();
   const { id } = await params;
+  // a mistyped URL is a 404, not a cast error (#7)
+  if (!isId(id)) notFound();
 
   await connectDB();
   const invoice = await Invoice.findById(id).lean();

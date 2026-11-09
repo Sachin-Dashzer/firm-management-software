@@ -17,11 +17,14 @@ import {
   assemble,
 } from "@/lib/practice/certificates";
 import CertificateDraft from "./CertificateDraft";
+import { isId } from "@/lib/routes/id";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }) {
   const { id } = await params;
+  // a mistyped URL is not a page title (#7)
+  if (!isId(id)) return { title: "Certificate · PHMG" };
   await connectDB();
   const row = await Certificate.findById(id).select("number").lean();
   return { title: `${row?.number ?? "Certificate"} · PHMG` };
@@ -36,6 +39,8 @@ export async function generateMetadata({ params }) {
  */
 export default async function CertificatePage({ params }) {
   const { id } = await params;
+  // a mistyped URL is a 404, not a cast error (#7)
+  if (!isId(id)) notFound();
   const actor = await requireUser();
   if (!can(actor, "view", "udin")) redirect("/issues");
 

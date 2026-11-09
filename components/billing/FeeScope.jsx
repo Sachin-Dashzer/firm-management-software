@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { runAction } from "@/lib/forms/runAction";
 import {
   setEngagementFee,
   setEngagementScope,
@@ -44,7 +45,9 @@ export default function FeeScope({
 
   function run(action) {
     startTransition(async () => {
-      const result = await action();
+      // runAction, so an expired session says so rather than throwing a
+      // rejected transition at the screen (QA 09-11-2026, #8)
+      const result = await runAction(action);
       onResult(result);
       if (result?.ok) {
         setOpen(null);

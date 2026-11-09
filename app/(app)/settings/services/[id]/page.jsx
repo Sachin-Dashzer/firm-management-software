@@ -5,6 +5,7 @@ import { connectDB } from "@/lib/db";
 import ServiceTemplate from "@/models/ServiceTemplate";
 import ServiceForm from "../ServiceForm";
 import SettingsScreen from "../../Shell";
+import { isId } from "@/lib/routes/id";
 
 export const metadata = { title: "Edit service · PHMG" };
 
@@ -13,6 +14,8 @@ export default async function EditServicePage({ params }) {
   if (!can(actor, "edit", "serviceCatalog")) redirect("/settings/services");
 
   const { id } = await params;
+  // a mistyped URL is a 404, not a cast error (#7)
+  if (!isId(id)) notFound();
   await connectDB();
   const doc = await ServiceTemplate.findById(id)
     .lean()

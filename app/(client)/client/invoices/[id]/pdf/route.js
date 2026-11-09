@@ -5,6 +5,7 @@ import { connectDB } from "@/lib/db";
 import Invoice from "@/models/Invoice";
 import { InvoicePdf } from "@/lib/billing/invoicePdf";
 import { invoiceView } from "@/lib/billing/invoiceView";
+import { isId, notFoundResponse } from "@/lib/routes/id";
 import {
   belongsToClient,
   CLIENT_VISIBLE_INVOICE_STATUSES,
@@ -35,6 +36,8 @@ export const maxDuration = 30;
 export async function GET(request, { params }) {
   const person = await requireClientUser();
   const { id } = await params;
+  // a mistyped URL is a 404, not a cast error (#7)
+  if (!isId(id)) return notFoundResponse();
 
   await connectDB();
   const invoice = await Invoice.findById(id).lean();

@@ -9,6 +9,7 @@ import { handoverRows } from "@/lib/team/handover";
 import { coversDay, APPROVED_LEAVE } from "@/lib/team/leave";
 import { formatISTDate } from "@/lib/dates";
 import TakeOver from "./TakeOver";
+import { isId } from "@/lib/routes/id";
 
 export const metadata = { title: "Take over · PHMG" };
 export const dynamic = "force-dynamic";
@@ -30,6 +31,8 @@ export const dynamic = "force-dynamic";
 export default async function TakeOverPage({ params }) {
   const actor = await requireUser();
   const { id } = await params;
+  // a mistyped URL is a 404, not a cast error (#7)
+  if (!isId(id)) notFound();
 
   if (!can(actor, "edit", "engagementsCreate")) redirect(`/team/${id}`);
 

@@ -49,6 +49,7 @@ import Segmented from "@/components/ui/Segmented";
 import { issuerFor } from "@/lib/docs/rules";
 import { DueChip, StatusChip } from "../chips";
 import { bookOf, BOOKS } from "@/lib/practice/books";
+import { isId } from "@/lib/routes/id";
 import {
   latenessDays,
   milestoneState,
@@ -72,6 +73,8 @@ export async function generateMetadata({ params }) {
   if (!actor) return generic;
 
   const { id } = await params;
+  // a mistyped URL is not a page title (#7)
+  if (!isId(id)) return generic;
   await connectDB();
   const engagement = await Engagement.findById(id)
     .select("code branchId assigneeId reviewerId")
@@ -117,6 +120,8 @@ const TABS = ["work", "files", "letters", "setup", "activity"];
 export default async function EngagementPage({ params, searchParams }) {
   const actor = await requireUser();
   const { id } = await params;
+  // a mistyped URL is a 404, not a cast error (#7)
+  if (!isId(id)) notFound();
   const query = (await searchParams) ?? {};
   const tab = TABS.includes(query.tab) ? query.tab : "work";
 

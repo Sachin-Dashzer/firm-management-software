@@ -1,3 +1,4 @@
+import { isId } from "@/lib/routes/id";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { currentUser, requireUser } from "@/auth";
@@ -94,6 +95,8 @@ export async function generateMetadata({ params }) {
   if (!actor) return generic;
 
   const { id } = await params;
+  // a mistyped URL is not a page title (#7)
+  if (!isId(id)) return generic;
   await connectDB();
   const client = await Client.findById(id)
     .select("legalName tradeName branchId")
@@ -109,6 +112,8 @@ export async function generateMetadata({ params }) {
 export default async function ClientPage({ params, searchParams }) {
   const actor = await requireUser();
   const { id } = await params;
+  // a mistyped URL is a 404, not a cast error (#7)
+  if (!isId(id)) notFound();
   const query = (await searchParams) ?? {};
   const tab = query.tab ?? "overview";
 

@@ -8,6 +8,7 @@ import User from "@/models/User";
 import ClientGroup from "@/models/ClientGroup";
 import { istInputDate } from "@/lib/dates";
 import ClientForm from "../../ClientForm";
+import { isId } from "@/lib/routes/id";
 
 export const metadata = { title: "Edit client · PHMG" };
 export const dynamic = "force-dynamic";
@@ -15,6 +16,8 @@ export const dynamic = "force-dynamic";
 export default async function EditClientPage({ params }) {
   const actor = await requireUser();
   const { id } = await params;
+  // a mistyped URL is a 404, not a cast error (#7)
+  if (!isId(id)) notFound();
 
   await connectDB();
   const client = await Client.findById(id).lean();

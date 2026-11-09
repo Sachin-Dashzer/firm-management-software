@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { requireUser } from "@/auth";
 import { renderDocx, DOCX_TYPE } from "@/lib/docs/templateDocx";
 import { prepareRender, auditDocDownload } from "@/lib/docs/render";
+import { isId, notFoundResponse } from "@/lib/routes/id";
 
 /**
  * A generated document as a Word file (P2-8c).
@@ -23,6 +24,8 @@ export const maxDuration = 60;
 export async function GET(request, { params }) {
   const actor = await requireUser();
   const { id } = await params;
+  // a mistyped URL is a 404, not a cast error (#7)
+  if (!isId(id)) return notFoundResponse();
 
   const prepared = await prepareRender(actor, id);
   if ("error" in prepared) {

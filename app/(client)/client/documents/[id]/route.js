@@ -5,6 +5,7 @@ import { connectDB } from "@/lib/db";
 import DocumentModel from "@/models/Document";
 import { getDownloadLink } from "@/lib/storage";
 import { belongsToClient } from "@/lib/access/clientScope";
+import { isId, notFoundResponse } from "@/lib/routes/id";
 import {
   withAudit,
   recordAudit,
@@ -31,6 +32,8 @@ export const dynamic = "force-dynamic";
 export async function GET(request, { params }) {
   const person = await requireClientUser();
   const { id } = await params;
+  // a mistyped URL is a 404, not a cast error (#7)
+  if (!isId(id)) return notFoundResponse();
 
   await connectDB();
   const document = await DocumentModel.findById(id).lean();

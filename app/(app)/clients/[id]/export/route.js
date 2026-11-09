@@ -5,6 +5,7 @@ import { connectDB } from "@/lib/db";
 import Client from "@/models/Client";
 import { buildClientExport } from "@/lib/dpdp";
 import { buildWorkbook, xlsxResponse } from "@/lib/excel";
+import { isId, notFoundResponse } from "@/lib/routes/id";
 import {
   withAudit,
   recordAudit,
@@ -31,6 +32,8 @@ export const maxDuration = 60;
 export async function GET(request, { params }) {
   const actor = await requireUser();
   const { id } = await params;
+  // a mistyped URL is a 404, not a cast error (#7)
+  if (!isId(id)) return notFoundResponse();
 
   await connectDB();
   const client = await Client.findById(id).select("branchId").lean();

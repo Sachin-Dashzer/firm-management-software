@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Confirm from "@/components/ui/Confirm";
+import { runAction } from "@/lib/forms/runAction";
 import { InvoiceStatusChip } from "../chips";
 import {
   issueInvoice,
@@ -42,7 +43,8 @@ export default function InvoiceEditor({
   const [reason, setReason] = useState("");
 
   function run(action) {
-    const answer = action();
+    // runAction: an expired session says so instead of throwing (#8)
+    const answer = runAction(action);
     startTransition(async () => {
       setMessage(await answer);
       setAsking(null);

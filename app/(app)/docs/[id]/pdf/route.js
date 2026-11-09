@@ -3,6 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { requireUser } from "@/auth";
 import { TemplatePdf } from "@/lib/docs/templatePdf";
 import { prepareRender, auditDocDownload } from "@/lib/docs/render";
+import { isId, notFoundResponse } from "@/lib/routes/id";
 
 /**
  * A generated document as a PDF (P2-8b, owner decision D9).
@@ -19,6 +20,8 @@ export const maxDuration = 60;
 export async function GET(request, { params }) {
   const actor = await requireUser();
   const { id } = await params;
+  // a mistyped URL is a 404, not a cast error (#7)
+  if (!isId(id)) return notFoundResponse();
 
   const prepared = await prepareRender(actor, id);
   if ("error" in prepared) {

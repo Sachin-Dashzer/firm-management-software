@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Action from "@/components/ui/Action";
 import Confirm from "@/components/ui/Confirm";
+import { runAction } from "@/lib/forms/runAction";
 import {
   issueInvoice,
   recordPromise,
@@ -38,13 +39,11 @@ function useRun() {
   const [result, setResult] = useState(null);
 
   const run = (fn) => {
-    const answer = fn();
+    // runAction catches, and names an expired session rather than
+    // guessing at a redacted error message (QA 09-11-2026, #8)
+    const answer = runAction(fn);
     start(async () => {
-      try {
-        setResult(await answer);
-      } catch (error) {
-        setResult({ error: error?.message ?? "That did not go through." });
-      }
+      setResult(await answer);
       router.refresh();
     });
     // the answer goes back to the caller: a form clears itself only on a save

@@ -9,6 +9,7 @@ import ClientAccess from "@/models/ClientAccess";
 import { handoverRows } from "@/lib/team/handover";
 import { SECTION_LABELS } from "@/lib/access/sections";
 import Offboard from "./Offboard";
+import { isId } from "@/lib/routes/id";
 
 export const metadata = { title: "Offboarding · PHMG" };
 export const dynamic = "force-dynamic";
@@ -30,6 +31,8 @@ export const dynamic = "force-dynamic";
 export default async function OffboardPage({ params }) {
   const actor = await requireUser();
   const { id } = await params;
+  // a mistyped URL is a 404, not a cast error (#7)
+  if (!isId(id)) notFound();
 
   if (!can(actor, "edit", "usersSettings")) redirect(`/team/${id}`);
 

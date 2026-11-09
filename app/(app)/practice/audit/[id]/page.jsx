@@ -48,6 +48,7 @@ import {
 import Segmented from "@/components/ui/Segmented";
 import AuditStudio from "./AuditStudio";
 import ReportPanel from "./ReportPanel";
+import { isId } from "@/lib/routes/id";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Audit file · PHMG" };
@@ -148,6 +149,8 @@ const TABS = [
 export default async function AuditFilePage({ params, searchParams }) {
   const actor = await requireUser();
   const { id } = await params;
+  // a mistyped URL is a 404, not a cast error (#7)
+  if (!isId(id)) notFound();
   const query = (await searchParams) ?? {};
   const tab = TABS.some((row) => row.key === query.tab) ? query.tab : "plan";
 

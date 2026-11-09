@@ -12,11 +12,14 @@ import { formatPaise } from "@/lib/money";
 import { METHODS, progress, projected } from "@/lib/practice/sampling";
 import Design from "./Design";
 import Grid from "./Grid";
+import { isId } from "@/lib/routes/id";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }) {
   const { id } = await params;
+  // a mistyped URL is not a page title (#7)
+  if (!isId(id)) return { title: "Sampling · PHMG" };
   await connectDB();
   const sample = await Sample.findById(id).select("ref name").lean();
   return {
@@ -40,6 +43,8 @@ export default async function SamplePage({ params }) {
   if (!can(actor, "view", "practice")) redirect("/issues");
 
   const { id } = await params;
+  // a mistyped URL is a 404, not a cast error (#7)
+  if (!isId(id)) notFound();
   await connectDB();
 
   const sample = await Sample.findById(id).lean();

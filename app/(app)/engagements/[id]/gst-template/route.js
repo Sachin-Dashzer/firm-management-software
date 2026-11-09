@@ -1,3 +1,4 @@
+import { isId, notFoundResponse } from "@/lib/routes/id";
 import { headers } from "next/headers";
 import { requireUser } from "@/auth";
 import { can } from "@/lib/permissions";
@@ -28,6 +29,8 @@ export const dynamic = "force-dynamic";
 export async function GET(request, { params }) {
   const actor = await requireUser();
   const { id } = await params;
+  // a mistyped URL is a 404, not a cast error (#7)
+  if (!isId(id)) return notFoundResponse();
 
   await connectDB();
   const engagement = await Engagement.findById(id)
