@@ -4,6 +4,7 @@ import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Confirm from "@/components/ui/Confirm";
 import { InvoiceStatusChip } from "../chips";
 import {
   issueInvoice,
@@ -184,8 +185,23 @@ export default function InvoiceEditor({
         )}
         <Pair
           label="Tax"
-          value={invoice.interState ? "IGST (inter-state)" : "CGST + SGST"}
+          value={
+            !invoice.taxable
+              ? "Not charged"
+              : invoice.interState
+                ? "IGST (inter-state)"
+                : "CGST + SGST"
+          }
         />
+        {/* #3: say why there is no tax, rather than showing 18% and ₹0 */}
+        {invoice.taxNotice && (
+          <p
+            role="status"
+            className="rounded-ledger border-waiting bg-waiting-wash text-13 text-waiting border px-3 py-2 sm:col-span-3"
+          >
+            {invoice.taxNotice}
+          </p>
+        )}
       </section>
 
       {/* --- the lines ---------------------------------------------------- */}
@@ -261,15 +277,22 @@ export default function InvoiceEditor({
                             ),
                           )
                         }
-                        className="rounded-control border-rule bg-paper text-14 h-9 w-32 border px-2 text-right"
+                        aria-invalid={
+                          message?.field === `lines.${index}.amount`
+                        }
+                        className={`rounded-control bg-paper text-14 h-9 w-32 border px-2 text-right ${
+                          message?.field === `lines.${index}.amount`
+                            ? "border-redpen"
+                            : "border-rule"
+                        }`}
                       />
                     ) : (
                       <span className="num">{line.amountText}</span>
                     )}
                   </td>
                   <td className="num px-2 py-1 text-right">
-                    {line.gstRate}%{" "}
-                    {!invoice.isDraft && (
+                    {invoice.taxable ? `${line.gstRate}%` : "—"}{" "}
+                    {!invoice.isDraft && invoice.taxable && (
                       <span className="text-ink-muted">{line.taxText}</span>
                     )}
                   </td>
@@ -409,8 +432,11 @@ export default function InvoiceEditor({
             />
           </label>
         )}
-        <Figure label="Taxable value" value={invoice.subtotal} />
-        {invoice.interState ? (
+        <Figure
+          label={invoice.taxable ? "Taxable value" : "Value"}
+          value={invoice.subtotal}
+        />
+        {!invoice.taxable ? null : invoice.interState ? (
           <Figure label="IGST" value={invoice.igst} />
         ) : (
           <>
@@ -459,7 +485,7 @@ export default function InvoiceEditor({
               <button
                 type="button"
                 disabled={pending || blockers.length > 0}
-                onClick={() => run(() => issueInvoice(invoice.id))}
+                onClick={() => setAsking("issue")}
                 className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
               >
                 Issue this invoice
@@ -529,6 +555,18 @@ export default function InvoiceEditor({
             </>
           )}
         </div>
+      )}
+
+      {/* the one-way door, asked about once (#23) */}
+      {asking === "issue" && (
+        <Confirm
+          question="Issue this invoice?"
+          detail={invoice.issueWarning}
+          confirmLabel="Issue it"
+          pending={pending}
+          onConfirm={() => run(() => issueInvoice(invoice.id))}
+          onCancel={() => setAsking(null)}
+        />
       )}
 
       {/*

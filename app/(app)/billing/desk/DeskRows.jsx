@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Action from "@/components/ui/Action";
+import Confirm from "@/components/ui/Confirm";
 import {
   issueInvoice,
   recordPromise,
@@ -77,32 +78,48 @@ function Said({ result }) {
  */
 export function DraftRows({ rows, why }) {
   const { run, pending, result } = useRun();
+  /** Which row is being confirmed (#23). */
+  const [asking, setAsking] = useState(null);
 
   return (
     <div className="flex flex-col gap-2">
       <ul className="divide-rule flex flex-col divide-y">
         {rows.map((row) => (
-          <li
-            key={row.id}
-            className="text-13 flex flex-wrap items-center gap-x-3 gap-y-1 py-2 first:pt-0"
-          >
-            <Link
-              href={`/invoices/${row.id}`}
-              className="min-w-0 flex-1 underline underline-offset-4"
-            >
-              {row.client}
-            </Link>
-            <span className="num">{row.total}</span>
-            <span className="text-ink-muted">drafted {row.drafted}</span>
-            <Action
-              why={why}
-              tone="plain"
-              pending={pending}
-              id={`issue-${row.id}`}
-              onClick={() => run(() => issueInvoice(row.id))}
-            >
-              Issue
-            </Action>
+          <li key={row.id} className="flex flex-col gap-2 py-2 first:pt-0">
+            <div className="text-13 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <Link
+                href={`/invoices/${row.id}`}
+                className="min-w-0 flex-1 underline underline-offset-4"
+              >
+                {row.client}
+              </Link>
+              <span className="num">{row.total}</span>
+              <span className="text-ink-muted">drafted {row.drafted}</span>
+              <Action
+                why={why}
+                tone="plain"
+                pending={pending}
+                id={`issue-${row.id}`}
+                onClick={() => setAsking(row.id)}
+              >
+                Issue
+              </Action>
+            </div>
+            {/* the same question, in the same words, as the invoice's own
+                screen asks — the sentence comes from lib/billing/number.js */}
+            {asking === row.id && (
+              <Confirm
+                question={`Issue the invoice for ${row.client}?`}
+                detail={row.issueWarning}
+                confirmLabel="Issue it"
+                pending={pending}
+                onConfirm={() => {
+                  setAsking(null);
+                  run(() => issueInvoice(row.id));
+                }}
+                onCancel={() => setAsking(null)}
+              />
+            )}
           </li>
         ))}
       </ul>

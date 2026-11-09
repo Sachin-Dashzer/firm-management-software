@@ -10,8 +10,14 @@ import AuditLog from "@/models/AuditLog";
 import ActivityFeed from "@/components/audit/ActivityFeed";
 import { formatPaise } from "@/lib/money";
 import { formatISTDate, istInputDate } from "@/lib/dates";
-import { GST_STATES } from "@/lib/validators";
-import { reasonsNotIssuable, amountInWords } from "@/lib/billing/gst";
+import { GST_STATE_LIST } from "@/lib/validators";
+import {
+  reasonsNotIssuable,
+  amountInWords,
+  stateCodeOf,
+  taxNoticeFor,
+} from "@/lib/billing/gst";
+import { peekInvoiceNumber, issueWarning } from "@/lib/billing/number";
 import InvoiceEditor from "./InvoiceEditor";
 import { promiseHolds, promiseBroken } from "@/lib/billing/promise";
 
@@ -93,6 +99,21 @@ export default async function InvoicePage({ params }) {
     placeOfSupply: invoice.placeOfSupply,
     placeOfSupplyName: invoice.placeOfSupplyName,
     branchCode: branch?.code ?? "",
+    /**
+     * Whether GST applies at all, decided exactly as `computeInvoice`
+     * decides it. A ₹15,000 draft with no tax on it still showed "18%"
+     * and "CGST + SGST", which reads as broken arithmetic rather than as
+     * the rule it is (QA 09-11-2026, #3).
+     */
+    taxable: Boolean(
+      stateCodeOf(invoice.supplierGstin || branch?.gstin || "") &&
+      invoice.placeOfSupply,
+    ),
+    taxNotice: taxNoticeFor({
+      supplierGstin: invoice.supplierGstin || branch?.gstin || "",
+      placeOfSupply: invoice.placeOfSupply,
+      branchCode: branch?.code ?? "",
+    }),
     interState:
       Boolean(invoice.igstPaise) ||
       (invoice.placeOfSupply &&
@@ -145,6 +166,21 @@ export default async function InvoicePage({ params }) {
   const blockers =
     invoice.status === "Draft" ? reasonsNotIssuable(invoice, branch) : [];
 
+  /*
+   * #23: issuing is a one-way door, so it is confirmed first — and the
+   * confirmation names the number it would take, which means reading the
+   * counter without touching it.
+   */
+  view.issueWarning =
+    invoice.status === "Draft" && branch?.code
+      ? issueWarning(
+          await peekInvoiceNumber(
+            branch.invoicePrefix || branch.code,
+            invoice.date,
+          ).catch(() => ""),
+        )
+      : "";
+
   return (
     <div className="mx-auto flex max-w-[1000px] flex-col gap-6 p-4 md:p-6">
       <div>
@@ -176,7 +212,7 @@ export default async function InvoicePage({ params }) {
           branchId: String(invoice.branchId),
         })}
         mayWriteOff={can(actor, "approve", "feeWriteOff")}
-        states={Object.entries(GST_STATES).map(([code, name]) => [code, name])}
+        states={GST_STATE_LIST}
       />
 
       <section className="flex flex-col gap-2">

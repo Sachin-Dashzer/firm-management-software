@@ -6,7 +6,7 @@ import { assertCan } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import { audited } from "@/lib/audit/request";
 import { recordAudit, ACTIONS } from "@/lib/audit";
-import { toPaise } from "@/lib/money";
+import { toPaise, readAmount } from "@/lib/money";
 import Invoice from "@/models/Invoice";
 import Client from "@/models/Client";
 import Branch from "@/models/Branch";
@@ -33,6 +33,51 @@ import { istInputDate } from "@/lib/dates";
 const DISCOUNT_NEEDS_APPROVAL = Number(
   process.env.DISCOUNT_APPROVAL_PERCENT || 10,
 );
+
+/**
+ * Check every amount on a draft before anything is saved
+ * (QA 09-11-2026, #4 and #12).
+ *
+ * A line amount of -500 used to reach Mongoose, whose `min: 0` threw, which
+ * reached the error boundary: the screen said "Something broke" and
+ * everything typed was gone. A figure of ₹99,99,99,99,999 was simply
+ * accepted. Both are answered here, before the first write, with the line
+ * named so the screen can point at it.
+ *
+ * A line may be ₹0 while a draft is being worked on — `reasonsNotIssuable`
+ * is what stops a ₹0 line being issued.
+ *
+ * @param {object} input
+ * @returns {{ error: string, field: string }|null}
+ */
+function checkDraftAmounts(input) {
+  const groups = [
+    { rows: input.lines, key: "lines", word: "Line" },
+    { rows: input.reimbursements, key: "reimbursements", word: "Cost" },
+  ];
+
+  for (const { rows, key, word } of groups) {
+    for (const [index, row] of (rows ?? []).entries()) {
+      const read = readAmount(row.amount ?? "0", {
+        allowZero: true,
+        label: `${word} ${index + 1}: the amount`,
+      });
+      if (!read.ok) {
+        return { error: read.reason, field: `${key}.${index}.amount` };
+      }
+    }
+  }
+
+  const discount = Number(input.discountPercent ?? 0);
+  if (!Number.isFinite(discount) || discount < 0 || discount > 100) {
+    return {
+      error: "A discount is a percentage between 0 and 100.",
+      field: "discountPercent",
+    };
+  }
+
+  return null;
+}
 
 async function loadForWrite(actor, id) {
   await connectDB();
@@ -150,6 +195,10 @@ export async function updateDraft(id, input) {
         "This invoice has been issued. Raise a credit note instead of changing it.",
     };
   }
+
+  // before anything is written, so nothing typed is lost to a crash (#4)
+  const bad = checkDraftAmounts(input);
+  if (bad) return bad;
 
   const discount = Number(input.discountPercent ?? invoice.discountPercent);
   if (

@@ -11,6 +11,16 @@ const nextConfig = {
    * port of its own (`playwright.config.mjs`).
    */
   distDir: process.env.PHMG_DIST_DIR ?? ".next",
+  /**
+   * The invoice PDF embeds IBM Plex Sans, because the fonts a PDF reader is
+   * guaranteed to have are Latin-1 and have no ₹ (QA 09-11-2026, #13).
+   * React-PDF reads the files at render time, which Next's tracing cannot
+   * see, so they are listed here or every invoice on Vercel would silently
+   * fall back to Helvetica and print the wrong glyph again.
+   */
+  outputFileTracingIncludes: {
+    "**/*": ["./lib/billing/fonts/*.ttf"],
+  },
   experimental: {
     /**
      * `import { Bell } from "@phosphor-icons/react"` pulls the whole barrel —

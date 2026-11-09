@@ -1,4 +1,64 @@
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import {
+  Document,
+  Page,
+  Text,
+  View,
+  StyleSheet,
+  Font,
+} from "@react-pdf/renderer";
+
+/**
+ * The font the figures are set in (QA 09-11-2026, #13).
+ *
+ * The fourteen fonts a PDF reader is guaranteed to have — Helvetica among
+ * them — are Latin-1 only. They have no ₹ (U+20B9), so every amount on
+ * every invoice printed as a tick-like glyph where the rupee sign belongs.
+ * There is no way round that but to embed a font that has the character.
+ *
+ * IBM Plex Sans, because it is already the app's own typeface, it is under
+ * the SIL Open Font License, and the files are committed rather than
+ * fetched: an invoice must print on a machine with no network, and a font
+ * downloaded at render time is a tax invoice that depends on a CDN.
+ *
+ * `outputFileTracingIncludes` in `next.config.mjs` is what puts these files
+ * in the deployed bundle. If they are ever missing the document still
+ * prints, in Helvetica — an invoice with a wrong-looking rupee sign is bad,
+ * an invoice that does not print at all is worse.
+ */
+const FONT_DIR = join(process.cwd(), "lib", "billing", "fonts");
+
+const FACES = [
+  { file: "IBMPlexSans-Regular.ttf", fontWeight: 400 },
+  { file: "IBMPlexSans-SemiBold.ttf", fontWeight: 700 },
+  // the total in words is set in italics, and react-pdf throws rather than
+  // falling back when a style it is asked for is not registered
+  { file: "IBMPlexSans-Italic.ttf", fontWeight: 400, fontStyle: "italic" },
+];
+
+export const BODY_FONT = registerBodyFont();
+
+function registerBodyFont() {
+  try {
+    const fonts = FACES.map(({ file, ...face }) => ({
+      ...face,
+      src: join(FONT_DIR, file),
+    }));
+    if (!fonts.every((font) => existsSync(font.src))) return "Helvetica";
+
+    Font.register({ family: "Plex Sans", fonts });
+    return "Plex Sans";
+  } catch {
+    return "Helvetica";
+  }
+}
+
+/** Helvetica has a separate bold face; an embedded family has a weight. */
+const BOLD =
+  BODY_FONT === "Helvetica"
+    ? { fontFamily: "Helvetica-Bold" }
+    : { fontFamily: BODY_FONT, fontWeight: 700 };
 
 /**
  * The invoice as the client receives it (spec section 7).
@@ -21,7 +81,7 @@ const styles = StyleSheet.create({
     paddingBottom: 56,
     paddingHorizontal: 44,
     fontSize: 9,
-    fontFamily: "Helvetica",
+    fontFamily: BODY_FONT,
     color: "#1a1a1a",
   },
   header: {
@@ -32,9 +92,9 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     marginBottom: 14,
   },
-  firm: { fontSize: 15, fontFamily: "Helvetica-Bold" },
+  firm: { fontSize: 15, ...BOLD },
   muted: { color: "#6b6b6b" },
-  title: { fontSize: 13, fontFamily: "Helvetica-Bold", textAlign: "right" },
+  title: { fontSize: 13, ...BOLD, textAlign: "right" },
   parties: { flexDirection: "row", gap: 24, marginBottom: 14 },
   party: { flex: 1 },
   label: {
@@ -74,7 +134,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#1a1a1a",
     marginTop: 4,
     paddingTop: 4,
-    fontFamily: "Helvetica-Bold",
+    ...BOLD,
     fontSize: 11,
   },
   words: { marginTop: 8, fontSize: 8, fontStyle: "italic" },
@@ -135,7 +195,11 @@ export function InvoicePdf({ invoice }) {
             {invoice.branchAddress ? (
               <Text style={styles.muted}>{invoice.branchAddress}</Text>
             ) : null}
-            <Text style={styles.muted}>GSTIN {invoice.supplierGstin}</Text>
+            {/* the label without a number read as a missing field on a legal
+                document; a branch with no GSTIN simply has none (#13) */}
+            {invoice.supplierGstin ? (
+              <Text style={styles.muted}>GSTIN {invoice.supplierGstin}</Text>
+            ) : null}
             {/* the FRN belongs on a CA firm's invoice when the firm has one */}
             {firm.frn ? <Text style={styles.muted}>FRN {firm.frn}</Text> : null}
           </View>
@@ -160,9 +224,7 @@ export function InvoicePdf({ invoice }) {
         <View style={styles.parties}>
           <View style={styles.party}>
             <Text style={styles.label}>Billed to</Text>
-            <Text style={{ fontFamily: "Helvetica-Bold" }}>
-              {invoice.billingName}
-            </Text>
+            <Text style={BOLD}>{invoice.billingName}</Text>
             {invoice.billingAddress ? (
               <Text>{invoice.billingAddress}</Text>
             ) : null}
@@ -175,10 +237,15 @@ export function InvoicePdf({ invoice }) {
             <Text>
               {invoice.placeOfSupply} · {invoice.placeOfSupplyName}
             </Text>
+            {/* #3: a draft with no tax on it said "18%" and "CGST and SGST"
+                anyway, which reads as an arithmetic mistake. When tax
+                cannot apply, the document says so instead. */}
             <Text style={styles.muted}>
-              {invoice.interState
-                ? "Inter-state supply — IGST"
-                : "Intra-state supply — CGST and SGST"}
+              {!invoice.taxable
+                ? "Tax not charged"
+                : invoice.interState
+                  ? "Inter-state supply — IGST"
+                  : "Intra-state supply — CGST and SGST"}
             </Text>
           </View>
         </View>
@@ -194,7 +261,9 @@ export function InvoicePdf({ invoice }) {
           <View key={i} style={styles.row} wrap={false}>
             <Text style={styles.cDesc}>{line.description}</Text>
             <Text style={styles.cSac}>{line.sac}</Text>
-            <Text style={styles.cRate}>{line.gstRate}%</Text>
+            <Text style={styles.cRate}>
+              {invoice.taxable ? `${line.gstRate}%` : "—"}
+            </Text>
             <Text style={styles.cAmount}>{line.amount}</Text>
           </View>
         ))}
@@ -220,7 +289,7 @@ export function InvoicePdf({ invoice }) {
             <Text style={styles.muted}>Taxable value</Text>
             <Text>{invoice.subtotal}</Text>
           </View>
-          {invoice.interState ? (
+          {!invoice.taxable ? null : invoice.interState ? (
             <View style={styles.totalRow}>
               <Text style={styles.muted}>IGST</Text>
               <Text>{invoice.igst}</Text>
@@ -262,6 +331,14 @@ export function InvoicePdf({ invoice }) {
         </View>
 
         <Text style={styles.words}>{invoice.totalInWords}</Text>
+
+        {/* why there is no tax on a document headed TAX INVOICE (#3) */}
+        {invoice.taxNotice ? (
+          <View style={styles.note}>
+            <Text style={styles.label}>Tax</Text>
+            <Text>{invoice.taxNotice}</Text>
+          </View>
+        ) : null}
 
         {invoice.notes ? (
           <View style={styles.note}>

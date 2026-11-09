@@ -13,6 +13,8 @@ import { outstandingOf, suggestForReceipts } from "@/lib/billing/allocation";
 import { promiseBroken } from "@/lib/billing/promise";
 import { advances } from "@/lib/reports/figures";
 import { pendingWaiver } from "@/lib/engagements/scope";
+import { peekInvoiceNumber, issueWarning } from "@/lib/billing/number";
+import Branch from "@/models/Branch";
 import TdsToMatch from "../TdsToMatch";
 import { CreditRows, DraftRows, PromiseRows, WaiverRows } from "./DeskRows";
 
@@ -97,6 +99,24 @@ export default async function AccountsDeskPage() {
   ]);
 
   const waivers = waiverWork.filter((e) => pendingWaiver(e));
+
+  /**
+   * The warning the Issue button asks with (#23), per branch rather than
+   * per invoice: the number comes from the branch's series, and there are
+   * two branches, not two hundred drafts' worth of counter reads.
+   */
+  const warningFor = new Map();
+  for (const branchId of new Set(drafts.map((row) => String(row.branchId)))) {
+    const branch = await Branch.findById(branchId)
+      .select("code invoicePrefix")
+      .lean();
+    const next = branch?.code
+      ? await peekInvoiceNumber(branch.invoicePrefix || branch.code).catch(
+          () => "",
+        )
+      : "";
+    warningFor.set(branchId, issueWarning(next));
+  }
 
   /**
    * The open invoices of every client with money sitting unapplied, so the
@@ -257,6 +277,7 @@ export default async function AccountsDeskPage() {
             client: named(invoice.clientId),
             total: formatPaise(invoice.totalPaise ?? 0),
             drafted: formatISTDate(invoice.createdAt ?? invoice.date),
+            issueWarning: warningFor.get(String(invoice.branchId)) ?? "",
           }))}
         />
       </Panel>
