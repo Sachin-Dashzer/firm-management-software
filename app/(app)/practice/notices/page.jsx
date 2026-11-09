@@ -258,7 +258,7 @@ export default async function NoticesPage({ searchParams }) {
         the rail is reached by scrolling past the matters rather than
         being stranded under a region that does not move.
       */}
-      <div className="flex min-h-0 flex-1 flex-col gap-4 md:overflow-y-auto xl:flex-row xl:overflow-y-visible">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 xl:flex-row xl:overflow-y-visible [@media(min-width:48rem)_and_(min-height:44rem)]:min-h-56 [@media(min-width:48rem)_and_(min-height:44rem)]:overflow-y-auto">
         <NoticeList
           rows={visible}
           stage={stage}

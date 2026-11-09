@@ -102,7 +102,7 @@ export default function NoticeList({ rows, stage, stages, law, show }) {
         scrolls — so there the whole column scrolls as one, which the page
         sets up, and this is simply as tall as its rows.
       */}
-      <div className="rounded-table border-rule bg-surface overflow-x-auto border xl:min-h-0 xl:flex-1 xl:overflow-auto">
+      <div className="rounded-table border-rule bg-surface overflow-x-auto border xl:min-h-56 xl:flex-1 xl:overflow-auto">
         {visible.length === 0 ? (
           <p className="text-14 text-ink-muted px-4 py-10 text-center">
             {rows.length > 0
