@@ -22,6 +22,8 @@ export default function AuditTick({
   tone = "filed",
   size = 20,
   label,
+  /** A hover tooltip, for where the mark could be read as a control (#26). */
+  title,
 }) {
   const first = useRef(true);
   const [animate, setAnimate] = useState(false);
@@ -50,6 +52,7 @@ export default function AuditTick({
       aria-hidden={label ? undefined : "true"}
       className="shrink-0 overflow-visible"
     >
+      {title && <title>{title}</title>}
       {/* the box it is ticked in: always there, so the row never jumps */}
       <rect
         x="3.5"

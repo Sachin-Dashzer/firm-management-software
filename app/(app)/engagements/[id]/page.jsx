@@ -536,8 +536,16 @@ export default async function EngagementPage({ params, searchParams }) {
                 days={view.statutoryDueDays}
               />
             ) : (
-              <span className="rounded-chip border-rule text-13 text-ink-muted border px-2 py-0.5">
-                Statutory date: Step 7
+              /* "Statutory date: Step 7" was a note to whoever was
+                 building this, left on a screen the firm reads
+                 (QA 09-11-2026, #21 and #34). When there is a date it is
+                 shown above, in DD-MM-YYYY; when there is not, this says
+                 so and where one comes from. */
+              <span
+                title="A statutory date appears here once a partner has confirmed the due-date rule for this service in Settings → Due dates."
+                className="rounded-chip border-rule text-13 text-ink-muted border px-2 py-0.5"
+              >
+                No statutory date
               </span>
             )}
             {view.internalDue && (

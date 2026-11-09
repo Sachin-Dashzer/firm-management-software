@@ -275,5 +275,92 @@ describe("plain-language descriptions", () => {
   });
 });
 
+/**
+ * What the activity feed was saying (QA 09-11-2026, #14).
+ *
+ * `[object Object] → [object Object]` for a client's contacts,
+ * `nothing → nothing` for a field that went from null to "", "updated 0
+ * fields" for a save that changed none, and a status change that did not
+ * say what it changed from or to.
+ */
+describe("reading a change back", () => {
+  const at = { ts: new Date("2026-11-09T04:30:00Z"), userName: "Riya" };
 
+  it("names the rows in a list instead of printing [object Object]", () => {
+    const { headline } = describeEntry({
+      ...at,
+      action: "update",
+      entityType: "Client",
+      diff: {
+        gstins: [
+          [{ gstin: "09AABCA1234C1ZD" }],
+          [{ gstin: "09AABCA1234C1ZD" }, { gstin: "03AABCA1234C1Z1" }],
+        ],
+      },
+    });
 
+    expect(headline).not.toContain("[object Object]");
+    expect(headline).toContain("added 03AABCA1234C1Z1");
+  });
+
+  it("says what left a list as well as what joined it", () => {
+    const { headline } = describeEntry({
+      ...at,
+      action: "update",
+      entityType: "Client",
+      diff: { contacts: [[{ name: "Riya Aggarwal" }], []] },
+    });
+    expect(headline).toContain("removed Riya Aggarwal");
+  });
+
+  it("leaves out a field that went from nothing to nothing", () => {
+    const entry = {
+      ...at,
+      action: "update",
+      entityType: "Client",
+      diff: { tradeName: [null, ""], industry: [null, "Textiles"] },
+    };
+    const { headline, changes } = describeEntry(entry);
+
+    // one real change, so it reads as one rather than as "2 fields"
+    expect(headline).toContain("changed industry from nothing to Textiles");
+    expect(changes).toEqual([]);
+  });
+
+  it("does not say 'updated 0 fields'", () => {
+    const { headline, empty } = describeEntry({
+      ...at,
+      action: "update",
+      entityType: "Client",
+      diff: { tradeName: [null, ""] },
+    });
+
+    expect(headline).not.toContain("0 fields");
+    // and the feed leaves it out altogether
+    expect(empty).toBe(true);
+  });
+
+  it("says what a status changed from and to", () => {
+    const { headline } = describeEntry({
+      ...at,
+      action: "status_change",
+      entityType: "Engagement",
+      diff: { status: ["In progress", "Under review"] },
+    });
+
+    expect(headline).toBe(
+      "Riya moved the engagement from In progress to Under review",
+    );
+  });
+
+  it("keeps an entry that carries a note, even with no diff", () => {
+    const { empty } = describeEntry({
+      ...at,
+      action: "update",
+      entityType: "Client",
+      diff: {},
+      note: "queued again after failing",
+    });
+    expect(empty).toBe(false);
+  });
+});

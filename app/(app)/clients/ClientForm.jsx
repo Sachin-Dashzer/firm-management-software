@@ -56,6 +56,20 @@ export default function ClientForm({
   const [gstins, setGstins] = useState(
     base?.gstins?.length ? base.gstins : [{ gstin: "", qrmp: false }],
   );
+  /**
+   * Addresses (QA 09-11-2026, #1, second half).
+   *
+   * The form had no address fields at all, which is how saving an edited
+   * client came to wipe them: the server could not tell "this form has no
+   * addresses" from "the addresses were deleted". That half is fixed on
+   * the server, and this is the other half — the firm could enter an
+   * address when a client was taken on and then had no way to correct it.
+   */
+  const [addresses, setAddresses] = useState(
+    base?.addresses?.length
+      ? base.addresses
+      : [{ kind: "Registered", line1: "", city: "", state: "", pincode: "" }],
+  );
   const [duplicates, setDuplicates] = useState({ blocking: [], warnings: [] });
   const [message, setMessage] = useState(null);
   const [pending, startTransition] = useTransition();
@@ -167,7 +181,7 @@ export default function ClientForm({
        * never showed (QA 09-11-2026, #1). Add a section here when you add
        * one above.
        */}
-      <input type="hidden" name="groups" value="contacts,gstins" />
+      <input type="hidden" name="groups" value="contacts,gstins,addresses" />
 
       {draftOpen && !editing && (
         <div className="rounded-ledger border-waiting bg-waiting-wash flex flex-col gap-2 border px-3 py-2">
@@ -458,6 +472,87 @@ export default function ClientForm({
               />
               Primary
             </label>
+          </>
+        )}
+      />
+
+      <Rows
+        title="Addresses"
+        hint="The registered address is the one that goes on an invoice and on a letter. A correspondence address is where post should actually land, when the two differ."
+        rows={addresses}
+        setRows={setAddresses}
+        blank={{
+          kind: "Correspondence",
+          line1: "",
+          line2: "",
+          city: "",
+          state: "",
+          pincode: "",
+        }}
+        addLabel="Add another address"
+        render={(row, i, update) => (
+          <>
+            {row._id && (
+              <input
+                type="hidden"
+                name={`addresses.${i}._id`}
+                value={row._id}
+              />
+            )}
+            <select
+              name={`addresses.${i}.kind`}
+              aria-label={`Kind of address ${i + 1}`}
+              value={row.kind ?? "Registered"}
+              onChange={(e) => update({ kind: e.target.value })}
+              className="rounded-control border-rule bg-paper text-14 h-9 w-40 shrink-0 border px-2"
+            >
+              <option value="Registered">Registered</option>
+              <option value="Correspondence">Correspondence</option>
+            </select>
+            <input
+              name={`addresses.${i}.line1`}
+              value={row.line1 ?? ""}
+              onChange={(e) => update({ line1: e.target.value })}
+              aria-label={`Address ${i + 1}, first line`}
+              placeholder="Building and street"
+              className="rounded-control border-rule bg-paper text-14 h-9 min-w-0 flex-[2] border px-2"
+            />
+            <input
+              name={`addresses.${i}.line2`}
+              value={row.line2 ?? ""}
+              onChange={(e) => update({ line2: e.target.value })}
+              aria-label={`Address ${i + 1}, second line`}
+              placeholder="Area, landmark"
+              className="rounded-control border-rule bg-paper text-14 h-9 min-w-0 flex-1 border px-2"
+            />
+            <input
+              name={`addresses.${i}.city`}
+              value={row.city ?? ""}
+              onChange={(e) => update({ city: e.target.value })}
+              aria-label={`Address ${i + 1}, city`}
+              placeholder="City"
+              className="rounded-control border-rule bg-paper text-14 h-9 w-36 border px-2"
+            />
+            <input
+              name={`addresses.${i}.state`}
+              value={row.state ?? ""}
+              onChange={(e) => update({ state: e.target.value })}
+              aria-label={`Address ${i + 1}, state`}
+              placeholder="State"
+              className="rounded-control border-rule bg-paper text-14 h-9 w-40 border px-2"
+            />
+            <input
+              name={`addresses.${i}.pincode`}
+              value={row.pincode ?? ""}
+              onChange={(e) =>
+                update({ pincode: e.target.value.replace(/\D/g, "") })
+              }
+              aria-label={`Address ${i + 1}, pincode`}
+              inputMode="numeric"
+              maxLength={6}
+              placeholder="208001"
+              className="rounded-control border-rule bg-paper text-14 h-9 w-24 border px-2 font-mono"
+            />
           </>
         )}
       />

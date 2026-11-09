@@ -63,13 +63,26 @@ export default async function ClientsPage({ searchParams }) {
     const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const loose = new RegExp(escaped, "i");
     const exact = search.replace(/[\s-]/g, "").toUpperCase();
+    /**
+     * Only when there is a number to match (QA 09-11-2026, #16).
+     *
+     * Searching "ZZTEST" or "Sharma" left no digits at all, and the clause
+     * became `{ "contacts.mobile": "" }` — which matches every client
+     * whose contact has no mobile number on file. That is why a search for
+     * a test client kept turning up a real one that had nothing to do with
+     * it. Six digits is the same floor the command bar uses, and nothing
+     * is lost: the clause is an exact match, so a partial number never
+     * found anything anyway.
+     */
+    const digits = search.replace(/\D/g, "");
+
     query.$or = [
       { legalName: loose },
       { tradeName: loose },
       { code: loose },
       { pan: exact },
       { "gstins.gstin": exact },
-      { "contacts.mobile": search.replace(/\D/g, "") },
+      ...(digits.length >= 6 ? [{ "contacts.mobile": digits }] : []),
       { "contacts.name": loose },
     ];
   }

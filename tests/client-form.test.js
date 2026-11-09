@@ -66,7 +66,7 @@ function storedClient() {
 function editFormFor(client, changes = {}) {
   const data = new FormData();
   // the hidden field by which the form declares the sections it has
-  data.set("groups", "contacts,gstins");
+  data.set("groups", "contacts,gstins,addresses");
   data.set("legalName", client.legalName);
   data.set("entityType", client.entityType);
 
@@ -87,18 +87,45 @@ function editFormFor(client, changes = {}) {
     data.set(`contacts.${i}.primary`, row.primary ? "on" : "");
   });
 
+  client.addresses.forEach((row, i) => {
+    data.set(`addresses.${i}._id`, row._id);
+    for (const field of [
+      "kind",
+      "line1",
+      "line2",
+      "city",
+      "state",
+      "pincode",
+    ]) {
+      data.set(`addresses.${i}.${field}`, row[field] ?? "");
+    }
+  });
+
   for (const [key, value] of Object.entries(changes)) data.set(key, value);
   return data;
 }
 
 describe("reading a client form", () => {
   it("leaves out a repeated section the form does not have", () => {
-    const input = readClientForm(editFormFor(storedClient()));
+    // what the edit screen posted before it had an Addresses section, and
+    // what any other form that does not carry one still posts
+    const data = new FormData();
+    data.set("groups", "contacts,gstins");
+    data.set("legalName", "Aggarwal Traders Private Limited");
+    data.set("contacts.0.name", "Riya Aggarwal");
+
+    const input = readClientForm(data);
 
     // the whole of #1 in one line: no key, so nothing to overwrite
     expect("addresses" in input).toBe(false);
     expect("contacts" in input).toBe(true);
     expect("gstins" in input).toBe(true);
+  });
+
+  it("carries the addresses the edit screen now has", () => {
+    const input = readClientForm(editFormFor(storedClient()));
+    expect(input.addresses).toHaveLength(1);
+    expect(input.addresses[0].city).toBe("Kanpur");
   });
 
   it("clears a section the form has and submitted empty", () => {
@@ -172,18 +199,20 @@ describe("an edit that changes nothing", () => {
     expect(errors).toEqual({});
   });
 
-  it("does not touch the addresses", () => {
-    expect("addresses" in value).toBe(false);
+  it("writes the addresses back exactly as they were", () => {
+    // the screen has the section now, so it is submitted — and an edit
+    // that changed nothing must still leave the address alone (#1)
+    expect(value.addresses).toEqual(stored.addresses);
   });
 
   it("does not touch the entity profile", () => {
     expect("profile" in value).toBe(false);
   });
 
-  it("writes back the contacts and GSTINs exactly as stored", () => {
+  it("writes back every repeated section exactly as stored", () => {
     // identical, ids included — so the audit plugin sees no change at all
     // and the activity feed gets no entry (#1, #14)
-    for (const name of ["contacts", "gstins"]) {
+    for (const name of ["contacts", "gstins", "addresses"]) {
       expect(value[name], name).toEqual(stored[name]);
     }
   });
@@ -201,7 +230,7 @@ describe("an edit that changes one thing", () => {
       { ...stored.contacts[0], mobile: "9811199999" },
     ]);
     expect(value.gstins).toEqual(stored.gstins);
-    expect("addresses" in value).toBe(false);
+    expect(value.addresses).toEqual(stored.addresses);
   });
 });
 

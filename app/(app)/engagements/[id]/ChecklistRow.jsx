@@ -48,10 +48,21 @@ export default function ChecklistRow({ engagementId, item, disabled, run }) {
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-14 flex items-center gap-2">
-          {/* the tick is the auditor's: accepted, not merely arrived */}
+          {/*
+            The tick is the auditor's mark — accepted, not merely arrived
+            — and it is a state, not a control: three of the six moves
+            need a reason, which a checkbox cannot ask for. The QA run
+            read it as a checkbox that did nothing (#26), so it now says
+            what it is when you hover or read it aloud.
+          */}
           <AuditTick
             checked={settled}
             label={`${item.name}: ${item.status.toLowerCase()}`}
+            title={
+              settled
+                ? `${item.status}. This mark follows the state; the buttons change it.`
+                : `Not accepted yet — ${item.status.toLowerCase()}. Use the buttons on this row.`
+            }
           />
           {item.name}
           {!item.mandatory && (
@@ -137,7 +148,14 @@ export default function ChecklistRow({ engagementId, item, disabled, run }) {
               </button>
             </>
           )}
-          {item.status === "Pending" && (
+          {/*
+            Only for something the client actually has (QA 09-11-2026,
+            #26). This offered "Ask the client" against the firm's own
+            working papers — the GSTR-2B reconciliation, the tax
+            computation — which is asking a client to send us the thing we
+            are being paid to produce.
+          */}
+          {item.status === "Pending" && item.side === "client" && (
             <button
               type="button"
               onClick={() =>

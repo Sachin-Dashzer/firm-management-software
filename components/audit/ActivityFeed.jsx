@@ -10,7 +10,18 @@ import { describeEntry } from "@/lib/audit/describe";
  * @param {string} [props.emptyMessage]
  */
 export default function ActivityFeed({ entries, emptyMessage }) {
-  if (!entries.length) {
+  /**
+   * Entries with nothing in them are left out (QA 09-11-2026, #14). The
+   * feed used to print "updated 0 fields" for a save that changed
+   * nothing, which is a line that costs a reader time and tells them
+   * nothing. The entry itself is kept — the audit log is the record, this
+   * is only the reading of it.
+   */
+  const said = entries
+    .map((entry) => ({ entry, ...describeEntry(entry) }))
+    .filter((row) => !row.empty);
+
+  if (!said.length) {
     return (
       <p className="text-14 text-ink-muted">
         {emptyMessage ?? "Nothing has happened here yet."}
@@ -20,8 +31,7 @@ export default function ActivityFeed({ entries, emptyMessage }) {
 
   return (
     <ol className="flex flex-col">
-      {entries.map((entry) => {
-        const { headline, changes, when } = describeEntry(entry);
+      {said.map(({ entry, headline, changes, when }) => {
         return (
           <li
             key={entry._id ?? entry.seq}
