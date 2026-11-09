@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { applyGuard, mailSettings } from "../lib/mailer/guard.js";
+import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { applyGuard, mailSettings, redirectFor } from "../lib/mailer/guard.js";
 import { compose, fill, TEMPLATES } from "../lib/mailer/templates.js";
 
 /**
@@ -34,6 +36,26 @@ const toStaff = {
   audience: "team",
   subject: "Assigned",
 };
+
+/**
+ * A value for every placeholder any template uses, gathered from the
+ * templates themselves so adding one to a template makes this list demand
+ * a value for it rather than quietly letting `{newThing}` out of the door
+ * (QA 09-11-2026, #15).
+ */
+const PLACEHOLDERS = [
+  ...new Set(
+    Object.values(TEMPLATES)
+      .flatMap((template) => [
+        ...`${template.subject} ${template.body}`.matchAll(/\{(\w+)\}/g),
+      ])
+      .map((match) => match[1]),
+  ),
+].sort();
+
+const SAMPLE = Object.fromEntries(
+  PLACEHOLDERS.map((key) => [key, `sample ${key}`]),
+);
 
 describe("the client email guard", () => {
   it("holds client email back by default", () => {
@@ -83,6 +105,16 @@ describe("the client email guard", () => {
   });
 });
 
+/**
+ * The test redirect (QA 09-11-2026, #2).
+ *
+ * It used to be applied by `applyGuard`, which runs when a message is
+ * *queued* — in the web process, minutes before the job runner posts it.
+ * A message queued before the redirect was switched on therefore went to
+ * the real client anyway, which is exactly what the QA run found: one
+ * message redirected, the next not. It is now applied by `redirectFor` on
+ * the send itself, and nowhere else.
+ */
 describe("the testing redirect", () => {
   beforeEach(() => {
     process.env.EMAIL_REDIRECT_TO = "owner@phmgindia.com";
@@ -90,20 +122,89 @@ describe("the testing redirect", () => {
   });
 
   it("sends everything to one address instead", () => {
-    const result = applyGuard(toClient);
-    expect(result.send).toBe(true);
+    const result = redirectFor({
+      to: "client@example.com",
+      subject: "Invoice",
+    });
     expect(result.to).toBe("owner@phmgindia.com");
+    expect(result.intended).toBe("client@example.com");
+    expect(result.redirected).toBe(true);
   });
 
   it("says in the subject who it was meant for", () => {
-    expect(applyGuard(toClient).subject).toBe(
-      "[to client@example.com] Invoice",
-    );
+    expect(
+      redirectFor({ to: "client@example.com", subject: "Invoice" }).subject,
+    ).toBe("[to client@example.com] Invoice");
+  });
+
+  it("leaves the real address alone when it is off", () => {
+    delete process.env.EMAIL_REDIRECT_TO;
+    const result = redirectFor({
+      to: "client@example.com",
+      subject: "Invoice",
+    });
+    expect(result.to).toBe("client@example.com");
+    expect(result.redirected).toBe(false);
+  });
+
+  it("applies to every template, team and client alike", () => {
+    for (const key of Object.keys(TEMPLATES)) {
+      const message = compose(key, SAMPLE);
+      const route = redirectFor({
+        to: "client@example.com",
+        subject: message.subject,
+      });
+      expect(route.to, key).toBe("owner@phmgindia.com");
+      expect(route.subject, key).toContain("[to client@example.com]");
+    }
+  });
+
+  it("is not applied when the message is queued", () => {
+    // the queue cannot know: the redirect may be switched on or off
+    // between queueing and posting, and the post is what counts
+    expect(applyGuard(toClient).to).toBe("client@example.com");
+    expect(applyGuard(toClient).subject).toBe("Invoice");
   });
 
   it("does not override the client switch being off", () => {
     process.env.EMAIL_CLIENTS_ENABLED = "false";
     expect(applyGuard(toClient).send).toBe(false);
+  });
+});
+
+/**
+ * One function decides the transport, so the Settings screen cannot
+ * describe a transport the sender is not using (#2). The screen showed
+ * "messages are written to the server log" while a quotation was going out
+ * over SMTP, because the two were decided in different processes; the
+ * screen now also reports the transport the last message actually used,
+ * from the message log.
+ */
+describe("which transport is in use", () => {
+  it("is decided in one place in the whole codebase", () => {
+    const hits = execFileSync(
+      "git",
+      [
+        "grep",
+        "-l",
+        "process.env.EMAIL_TRANSPORT",
+        "--",
+        "app",
+        "lib",
+        "jobs",
+        "runner",
+      ],
+      { encoding: "utf8" },
+    )
+      .split("\n")
+      .filter(Boolean);
+
+    expect(hits).toEqual(["lib/mailer/index.js"]);
+  });
+
+  it("is what the settings screen reads, not a second opinion", () => {
+    const page = readFileSync("app/(app)/settings/messages/page.jsx", "utf8");
+    expect(page).toContain("transport: transportName()");
   });
 });
 
@@ -144,9 +245,52 @@ describe("filling a template in", () => {
     // a template bug should look like a bug, not like a client whose name
     // the firm does not know
     expect(fill("Dear {clientName},", {})).toBe("Dear {clientName},");
-    expect(fill("Dear {clientName},", { clientName: "" })).toBe(
-      "Dear {clientName},",
+  });
+
+  /**
+   * #15: a quotation reached a client with the literal `{unpricedLine}` in
+   * it, because every fee was priced and the code passed `""` for the line
+   * that would have explained the unpriced ones.
+   */
+  it("prints nothing for an empty value, and takes its blank line with it", () => {
+    expect(fill("Dear {clientName},", { clientName: "" })).toBe("Dear ,");
+    expect(fill("One\n\n{extra}\n\nTwo", { extra: "" })).toBe("One\n\nTwo");
+    expect(fill("One\n\n{extra}\n\nTwo", { extra: "Still here" })).toBe(
+      "One\n\nStill here\n\nTwo",
     );
+  });
+
+  it("reports the placeholders nothing filled, so a message can be stopped", () => {
+    const message = compose("quotation", { ...SAMPLE, unpricedLine: "" });
+    expect(message.unfilled).toEqual([]);
+
+    const broken = compose("quotation", { ...SAMPLE, totals: undefined });
+    expect(broken.unfilled).toEqual(["totals"]);
+  });
+
+  it("leaves no placeholder in any template, given a value for each", () => {
+    for (const key of Object.keys(TEMPLATES)) {
+      const message = compose(key, SAMPLE);
+      expect(message.unfilled, key).toEqual([]);
+      expect(message.subject, key).not.toMatch(/[{}]/);
+      expect(message.text, key).not.toMatch(/[{}]/);
+    }
+  });
+
+  it("leaves no placeholder when every optional line is empty", () => {
+    // the shape of #15: the lines a template only sometimes needs
+    const optional = {};
+    for (const key of PLACEHOLDERS) {
+      optional[key] = /Line$|^items$|^remarks$|^contact$/.test(key)
+        ? ""
+        : `sample ${key}`;
+    }
+
+    for (const key of Object.keys(TEMPLATES)) {
+      const message = compose(key, optional);
+      expect(message.unfilled, key).toEqual([]);
+      expect(message.text, key).not.toMatch(/[{}]/);
+    }
   });
 
   it("composes a real message", () => {

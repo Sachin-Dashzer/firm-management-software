@@ -60,8 +60,16 @@ export default async function EditClientPage({ params }) {
           iec: client.iec,
           aadhaarLast4: client.aadhaarLast4,
           establishedOn: istInputDate(client.establishedOn),
-          gstins: client.gstins?.map((g) => ({ gstin: g.gstin, qrmp: g.qrmp })),
+          /* the id travels with each row so saving keeps the fields this
+             form does not show — a contact's WhatsApp number, a GSTIN's
+             active flag (#1) */
+          gstins: client.gstins?.map((g) => ({
+            _id: String(g._id),
+            gstin: g.gstin,
+            qrmp: g.qrmp,
+          })),
           contacts: client.contacts?.map((c) => ({
+            _id: String(c._id),
             name: c.name,
             designation: c.designation,
             mobile: c.mobile,

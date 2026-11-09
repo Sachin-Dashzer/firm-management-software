@@ -14,6 +14,7 @@ import { audited } from "@/lib/audit/request";
 import { recordAudit, ACTIONS } from "@/lib/audit";
 import { decryptField, encryptField, maskAllButLast4 } from "@/lib/crypto";
 import { validateClient, firstError } from "@/lib/clients/validate";
+import { readClientForm, clientUpdate } from "@/lib/clients/form";
 import { findDuplicates } from "@/lib/clients/duplicates";
 import { nextClientCode } from "@/lib/clients/code";
 import { CONTACT_CHANNELS, PORTALS } from "@/lib/validators";
@@ -39,7 +40,7 @@ import { CONTACT_CHANNELS, PORTALS } from "@/lib/validators";
 async function loadForWrite(actor, clientId, area = "clients") {
   await connectDB();
   const client = await Client.findById(clientId).select(
-    "branchId legalName status code",
+    "branchId legalName status code contacts gstins addresses",
   );
   if (!client) {
     const err = new Error("That client no longer exists");
@@ -48,70 +49,6 @@ async function loadForWrite(actor, clientId, area = "clients") {
   }
   assertCan(actor, "edit", area, await targetForClient(actor, client));
   return client;
-}
-
-/** Form fields arrive flat; contacts and GSTINs arrive as repeated rows. */
-function readClientForm(formData) {
-  const rows = (prefix) => {
-    /** @type {Record<string, any>[]} */
-    const out = [];
-    for (const [key, raw] of formData.entries()) {
-      const match = key.match(new RegExp(`^${prefix}\\.(\\d+)\\.(\\w+)$`));
-      if (!match) continue;
-      const [, index, field] = match;
-      out[index] ??= {};
-      out[index][field] = raw === "on" ? true : raw;
-    }
-    return out.filter(Boolean);
-  };
-
-  const plain = {};
-  for (const key of [
-    "legalName",
-    "tradeName",
-    "entityType",
-    "branchId",
-    "pan",
-    "tan",
-    "cin",
-    "udyam",
-    "iec",
-    "aadhaar",
-    "status",
-    "statusReason",
-    "risk",
-    "turnoverBand",
-    "industry",
-    "referralSource",
-    "billingCycle",
-    "creditDays",
-    "invoiceEmail",
-    "establishedOn",
-    "proposedServices",
-    "quotedAmount",
-    "clientPartnerId",
-    "relationshipManagerId",
-    "groupId",
-    "tags",
-  ]) {
-    if (formData.has(key)) plain[key] = formData.get(key);
-  }
-
-  /** The entity-specific extras arrive as `profile.<key>`. */
-  const profile = {};
-  for (const [key, raw] of formData.entries()) {
-    if (key.startsWith("profile.") && typeof raw === "string") {
-      profile[key.slice("profile.".length)] = raw;
-    }
-  }
-
-  return {
-    ...plain,
-    ...(Object.keys(profile).length ? { profile } : {}),
-    contacts: rows("contacts"),
-    gstins: rows("gstins"),
-    addresses: rows("addresses"),
-  };
 }
 
 /**
@@ -185,8 +122,13 @@ export async function updateClient(clientId, formData) {
   const actor = await requireUser();
   const existing = await loadForWrite(actor, clientId);
 
-  const input = readClientForm(formData);
-  const { errors, value } = validateClient(input, { partial: true });
+  /*
+   * `clientUpdate` is what decides the change, and it is a pure function
+   * with tests on it: a form may only alter what it actually carried. The
+   * edit screen has no Addresses section, and reading the form without
+   * that rule wiped every edited client's address (QA 09-11-2026, #1).
+   */
+  const { errors, value, input } = clientUpdate(formData, existing);
   if (Object.keys(errors).length) {
     return { error: firstError(errors), errors };
   }

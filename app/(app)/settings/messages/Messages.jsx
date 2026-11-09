@@ -13,6 +13,7 @@ import {
   Meta,
   Empty,
 } from "@/components/ui/Table";
+import MailModeBanner from "@/components/ui/MailModeBanner";
 import SettingsScreen from "../Shell";
 import Rules from "./Rules";
 
@@ -85,6 +86,12 @@ export default function Messages({
       title="Email and WhatsApp"
       sub="Every message to and from clients in one place — sent by the rules and the monthly cycle, or by somebody from a job."
     >
+      <MailModeBanner
+        redirectTo={settings.redirectTo}
+        transport={settings.transport}
+        enabled={settings.enabled}
+      />
+
       <Segmented
         label="What to look at"
         variant="underline"
@@ -302,11 +309,33 @@ export default function Messages({
                   term="Delivery"
                   value={
                     settings.transport === "log"
-                      ? "Nothing is actually posted — messages are written to the server log, because no mailbox is configured yet."
+                      ? `Nothing is actually posted — messages are written to the server log. ${
+                          settings.hasMailbox
+                            ? "The firm's mailbox is set up, but EMAIL_TRANSPORT is set to log. Set it to smtp to start posting."
+                            : "No mailbox is configured yet."
+                        }`
                       : `Through the firm's mailbox. ${settings.transportNote}`
                   }
                   tone={
                     settings.transport !== "log" && !settings.transportOk
+                      ? "bad"
+                      : ""
+                  }
+                />
+                <Line
+                  term="Last one posted"
+                  value={
+                    settings.lastSent
+                      ? `${settings.lastSent.at} — ${
+                          settings.lastSent.via === "smtp"
+                            ? "through the mailbox"
+                            : "written to the server log"
+                        }, to ${settings.lastSent.to}.`
+                      : "Nothing has been posted yet."
+                  }
+                  tone={
+                    settings.lastSent &&
+                    settings.lastSent.via !== settings.transport
                       ? "bad"
                       : ""
                   }

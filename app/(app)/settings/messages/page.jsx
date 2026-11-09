@@ -62,7 +62,7 @@ export default async function MessagesPage({ searchParams }) {
     ...(channel === "whatsapp" || channel === "email" ? { channel } : {}),
   };
 
-  const [sent, replies, counts, byChannel, transport, rules] =
+  const [sent, replies, counts, byChannel, transport, rules, lastSent] =
     await Promise.all([
       channel === "in"
         ? []
@@ -76,6 +76,15 @@ export default async function MessagesPage({ searchParams }) {
       MessageLog.aggregate([{ $group: { _id: "$channel", n: { $sum: 1 } } }]),
       verifyTransport(),
       loadRules({ fresh: true }),
+      /*
+       * What the sender actually did, not what this screen believes it is
+       * configured to do (#2). The two ran in different processes and
+       * disagreed; this is the half that cannot be wrong.
+       */
+      MessageLog.findOne({ status: "sent" })
+        .sort({ sentAt: -1 })
+        .select("via sentTo to sentAt")
+        .lean(),
     ]);
 
   /** Names for the rows that carry a client, in one query. */
@@ -102,7 +111,12 @@ export default async function MessagesPage({ searchParams }) {
       channel: row.channel ?? "email",
       client: clientName.get(String(row.clientId ?? "")) ?? "",
       audience: row.audience,
-      to: row.sentTo || row.to,
+      /* both, when the test redirect sent it somewhere else: "we emailed
+         you on the 14th" has to be checkable (#2) */
+      to:
+        row.sentTo && row.sentTo !== row.to
+          ? `${row.sentTo} (meant for ${row.to})`
+          : row.to,
       subject: row.subject,
       text: row.body,
       status: row.status,
@@ -207,6 +221,14 @@ export default async function MessagesPage({ searchParams }) {
         transport: transportName(),
         transportOk: transport.ok,
         transportNote: transport.note,
+        hasMailbox: Boolean(process.env.SMTP_HOST),
+        lastSent: lastSent
+          ? {
+              via: lastSent.via || "unrecorded",
+              to: lastSent.sentTo || lastSent.to,
+              at: formatISTDateTime(lastSent.sentAt),
+            }
+          : null,
         hourlyLimit: HOURLY_LIMIT,
         quietFrom: QUIET_FROM_HOUR,
         quietUntil: QUIET_UNTIL_HOUR,

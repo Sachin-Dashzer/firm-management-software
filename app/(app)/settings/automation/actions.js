@@ -377,6 +377,15 @@ export async function retryMessage(id) {
   if (log.status !== "failed") {
     return { error: `That message is ${log.status}, not failed.` };
   }
+  if (log.unfilled?.length) {
+    return {
+      error: `This message still has ${log.unfilled
+        .map((key) => `{${key}}`)
+        .join(
+          ", ",
+        )} in its wording. Put that right in Settings → Messages, then do whatever created it again — sending this copy would post the placeholder to the recipient.`,
+    };
+  }
 
   await audited(actor, async (session) => {
     log.status = "queued";

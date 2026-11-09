@@ -124,6 +124,9 @@ export default async function AutomationPage() {
              anyway, so throwing it is not mistaken for being finished */
           systemOff: !mailSettings().enabled,
           noMailbox: transportName() === "log",
+          transport: transportName(),
+          redirectTo: mailSettings().redirectTo,
+          enabled: mailSettings().enabled,
           /* nobody has thrown it either way, so the deployment's own
              default is still answering and the screen should say so */
           never: typeof firm?.clientMailOn !== "boolean",

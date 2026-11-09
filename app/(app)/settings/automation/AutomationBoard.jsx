@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Result } from "@/components/ui/Notice";
 import Chip from "@/components/ui/Chip";
 import StatTile from "@/components/ui/StatTile";
+import MailModeBanner from "@/components/ui/MailModeBanner";
 import {
   approveBatch,
   declineBatch,
@@ -167,19 +168,13 @@ export default function AutomationBoard({
             {/* this switch is not the last word: two settings upstream of it
                 would stop the post anyway, and a firm that threw it should
                 not have to work out why nothing arrived */}
-            {clientMail.systemOff && (
-              <p className="text-12 text-redpen">
-                Email is switched off for the whole system, so nothing goes out
-                either way — team mail included.
-              </p>
-            )}
-            {!clientMail.systemOff && clientMail.noMailbox && (
-              <p className="text-12 text-waiting">
-                No mailbox is configured yet, so messages are written to the
-                server log instead of posted. Settings &rarr; Messages says what
-                is missing.
-              </p>
-            )}
+            {/* the banner states which of the three modes email is in; the
+                switch above it is only the client half of the question */}
+            <MailModeBanner
+              redirectTo={clientMail.redirectTo}
+              transport={clientMail.transport}
+              enabled={clientMail.enabled}
+            />
           </div>
 
           {mayDecide &&
@@ -498,12 +493,12 @@ export default function AutomationBoard({
             above. Both are a partner&rsquo;s.
           </p>
           <p className="text-13 text-ink-muted max-w-[70ch]">
-            Every rule that <strong>fires by itself</strong> — the chasers,
-            the reminders, the digests — starts <strong>Off</strong>, and the
-            firm turns them on one at a time once each has been watched. The
-            ones a person sets off, and the bell that says work is yours, run
-            as normal. Switching one on here is all that is needed; it holds
-            from the next run.
+            Every rule that <strong>fires by itself</strong> — the chasers, the
+            reminders, the digests — starts <strong>Off</strong>, and the firm
+            turns them on one at a time once each has been watched. The ones a
+            person sets off, and the bell that says work is yours, run as
+            normal. Switching one on here is all that is needed; it holds from
+            the next run.
           </p>
         </div>
 

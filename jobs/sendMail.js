@@ -26,6 +26,13 @@ export async function sendMailJob(payload = {}) {
   if (!log) return { skipped: "the message log row is gone" };
   if (log.status === "sent") return { skipped: "already sent" };
   if (log.status === "held") return { skipped: "held by the client guard" };
+  /*
+   * The last word on #15: whatever puts a message back in the queue, one
+   * with an unfilled placeholder in it is not posted.
+   */
+  if (log.unfilled?.length) {
+    return { skipped: `the wording still has {${log.unfilled[0]}} in it` };
+  }
 
   const sentInLastHour = await MessageLog.countDocuments({
     status: "sent",
@@ -40,7 +47,9 @@ export async function sendMailJob(payload = {}) {
 
   try {
     const result = await send({
-      to: log.sentTo || log.to,
+      // the intended recipient: `sendMail` applies the test redirect and
+      // tells us below where it really went (#2)
+      to: log.to,
       subject: log.subject,
       text: log.body,
       attachments: payload.attachments,
@@ -48,6 +57,8 @@ export async function sendMailJob(payload = {}) {
 
     log.status = "sent";
     log.sentAt = new Date();
+    log.sentTo = result.to;
+    log.via = result.via;
     log.error = "";
     await log.save();
 
@@ -73,7 +84,7 @@ export async function sendMailJob(payload = {}) {
       });
     }
 
-    return { sent: true, via: result.via, to: log.sentTo || log.to };
+    return { sent: true, via: result.via, to: result.to };
   } catch (err) {
     log.status = "failed";
     log.error = String(err?.message ?? err).slice(0, 500);

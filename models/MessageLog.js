@@ -19,8 +19,14 @@ const messageLogSchema = new mongoose.Schema(
     audience: { type: String, enum: ["team", "client"], default: "team" },
 
     to: { type: String, required: true, trim: true },
-    /** Where it actually went, if the redirect was on. */
+    /**
+     * Where it actually went. Filled by the send, not by the queue: the
+     * test redirect is applied at the moment of posting, so until then
+     * nobody knows (#2).
+     */
     sentTo: { type: String, default: "", trim: true },
+    /** Which transport posted it — "smtp" or "log". What really happened. */
+    via: { type: String, default: "" },
     subject: { type: String, default: "", trim: true },
     body: { type: String, default: "" },
 
@@ -53,6 +59,14 @@ const messageLogSchema = new mongoose.Schema(
      * again. Immediate messages leave it null, and the index ignores those.
      */
     dedupeKey: { type: String, default: null },
+
+    /**
+     * Placeholders the wording still had in it when the message was
+     * composed. Anything in here and the message is never posted: a client
+     * who reads `{unpricedLine}` learns nothing except that the firm's
+     * system is broken (QA 09-11-2026, #15).
+     */
+    unfilled: { type: [String], default: [] },
   },
   { timestamps: true },
 );

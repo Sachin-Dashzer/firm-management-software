@@ -160,6 +160,15 @@ export default function ClientForm({
       }}
       className="flex flex-col gap-6"
     >
+      {/*
+       * Which repeated sections this form carries. Without it, the server
+       * cannot tell "the user emptied the contacts" from "this form has no
+       * contacts section", and saving an edit wiped the addresses the form
+       * never showed (QA 09-11-2026, #1). Add a section here when you add
+       * one above.
+       */}
+      <input type="hidden" name="groups" value="contacts,gstins" />
+
       {draftOpen && !editing && (
         <div className="rounded-ledger border-waiting bg-waiting-wash flex flex-col gap-2 border px-3 py-2">
           <p className="text-14">
@@ -358,6 +367,9 @@ export default function ClientForm({
         addLabel="Add another state"
         render={(row, i, update) => (
           <>
+            {row._id && (
+              <input type="hidden" name={`gstins.${i}._id`} value={row._id} />
+            )}
             <input
               name={`gstins.${i}.gstin`}
               value={row.gstin ?? ""}
@@ -367,6 +379,10 @@ export default function ClientForm({
               className="rounded-control border-rule bg-paper text-14 h-9 flex-1 border px-2 font-mono uppercase"
             />
             <label className="text-13 flex items-center gap-2 whitespace-nowrap">
+              {/* an unticked checkbox submits nothing, and the server now
+                  leaves a field the form did not send alone — so the box
+                  sends an empty value either way (#1) */}
+              <input type="hidden" name={`gstins.${i}.qrmp`} value="" />
               <input
                 type="checkbox"
                 name={`gstins.${i}.qrmp`}
@@ -394,6 +410,11 @@ export default function ClientForm({
         addLabel="Add another contact"
         render={(row, i, update) => (
           <>
+            {/* so the server can tell which stored contact this row is, and
+                keep the fields this form does not ask about (#1) */}
+            {row._id && (
+              <input type="hidden" name={`contacts.${i}._id`} value={row._id} />
+            )}
             <input
               name={`contacts.${i}.name`}
               value={row.name ?? ""}
@@ -426,6 +447,9 @@ export default function ClientForm({
               className="rounded-control border-rule bg-paper text-14 h-9 min-w-0 flex-1 border px-2"
             />
             <label className="text-13 flex items-center gap-1 whitespace-nowrap">
+              {/* sends an empty value when unticked, so unticking is a
+                  change the server can see (#1) */}
+              <input type="hidden" name={`contacts.${i}.primary`} value="" />
               <input
                 type="checkbox"
                 name={`contacts.${i}.primary`}
