@@ -156,3 +156,74 @@ describe("the entity-specific master fields", () => {
     });
   });
 });
+
+/**
+ * What the wizard refused to notice (QA 09-11-2026, #17 and #18).
+ *
+ * `zztest@` and `12345` went through onboarding untouched, and a fee of
+ * -500, "abc" or ₹99,99,99,99,999 was accepted with the Checks step saying
+ * nothing. The register of potential clients had checked a mobile number
+ * all along, with these same two functions; the client form did not.
+ */
+describe("the contact details and the fees", () => {
+  const base = { entityType: "Private Limited", pan: "", gstin: "", cin: "" };
+
+  it("refuses an email that is not one", () => {
+    const check = onboardingChecks({ ...base, email: "zztest@" }).find(
+      (row) => row.key === "email",
+    );
+    expect(check.state).toBe("bad");
+  });
+
+  it("refuses a mobile number that is not one", () => {
+    const check = onboardingChecks({ ...base, mobile: "12345" }).find(
+      (row) => row.key === "mobile",
+    );
+    expect(check.state).toBe("bad");
+  });
+
+  it("accepts the real thing", () => {
+    const checks = onboardingChecks({
+      ...base,
+      email: "riya@aggarwaltraders.in",
+      mobile: "9810012345",
+    });
+    for (const key of ["email", "mobile"]) {
+      expect(checks.find((row) => row.key === key).state, key).toBe("ok");
+    }
+  });
+
+  it("says nothing about a contact nobody has filled in yet", () => {
+    const checks = onboardingChecks(base);
+    expect(checks.some((row) => row.key === "email")).toBe(false);
+    expect(checks.some((row) => row.key === "mobile")).toBe(false);
+  });
+
+  it("refuses a negative fee, a word, and an absurd one", () => {
+    for (const fee of ["-500", "abc", "99999999999"]) {
+      const check = onboardingChecks({
+        ...base,
+        fees: [{ name: "GSTR-3B", fee }],
+      }).find((row) => row.key === "fees");
+      expect(check.state, fee).toBe("bad");
+      expect(check.detail, fee).toContain("GSTR-3B");
+    }
+  });
+
+  it("allows a fee left to be agreed", () => {
+    const check = onboardingChecks({
+      ...base,
+      fees: [{ name: "GSTR-3B", fee: "" }],
+    }).find((row) => row.key === "fees");
+    expect(check.state).toBe("ok");
+  });
+
+  /** A bad fee has to stop the wizard, not just colour a row. */
+  it("stops the wizard going on", () => {
+    const checks = onboardingChecks({
+      ...base,
+      fees: [{ name: "GSTR-3B", fee: "-500" }],
+    });
+    expect(checksPass(checks)).toBe(false);
+  });
+});

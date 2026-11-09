@@ -1,16 +1,16 @@
 "use client";
 
-import { saving } from "@/lib/forms/saving";
-import { useActionState } from "react";
+import { useFormAction } from "@/lib/forms/useFormAction";
+
 import { startSample } from "./actions";
 
 /** A working paper, started on an audit that already has a file (P3-30). */
 export default function StartSample({ engagements }) {
-  const [state, action, pending] = useActionState(startSample, null);
+  const [state, submit, pending] = useFormAction(startSample, null);
 
   return (
     <form
-      onSubmit={saving(action)}
+      onSubmit={submit}
       className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-3"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">

@@ -1,7 +1,7 @@
 "use client";
 
-import { saving } from "@/lib/forms/saving";
-import { useActionState, useEffect } from "react";
+import { useFormAction } from "@/lib/forms/useFormAction";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { confirmHeads } from "./actions";
 
@@ -16,7 +16,7 @@ import { confirmHeads } from "./actions";
  */
 export default function ConfirmHeads({ count, mayConfirm }) {
   const router = useRouter();
-  const [state, action, pending] = useActionState(
+  const [state, submit, pending] = useFormAction(
     async (_prev, formData) => confirmHeads(formData),
     null,
   );
@@ -39,7 +39,7 @@ export default function ConfirmHeads({ count, mayConfirm }) {
       </p>
       {mayConfirm ? (
         <form
-          onSubmit={saving(action)}
+          onSubmit={submit}
           className="flex flex-wrap items-end gap-2"
         >
           <label className="flex min-w-0 flex-1 flex-col gap-1">

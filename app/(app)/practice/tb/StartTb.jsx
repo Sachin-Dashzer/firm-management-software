@@ -1,16 +1,16 @@
 "use client";
 
-import { saving } from "@/lib/forms/saving";
-import { useActionState } from "react";
+import { useFormAction } from "@/lib/forms/useFormAction";
+
 import { startTrialBalance } from "./actions";
 
 /** A set of statements, started on an audit that has a file open (P3-32). */
 export default function StartTb({ engagements }) {
-  const [state, action, pending] = useActionState(startTrialBalance, null);
+  const [state, submit, pending] = useFormAction(startTrialBalance, null);
 
   return (
     <form
-      onSubmit={saving(action)}
+      onSubmit={submit}
       className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-3"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">

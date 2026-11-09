@@ -1,7 +1,7 @@
 "use client";
 
-import { saving } from "@/lib/forms/saving";
-import { useActionState } from "react";
+import { useFormAction } from "@/lib/forms/useFormAction";
+
 import { requestChange } from "./actions";
 
 /**
@@ -12,7 +12,7 @@ import { requestChange } from "./actions";
  * their own GSTIN and has not is worse off than one who knows they asked.
  */
 export default function ChangeRequest() {
-  const [state, action, pending] = useActionState(requestChange, null);
+  const [state, submit, pending] = useFormAction(requestChange, null);
 
   return (
     <section className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4">
@@ -27,7 +27,7 @@ export default function ChangeRequest() {
         </p>
       </div>
 
-      <form onSubmit={saving(action)} className="flex flex-col gap-3">
+      <form onSubmit={submit} className="flex flex-col gap-3">
         <label className="flex flex-col gap-1">
           <span className="text-13 text-ink-muted font-medium">
             What needs changing?

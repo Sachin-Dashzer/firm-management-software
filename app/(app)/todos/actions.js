@@ -242,5 +242,41 @@ export async function removeTodo(id) {
 
   revalidatePath("/todos");
   revalidatePath("/my-day");
-  return { ok: "Taken off the list." };
+  // `undo` is what the list turns into an Undo button (QA 09-11-2026, #28)
+  return { ok: "Taken off the list.", undo: String(todo._id) };
+}
+
+/**
+ * Put back one that was just removed (QA 09-11-2026, #28).
+ *
+ * Remove used to happen on a single click with nothing to catch it. Rather
+ * than a confirmation in front of every removal — which is a click on
+ * every correct one to guard against the rare wrong one — the removal
+ * stands and can be undone. The record was only ever soft-deleted
+ * (CLAUDE.md rule 3), so there is always something to put back, whether or
+ * not anybody presses the button.
+ *
+ * The same permission question as removing it, asked again: a row is not
+ * restorable by somebody who could not have removed it.
+ */
+export async function restoreTodo(id) {
+  const actor = await requireUser();
+
+  await connectDB();
+  const todo = await Todo.findOne({ _id: id }, null, { withDeleted: true });
+  if (!todo) return GONE;
+  if (!todo.deletedAt) return { ok: "It is already on the list." };
+
+  const owner = await User.findById(todo.ownerId).select("reportingTo").lean();
+  if (
+    !mayChange(actor, todo, owner?.reportingTo ? String(owner.reportingTo) : "")
+  ) {
+    return NOT_YOURS;
+  }
+
+  await audited(actor, (session) => todo.restore(actor.id, { session }));
+
+  revalidatePath("/todos");
+  revalidatePath("/my-day");
+  return { ok: "Back on the list." };
 }

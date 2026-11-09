@@ -1,7 +1,7 @@
 "use client";
 
-import { saving } from "@/lib/forms/saving";
-import { useActionState, useState, useTransition } from "react";
+import { useFormAction } from "@/lib/forms/useFormAction";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { postAnnouncement, endAnnouncement } from "./actions";
 
@@ -14,7 +14,7 @@ import { postAnnouncement, endAnnouncement } from "./actions";
  */
 export default function AnnouncementDesk({ rows, audiences, branches, roles }) {
   const router = useRouter();
-  const [state, action, posting] = useActionState(postAnnouncement, null);
+  const [state, submit, posting] = useFormAction(postAnnouncement, null);
   const [audience, setAudience] = useState("everyone");
   const [message, setMessage] = useState(null);
   const [pending, startTransition] = useTransition();
@@ -49,7 +49,7 @@ export default function AnnouncementDesk({ rows, audiences, branches, roles }) {
         </p>
       )}
 
-      <form onSubmit={saving(action)} className="flex flex-col gap-3">
+      <form onSubmit={submit} className="flex flex-col gap-3">
         <h2 className="text-15 font-bold">Post one</h2>
 
         <label className="flex flex-col gap-1">

@@ -6,8 +6,8 @@ import { assertCan, can } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import { audited } from "@/lib/audit/request";
 import { recordAudit, ACTIONS } from "@/lib/audit";
-import { toPaise } from "@/lib/money";
-import { istInputDate } from "@/lib/dates";
+import { toPaise, readAmount } from "@/lib/money";
+import { istInputDate, formatISTDate } from "@/lib/dates";
 import Client from "@/models/Client";
 import Notice from "@/models/Notice";
 import RuleConfirmation from "@/models/RuleConfirmation";
@@ -88,6 +88,20 @@ export async function createNotice(_prev, formData) {
     return { error: "One of those dates is not a date." };
   }
 
+  /**
+   * A notice cannot be served before it was written (QA 09-11-2026, #11).
+   *
+   * Refused rather than warned about, because every limitation period in
+   * the matter is counted from one of these two dates: a pair the wrong
+   * way round quietly puts the firm's own deadline in the wrong place.
+   */
+  if (noticeDate && servedOn && servedOn < noticeDate) {
+    return {
+      error: `Served on ${formatISTDate(servedOn)} but dated ${formatISTDate(noticeDate)} — a notice cannot reach the client before it was written. Check which way round those two dates go.`,
+      field: "servedOn",
+    };
+  }
+
   const din = String(formData.get("din") ?? "").trim();
   if (din) {
     const clash = await Notice.findOne({ din }).select("_id clientId").lean();
@@ -99,12 +113,19 @@ export async function createNotice(_prev, formData) {
     }
   }
 
+  /**
+   * -500 used to reach Mongoose, whose `min: 0` threw a raw
+   * "Path `stakePaise`…" at the screen and took the whole form with it
+   * (QA 09-11-2026, #9). Checked here, in words, before anything is
+   * written. An empty box is a real answer: plenty of notices ask for
+   * papers rather than money.
+   */
   let stakePaise = 0;
-  try {
-    const raw = String(formData.get("stake") ?? "").trim();
-    if (raw) stakePaise = toPaise(raw);
-  } catch {
-    return { error: "That amount at stake is not an amount." };
+  const rawStake = String(formData.get("stake") ?? "").trim();
+  if (rawStake) {
+    const read = readAmount(rawStake, { label: "The amount at stake" });
+    if (!read.ok) return { error: read.reason, field: "stake" };
+    stakePaise = read.paise;
   }
 
   let created;
@@ -465,6 +486,17 @@ export async function setStage(id, formData) {
   const orderDate = readDate(formData.get("orderDate"));
   if (orderDate === undefined) return { error: "That date is not a date." };
 
+  /* the same rule as the amount at stake, and for the same reason (#9):
+     a bad figure is said out loud here rather than thrown by Mongoose
+     from inside the transaction below */
+  const rawDemand = String(formData.get("demand") ?? "").trim();
+  let demandPaise = null;
+  if (rawDemand) {
+    const read = readAmount(rawDemand, { label: "The demand" });
+    if (!read.ok) return { error: read.reason, field: "demand" };
+    demandPaise = read.paise;
+  }
+
   const from = notice.stage;
 
   await audited(actor, async (session) => {
@@ -472,15 +504,7 @@ export async function setStage(id, formData) {
     if (orderDate) notice.orderDate = orderDate;
     const orderNote = String(formData.get("orderNote") ?? "").trim();
     if (orderNote) notice.orderNote = orderNote;
-    const demand = String(formData.get("demand") ?? "").trim();
-    if (demand) {
-      try {
-        notice.demandPaise = toPaise(demand);
-      } catch {
-        // left alone: the message below says nothing about it, and a bad
-        // figure is better refused than guessed
-      }
-    }
+    if (demandPaise !== null) notice.demandPaise = demandPaise;
     if (stage === "Closed") {
       notice.closedAt = new Date();
       notice.closedNote = String(formData.get("closedNote") ?? "").trim();

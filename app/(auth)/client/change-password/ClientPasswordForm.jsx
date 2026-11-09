@@ -1,13 +1,13 @@
 "use client";
 
-import { saving } from "@/lib/forms/saving";
-import { useActionState, useEffect } from "react";
+import { useFormAction } from "@/lib/forms/useFormAction";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { changeClientPassword } from "./actions";
 
 /** The staff form's twin, landing back in the portal rather than at /me. */
 export default function ClientPasswordForm({ forced }) {
-  const [state, action, pending] = useActionState(changeClientPassword, null);
+  const [state, submit, pending] = useFormAction(changeClientPassword, null);
   const router = useRouter();
 
   useEffect(() => {
@@ -18,7 +18,7 @@ export default function ClientPasswordForm({ forced }) {
   }, [state?.ok, router]);
 
   return (
-    <form onSubmit={saving(action)} className="flex flex-col gap-4">
+    <form onSubmit={submit} className="flex flex-col gap-4">
       <label className="flex flex-col gap-1">
         <span className="text-13 text-ink-muted">
           {forced ? "The password the office gave you" : "Current password"}

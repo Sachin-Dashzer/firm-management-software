@@ -1,7 +1,7 @@
 "use client";
 
-import { saving } from "@/lib/forms/saving";
-import { useActionState, useEffect, useState } from "react";
+import { useFormAction } from "@/lib/forms/useFormAction";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Play, Stop, X } from "@phosphor-icons/react";
 import { startTimer, stopTimer, cancelTimer } from "./actions";
@@ -25,7 +25,7 @@ import { startTimer, stopTimer, cancelTimer } from "./actions";
  */
 export default function Timer({ jobs, running }) {
   const router = useRouter();
-  const [state, action, pending] = useActionState(startTimer, null);
+  const [state, submit, pending] = useFormAction(startTimer, null);
   const [, setTick] = useState(0);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(null);
@@ -94,7 +94,7 @@ export default function Timer({ jobs, running }) {
 
   return (
     <form
-      onSubmit={saving(action)}
+      onSubmit={submit}
       className="rounded-ledger border-rule bg-surface flex flex-col gap-2 border px-4 py-3 sm:flex-row sm:items-end"
     >
       <label className="flex min-w-0 flex-1 flex-col gap-1">

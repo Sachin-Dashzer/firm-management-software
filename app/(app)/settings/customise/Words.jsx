@@ -1,7 +1,7 @@
 "use client";
 
-import { saving } from "@/lib/forms/saving";
-import { useActionState, useState } from "react";
+import { useFormAction } from "@/lib/forms/useFormAction";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { applyWords, wordChanges, RENAMEABLE } from "@/lib/firm/words";
@@ -19,7 +19,7 @@ import { saveWords } from "./actions";
  */
 export default function Words({ current, sample }) {
   const router = useRouter();
-  const [state, action, pending] = useActionState(saveWords, null);
+  const [state, submit, pending] = useFormAction(saveWords, null);
   const [draft, setDraft] = useState(current);
 
   useEffect(() => {
@@ -30,7 +30,7 @@ export default function Words({ current, sample }) {
   const changed = Object.keys(changes).length > 0;
 
   return (
-    <form onSubmit={saving(action)} className="flex flex-col gap-4">
+    <form onSubmit={submit} className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-2">
         {RENAMEABLE.map((row) => (
           <fieldset

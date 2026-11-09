@@ -1,7 +1,7 @@
 "use client";
 
-import { saving } from "@/lib/forms/saving";
-import { useActionState } from "react";
+import { useFormAction } from "@/lib/forms/useFormAction";
+
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { changeOwnPassword } from "./actions";
@@ -11,7 +11,7 @@ import { changeOwnPassword } from "./actions";
  * session proves who they are — see the action for why.
  */
 export default function ChangePasswordForm({ forced }) {
-  const [state, action, pending] = useActionState(changeOwnPassword, null);
+  const [state, submit, pending] = useFormAction(changeOwnPassword, null);
   const router = useRouter();
 
   useEffect(() => {
@@ -22,7 +22,7 @@ export default function ChangePasswordForm({ forced }) {
   }, [state?.ok, router]);
 
   return (
-    <form onSubmit={saving(action)} className="flex flex-col gap-4">
+    <form onSubmit={submit} className="flex flex-col gap-4">
       <label className="flex flex-col gap-1">
         <span className="text-13 text-ink-muted">
           {forced ? "The password you were given" : "Current password"}

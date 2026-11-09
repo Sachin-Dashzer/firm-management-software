@@ -1,7 +1,7 @@
 "use client";
 
-import { saving } from "@/lib/forms/saving";
-import { useActionState, useEffect, useRef } from "react";
+import { useFormAction } from "@/lib/forms/useFormAction";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addTodo } from "./actions";
 
@@ -26,15 +26,27 @@ import { addTodo } from "./actions";
  * **It has no client picker** (owner, 03-11-2026): four controls, and the
  * client goes in the words like it always did.
  */
+/** The length the record itself allows; `lib/todos/list.js` refuses more. */
+const TITLE_LIMIT = 200;
+
 export default function AddTodo({ people, me }) {
   const router = useRouter();
-  const [state, action, pending] = useActionState(addTodo, null);
+  const [state, submit, pending] = useFormAction(addTodo, null);
   const form = useRef(null);
   const title = useRef(null);
+  /**
+   * The title is the one controlled field, so the limit can be said out
+   * loud (QA 09-11-2026, #27). A `maxLength` alone stops the typing and
+   * explains nothing — paste a paragraph and the end of it simply was not
+   * there, with no sign that anything had been dropped.
+   */
+  const [typed, setTyped] = useState("");
+  const left = TITLE_LIMIT - typed.length;
 
   useEffect(() => {
     if (state?.ok) {
       form.current?.reset();
+      setTyped("");
       title.current?.focus();
       router.refresh();
     }
@@ -46,19 +58,29 @@ export default function AddTodo({ people, me }) {
   return (
     <form
       ref={form}
-      onSubmit={saving(action)}
+      onSubmit={submit}
       className="rounded-ledger border-rule bg-surface flex flex-wrap items-center gap-2 border p-2"
     >
-      <label className="flex min-w-[14rem] flex-[3] items-center">
-        <span className="sr-only">What has to be done</span>
+      <label className="flex min-w-[14rem] flex-[3] items-center gap-1">
+        <span className="sr-only">What has to be done (required)</span>
         <input
           ref={title}
           name="title"
           required
-          maxLength={200}
+          maxLength={TITLE_LIMIT}
+          value={typed}
+          onChange={(event) => setTyped(event.target.value)}
           placeholder="What has to be done? Ring Jaspal about the GST notice"
           className={`${field} placeholder:text-faint w-full`}
         />
+        {/* the other forms in the app mark a required field this way (#29) */}
+        <span
+          className="text-redpen text-13"
+          aria-hidden="true"
+          title="Required"
+        >
+          *
+        </span>
       </label>
 
       <label className="flex items-center">
@@ -111,6 +133,22 @@ export default function AddTodo({ people, me }) {
       >
         Add
       </button>
+
+      {/*
+        Only near the limit, and only loudly at it: a counter sitting under
+        every empty composer is noise, and the person who needs it is the
+        one whose sentence has stopped going in (#27).
+      */}
+      {left <= 40 && (
+        <p
+          role="status"
+          className={`text-12 basis-full ${left <= 0 ? "text-redpen" : "text-ink-muted"}`}
+        >
+          {left > 0
+            ? `${left} characters left of ${TITLE_LIMIT}.`
+            : `That is the whole line — ${TITLE_LIMIT} characters. Put the rest in the note beside it.`}
+        </p>
+      )}
 
       {state?.error && (
         <p role="alert" className="text-13 text-redpen basis-full">

@@ -130,11 +130,50 @@ export default function Onboarding({
   const set = (name, value) =>
     setValues((previous) => ({ ...previous, [name]: value }));
 
-  /** Move to a step, remembering how far the person has got. */
+  /**
+   * Move to a step, remembering how far the person has got — and putting
+   * the step in the address bar (QA 09-11-2026, #19).
+   *
+   * Back used to leave the wizard altogether and take six steps of typing
+   * with it, because nothing about the form was in the history. Each step
+   * now pushes an entry, so Back walks back through the wizard and
+   * Forward walks in again. `window.history` rather than the router on
+   * purpose: a router navigation re-renders the page and would throw away
+   * the very state this is protecting.
+   */
   function go(next) {
     setStep(next);
     setFurthest((far) => Math.max(far, next));
+    if (typeof window !== "undefined") {
+      window.history.pushState({ phmgStep: next }, "", `?step=${next + 1}`);
+    }
   }
+
+  /** Back and Forward move between the steps, not out of the wizard. */
+  useEffect(() => {
+    const onPop = (event) => {
+      const next = event.state?.phmgStep;
+      if (typeof next === "number") setStep(next);
+    };
+    window.addEventListener("popstate", onPop);
+    // so the first Back has a step to come back to rather than leaving
+    window.history.replaceState({ phmgStep: 0 }, "", window.location.href);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  /**
+   * Leaving the page another way — a bookmark, a typed URL, the window's
+   * own close button — is still a loss, so the browser asks first. Only
+   * once anything has been typed: a warning on an untouched form is the
+   * kind that teaches people to click through warnings.
+   */
+  const started = Boolean(entityType) || Object.keys(values).length > 0;
+  useEffect(() => {
+    if (!started || created) return;
+    const warn = (event) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [started, created]);
 
   /**
    * Picking an entity type re-stocks everything downstream of it. Changing
@@ -219,12 +258,23 @@ export default function Onboarding({
             pan: values.pan,
             gstin: values["gstins.0.gstin"],
             cin: values.cin,
+            email: values["contacts.0.email"],
+            mobile: values["contacts.0.mobile"],
+            /* what was typed against each ticked service, so a fee of
+               -500 or "abc" is caught here and not at the first invoice
+               (#18) */
+            fees: services
+              .filter((service) => fees[service.code]?.on)
+              .map((service) => ({
+                name: service.name,
+                fee: fees[service.code]?.fee,
+              })),
             duplicate: lookups?.duplicate ?? null,
             group: step >= 4 ? (lookups?.group ?? null) : null,
             independence: step >= 4 ? (lookups?.independence ?? null) : null,
           })
         : [],
-    [entityType, values, lookups, step],
+    [entityType, values, lookups, step, services, fees],
   );
 
   const masterReady =
@@ -237,17 +287,59 @@ export default function Onboarding({
    * the checks step will not let go without one. The server refuses it too;
    * this only means the refusal is not saved up until step 7.
    */
-  const groupChosen = Boolean(
-    groupId || (addToSuggested && lookups?.group?.suggestGroupId),
-  );
+  /**
+   * The group this client will actually be filed under.
+   *
+   * Worked out once and used by the gate, the summary and the create call
+   * alike. The summary used to read `groupId` on its own, so ticking "add
+   * to the suggested group" after a duplicate warning showed Group
+   * "— none —" on the last screen while the client was in fact going into
+   * that group (QA 09-11-2026, #20).
+   */
+  const effectiveGroupId = addToSuggested
+    ? (lookups?.group?.suggestGroupId ?? groupId)
+    : groupId;
+  const groupChosen = Boolean(effectiveGroupId);
 
-  const canContinue =
-    (step === 0 && Boolean(entityType)) ||
-    (step === 1 && masterReady && checksPass(checks)) ||
-    step === 2 ||
-    step === 3 ||
-    (step === 4 && groupChosen) ||
-    step === 5;
+  /**
+   * Why Continue is not available, in words (QA 09-11-2026, #24).
+   *
+   * A faded button with no explanation is a dead end: the QA run left a
+   * client with no name and had nothing on screen to say which field was
+   * missing. `null` means the step is finished.
+   */
+  const blocked = (() => {
+    if (step === 0 && !entityType) return "Pick what kind of entity this is.";
+    if (step === 1) {
+      const missing = [
+        String(values.legalName ?? "").trim().length < 3 && "the legal name",
+        !String(values["contacts.0.name"] ?? "").trim() && "a contact person",
+        !values.branchId && "a branch",
+      ].filter(Boolean);
+      if (missing.length) {
+        return `Still needed: ${missing.join(", ")}.`;
+      }
+      /* the fees are step 3's business, and the duplicate is a judgement
+         somebody makes on the last step */
+      const wrong = checks.filter(
+        (check) =>
+          check.state === "bad" && !["duplicate", "fees"].includes(check.key),
+      );
+      if (wrong.length) {
+        return `${wrong[0].label}: ${wrong[0].detail}`;
+      }
+    }
+    if (step === 3) {
+      const fee = checks.find((check) => check.key === "fees");
+      if (fee?.state === "bad") return fee.detail;
+    }
+    if (step === 4 && !groupChosen) {
+      return "Every client belongs to a group. Choose one, or make a new one.";
+    }
+    return null;
+  })();
+
+  const canContinue = step < 6 && !blocked;
 
   /** Keep what has been typed, for whoever has to answer the phone. */
   function saveDraft() {
@@ -321,9 +413,7 @@ export default function Onboarding({
         values,
         documents,
         received,
-        groupId: addToSuggested
-          ? (lookups?.group?.suggestGroupId ?? groupId)
-          : groupId,
+        groupId: effectiveGroupId,
         confirmDuplicates,
         emailQuotation,
         services: services
@@ -530,7 +620,9 @@ export default function Onboarding({
                 received={received}
                 checks={checks}
                 groups={groups}
-                groupId={groupId}
+                /* the group it will actually go into, not just the one
+                   picked from the list (#20) */
+                groupId={effectiveGroupId}
                 confirmDuplicates={confirmDuplicates}
                 setConfirmDuplicates={setConfirmDuplicates}
                 emailQuotation={emailQuotation}
@@ -549,14 +641,22 @@ export default function Onboarding({
                 Back
               </button>
               {step < 6 ? (
-                <button
-                  type="button"
-                  onClick={() => go(step + 1)}
-                  disabled={!canContinue}
-                  className="rounded-control bg-carbon text-14 text-on-carbon h-10 px-5 font-medium disabled:opacity-40"
-                >
-                  Continue
-                </button>
+                <span className="flex flex-wrap items-center justify-end gap-3">
+                  {/* what is missing, rather than a faded button (#24) */}
+                  {blocked && (
+                    <span role="status" className="text-13 text-waiting">
+                      {blocked}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => go(step + 1)}
+                    disabled={!canContinue}
+                    className="rounded-control bg-carbon text-14 text-on-carbon h-10 px-5 font-medium disabled:opacity-40"
+                  >
+                    Continue
+                  </button>
+                </span>
               ) : (
                 <button
                   type="button"

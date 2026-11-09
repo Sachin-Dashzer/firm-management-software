@@ -3,7 +3,14 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { tickTodo, setTodoDate, setTodoOwner, removeTodo } from "./actions";
+import { runAction } from "@/lib/forms/runAction";
+import {
+  tickTodo,
+  setTodoDate,
+  setTodoOwner,
+  removeTodo,
+  restoreTodo,
+} from "./actions";
 
 /**
  * The lines themselves, with the tick (P3-22c).
@@ -25,7 +32,7 @@ export default function TodoLines({ rows, people = [], showOwner = false }) {
   function run(id, action) {
     setBusy(id);
     startTransition(async () => {
-      const result = await action();
+      const result = await runAction(action);
       setMessage(result);
       setBusy(null);
       if (result?.ok) router.refresh();
@@ -52,9 +59,26 @@ export default function TodoLines({ rows, people = [], showOwner = false }) {
       {message?.ok && (
         <p
           role="status"
-          className="rounded-ledger border-filed bg-filed-wash text-13 text-filed border px-3 py-2"
+          className="rounded-ledger border-filed bg-filed-wash text-13 text-filed flex flex-wrap items-center gap-3 border px-3 py-2"
         >
           {message.ok}
+          {/*
+            Undo, rather than a confirmation in front of every removal
+            (QA 09-11-2026, #28). A to-do is only ever soft-deleted, so
+            there is always something to put back; asking "are you sure"
+            would be a click on every correct removal to guard against the
+            rare wrong one.
+          */}
+          {message.undo && (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => run(message.undo, () => restoreTodo(message.undo))}
+              className="text-13 font-medium underline underline-offset-4 disabled:opacity-60"
+            >
+              Undo
+            </button>
+          )}
         </p>
       )}
 

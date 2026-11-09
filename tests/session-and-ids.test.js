@@ -170,6 +170,24 @@ describe("running a server action from a screen (#8)", () => {
     expect(result.signedOut).toBeUndefined();
   });
 
+  /**
+   * `redirect()` and `notFound()` work by throwing. Catching one would
+   * turn "go to the new page" into an error message — `startSample` and
+   * `startTrialBalance` both end that way.
+   */
+  it("lets Next's own redirect through instead of reporting it", async () => {
+    vi.stubGlobal("fetch", session(true));
+    const redirecting = Object.assign(new Error("NEXT_REDIRECT"), {
+      digest: "NEXT_REDIRECT;replace;/practice/tb/abc;307;",
+    });
+
+    await expect(
+      runAction(async () => {
+        throw redirecting;
+      }),
+    ).rejects.toBe(redirecting);
+  });
+
   it("always has something to show, even for an error with no message", async () => {
     vi.stubGlobal("fetch", session(true));
     const result = await runAction(async () => {

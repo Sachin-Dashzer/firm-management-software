@@ -15,6 +15,7 @@ import DocTemplate from "@/models/DocTemplate";
 import DocRequest from "@/models/DocRequest";
 import { findDuplicates } from "@/lib/clients/duplicates";
 import { feeToPaise, quotation } from "@/lib/clients/quotation";
+import { readAmount } from "@/lib/money";
 import { quotationToClient } from "@/lib/mailer/events";
 import { ENTITY_BY_KEY, entityLabel } from "@/lib/clients/entityTypes";
 import { checkPAN, checkGSTIN } from "@/lib/validators";
@@ -266,6 +267,22 @@ export async function createFromOnboarding(payload) {
 
   const entity = ENTITY_BY_KEY[payload.entityType];
   if (!entity) return { error: "Choose an entity type first." };
+
+  /**
+   * The fees, before a client exists (QA 09-11-2026, #18).
+   *
+   * The wizard checks these too, on the Checks step. This is the half
+   * that counts: `-500` reached `clientServices.feePaise`, whose `min: 0`
+   * threw from inside the transaction, and the client had already been
+   * created by then. A blank fee is still allowed — "to be agreed" is a
+   * real answer, and the quotation says so.
+   */
+  for (const row of payload.services ?? []) {
+    const typed = String(row?.fee ?? "").trim();
+    if (!typed) continue;
+    const read = readAmount(typed, { label: `The fee for ${row.code}` });
+    if (!read.ok) return { error: read.reason };
+  }
 
   const formData = new FormData();
   const put = (key, value) => {

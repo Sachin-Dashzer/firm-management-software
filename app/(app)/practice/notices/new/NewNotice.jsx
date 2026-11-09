@@ -1,7 +1,7 @@
 "use client";
 
-import { saving } from "@/lib/forms/saving";
-import { useActionState, useEffect, useState } from "react";
+import { useFormAction } from "@/lib/forms/useFormAction";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createNotice } from "../actions";
 
@@ -15,7 +15,7 @@ import { createNotice } from "../actions";
  */
 export default function NewNotice({ clients, people, kinds, client }) {
   const router = useRouter();
-  const [state, action, pending] = useActionState(createNotice, null);
+  const [state, submit, pending] = useFormAction(createNotice, null);
   const [kind, setKind] = useState("");
 
   const chosen = kinds.find((row) => row.key === kind);
@@ -35,7 +35,7 @@ export default function NewNotice({ clients, people, kinds, client }) {
   }, [state?.id, router]);
 
   return (
-    <form onSubmit={saving(action)} className="flex flex-col gap-4">
+    <form onSubmit={submit} className="flex flex-col gap-4">
       {state?.error && (
         <p
           role="alert"
@@ -46,7 +46,7 @@ export default function NewNotice({ clients, people, kinds, client }) {
       )}
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Client">
+        <Field label="Client" required>
           <select
             name="clientId"
             required
@@ -62,7 +62,7 @@ export default function NewNotice({ clients, people, kinds, client }) {
           </select>
         </Field>
 
-        <Field label="What kind of notice">
+        <Field label="What kind of notice" required>
           <select
             name="kind"
             required
@@ -124,7 +124,7 @@ export default function NewNotice({ clients, people, kinds, client }) {
           />
         </Field>
 
-        <Field label="Date served">
+        <Field label="Date served" required>
           <input
             type="date"
             name="servedOn"
@@ -226,10 +226,15 @@ export default function NewNotice({ clients, people, kinds, client }) {
   );
 }
 
-function Field({ label, hint, children }) {
+/** `required` draws the asterisk the other forms in the app use, so a
+    field that must be filled says so before the save refuses (#29). */
+function Field({ label, hint, required, children }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-13 font-medium">{label}</span>
+      <span className="text-13 font-medium">
+        {label}
+        {required && <span className="text-redpen"> *</span>}
+      </span>
       {children}
       {hint && <span className="text-12 text-ink-muted">{hint}</span>}
     </label>

@@ -1,7 +1,7 @@
 "use client";
 
-import { saving } from "@/lib/forms/saving";
-import { useActionState, useEffect, useState } from "react";
+import { useFormAction } from "@/lib/forms/useFormAction";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createCertificate } from "../actions";
 
@@ -15,7 +15,7 @@ import { createCertificate } from "../actions";
  */
 export default function NewCertificate({ clients, client, types, levels }) {
   const router = useRouter();
-  const [state, action, pending] = useActionState(createCertificate, null);
+  const [state, submit, pending] = useFormAction(createCertificate, null);
   const [type, setType] = useState("");
 
   const chosen = types.find((row) => row.key === type);
@@ -35,7 +35,7 @@ export default function NewCertificate({ clients, client, types, levels }) {
   }, [state?.id, router]);
 
   return (
-    <form onSubmit={saving(action)} className="flex flex-col gap-4">
+    <form onSubmit={submit} className="flex flex-col gap-4">
       {state?.error && (
         <p
           role="alert"
@@ -46,7 +46,7 @@ export default function NewCertificate({ clients, client, types, levels }) {
       )}
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Client">
+        <Field label="Client" required>
           <select
             name="clientId"
             required
@@ -62,7 +62,7 @@ export default function NewCertificate({ clients, client, types, levels }) {
           </select>
         </Field>
 
-        <Field label="What kind of certificate">
+        <Field label="What kind of certificate" required>
           <select
             name="type"
             required
@@ -149,10 +149,15 @@ export default function NewCertificate({ clients, client, types, levels }) {
   );
 }
 
-function Field({ label, hint, children }) {
+/** `required` draws the asterisk the other forms in the app use, so a
+    field that must be filled says so before the save refuses (#29). */
+function Field({ label, hint, required, children }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-13 font-medium">{label}</span>
+      <span className="text-13 font-medium">
+        {label}
+        {required && <span className="text-redpen"> *</span>}
+      </span>
       {children}
       {hint && <span className="text-12 text-ink-muted">{hint}</span>}
     </label>

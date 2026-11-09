@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useFormAction } from "@/lib/forms/useFormAction";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { saving } from "@/lib/forms/saving";
 import { addPotential } from "./actions";
 
 /**
@@ -22,7 +22,7 @@ import { addPotential } from "./actions";
  */
 export default function AddPotential() {
   const router = useRouter();
-  const [state, action, pending] = useActionState(addPotential, null);
+  const [state, submit, pending] = useFormAction(addPotential, null);
   const form = useRef(null);
   const name = useRef(null);
 
@@ -40,7 +40,7 @@ export default function AddPotential() {
   return (
     <form
       ref={form}
-      onSubmit={saving(action)}
+      onSubmit={submit}
       className="rounded-ledger border-rule bg-surface flex shrink-0 flex-wrap items-center gap-2 border p-2"
     >
       <label className="flex min-w-[11rem] flex-[2] items-center">

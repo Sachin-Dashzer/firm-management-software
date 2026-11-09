@@ -249,11 +249,7 @@ export default async function TodosPage({ searchParams }) {
                 {bucket.label}
                 <span className="num"> · {bucket.rows.length}</span>
               </h2>
-              <TodoLines
-                rows={bucket.rows}
-                people={team}
-                showOwner={!mineOnly}
-              />
+              <TodoLines rows={bucket.rows} people={team} showOwner />
             </section>
           ))
         )}
@@ -269,7 +265,7 @@ export default async function TodosPage({ searchParams }) {
                 Nothing has been ticked off this week.
               </p>
             ) : (
-              <TodoLines rows={finished} people={team} showOwner={!mineOnly} />
+              <TodoLines rows={finished} people={team} showOwner />
             )}
           </section>
         )}

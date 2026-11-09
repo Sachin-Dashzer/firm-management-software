@@ -1,7 +1,7 @@
 "use client";
 
-import { saving } from "@/lib/forms/saving";
-import { useActionState, useEffect, useRef } from "react";
+import { useFormAction } from "@/lib/forms/useFormAction";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { addTime } from "./actions";
 
@@ -18,7 +18,7 @@ import { addTime } from "./actions";
  */
 export default function AddTime({ jobs, people, me, defaultDate }) {
   const router = useRouter();
-  const [state, action, pending] = useActionState(addTime, null);
+  const [state, submit, pending] = useFormAction(addTime, null);
   const form = useRef(null);
   const hours = useRef(null);
 
@@ -34,7 +34,7 @@ export default function AddTime({ jobs, people, me, defaultDate }) {
   return (
     <form
       ref={form}
-      onSubmit={saving(action)}
+      onSubmit={submit}
       className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-3"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">

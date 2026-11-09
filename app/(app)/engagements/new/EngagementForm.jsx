@@ -56,6 +56,26 @@ export default function EngagementForm({
   const [otherName, setOtherName] = useState("");
 
   /**
+   * An error about a missing field stops being true once it is filled
+   * (QA 09-11-2026, #25): "Choose a client" sat on the screen after a
+   * client had been chosen, which reads as though the choice did not
+   * register. Only the error goes — a confirmation is about something
+   * that did happen, so it stays.
+   */
+  useEffect(() => {
+    setMessage((current) => (current?.error ? null : current));
+  }, [
+    clientId,
+    templateId,
+    period,
+    assigneeId,
+    reviewerId,
+    fee,
+    internalDue,
+    otherName,
+  ]);
+
+  /**
    * The service, including the one that is not a service yet. "Other"
    * behaves like a one-time L2 job in the form, so the period list, the
    * people filters and the due date all work before the catalog row
