@@ -67,9 +67,15 @@ export default function JobsAdmin({ health, schedules }) {
         </p>
         {health.stale && (
           <p className="text-13 mt-2">
-            Nothing is being generated or cleared while this is the case. Check
-            the cron job in cPanel — the steps are in{" "}
-            <span className="font-mono">docs/DEPLOY.md</span>.
+            {/* the runner is started by Vercel Cron, not by cPanel: that
+                sentence was left over from the earlier plan to host the
+                runner on BigRock (QA 09-11-2026, #36, last point) */}
+            Nothing is being generated or cleared while this is the case. The
+            runner is started every five minutes by Vercel Cron; the entry is in{" "}
+            <span className="font-mono">vercel.json</span>, and what to check
+            when it stops is in{" "}
+            <span className="font-mono">docs/DEPLOY.md</span>. &ldquo;Run a pass
+            now&rdquo; below starts one by hand in the meantime.
           </p>
         )}
       </section>

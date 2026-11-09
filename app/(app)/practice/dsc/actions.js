@@ -8,6 +8,7 @@ import { audited } from "@/lib/audit/request";
 import Dsc from "@/models/Dsc";
 import Client from "@/models/Client";
 import { DSC_CLASSES, DSC_HOLDERS } from "@/lib/practice/dsc";
+import { formatISTDate } from "@/lib/dates";
 
 /**
  * The DSC register (P2-7): a list of whose certificate expires when.
@@ -100,7 +101,11 @@ export async function addDsc(_prev, formData) {
   revalidatePath("/practice/dsc");
   revalidatePath(`/clients/${data.clientId}`);
   return {
-    ok: `${data.holderName}'s certificate added, expiring ${data.validTill}.`,
+    /* the date box hands over 2026-12-24; the firm reads 24-12-2026
+       (QA 09-11-2026, #33) */
+    ok: `${data.holderName}'s certificate added, expiring ${formatISTDate(
+      new Date(data.validTill),
+    )}.`,
   };
 }
 

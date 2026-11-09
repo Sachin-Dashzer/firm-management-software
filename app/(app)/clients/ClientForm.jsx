@@ -636,7 +636,7 @@ export default function ClientForm({
             label="Proposed services"
             name="proposedServices"
             className="sm:col-span-2"
-            hint="Free text for now; the service catalog arrives in Step 4."
+            hint="In the client's own words. The services themselves are set up on the client's record once they are taken on."
           />
           <Field
             label="Quoted fee (₹)"

@@ -115,9 +115,9 @@ export default async function CertificatesPage({ searchParams }) {
           </strong>{" "}
           kinds of certificate carry wording no partner has confirmed:{" "}
           {unconfirmed.map((type) => type.name.toLowerCase()).join(", ")}. The
-          paragraphs are a first draft taken from the design prototype, and on a
-          certificate the wording <em>is</em> the document — so one of these
-          cannot be signed until a partner has read it. Open a draft to confirm.
+          paragraphs are a starting draft, and on a certificate the wording{" "}
+          <em>is</em> the document — so one of these cannot be signed until a
+          partner has read it. Open a draft to confirm.
         </p>
       )}
 

@@ -12,6 +12,8 @@ import {
 import { onboardingChecks, checksPass } from "@/lib/clients/checks";
 import { feeToPaise, quotation } from "@/lib/clients/quotation";
 import { formatPaise } from "@/lib/money";
+import { withArticle } from "@/lib/words";
+import { PAN_CHAR_FOR_ENTITY } from "@/lib/validators";
 import { keepDraft, dropDraft } from "../../drafts/actions";
 import { createGroup } from "../actions";
 import {
@@ -31,10 +33,24 @@ const STEPS = [
 ];
 
 /** The fields every client has, whatever kind of entity it is. */
+/**
+ * A sample PAN of the right kind for this entity (QA 09-11-2026, #30).
+ *
+ * The placeholder was a company PAN for everybody, so an Individual was
+ * shown "AAACZ1234C" and the checks then refused the C they had copied
+ * the shape of.
+ */
+function panPlaceholder(entityType) {
+  const char = (PAN_CHAR_FOR_ENTITY[entityType] ?? "C")[0];
+  return `AAA${char}Z1234C`;
+}
+
 const COMMON_FIELDS = [
   { name: "legalName", label: "Legal name", required: true },
   { name: "tradeName", label: "Trade name" },
-  { name: "pan", label: "PAN", mono: true, placeholder: "AAACZ1234C" },
+  /* the placeholder follows the entity: an Individual holds a P PAN, not
+     a company's C PAN (QA 09-11-2026, #30) */
+  { name: "pan", label: "PAN", mono: true, placeholder: "panForEntity" },
   { name: "contacts.0.name", label: "Contact person", required: true },
   { name: "contacts.0.email", label: "Email", type: "email" },
   { name: "contacts.0.mobile", label: "Mobile", mono: true },
@@ -787,7 +803,7 @@ function MasterStep({
     <>
       <StepHead
         title={`Client master — ${entity.label}`}
-        note={`Common fields first, then fields that apply only to ${article(entity.label)}. Checks run as you type.`}
+        note={`Common fields first, then fields that apply only to ${withArticle(entity.label)}. Checks run as you type.`}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -795,6 +811,11 @@ function MasterStep({
           <Field
             key={field.name}
             {...field}
+            placeholder={
+              field.placeholder === "panForEntity"
+                ? panPlaceholder(entity.key)
+                : field.placeholder
+            }
             value={values[field.name]}
             onChange={(v) => set(field.name, v)}
             onBlur={onBlurCheck}
@@ -841,10 +862,6 @@ function MasterStep({
 }
 
 /** "a private limited company" / "an LLP" — read aloud, it matters. */
-function article(label) {
-  return /^[AEIOU]/i.test(label) ? `an ${label}` : `a ${label}`;
-}
-
 // --- step 3 -----------------------------------------------------------------
 
 function DocumentsStep({

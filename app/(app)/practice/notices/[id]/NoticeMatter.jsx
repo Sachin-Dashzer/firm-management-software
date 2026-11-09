@@ -162,9 +162,7 @@ export default function NoticeMatter({
             The law behind this
           </h2>
           <p className="text-13 text-ink-muted max-w-[70ch]">
-            A first draft, taken from the design prototype, which carries
-            &ldquo;to be verified by a practising CA before use&rdquo;
-            throughout.{" "}
+            A starting draft, to be verified by a practising CA before use.{" "}
             <strong>
               No date is shown until a partner has read the rule and confirmed
               it

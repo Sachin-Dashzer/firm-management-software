@@ -16,7 +16,7 @@ import DocRequest from "@/models/DocRequest";
 import { findDuplicates } from "@/lib/clients/duplicates";
 import { feeToPaise, quotation } from "@/lib/clients/quotation";
 import { readAmount } from "@/lib/money";
-import { quotationToClient } from "@/lib/mailer/events";
+import { enqueue } from "@/lib/jobs/queue";
 import { ENTITY_BY_KEY, entityLabel } from "@/lib/clients/entityTypes";
 import { checkPAN, checkGSTIN } from "@/lib/validators";
 import { firmProfile } from "@/lib/firm/settings";
@@ -326,26 +326,24 @@ export async function createFromOnboarding(payload) {
   if (ticked.length) {
     try {
       await audited(actor, async (session) => {
+        /* one write for the lot, not one per service: each round trip to
+           Mumbai is tens of milliseconds and this loop was serial (#36) */
+        const rows = [];
         for (const row of ticked) {
           const template = byCode.get(row.code);
           if (!template) continue;
           const feePaise = feeToPaise(row.fee, template.defaultFeePaise ?? 0);
           const billingBasis = row.billingBasis || "per engagement";
           const gstTreatment = row.gstTreatment || "plus GST";
-          await ClientService.create(
-            [
-              {
-                clientId,
-                serviceTemplateId: template._id,
-                feePaise,
-                billingBasis,
-                gstTreatment,
-                createdBy: actor.id,
-                updatedBy: actor.id,
-              },
-            ],
-            { session },
-          );
+          rows.push({
+            clientId,
+            serviceTemplateId: template._id,
+            feePaise,
+            billingBasis,
+            gstTreatment,
+            createdBy: actor.id,
+            updatedBy: actor.id,
+          });
           quoteRows.push({
             name: template.name,
             feePaise,
@@ -354,6 +352,7 @@ export async function createFromOnboarding(payload) {
           });
           services += 1;
         }
+        if (rows.length) await ClientService.create(rows, { session });
       });
     } catch (err) {
       return {
@@ -383,33 +382,43 @@ export async function createFromOnboarding(payload) {
    * So every failure here comes back as a sentence on the Done screen and
    * nothing more.
    */
+  /**
+   * The quotation goes to the post room, not out of this request (#36).
+   *
+   * It used to be sent here: its own transaction, and inside it the
+   * notification rules, the firm's record, the client-mail switch, a
+   * message-log row and a job to post it — five more round trips to
+   * Mumbai while somebody watched a spinner. Nothing about the client
+   * depends on it, so onboarding writes the client and queues the letter.
+   *
+   * The Done screen still names the addresses it is going to, because
+   * those are the contacts we already have in hand; what it can no longer
+   * claim is that the post has happened. Settings → Messages is where the
+   * firm sees whether it did.
+   */
   const quote = quotation(quoteRows);
   /** @type {string[]} */
   let quotedTo = [];
   let quoteError = "";
   if (quote.lines.length && payload.emailQuotation !== false) {
-    try {
-      await audited(actor, async (session) => {
-        const outcome = await quotationToClient(client, quote, actor, session);
-        quotedTo = outcome.sent;
-        quoteError = outcome.error ?? "";
-        if (!outcome.sent.length) return;
+    const addressed = (client?.contacts ?? [])
+      .map((contact) => contact.email)
+      .filter(Boolean);
 
-        await recordAudit(
-          {
-            action: ACTIONS.update,
-            entityType: "Client",
-            entityId: clientId,
-            clientId,
-            note: `Quotation for ${quote.lines.length} ${
-              quote.lines.length === 1 ? "service" : "services"
-            } emailed to ${outcome.sent.join(", ")}`,
-          },
-          session,
-        );
-      });
-    } catch (err) {
-      quoteError = `The quotation could not be sent: ${err.message}`;
+    if (addressed.length === 0) {
+      quoteError =
+        "No contact on this client has an email address, so the quotation has not been queued. Add one and send it from the client's record.";
+    } else {
+      try {
+        await enqueue("quotation", {
+          clientId: String(clientId),
+          actorId: actor.id,
+          quote,
+        });
+        quotedTo = addressed;
+      } catch (err) {
+        quoteError = `The quotation could not be queued: ${err.message}`;
+      }
     }
   }
 

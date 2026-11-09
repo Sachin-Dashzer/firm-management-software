@@ -141,9 +141,9 @@ export default function AuditStudio({
             {file.unconfirmed} of {file.totalAreas}
           </strong>{" "}
           areas have standards nobody at the firm has confirmed. The references
-          are pointers taken from the design prototype, not a statement that
-          this programme complies with them — a partner reads the standard and
-          confirms the area.
+          are pointers to the standard, not a statement that this programme
+          complies with it — a partner reads the standard and confirms the
+          area.
         </p>
       )}
 

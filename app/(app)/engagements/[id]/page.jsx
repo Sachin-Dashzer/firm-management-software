@@ -747,8 +747,7 @@ export default async function EngagementPage({ params, searchParams }) {
           <h2 className="font-display text-15 font-semibold">Activity</h2>
           <p className="text-13 text-ink-muted max-w-[72ch]">
             Every create, change, status move and download on this job, in
-            order, hash-chained. This is the record the Pipeline history panel
-            used to tell a second time.
+            order, each entry sealed against the one before it.
           </p>
           <ActivityFeed entries={JSON.parse(JSON.stringify(audit))} />
         </section>

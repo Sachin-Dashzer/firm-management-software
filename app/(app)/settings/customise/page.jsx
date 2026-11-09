@@ -105,8 +105,7 @@ export default async function CustomisePage() {
       >
         <div className="rounded-ledger border-rule bg-surface flex flex-wrap items-center justify-between gap-3 border p-4">
           <p className="text-14 text-ink-muted max-w-[62ch]">
-            Already built, and deeper than the prototype&rsquo;s version of it:
-            steps can be added, removed and reordered, and every change makes a
+            Steps can be added, removed and reordered, and every change makes a
             new version —{" "}
             <strong>an open job keeps the version it started on</strong>, so
             editing a template never rewrites work in progress.
