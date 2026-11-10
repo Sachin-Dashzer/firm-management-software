@@ -14,11 +14,13 @@ import Udin from "@/models/Udin";
 import {
   ALLOWED_TYPES,
   MAX_UPLOAD_BYTES,
+  checkDetectedType,
   getUploadTicket,
   getDownloadLink,
   remove,
 } from "@/lib/storage";
 import { buildFileKey } from "@/lib/storage/paths";
+import { discardStored } from "@/lib/documents/discard";
 import { financialYearLabel } from "@/lib/dates";
 import { canEditWork } from "@/lib/engagements/status";
 
@@ -153,6 +155,14 @@ export async function requestUpload(input) {
  *
  * `replacesId` keeps the old file as a version rather than overwriting it
  * (spec section 6).
+ *
+ * This is also the first moment the app knows what the file **really is**.
+ * The browser only ever guesses the type from the extension, so a text file
+ * renamed `bank-statement.pdf` asks for a ticket as a PDF and gets one; the
+ * gateway reads the bytes and reports what it found, and that answer is
+ * what is checked here and what is recorded. A file whose contents do not
+ * match its name is refused and let go of again, because a document filed
+ * under a name that lies about it is worse than no document.
  */
 export async function confirmUpload(input) {
   const actor = await requireUser();
@@ -162,6 +172,17 @@ export async function confirmUpload(input) {
 
   if (!input.key || !input.checksum) {
     return { error: "The upload did not finish." };
+  }
+
+  const mime = String(input.mime ?? "");
+  const refusal = checkDetectedType({
+    filename: input.filename || input.name,
+    detected: mime,
+  });
+  if (refusal) {
+    // the bytes are already in the vault and no row will point at them
+    await discardStored(input.key);
+    return { error: refusal };
   }
 
   const existing = input.replacesId
@@ -197,7 +218,7 @@ export async function confirmUpload(input) {
       });
       existing.fileKey = input.key;
       existing.size = input.size ?? 0;
-      existing.mime = input.mime ?? existing.mime;
+      existing.mime = mime;
       existing.checksum = input.checksum;
       existing.uploadedBy = actor.id;
       existing.uploadedByName = actor.name;
@@ -212,7 +233,8 @@ export async function confirmUpload(input) {
           name: input.name || input.filename,
           fileKey: input.key,
           size: input.size ?? 0,
-          mime: input.mime ?? "application/octet-stream",
+          /* what the gateway read, not what the browser claimed */
+          mime,
           checksum: input.checksum,
           fy: input.fy ?? "",
           kind: input.kind ?? "",

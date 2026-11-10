@@ -150,7 +150,13 @@ export default function PublicUpload({ token, details }) {
                 multiple
                 aria-label={`Send ${item.name}`}
                 disabled={Boolean(busy)}
-                onChange={(e) => send(item, e.target.files ?? [])}
+                onChange={(e) => {
+                  // emptied first, so a file that is refused can be put
+                  // right and chosen again under the same name
+                  const chosen = [...(e.target.files ?? [])];
+                  e.target.value = "";
+                  send(item, chosen);
+                }}
                 className="sr-only"
               />
             </label>

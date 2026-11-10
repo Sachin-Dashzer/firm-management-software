@@ -36,7 +36,16 @@ function ticketFrom(request, operation) {
   );
 }
 
-/** Upload, matching upload.php. */
+/**
+ * Upload, matching upload.php — with one difference worth knowing about.
+ *
+ * `upload.php` reads the bytes with PHP's `finfo`; there is no `finfo` here,
+ * so this driver reports the type the browser sent. For a real file the two
+ * agree, which is why everything else behaves the same in development. But
+ * a file renamed to lie about itself is only caught by the real gateway, so
+ * that refusal is tested in `tests/upload-type.test.js` against
+ * `checkDetectedType` directly rather than through this route.
+ */
 export async function POST(request) {
   const closed = guard();
   if (closed) return closed;

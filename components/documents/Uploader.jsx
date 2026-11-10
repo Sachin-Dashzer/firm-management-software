@@ -106,7 +106,6 @@ export default function Uploader({
     setMessage({
       ok: `${files.length} file${files.length === 1 ? "" : "s"} attached.`,
     });
-    if (input.current) input.current.value = "";
     onDone?.();
   }
 
@@ -158,7 +157,13 @@ export default function Uploader({
           multiple={!replacesId}
           aria-label={label}
           disabled={disabled}
-          onChange={(e) => send(e.target.files ?? [])}
+          onChange={(e) => {
+            // emptied before sending, so a file the gateway refuses can be
+            // corrected and chosen again under the same name
+            const chosen = [...(e.target.files ?? [])];
+            e.target.value = "";
+            send(chosen);
+          }}
           className="sr-only"
         />
       </div>

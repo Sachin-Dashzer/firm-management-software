@@ -11,9 +11,11 @@ import Client from "@/models/Client";
 import {
   ALLOWED_TYPES,
   MAX_UPLOAD_BYTES,
+  checkDetectedType,
   getUploadTicket,
 } from "@/lib/storage";
 import { buildFileKey } from "@/lib/storage/paths";
+import { discardStored } from "@/lib/documents/discard";
 import { hashRequestToken } from "@/lib/storage/requests";
 import { financialYearLabel } from "@/lib/dates";
 import { recordSubmission } from "@/lib/engagements/checklist";
@@ -139,6 +141,12 @@ export async function publicUploadTicket(token, input) {
 /**
  * Step two: the gateway has the bytes, so record the document and move the
  * checklist item to Received.
+ *
+ * The type is checked here and not a step earlier, because until the bytes
+ * reach the gateway nobody knows what they are: the browser reports the type
+ * its extension suggests. A client who renames a file to get it past the
+ * page gets it past nothing, and the file does not stay in the vault.
+ *
  * @param {string} token
  * @param {object} input
  */
@@ -153,6 +161,16 @@ export async function publicConfirmUpload(token, input) {
     return { error: "The upload did not finish. Please try again." };
   }
 
+  const mime = String(input.mime ?? "");
+  const refusal = checkDetectedType({
+    filename: input.filename,
+    detected: mime,
+  });
+  if (refusal) {
+    await discardStored(input.key);
+    return { error: refusal };
+  }
+
   await systemAudit(async (session) => {
     const [document] = await DocumentModel.create(
       [
@@ -160,7 +178,8 @@ export async function publicConfirmUpload(token, input) {
           name: input.filename,
           fileKey: input.key,
           size: input.size ?? 0,
-          mime: input.mime ?? "application/octet-stream",
+          /* what the gateway read, not what the browser claimed */
+          mime,
           checksum: input.checksum,
           fy: input.fy ?? "",
           clientId: request.clientId,

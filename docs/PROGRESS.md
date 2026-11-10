@@ -5577,3 +5577,57 @@ queue simply grew.
   the 307 / 404 / 500 answers written down.
 
 Tests: 1837 passing. Lint and `next build` clean.
+
+## 10-11-2026 — A file that lies about what it is
+
+A text file renamed `bank-statement.pdf` uploaded cleanly, was filed as a
+PDF, and then would not open. Nothing was wrong with the upload: the browser
+reports the type an extension suggests, so it asked for a PDF ticket and got
+one, and the gateway — which reads the bytes — found `text/plain`, a type
+the firm does accept, and stored it. The app recorded the gateway's answer
+without ever asking whether it agreed with the name on the file.
+
+- **Fix:** `lib/storage/types.js` now holds both halves of that knowledge —
+  `ALLOWED_TYPES`, which travels in the upload ticket, and
+  `TYPES_BY_EXTENSION`, what each extension's bytes may really be — because
+  the list the gateway enforces and the check the app makes afterwards have
+  to agree, and two files would have drifted. `lib/storage/index.js`
+  re-exports both, so nothing else changed its imports.
+- `checkDetectedType` runs in `confirmUpload` and in the client's own
+  `publicConfirmUpload`, which is the first moment the real type is known.
+  A mismatch is refused in words the person can act on: *"This is not really
+  a .pdf file — its contents are text/plain. Please upload the real file."*
+- The bytes are already in the vault by then, with no row that will ever
+  point at them, so `lib/documents/discard.js` moves them to the recycle
+  folder for the ninety-day purge. Nothing is erased, and the tidying can
+  never turn a clear refusal into a crash.
+- The type recorded on a document is now the one that was checked. The
+  `application/octet-stream` fallback is gone: a file whose type we could
+  not work out is refused rather than filed under a shrug.
+- **Old .xls and .doc files.** PHP's `finfo` on shared hosting rarely names
+  them: both are OLE compound files, and what BigRock answers is
+  `application/CDFV2`, sometimes `application/x-ole-storage` or
+  `application/vnd.ms-office`. All three are now accepted, and tied to the
+  `.xls` and `.doc` extensions only, so they are not a way in under another
+  name. Without this, clients' old workbooks would have been refused twice
+  over — by the gateway's ticket and again by the new check. The spelling
+  `application/CDFV2` is finfo's own, because `upload.php` compares with
+  `in_array(..., true)`; every comparison on this side is case-insensitive,
+  so a host that answers in lower case is read the same way.
+- An `.xlsx` or `.docx` is a zip, and many hosts report no more than that,
+  so `application/zip` is accepted for both. An extension the table does not
+  list is one the check holds no opinion about — the gateway has already
+  refused anything outside `ALLOWED_TYPES`, and refusing an unfamiliar name
+  would only have cost a phone call.
+- Both file inputs are emptied before sending, so a refused file can be put
+  right and chosen again under the same name. It could not be before: the
+  `change` event does not fire twice for the same value, and the retry did
+  nothing at all.
+- The local development driver is unchanged and could not be otherwise:
+  there is no `finfo` in Node, so it reports what the browser sent. For a
+  real file the two agree, which is why the rest of development behaves the
+  same; the refusal itself is tested against `checkDetectedType` directly.
+  The reason is written where the route is, so nobody reads local as proof.
+
+Tests: 1967 passing, 29 of them new in `tests/upload-type.test.js`. Lint and
+`next build` clean.
