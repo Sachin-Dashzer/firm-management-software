@@ -38,8 +38,34 @@ import { SNOOZE_CHOICES } from "@/lib/inbox";
  *
  * **The controls say the same kind of thing.** "Bring it back", "snooze",
  * "mark read" were three different capitalisations in one gutter.
+ *
+ * ## What changed on 10-11-2026
+ *
+ * **One filter row, not two.** Unread and Snoozed were stat tiles above
+ * this list, over chips that already did the same job. They are chips now:
+ * `All · Unread · <the groups> · Snoozed`, left to right, one control per
+ * cut and one count per control.
+ *
+ * **The row reads in two lines, not three.** Its group and its time were a
+ * third line under the body while 900px of the canvas sat empty to the
+ * right; they are a right-aligned column now, so the eye scans times down
+ * one edge instead of hunting for them at the end of a sentence.
+ *
+ * **The controls stopped hiding.** Drawing them on hover kept the list
+ * quiet and made it look inert — and a list of things to act on that shows
+ * nothing to press is a list people stop pressing. They are text actions
+ * in one fixed trailing column, at the same pitch on every row, legible
+ * before they are pointed at.
  */
-export default function InboxList({ rows, kinds, kind, show, counts, asleep }) {
+export default function InboxList({
+  rows,
+  kinds,
+  kind,
+  show,
+  counts,
+  asleep,
+  unread: unreadTotal = 0,
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams();
@@ -75,8 +101,20 @@ export default function InboxList({ rows, kinds, kind, show, counts, asleep }) {
     <>
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 sm:flex-wrap sm:overflow-x-visible">
-          <FilterChip on={!kind} onClick={() => go({ kind: "" })} count={total}>
+          <FilterChip
+            on={!kind && show === "open"}
+            onClick={() => go({ kind: "", show: "" })}
+            count={total}
+          >
             All
+          </FilterChip>
+          {/* the two cuts that were tiles: they sit with the groups now */}
+          <FilterChip
+            on={show === "unread"}
+            onClick={() => go({ show: show === "unread" ? "" : "unread" })}
+            count={unreadTotal}
+          >
+            Unread
           </FilterChip>
           {kinds
             .filter((name) => counts[name])
@@ -84,12 +122,19 @@ export default function InboxList({ rows, kinds, kind, show, counts, asleep }) {
               <FilterChip
                 key={name}
                 on={kind === name}
-                onClick={() => go({ kind: name })}
+                onClick={() => go({ kind: kind === name ? "" : name })}
                 count={counts[name]}
               >
                 {name}
               </FilterChip>
             ))}
+          <FilterChip
+            on={show === "snoozed"}
+            onClick={() => go({ show: show === "snoozed" ? "" : "snoozed" })}
+            count={asleep}
+          >
+            Snoozed
+          </FilterChip>
         </div>
 
         <div className="flex flex-1 items-center justify-end gap-3">
@@ -127,16 +172,16 @@ export default function InboxList({ rows, kinds, kind, show, counts, asleep }) {
           {visible.map((row) => (
             <li
               key={row.id}
-              className="group border-rule hover:bg-carbon-wash/60 focus-within:bg-carbon-wash/60 flex flex-wrap items-start gap-x-3 gap-y-2 border-b px-4 py-2.5 transition-colors duration-100 last:border-0"
+              className="group border-rule hover:bg-carbon-wash/60 focus-within:bg-carbon-wash/60 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b px-4 py-2.5 transition-colors duration-100 last:border-0"
             >
               <span
                 aria-hidden="true"
-                className={`mt-2 size-2 shrink-0 rounded-full ${
+                className={`relative top-[-1px] size-2 shrink-0 rounded-full ${
                   row.read ? "bg-transparent" : "bg-carbon"
                 }`}
               />
 
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 basis-[16rem]">
                 {row.href ? (
                   <Link
                     href={row.href}
@@ -157,20 +202,37 @@ export default function InboxList({ rows, kinds, kind, show, counts, asleep }) {
                   </p>
                 )}
                 {row.body && (
-                  <p className="text-13 text-ink-muted">{row.body}</p>
+                  <p className="text-13 text-ink-muted line-clamp-2">
+                    {row.body}
+                  </p>
                 )}
-                <p className="text-12 text-faint num">
-                  {row.kind} · {row.at}
-                  {row.asleep && ` · snoozed until ${row.snoozedLabel}`}
-                </p>
               </div>
 
               {/*
-                Drawn on the row being pointed at or tabbed into. Always
-                drawn where there is no pointer: `hover:` never matches on
-                a touch screen, so a finger would find nothing.
+                The group and the time, down one right edge. They were a
+                third line under the body, which is where a date is hardest
+                to find: the eye has to read to the end of a sentence that
+                is a different length on every row. On a phone there is no
+                width to spare, so they fall back under the title.
               */}
-              <span className="flex shrink-0 items-center gap-1.5 opacity-100 transition-opacity duration-150 sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
+              <div className="text-12 text-faint order-last w-full shrink-0 sm:order-none sm:w-44 sm:text-right">
+                {/* the time first and on its own line: it is what the eye
+                    runs down this edge looking for, and "10-11-2026, 9:00
+                    am" after a group name as long as "Announcements" broke
+                    across two lines and left the "am" on its own */}
+                <span className="num block whitespace-nowrap">{row.at}</span>
+                <span className="block">{row.kind}</span>
+                {row.asleep && (
+                  <span className="num block">back {row.snoozedLabel}</span>
+                )}
+              </div>
+
+              {/*
+                One fixed trailing column: Snooze starts on the same line
+                on every row, whether or not the row also offers Mark read,
+                so the column reads as a column and not as text that moves.
+              */}
+              <span className="flex w-[8.5rem] shrink-0 items-center gap-3">
                 {row.asleep ? (
                   <Control
                     disabled={pending}
@@ -182,7 +244,7 @@ export default function InboxList({ rows, kinds, kind, show, counts, asleep }) {
                   <CellPopover
                     title="Bring it back"
                     triggerLabel={`Snooze: ${row.title}`}
-                    triggerClassName="rounded-control border-rule bg-paper text-12 text-ink-muted hover:text-ink hover:border-carbon h-7 border px-2 whitespace-nowrap transition-colors duration-150"
+                    triggerClassName="text-12 text-ink hover:underline underline-offset-2 whitespace-nowrap"
                     trigger="Snooze"
                   >
                     {(close) => (
@@ -233,14 +295,21 @@ export default function InboxList({ rows, kinds, kind, show, counts, asleep }) {
   );
 }
 
-/** One of a row's own controls: the same shape for every one of them. */
+/**
+ * One of a row's own controls: the same shape for every one of them.
+ *
+ * A text action in the full ink, not an outlined button and not grey.
+ * Three hundred rows carrying six hundred bordered buttons was the reason
+ * these were hidden on hover in the first place; the answer was never to
+ * hide them but to stop drawing a button for something that is one word.
+ */
 function Control({ onClick, disabled, children }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="rounded-control border-rule bg-paper text-12 text-ink-muted hover:text-ink hover:border-carbon h-7 border px-2 whitespace-nowrap transition-colors duration-150 disabled:opacity-60"
+      className="text-12 text-ink whitespace-nowrap underline-offset-2 hover:underline disabled:opacity-60"
     >
       {children}
     </button>

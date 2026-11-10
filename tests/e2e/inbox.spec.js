@@ -213,8 +213,14 @@ test("a mention arrives in the inbox, and can be put off without being lost", as
   await page.getByRole("button", { name: "3 hours" }).click();
   await expect(page.getByText(/mentioned you/)).toHaveCount(0);
 
-  await page.getByRole("button", { name: /1 snoozed/ }).click();
+  /*
+   * Snoozed is a filter chip since 10-11-2026, beside the groups. It was a
+   * stat tile over them until then — a second filter row for cuts the
+   * chips already had, and a `link` rather than a `button`, which is why
+   * the name this looked for ("1 snoozed") matched nothing at all.
+   */
+  await page.getByRole("button", { name: /snoozed/i }).click();
   await expect(page.getByText(/mentioned you/)).toBeVisible();
   await page.getByRole("button", { name: "bring it back" }).click();
-  await expect(page.getByText(/snoozed until/)).toHaveCount(0);
+  await expect(page.getByText(/back \d\d-\d\d-\d{4}/)).toHaveCount(0);
 });

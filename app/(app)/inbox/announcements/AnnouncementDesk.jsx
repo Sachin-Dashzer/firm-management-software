@@ -8,9 +8,17 @@ import { postAnnouncement, endAnnouncement } from "./actions";
 /**
  * The partner's side of announcements (P3-17b).
  *
- * The part worth the screen is the bottom half: **who has not read it, by
- * name**. A percentage tells a partner nothing they can act on; a list of
- * three names is a conversation at the end of the day.
+ * The part worth the screen is **who has not read it, by name**. A
+ * percentage tells a partner nothing they can act on; a list of three
+ * names is a conversation at the end of the day.
+ *
+ * Until 10-11-2026 that part was at the foot of the screen and an empty
+ * form filled the top of it, which had the page open on the job nobody
+ * comes to do. A partner posts a notice now and then; they check who has
+ * read it every day one is up. So the boards come first and the form is
+ * behind the button that names it — a `<details>`, because a disclosure is
+ * a thing browsers already do, and it stays open while the form is being
+ * filled in even when the page re-renders underneath it.
  */
 export default function AnnouncementDesk({ rows, audiences, branches, roles }) {
   const router = useRouter();
@@ -49,137 +57,151 @@ export default function AnnouncementDesk({ rows, audiences, branches, roles }) {
         </p>
       )}
 
-      <form onSubmit={submit} className="flex flex-col gap-3">
-        <h2 className="text-15 font-bold">Post one</h2>
-
-        <label className="flex flex-col gap-1">
-          <span className="text-13 font-medium">Title</span>
-          <input
-            name="title"
-            required
-            maxLength={120}
-            className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
-          />
-          <span className="text-12 text-ink-muted">
-            This is the line that appears in everybody&rsquo;s inbox.
+      <details
+        open={Boolean(state?.error)}
+        className="rounded-ledger border-rule bg-surface group border"
+      >
+        <summary className="text-14 cursor-pointer list-none px-3 py-2.5 font-medium marker:content-none [&::-webkit-details-marker]:hidden">
+          Post an announcement
+          <span className="text-13 text-ink-muted ml-2 font-normal">
+            to everybody, one office or one role
           </span>
-        </label>
+        </summary>
 
-        <label className="flex flex-col gap-1">
-          <span className="text-13 font-medium">What you want to say</span>
-          <textarea
-            name="body"
-            rows={4}
-            required
-            maxLength={4000}
-            className="rounded-control border-rule bg-paper text-14 border px-2 py-1"
-          />
-        </label>
-
-        <div className="grid gap-3 sm:grid-cols-2">
+        <form
+          onSubmit={submit}
+          className="border-rule flex flex-col gap-4 border-t px-3 py-4"
+        >
           <label className="flex flex-col gap-1">
-            <span className="text-13 font-medium">Who it is for</span>
-            <select
-              name="audience"
-              value={audience}
-              onChange={(event) => setAudience(event.target.value)}
-              className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
-            >
-              {audiences.map((row) => (
-                <option key={row.key} value={row.key}>
-                  {row.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {audience === "branch" && (
-            <label className="flex flex-col gap-1">
-              <span className="text-13 font-medium">Which office</span>
-              <select
-                name="branchId"
-                required
-                className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
-              >
-                <option value="">— choose —</option>
-                {branches.map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {row.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-
-          {audience === "role" && (
-            <label className="flex flex-col gap-1">
-              <span className="text-13 font-medium">Which role</span>
-              <select
-                name="role"
-                required
-                className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
-              >
-                <option value="">— choose —</option>
-                {roles.map((row) => (
-                  <option key={row.role} value={row.role}>
-                    {row.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-
-          <label className="flex flex-col gap-1">
-            <span className="text-13 font-medium">Up from</span>
+            <span className="text-13 font-medium">Title</span>
             <input
-              type="date"
-              name="from"
-              className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
-            />
-            <span className="text-12 text-ink-muted">Blank means today.</span>
-          </label>
-
-          <label className="flex flex-col gap-1">
-            <span className="text-13 font-medium">Down on (optional)</span>
-            <input
-              type="date"
-              name="until"
+              name="title"
+              required
+              maxLength={120}
               className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
             />
             <span className="text-12 text-ink-muted">
-              Blank means it stays up until you take it down.
+              This is the line that appears in everybody&rsquo;s inbox.
             </span>
           </label>
-        </div>
 
-        <label className="text-14 flex items-start gap-2">
-          <input type="checkbox" name="needsAck" className="mt-1" />
-          <span>
-            Ask people to say they have read it
-            <span className="text-12 text-ink-muted block">
-              It never blocks anybody&rsquo;s work. You see who has not.
+          <label className="flex flex-col gap-1">
+            <span className="text-13 font-medium">What you want to say</span>
+            <textarea
+              name="body"
+              rows={4}
+              required
+              maxLength={4000}
+              className="rounded-control border-rule bg-paper text-14 border px-2 py-1"
+            />
+          </label>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-13 font-medium">Who it is for</span>
+              <select
+                name="audience"
+                value={audience}
+                onChange={(event) => setAudience(event.target.value)}
+                className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
+              >
+                {audiences.map((row) => (
+                  <option key={row.key} value={row.key}>
+                    {row.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {audience === "branch" && (
+              <label className="flex flex-col gap-1">
+                <span className="text-13 font-medium">Which office</span>
+                <select
+                  name="branchId"
+                  required
+                  className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
+                >
+                  <option value="">— choose —</option>
+                  {branches.map((row) => (
+                    <option key={row.id} value={row.id}>
+                      {row.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            {audience === "role" && (
+              <label className="flex flex-col gap-1">
+                <span className="text-13 font-medium">Which role</span>
+                <select
+                  name="role"
+                  required
+                  className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
+                >
+                  <option value="">— choose —</option>
+                  {roles.map((row) => (
+                    <option key={row.role} value={row.role}>
+                      {row.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            <label className="flex flex-col gap-1">
+              <span className="text-13 font-medium">Up from</span>
+              <input
+                type="date"
+                name="from"
+                className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
+              />
+              <span className="text-12 text-ink-muted">Blank means today.</span>
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <span className="text-13 font-medium">Down on (optional)</span>
+              <input
+                type="date"
+                name="until"
+                className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
+              />
+              <span className="text-12 text-ink-muted">
+                Blank means it stays up until you take it down.
+              </span>
+            </label>
+          </div>
+
+          <label className="text-14 flex items-start gap-2">
+            <input type="checkbox" name="needsAck" className="mt-1" />
+            <span>
+              Ask people to say they have read it
+              <span className="text-12 text-ink-muted block">
+                It never blocks anybody&rsquo;s work. You see who has not.
+              </span>
             </span>
-          </span>
-        </label>
+          </label>
 
-        <div>
-          <button
-            type="submit"
-            disabled={posting}
-            className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-4 font-medium disabled:opacity-60"
-          >
-            Post it
-          </button>
-        </div>
-      </form>
+          <div>
+            <button
+              type="submit"
+              disabled={posting}
+              className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-4 font-medium disabled:opacity-60"
+            >
+              Post it
+            </button>
+          </div>
+        </form>
+      </details>
 
       <Board
         title="Up now"
         rows={live}
-        empty="Nothing is up."
+        empty="Nothing is up. Post a notice and it appears in everybody's inbox."
         onTakeDown={takeDown}
         pending={pending}
       />
+
       <Board title="Past" rows={past} empty="Nothing has come down yet." />
     </div>
   );
@@ -212,26 +234,38 @@ function Board({ title, rows, empty, onTakeDown, pending }) {
                 Posted by {row.postedByName}
               </p>
 
+              {/*
+                The count first, then the names that are owed. It read as
+                one paragraph of joined names before, which answered "who
+                has not?" only after the partner had counted them.
+              */}
               {row.needsAck && (
-                <p className="text-13">
-                  {row.pending.length === 0 ? (
-                    <span className="text-filed">
-                      Everybody it reaches has read it.
+                <div className="border-rule mt-1 flex flex-col gap-0.5 border-t pt-2">
+                  <p className="text-13">
+                    <span className="num font-medium">
+                      Read by {row.acked.length} of{" "}
+                      {row.acked.length + row.pending.length}
                     </span>
-                  ) : (
-                    <>
-                      <strong>Not read yet:</strong> {row.pending.join(", ")}
-                    </>
+                    {row.pending.length === 0 && (
+                      <span className="text-filed">
+                        {" "}
+                        — everybody it reaches
+                      </span>
+                    )}
+                  </p>
+                  {row.pending.length > 0 && (
+                    <p className="text-13 text-ink-muted">
+                      Not yet: {row.pending.join(", ")}
+                    </p>
                   )}
                   {row.acked.length > 0 && (
-                    <span className="text-12 text-ink-muted block">
-                      Read by{" "}
+                    <p className="text-12 text-faint">
                       {row.acked
                         .map((ack) => `${ack.name} (${ack.at})`)
                         .join(", ")}
-                    </span>
+                    </p>
                   )}
-                </p>
+                </div>
               )}
 
               {onTakeDown && (

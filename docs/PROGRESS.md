@@ -5577,3 +5577,73 @@ queue simply grew.
   the 307 / 404 / 500 answers written down.
 
 Tests: 1837 passing. Lint and `next build` clean.
+
+## 10-11-2026 — The inbox had two filter rows, and the notice board cut its own button
+
+The owner, on the inbox and the announcements screen: "the current ui is
+worst i ever imagine". Both were photographed before anything was changed,
+at 1440 and 390, in both themes, and the pictures said what the code did
+not.
+
+- **Two filter systems, stacked.** Four stat tiles — Unread, Mentions,
+  Review, Snoozed — sat directly over a row of chips that did the same
+  job, and Mentions and Review appeared in both. Two controls for one cut
+  of one list, two counts to keep in step, and 110px of a laptop canvas
+  before any message; 175px on a phone, which put the first message below
+  the fold. The tiles are gone. Unread and Snoozed are chips now, beside
+  the groups they belong with, and the screen has one filter row.
+- The tiles also lied in colour. Mentions carried `tone="soon"`, so a
+  perfectly ordinary two unread mentions drew a tinted panel that reads as
+  selected or as a warning when it is neither. Colour belongs on the data,
+  not on the chrome around it.
+- **The row reads in two lines.** Its group and its time were a third line
+  under the body, at the end of a sentence of a different length on every
+  row, while 900px of the canvas sat empty to the right. They are a
+  right-aligned column: the time first, on its own line, because that is
+  what the eye runs down the edge looking for. Seven messages fit on a
+  1440×900 laptop where four did.
+- **The row's controls stopped hiding.** Drawn only on hover since
+  04-11-2026, which kept the list quiet and made it look inert. They are
+  text actions in the full ink now, in one fixed trailing column at the
+  same pitch on every row — a word, not a bordered button, which is what
+  made six hundred of them unbearable in the first place.
+- **The notice board no longer cuts itself.** `max-h-60` with a fade
+  cropped the panel through its contents: on a phone the fade took the
+  sentence under "I have read this" away mid-word, and the screen read as
+  broken. There is no height cap now; the **count** is capped instead, two
+  notices with the rest counted and linked, which is what every other
+  overview list here does and cannot clip anything. Anything still needing
+  an answer sorts to the top.
+- The sentence beside that button, explaining that nothing was held up
+  either way, is gone with it. A control that needs a sentence explaining
+  what pressing it does has the wrong words on it.
+- **Announcements opens on the question it is for.** The whole first screen
+  was an empty form, and "who has not read it" — the only reason a partner
+  visits daily — was below the fold. The boards come first; the form is
+  behind a disclosure that names it, a plain `<details>`, so posting is one
+  click and reading is none. It is `PageHead` on the same gutter and gap as
+  the inbox now, not a hand-rolled header on its own 900px canvas.
+- **"Read by 1 of 4" before the names.** The acknowledgement block was one
+  paragraph of joined names, which answered "who has not?" only after the
+  partner had counted them.
+- Both screens' second lines now describe the data, not the interface:
+  "5 unread of 14 · 1 snoozed · kept for sixty days", "2 notices up ·
+  waiting on 3 people". The old ones explained the filters underneath them,
+  which is a manual, not a product.
+- The announcements page deliberately does **not** use `Screen`. That makes
+  a page exactly the height of the canvas so one region scrolls, which is
+  right for the inbox and wrong here: the boards have nothing to scroll, so
+  a fixed height would squash them rather than scroll them.
+
+Both e2e specs were rewritten against the new screens, and one of them had
+been stale for some time: `inbox.spec.js` looked for a `button` named
+"1 snoozed" that never existed — the snoozed control was a stat tile, which
+renders a `link`, and no accessible name read that way. **Neither spec has
+been run.** `tests/e2e/signin.js` asserts the database is not the firm's
+own before it touches anything, and the only database configured on this
+machine is the live Atlas cluster. That guard is right and was not worked
+around.
+
+Tests: 1967 passing. Lint and `next build` clean. The two mechanical design
+detectors were run over the changed screens: Impeccable reported nothing,
+and tasteskill's app-screen lint reported 0 FAIL.

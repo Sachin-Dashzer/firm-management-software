@@ -13,6 +13,7 @@ import {
   isLive,
   pending,
 } from "@/lib/firm/announcements";
+import PageHead from "@/components/ui/PageHead";
 import AnnouncementDesk from "./AnnouncementDesk";
 
 export const metadata = { title: "Announcements · PHMG" };
@@ -67,21 +68,40 @@ export default async function AnnouncementsPage() {
     };
   });
 
+  /**
+   * One line about the notices, not about the feature. What a partner
+   * opens this screen to find out is how many are up and who still owes an
+   * answer, so that is what the line says; the explanation of what an
+   * acknowledgement does belongs on the control that asks for one.
+   */
+  const live = view.filter((row) => row.live);
+  const owed = live.reduce((sum, row) => sum + row.pending.length, 0);
+  const sub = [
+    live.length === 1 ? "1 notice up" : `${live.length} notices up`,
+    owed > 0
+      ? `waiting on ${owed} ${owed === 1 ? "person" : "people"}`
+      : "nobody is owed an answer",
+  ].join(" · ");
+
   return (
-    <div className="mx-auto flex max-w-[900px] flex-col gap-5 p-4 md:p-6">
-      <div>
-        <Link href="/inbox" className="text-13 underline underline-offset-4">
-          Inbox
+    /*
+     * Deliberately not `Screen`. That one makes the page exactly the
+     * height of the canvas so a long list scrolls inside its own region,
+     * which is right for the inbox and wrong here: the boards are flex
+     * children with nothing to scroll, so a fixed height squashes them
+     * rather than scrolling them. This is the same band and the same
+     * rhythm — `PageHead`, one gutter, one gap — on a page that scrolls
+     * as one.
+     */
+    <div className="mx-auto flex w-full max-w-[1000px] flex-col gap-4 p-4 md:p-6">
+      <PageHead title="Announcements" sub={sub}>
+        <Link
+          href="/inbox"
+          className="text-13 text-ink-muted hover:text-carbon px-1"
+        >
+          Back to the inbox
         </Link>
-        <h1 className="font-display text-24 font-bold tracking-tight">
-          Announcements
-        </h1>
-        <p className="text-13 text-ink-muted max-w-[70ch]">
-          One thing said once, to everybody, one office or one role. Asking
-          people to say they have read it never stops them working — it only
-          tells you who has not.
-        </p>
-      </div>
+      </PageHead>
 
       <AnnouncementDesk
         rows={view}

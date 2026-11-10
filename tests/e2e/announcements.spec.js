@@ -93,6 +93,10 @@ test("an announcement reaches the firm, and says who has not read it", async ({
   await signIn(page, fx.partner);
   await page.goto("/inbox/announcements");
 
+  // the form is behind its disclosure since 10-11-2026: the screen opens on
+  // who has not read what is already up, which is what a partner comes for
+  await page.locator("summary").click();
+
   await page.getByLabel("Title").fill(fx.title);
   await page
     .getByLabel("What you want to say")
@@ -101,10 +105,11 @@ test("an announcement reaches the firm, and says who has not read it", async ({
   await page.getByRole("button", { name: "Post it" }).click();
   await expect(page.getByRole("status")).toContainText(/Posted/);
 
-  // the CA has not read it, and is named rather than counted
-  await expect(
-    page.locator("p").filter({ hasText: /Not read yet:/ }),
-  ).toContainText("Playwright Announce CA");
+  // the CA has not read it, and is named as well as counted
+  await expect(page.getByText(/Read by 0 of 2/)).toBeVisible();
+  await expect(page.locator("p").filter({ hasText: /Not yet:/ })).toContainText(
+    "Playwright Announce CA",
+  );
 
   // they meet it at the top of their inbox, and can say so
   await page.context().clearCookies();
@@ -122,11 +127,15 @@ test("an announcement reaches the firm, and says who has not read it", async ({
   await signIn(page, fx.partner);
   await page.goto("/inbox/announcements");
   /*
-   * The CA's acknowledgement is on the partner's list by name. Not
-   * "everybody has read it": the person who posted it is in the audience
-   * too, and they have not read their own notice.
+   * The CA's acknowledgement is on the partner's list, counted and named.
+   * Not "everybody has read it": the person who posted it is in the
+   * audience too, and they have not read their own notice.
    */
+  await expect(page.getByText(/Read by 1 of 2/)).toBeVisible();
+  await expect(page.locator("p").filter({ hasText: /Not yet:/ })).toContainText(
+    "Playwright Announce Partner",
+  );
   await expect(
-    page.getByText(/Read by Playwright Announce CA/),
+    page.getByText(/Playwright Announce CA \(\d\d-\d\d-\d{4}\)/),
   ).toBeVisible();
 });

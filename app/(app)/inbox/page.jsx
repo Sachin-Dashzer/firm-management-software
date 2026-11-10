@@ -9,7 +9,6 @@ import { INBOX_KINDS, kindOf } from "@/lib/inbox";
 import { isLive, reaches } from "@/lib/firm/announcements";
 import PageHead from "@/components/ui/PageHead";
 import Screen from "@/components/ui/Screen";
-import StatTile from "@/components/ui/StatTile";
 import InboxList from "./InboxList";
 import AnnouncementStrip from "./AnnouncementStrip";
 
@@ -130,25 +129,22 @@ export default async function InboxPage({ searchParams }) {
   const asleep = withKind.filter((row) => row.asleep).length;
   const unread = withKind.filter((row) => !row.asleep && !row.read).length;
 
-  /** A link that keeps the filter already on, and changes one of it. */
-  const keep = (extra) => {
-    const next = new URLSearchParams();
-    if (kind) next.set("kind", kind);
-    if (show !== "open") next.set("show", show);
-    for (const [key, value] of Object.entries(extra)) {
-      if (value) next.set(key, value);
-      else next.delete(key);
-    }
-    const tail = next.toString();
-    return tail ? `?${tail}` : "";
-  };
+  /**
+   * One line about what is in the list, not about how to use it. An app
+   * screen's second line says the finding — how much is waiting and how
+   * long it keeps — and never explains the filters underneath it.
+   */
+  const sub = [
+    unread > 0 ? `${unread} unread of ${shown.length}` : `${shown.length} open`,
+    asleep > 0 ? `${asleep} snoozed` : "",
+    "kept for sixty days",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <Screen>
-      <PageHead
-        title="Inbox"
-        sub="Mentions, work coming to you, reviews, clients and money — kept for sixty days, then cleared. Nothing here is deleted: snooze it and it comes back."
-      >
+      <PageHead title="Inbox" sub={sub}>
         {can(actor, "approve", "feeWriteOff") && (
           <Link
             href="/inbox/announcements"
@@ -165,40 +161,16 @@ export default async function InboxPage({ searchParams }) {
         </Link>
       </PageHead>
 
-      <div className="grid shrink-0 grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
-        <StatTile
-          label="Unread"
-          value={unread}
-          note="waiting to be read"
-          tone="info"
-          href={`/inbox${keep({ show: "unread", kind: "" })}`}
-          selected={show === "unread"}
-        />
-        <StatTile
-          label="Mentions"
-          value={counts["Mentions"] ?? 0}
-          note="somebody named you"
-          tone="soon"
-          href={`/inbox${keep({ kind: "Mentions", show: "" })}`}
-          selected={kind === "Mentions"}
-        />
-        <StatTile
-          label="Review"
-          value={counts["Review"] ?? 0}
-          note="work sent to you to check"
-          tone="info"
-          href={`/inbox${keep({ kind: "Review", show: "" })}`}
-          selected={kind === "Review"}
-        />
-        <StatTile
-          label="Snoozed"
-          value={asleep}
-          note="coming back later"
-          href={`/inbox${keep({ show: "snoozed", kind: "" })}`}
-          selected={show === "snoozed"}
-        />
-      </div>
-
+      {/*
+        The four stat tiles that stood here until 10-11-2026 are gone, and
+        with them the screen's worst habit: they were a second filter row
+        over the first. Unread, Mentions, Review and Snoozed each named a
+        chip sitting directly underneath, so the same cut of the same list
+        had two controls, two counts to keep in step and 110px of the
+        canvas on a laptop — 175 on a phone, which pushed the first message
+        below the fold. Unread and Snoozed are chips now, beside the groups
+        they belong with; Mentions and Review always were.
+      */}
       <AnnouncementStrip rows={mine} />
 
       <InboxList
@@ -208,6 +180,7 @@ export default async function InboxPage({ searchParams }) {
         show={show}
         counts={counts}
         asleep={asleep}
+        unread={unread}
       />
     </Screen>
   );
