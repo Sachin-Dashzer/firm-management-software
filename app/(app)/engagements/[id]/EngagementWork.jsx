@@ -11,6 +11,10 @@ import {
   udinAnswered,
   reviewComplete,
 } from "@/lib/engagements/steps";
+// the same two predicates createDocRequest filters the checklist with, so
+// the tick boxes below cannot offer a row the request would drop
+import { isSettled, needsReview } from "@/lib/engagements/checklist";
+import { createDocRequest } from "../../documents/requests";
 import Uploader from "@/components/documents/Uploader";
 import DocumentList from "@/components/documents/DocumentList";
 import CompletionStamp from "@/components/ledger/CompletionStamp";
@@ -154,6 +158,8 @@ export default function EngagementWork({
           documents={documents}
           mayAttach={mayAttach && canEditWork}
           refresh={refresh}
+          // only this side can be asked for: the rows below are ours
+          askable={mayAttach}
         />
         <ChecklistGroup
           title="We produce"
@@ -850,6 +856,29 @@ export default function EngagementWork({
   );
 }
 
+/**
+ * One side of the checklist — what the client owes us, or what we produce.
+ *
+ * ## Asking for documents is a bulk move (owner, 11-11-2026)
+ *
+ * Every client row used to carry its own "Ask the client" button, so a
+ * step that wanted six documents wanted six clicks. Worse, that button
+ * only set the status to Requested: it sent nothing, and the client heard
+ * from us only when somebody went to the Files tab and made a request by
+ * hand.
+ *
+ * So the asking lives here instead, on the list, because the set being
+ * asked for is a property of the list and not of any one row: tick the
+ * rows, press once, and `createDocRequest` makes **one** request holding
+ * all of them and sends **one** email naming them all. That is the server
+ * action the Files tab already used — it has always taken `itemIds` — so
+ * nothing new had to be written to make this work, and the follow-up
+ * chasing, the audit entry and the seven-day link are the same ones.
+ *
+ * `We produce` gets no tick boxes at all: asking a client to send us the
+ * GSTR-2B reconciliation we are being paid to prepare is the mistake the
+ * per-row button also used to make (QA 09-11-2026, #26).
+ */
 function ChecklistGroup({
   title,
   items,
@@ -859,16 +888,76 @@ function ChecklistGroup({
   documents,
   mayAttach,
   refresh,
+  /** True for the client's side only — see the note above. */
+  askable = false,
 }) {
+  const [picked, setPicked] = useState([]);
+
   if (items.length === 0) return null;
+
+  /**
+   * What is still outstanding, by the same two helpers `createDocRequest`
+   * filters on — so a row that offers a tick box is a row the request will
+   * actually include, and the count on the button is the count in the
+   * email. A `Replacement requested` row is outstanding and is the one
+   * most worth re-asking for; `Received` and `Accepted` are not.
+   */
+  const open =
+    askable && !disabled
+      ? items.filter((item) => !isSettled(item) && !needsReview(item))
+      : [];
+  const openIds = open.map((item) => item.id);
+  // a refresh can settle a row that was ticked, so the selection is read
+  // against what is open now rather than trusted
+  const chosen = picked.filter((id) => openIds.includes(id));
+  const allPicked = open.length > 0 && chosen.length === open.length;
+
   return (
     <div className="flex flex-col gap-1">
-      <h3 className="text-12 text-ink-muted font-medium">{title}</h3>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <h3 className="text-12 text-ink-muted font-medium">{title}</h3>
+
+        {open.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            {open.length > 1 && (
+              <label className="text-12 text-ink-muted flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={allPicked}
+                  onChange={() => setPicked(allPicked ? [] : openIds)}
+                />
+                Tick all <span className="num">{open.length}</span>
+              </label>
+            )}
+            <button
+              type="button"
+              disabled={chosen.length === 0}
+              onClick={() =>
+                run(async () => {
+                  const out = await createDocRequest(engagementId, {
+                    itemIds: chosen,
+                    email: true,
+                  });
+                  if (out?.ok) setPicked([]);
+                  return out;
+                })
+              }
+              className="rounded-ledger bg-carbon text-12 text-on-carbon h-7 px-2 font-medium disabled:opacity-50"
+            >
+              {chosen.length === 0
+                ? "Tick what to ask for"
+                : `Ask the client for ${chosen.length} in one email`}
+            </button>
+          </div>
+        )}
+      </div>
+
       <ul className="flex flex-col">
         {items.map((item) => {
           const attached = documents.filter(
             (d) => d.checklistItemId === item.id,
           );
+          const canAsk = openIds.includes(item.id);
           return (
             <li
               key={item.id}
@@ -884,6 +973,19 @@ function ChecklistGroup({
                 item={item}
                 disabled={disabled}
                 run={run}
+                pick={
+                  canAsk
+                    ? {
+                        checked: chosen.includes(item.id),
+                        onChange: () =>
+                          setPicked((was) =>
+                            was.includes(item.id)
+                              ? was.filter((id) => id !== item.id)
+                              : [...was, item.id],
+                          ),
+                      }
+                    : null
+                }
               />
 
               {attached.length > 0 && (

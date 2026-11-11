@@ -134,7 +134,11 @@ describe("creating a client (#36)", () => {
 
   it("writes the service subscriptions in one go, not one at a time", () => {
     const actions = readFileSync("app/(app)/clients/new/actions.js", "utf8");
-    expect(actions).toContain("ClientService.create(rows, { session })");
+    // `ordered` is not optional: Mongoose refuses several documents in one
+    // session without it, which is how the batch shipped broken
+    expect(actions).toContain(
+      "ClientService.create(rows, { session, ordered: true })",
+    );
   });
 
   it("opens three transactions on the way, not five", () => {

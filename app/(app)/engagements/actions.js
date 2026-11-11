@@ -52,7 +52,6 @@ import {
   scopeLine,
 } from "@/lib/engagements/scope";
 import {
-  request,
   accept,
   requestReplacement,
   markNotRequired,
@@ -1075,22 +1074,19 @@ async function saveItem(actor, engagement, note, diff, changedWhat) {
   return bump;
 }
 
-/** Ask the client for one item. */
-export async function requestChecklistItem(id, itemId) {
-  const actor = await requireUser();
-  const loaded = await loadItem(actor, id, itemId);
-  if (loaded.error) return { error: loaded.error };
-  const { engagement, item } = loaded;
-
-  const out = request(item);
-  if (!out.ok) return { error: out.error };
-
-  await saveItem(actor, engagement, `${item.name}: requested from the client`, {
-    [item.name]: ["", "Requested"],
-  });
-  revalidatePath(`/engagements/${id}`);
-  return { ok: `Asked the client for ${item.name}.` };
-}
+/*
+ * `requestChecklistItem` was here: ask the client for one item, one call
+ * per document. It is gone (owner, 11-11-2026).
+ *
+ * It only moved the status to Requested. No link, no email — so a row
+ * could read "Requested" while the client had been told nothing, and the
+ * firm's actual asking happened separately in `createDocRequest`. Two
+ * routes to one outcome, one of which did not reach the client.
+ *
+ * `createDocRequest` is the only route now. It takes `itemIds`, so one
+ * document and six are the same call, and it marks every item Requested
+ * inside the same transaction that writes the request and the message.
+ */
 
 /**
  * A person accepts what arrived.
