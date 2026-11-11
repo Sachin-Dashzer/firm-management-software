@@ -646,7 +646,7 @@ The CRM will hold PAN, Aadhaar, bank details, financial statements and governmen
 
 - Login with email + password plus mandatory 2FA (authenticator app or email OTP) for all staff.
 - Optional single sign-on later, if the firm moves email to Microsoft 365 or Google Workspace.
-- Session timeout after 30 minutes idle; force logout of a user instantly when they leave the firm.
+- Session timeout after 7 days idle (the owner replaced the original 30 minutes on 11-11-2026: staff were being signed out mid-form); force logout of a user instantly when they leave the firm.
 - Interns' and employees' access limited to clients they are assigned to (section 2).
 
 **Data protection**

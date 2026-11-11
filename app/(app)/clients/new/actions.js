@@ -327,7 +327,10 @@ export async function createFromOnboarding(payload) {
     try {
       await audited(actor, async (session) => {
         /* one write for the lot, not one per service: each round trip to
-           Mumbai is tens of milliseconds and this loop was serial (#36) */
+           Mumbai is tens of milliseconds and this loop was serial (#36).
+           `ordered` is required: Mongoose refuses several documents in one
+           session without it, because unordered writes them in parallel
+           and parallel saves cannot share a transaction. */
         const rows = [];
         for (const row of ticked) {
           const template = byCode.get(row.code);
@@ -352,7 +355,8 @@ export async function createFromOnboarding(payload) {
           });
           services += 1;
         }
-        if (rows.length) await ClientService.create(rows, { session });
+        if (rows.length)
+          await ClientService.create(rows, { session, ordered: true });
       });
     } catch (err) {
       return {

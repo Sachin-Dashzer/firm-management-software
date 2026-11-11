@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
  * session cookie is present, which is all middleware can do cheaply at the
  * edge without a database round trip.
  *
- * The 30-minute idle timeout is enforced by the session itself (auth.js): once
+ * The idle timeout is enforced by the session itself (auth.js): once
  * the JWT passes its maxAge the cookie no longer verifies and this redirects.
  *
  * **It does not decide whether a cookie is staff or client** (P2-9a). Reading

@@ -28,8 +28,22 @@ import { readView, VIEW_ALL, VIEW_COOKIE } from "@/lib/access/view";
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: {
     strategy: "jwt",
-    maxAge: 30 * 60, // 30 minutes idle, then signed out (spec section 16)
-    updateAge: 60, // active use pushes the deadline out, at most once a minute
+    /*
+     * Seven days idle, then signed out.
+     *
+     * Spec section 16 asked for thirty minutes; the firm owner replaced it
+     * on 11-11-2026 because staff were being signed out mid-form. The
+     * timeout was never the control that matters most here: the role, the
+     * branches and the right to be here are read live from `users` on every
+     * request (see `currentUser()` below), so somebody deactivated or
+     * demoted stops working on their next click rather than whenever their
+     * cookie happens to lapse. What a long window costs is the unattended
+     * laptop, which is a physical-security answer, not a cookie one.
+     */
+    maxAge: 7 * 24 * 60 * 60,
+    // the window rolls forward on use, rewritten at most once a day rather
+    // than once a minute: on a seven-day cookie, a minute is noise
+    updateAge: 24 * 60 * 60,
   },
   pages: { signIn: "/login" },
   trustHost: true,
@@ -69,7 +83,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!user.active) return refuse(`${user.email} is deactivated`);
 
         let secret = null;
-        if (user.totpSecret) {
+        // only read when a code will actually be checked: an account enrolled
+        // under a different FIELD_ENCRYPTION_KEY was refused even with the
+        // development hatch on, which needs no secret at all
+        if (!skip2fa() && user.totpSecret) {
           try {
             secret = decryptField(user.totpSecret);
           } catch {
