@@ -104,6 +104,12 @@ export default async function AppLayout({ children }) {
       area: "clients",
     },
     {
+      label: "Potential Client",
+      hint: "Initial contact and information gathering",
+      href: "/potentials",
+      area: "clients",
+    },
+    {
       label: "Invoice",
       hint: "Bill a client for work or a one-off fee",
       href: "/invoices/new",
