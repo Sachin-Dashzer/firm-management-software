@@ -70,8 +70,6 @@ export default async function ServicesPage({ searchParams }) {
     rows.some((r) => r.category === c),
   );
 
-
-  
   return (
     <SettingsScreen
       wide

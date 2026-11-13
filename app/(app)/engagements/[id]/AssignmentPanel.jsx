@@ -145,9 +145,8 @@ export default function AssignmentPanel({ engagement, team, pending, onSave }) {
           )}
         </div>
         <span className="text-12 text-ink-muted">
-          They get the job on their own lists and may open the client, tick
-          the steps and attach files. Whoever is reviewing it cannot be one of
-          them.
+          They get the job on their own lists and may open the client, tick the
+          steps and attach files. Whoever is reviewing it cannot be one of them.
         </span>
       </fieldset>
 

@@ -3,6 +3,7 @@ import { requireUser } from "@/auth";
 import { can } from "@/lib/permissions";
 import ServiceForm from "../ServiceForm";
 import SettingsScreen from "../../Shell";
+import { letterTemplates } from "../templates";
 
 export const metadata = { title: "New service · PHMG" };
 
@@ -24,8 +25,9 @@ export default async function NewServicePage() {
       title="New service"
       sub="Define it once and every job of this kind starts from it — the steps, what each step needs, who may do the work and who signs it off."
       back={{ href: "/settings/services", label: "Services" }}
+      wide
     >
-      <ServiceForm />
+      <ServiceForm docTemplates={await letterTemplates()} />
     </SettingsScreen>
   );
 }

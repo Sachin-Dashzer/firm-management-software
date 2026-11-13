@@ -432,6 +432,9 @@ export default function Onboarding({
         groupId: effectiveGroupId,
         confirmDuplicates,
         emailQuotation,
+        /* the letters settled on step 6, by code: the server reads the
+           wording from the template, never from here */
+        pack: pack.map((item) => item.code),
         services: services
           .filter((service) => fees[service.code]?.on)
           .map((service) => ({ code: service.code, ...fees[service.code] })),
@@ -1596,29 +1599,62 @@ function CreateStep({
           label="Engagement pack"
           value={
             pack.length
-              ? `${pack.length} ${pack.length === 1 ? "letter" : "letters"} to issue`
+              ? `${pack.length} ${pack.length === 1 ? "letter" : "letters"}, emailed to the client`
               : "No letters"
           }
         />
       </dl>
 
-      {quote.lines.length > 0 && (
+      {/*
+        What the client actually gets, in one box (owner, 12-11-2026).
+
+        It used to be a quotation preview with a switch under it, and
+        the pack settled two steps earlier went nowhere — the Done
+        screen said the letters were “to issue from the documents
+        tab”, which meant somebody wrote them again by hand. One
+        email now carries all of it, so one switch decides all of it.
+      */}
+      {(quote.lines.length > 0 || pack.length > 0) && (
         <div className="rounded-ledger border-rule bg-sunk mt-4 border p-3">
           <p className="text-12 text-ink-muted font-semibold tracking-wide uppercase">
-            Quotation
+            What goes to the client
           </p>
-          <ul className="mt-2 flex flex-col gap-1">
-            {quote.lines.map((line) => (
-              <li key={line} className="text-13">
-                {line}
-              </li>
-            ))}
-          </ul>
-          {quote.totalLine && (
-            <p className="text-13 border-rule mt-2 border-t pt-2 font-medium">
-              {quote.totalLine}
-            </p>
+
+          {quote.lines.length > 0 && (
+            <>
+              <ul className="mt-2 flex flex-col gap-1">
+                {quote.lines.map((line) => (
+                  <li key={line} className="text-13">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+              {quote.totalLine && (
+                <p className="text-13 border-rule mt-2 border-t pt-2 font-medium">
+                  {quote.totalLine}
+                </p>
+              )}
+            </>
           )}
+
+          <ul className="text-13 text-ink-muted border-rule mt-3 flex flex-col gap-1 border-t pt-3">
+            {quote.lines.length > 0 && <li>The quotation above, as a PDF</li>}
+            {pack.map((item) => (
+              <li key={item.code}>{item.label}, as a PDF</li>
+            ))}
+            {outstanding.length > 0 && (
+              <li>
+                The {outstanding.length}{" "}
+                {outstanding.length === 1 ? "document" : "documents"} we still
+                need, with the upload link
+              </li>
+            )}
+          </ul>
+          <p className="text-12 text-faint mt-1">
+            A letter whose wording a partner has not approved yet is left out,
+            and you are told which.
+          </p>
+
           <label className="text-13 border-rule mt-3 flex items-start gap-2 border-t pt-3">
             <input
               type="checkbox"
@@ -1630,7 +1666,7 @@ function CreateStep({
             <span>
               {quoteEmail ? (
                 <>
-                  Email this to{" "}
+                  Email all of this to{" "}
                   <span className="text-ink font-medium">{quoteEmail}</span>{" "}
                   when the client is created
                   <span className="text-ink-muted">
@@ -1641,21 +1677,20 @@ function CreateStep({
                 </>
               ) : (
                 <span className="text-ink-muted">
-                  No email address for the contact, so the quotation cannot be
-                  sent. Add one on step 2 and it goes out with the client.
+                  No email address for the contact, so nothing can be sent. Add
+                  one on step 2 and the pack goes out with the client.
                 </span>
               )}
             </span>
           </label>
         </div>
       )}
-
       {outstanding.length > 0 && (
         <p className="rounded-ledger border-rule bg-sunk text-13 mt-4 border px-3 py-2">
           Creating this client also makes one upload link for the{" "}
           {outstanding.length} outstanding{" "}
-          {outstanding.length === 1 ? "document" : "documents"}. The link is
-          shown once, here, for you to send.
+          {outstanding.length === 1 ? "document" : "documents"}. It goes in the
+          email above, and is shown here once as well, for WhatsApp.
         </p>
       )}
 
@@ -1752,11 +1787,53 @@ function Done({ created, pack, router, onAnother }) {
       )}
 
       {created.quotedTo?.length > 0 && (
-        <p className="rounded-ledger border-rule bg-sunk text-13 border px-3 py-2">
-          The quotation for {created.quoteLines}{" "}
-          {created.quoteLines === 1 ? "service" : "services"} is queued to{" "}
-          {created.quotedTo.join(", ")}. It leaves with the next mail run.
-        </p>
+        <div className="rounded-ledger border-rule bg-sunk text-13 border px-3 py-2">
+          <p>
+            The welcome pack is queued to {created.quotedTo.join(", ")}. It
+            leaves with the next mail run.
+          </p>
+          <ul className="text-ink-muted mt-1 flex flex-col gap-0.5">
+            {created.quoteLines > 0 && (
+              <li>
+                The fees for {created.quoteLines}{" "}
+                {created.quoteLines === 1 ? "service" : "services"}
+              </li>
+            )}
+            {created.packNames?.map((name) => (
+              <li key={name}>
+                {name} <span className="text-faint">PDF</span>
+              </li>
+            ))}
+            {created.outstanding > 0 && (
+              <li>
+                The {created.outstanding}{" "}
+                {created.outstanding === 1 ? "document" : "documents"} we still
+                need, with the upload link
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
+
+      {/*
+        A letter that did not go, and why. Silence here would be the
+        firm believing it had sent an engagement letter it had not.
+      */}
+      {created.packSkipped?.length > 0 && (
+        <div className="rounded-ledger border-waiting bg-waiting-wash text-13 text-waiting border px-3 py-2">
+          <p className="font-medium">
+            {created.packSkipped.length === 1
+              ? "One letter was not sent:"
+              : `${created.packSkipped.length} letters were not sent:`}
+          </p>
+          <ul className="mt-1 flex flex-col gap-0.5">
+            {created.packSkipped.map((row) => (
+              <li key={row.name}>
+                <span className="font-medium">{row.name}</span> — {row.why}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {created.quoteError && (
@@ -1782,21 +1859,12 @@ function Done({ created, pack, router, onAnother }) {
         </div>
       )}
 
-      {pack?.length > 0 && (
-        <div className="rounded-ledger border-rule bg-sunk border p-3">
-          <p className="text-13 text-ink-muted">
-            The pack you settled on, to issue from the client's documents tab:
-          </p>
-          <ul className="mt-1 flex flex-col gap-0.5">
-            {pack.map((item) => (
-              <li key={item.code} className="text-13">
-                {item.label}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
+      {/*
+        The pack used to be listed again here, as a to-do: “to issue
+        from the client's documents tab”. It is sent now, and the
+        queued list above says what went and what did not — a second
+        list naming a letter that was held back would contradict it.
+      */}
       {created.warnings?.length > 0 && (
         <ul className="flex flex-col gap-1">
           {created.warnings.map((warning) => (

@@ -11,6 +11,8 @@ import GeneratedDoc from "@/models/GeneratedDoc";
 import { buildDocument, loadEngagementForDoc } from "@/lib/docs/build";
 import { checkIssue } from "@/lib/docs/rules";
 import Client from "@/models/Client";
+import Engagement from "@/models/Engagement";
+import { accept, rowForLetter } from "@/lib/engagements/checklist";
 import { documentToClient } from "@/lib/mailer/events";
 
 /**
@@ -91,7 +93,7 @@ async function guardDoc(actor, doc) {
 }
 
 /** Start a draft from a template, against a piece of work. */
-export async function createDraft(engagementId, templateId) {
+export async function createDraft(engagementId, templateId, checklistItemId) {
   const actor = await requireUser();
   const allowed = await loadForDoc(actor, engagementId);
   if (allowed.error) return allowed;
@@ -102,8 +104,9 @@ export async function createDraft(engagementId, templateId) {
     return { error: "That template is not available." };
   }
 
+  let created = null;
   await audited(actor, async (session) => {
-    await GeneratedDoc.create(
+    const [made] = await GeneratedDoc.create(
       [
         {
           templateId: template._id,
@@ -112,6 +115,20 @@ export async function createDraft(engagementId, templateId) {
           templateVersion: template.version ?? 1,
           clientId: engagement.clientId,
           engagementId: engagement._id,
+          /*
+            Which row asked for it (owner, 13-11-2026). A checklist row
+            may now leave its template open, so matching a letter back to
+            its row by template no longer works — the row's own id does.
+            It is checked against this engagement's checklist rather than
+            trusted, because it arrives from the browser.
+          */
+          checklistItemId:
+            checklistItemId &&
+            (engagement.checklist ?? []).some(
+              (row) => String(row._id) === String(checklistItemId),
+            )
+              ? checklistItemId
+              : null,
           branchId: engagement.branchId,
           state: "draft",
           title: template.title || template.name,
@@ -121,10 +138,21 @@ export async function createDraft(engagementId, templateId) {
       ],
       { session },
     );
+    created = made;
   });
 
   revalidatePath(`/engagements/${engagementId}`);
-  return { ok: `Draft ${template.name} started.` };
+  /*
+    The id comes back now (owner, 13-11-2026). The Letters tab walks
+    somebody through writing a letter one step at a time, and step two is
+    "check the wording" — which has to know which document step one just
+    started. Reading it back off the refreshed list would pick the wrong
+    one the moment two people draft at the same time.
+  */
+  return {
+    ok: `Draft ${template.name} started.`,
+    id: String(created._id),
+  };
 }
 
 /**
@@ -187,6 +215,9 @@ export async function issueDoc(id) {
     };
   }
 
+  /** The checklist row this letter closes, if it closes one. */
+  let closed = "";
+
   await audited(actor, async (session) => {
     doc.state = "final";
     doc.title = built.title;
@@ -202,6 +233,31 @@ export async function issueDoc(id) {
     doc.updatedBy = actor.id;
     await doc.save({ session });
 
+    /**
+     * The step that asked for this letter is satisfied by it (owner,
+     * 12-11-2026).
+     *
+     * A `doc` row on the checklist names the template it is drafted from,
+     * so issuing the letter *is* the row being done — and leaving it to be
+     * ticked by hand afterwards meant a finished certificate sitting on a
+     * step the job still called outstanding. Matched by template, which is
+     * the only thing the row says about it, and only a row nobody has
+     * settled already: a second letter from the same template does not
+     * un-accept the first.
+     *
+     * It rides inside this transaction, so the letter, the row and both
+     * audit entries land together or not at all (CLAUDE.md rule 2).
+     */
+    if (doc.engagementId) {
+      const job = await Engagement.findById(doc.engagementId).session(session);
+      const row = rowForLetter(job?.checklist, doc.templateId);
+      if (row && accept(row, { id: actor.id, name: actor.name }).ok) {
+        job.updatedBy = actor.id;
+        await job.save({ session });
+        closed = row.name;
+      }
+    }
+
     await recordAudit(
       {
         action: ACTIONS.statusChange,
@@ -214,7 +270,11 @@ export async function issueDoc(id) {
   });
 
   if (doc.engagementId) revalidatePath(`/engagements/${doc.engagementId}`);
-  return { ok: "Issued. The wording is now fixed." };
+  return {
+    ok: closed
+      ? `Issued. The wording is now fixed, and “${closed}” is done.`
+      : "Issued. The wording is now fixed.",
+  };
 }
 
 /**

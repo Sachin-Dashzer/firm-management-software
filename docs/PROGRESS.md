@@ -5577,3 +5577,543 @@ queue simply grew.
   the 307 / 404 / 500 answers written down.
 
 Tests: 1837 passing. Lint and `next build` clean.
+
+## 12-11-2026 — Undoing a step, and deleting a job or a client properly
+
+Two owner requests, both about going backwards after a mistake.
+
+**Every done step has its own Undo.** `setTaskDone(id, taskId, false)` has
+reopened a step since Step 5, but the only way to reach it was one button
+under the folded trail, and only ever for the last step — so a step ticked
+with the wrong details looked permanent. Each row in the trail now carries
+its own control. The rules are unchanged and still the server's: a stage
+closes itself and has nothing to undo, a step can only be undone by
+somebody who could have ticked it, and the order holds — last step first —
+except for a CA or a Partner, who may go at any of them, which is the
+override `outOfOrder` has always given the person signing the file.
+
+**Delete now takes the dependants with it.** `deleteClient` stamped
+`deletedAt` on the client alone, so the client vanished from the list while
+its jobs stayed on the work queues and its invoices on the ledger. And a
+job could not be deleted at all.
+
+- `lib/cascade.js` holds two plans — `OF_CLIENT` and `OF_ENGAGEMENT` — and
+  one function that walks a plan inside the caller's transaction. Still a
+  soft delete (rule 3): every row keeps its data and takes the same
+  `deletedAt`, and each goes through `softDelete()` rather than one
+  `updateMany`, because the audit plugin cannot log a bulk update and rule 2
+  wants an entry per change. Notifications are the one exception — UI
+  chatter with no `deletedAt` to set, and a nudge pointing at a deleted job
+  is a dead link.
+- **Two refusals, for the records that are not the firm's to erase.** An
+  invoice that has gone out is a GST document, and a UDIN is a statutory
+  number. Both delete actions name the invoice or the UDIN and send the
+  owner to Cancelled / Closed instead, which keeps the history.
+- `deleteEngagement` is new, Partner only, reason required, on the job's
+  **Setup** tab. The client's delete was already there but hidden: the
+  reason box only appeared for On hold and Closed, so a partner had to pick
+  a status they did not want before the button unlocked. The box is now
+  always theirs, the trigger says "Status or delete", and the panel says
+  what goes with the client.
+- Audit log: the parent's delete entry carries the reason **and** the
+  tally — "raised against the wrong client — and with it 3 files, 1 letter"
+  — so the extent of a delete is one entry, not a count of thirty.
+- Not done: nothing restores a cascade. The rows share one `deletedAt`, so
+  a future recycle-bin screen can bring the set back together; until then a
+  delete is undone by hand from the audit trail.
+
+**Where the delete actually is** (same day, after the owner could not find
+it): the panel was on the job's **Setup** tab, which is where a job's
+settings live and not where anybody looks an hour after raising one against
+the wrong client. It is now last on the page on **every** tab, and
+`bulkDelete` puts the same thing on the engagements list — select the rows,
+give one reason, and each job still goes through `deleteEngagement` on the
+server with its own refusals, its own cascade and its own audit entry.
+Anything that will not go names itself above the bulk bar, as the other bulk
+actions already do.
+
+Tests: 1941 passing (`tests/cascade.test.js` is new). Lint and
+`next build` clean.
+
+## 12-11-2026 — What a step is, and what each row on it asks for
+
+Two owner requests, one change: the service catalog now says **what kind of
+thing** each row on a step is, and **which step carries the UDIN**.
+
+**Four kinds of row** (`ITEM_KINDS` in `lib/services/catalog.js`). Every
+checklist row used to mean the same thing — a document, uploaded, accepted
+by a person. Half of what a step needs is not that, and the firm was
+writing those as documents nobody would ever upload: they sat Pending for
+ever and held their step shut.
+
+- `upload` — a document, exactly as before. The default, so every service
+  and every job already created is unchanged.
+- `tick` — something to confirm. One button, no file.
+- `link` — work done on another screen, from a **closed list** of real
+  routes (`ITEM_LINKS`): the UDIN register, the GST cycle, a new
+  certificate, a notice reply, the DSC register, a new invoice, trial
+  balances, the audit file. The client and the job are filled into the
+  link. Not a typed-in address: an address typed into the catalog once is
+  an address nobody checks again.
+- `doc` — a letter drafted from one of the firm's own templates. The row
+  offers **Start the draft** and a way to the Letters tab, which already
+  edits, issues and sends it (P2-8b). No second editor was written.
+
+`accept()` is the one place any of them is settled, so a tick, a link and a
+letter take the same audit entry a document does. What changed there is one
+guard narrowed: "nothing has arrived yet" now applies to `upload` only.
+Asking the client for one is refused at `createDocRequest` and they are not
+listed on the portal — there is no file behind them to send.
+
+**The UDIN is a step now.** The checkbox in the service's *billing
+defaults* is gone. A step is marked as the UDIN step instead, and
+`udinRequired` is **derived** from that on every save — so the service says
+*when* the number is wanted, not only that it is, and the two can never
+disagree. The step shows the question and the way into the register, and
+`stepBlock` refuses the tick until a number is on it; a CA or a Partner
+keeps the override they have always had. Everything that reads
+`udinRequired` — the completion gate, the reviewer's checklist line, the
+certificate rules — is untouched.
+
+**Filing is a record, not a step.** Taking the UDIN question off it left it
+with nothing to close on. The acknowledgement cannot be it (a certificate
+is signed, never filed) and neither can the returns being filed, because
+the approval that *permits* filing is ticked on the Review step after it —
+the job would have been waiting on its own permission. So the panel moved
+to the Work tab, folded, readable and editable at any point, with its state
+on the summary line, and the steps now run: the service's own steps →
+**Review** → **Complete**.
+
+Also: the step gate was widened to match. A mandatory row that is not a
+document holds its step shut whoever owns it, because it is the step's own
+work; a mandatory *document* the firm produces still does not, which is
+what it always did.
+
+Decided, and worth re-opening if the firm disagrees: a `doc` row does not
+tick itself when the letter is issued (a person says the letter is done),
+and a UDIN step cannot be waived — if the firm configured one, the number
+is required.
+
+Seed: the three starter services that need a UDIN already name a "Generate
+UDIN" step, so the step is marked from the name and the flag is read off
+it. Nothing new was invented (rule 8).
+
+Tests: 1958 passing (`tests/checklist.test.js`, `tests/engagements.test.js`
+and `tests/services.test.js` grew; `tests/e2e/services.spec.js` has a new
+UDIN-step walk-through and its stale selectors from the step redesign are
+fixed). Lint and `next build` clean. Screenshotted at 1440 and 390, light
+and dark — the catalog's rows now give the name its own line on a phone,
+where the extra pickers had squeezed it to a sliver.
+
+### Same day — the service editor's screen
+
+The owner asked for the UI/UX of `/settings/services/[id]` to be fixed
+completely, after the step and row kinds landed on it. Rendered first, at
+the width the screen really runs at, which is where the problem was: the
+checklist row carried six controls in an 820px column and **the name was
+crushed to about twenty pixels** — rows reading "Sig", "F", "M" beside five
+full-width selects. Every row also repeated a 14rem selector naming the step
+it was already sitting inside.
+
+What changed, biggest effect first:
+
+- **The screen is `wide`.** `SettingsScreen` has had two widths since D106 —
+  820 for prose and forms, the wide one for boards — and a step editor is a
+  board. That is where the row's missing 300px was.
+- **Sections are rules, not cards.** Five stacked bordered cards became four
+  labelled sections divided by hairlines (heading and its line on the left,
+  the fields on the right), and the work takes the full width. Nested cards
+  are gone: the steps are rows of one panel, divided.
+- **The work comes second**, before who does it and what it costs. It is the
+  block the screen exists for; the other three are read once a year.
+- **The rows are a grid.** Name, kind, which-one, who provides, step,
+  required, remove sit in seven declared columns, so the eye runs down a
+  column instead of hunting along each line. The not-applicable cell prints
+  the grey dash the rest of the application uses. Below `lg` a row becomes a
+  small framed card — name across the top, controls in pairs — because six
+  full-width controls stacked with nothing between them read as one list.
+- **The step selector is numbered**, not named: the names are two inches
+  above in the order they run.
+- **The kind labels are short enough to fit their column** ("Document",
+  "Tick to confirm", "Another screen", "Letter we draft"); the sentence that
+  explains each one is the hint under the picker. The template picker groups
+  by kind with a native `<optgroup>` instead of prefixing every option with
+  it.
+- **The save bar is a bar**, bled to the column's edges: the action, the way
+  out, and one line of reading (version, steps, things, whether it needs a
+  UDIN). The 60-character paragraph about versioning that used to sit inside
+  it is already printed under the page title.
+- **Real icons.** The arrows and the delete cross were the characters ↑ ↓ ×
+  in boxes; they are Phosphor icons at 14px, like the rest of the app.
+
+Checked with the taste-skill inspector in app mode at 1440, 768 and 390:
+0 FAIL, 1 WARN. The warning is `below-fold` — only one of four blocks starts
+on the first screen — which is what a long edit form is: its own question is
+answered by the block that does start there, and the three sections after it
+are settings nobody opens weekly. The one allowed rule is `font-not-dealt`:
+the brand fixes IBM Plex Sans.
+
+Screenshots at 1440, 820 and 390, light and dark, before and after.
+
+### Same day — the open step came back empty
+
+The owner opened a job and found the step card showing a name and nothing
+else: no tick, no assignee, no checklist.
+
+`stepsView` builds each entry as `{ kind: "task", ...task }`, where `kind`
+is the entry's **discriminator** — task or stage — and is what `StepsPanel`
+reads to decide what a step gets. Earlier today a task gained a `kind` of
+its own, snapshotted from the template's step (`""` or `"udin"`). With the
+spread second, that field overwrote the discriminator: every step was
+neither a task nor a stage, so `isTask` was false, `stepChecklist` was
+null, and the step rendered as an empty card that also claimed there was
+"nothing to tick".
+
+`kind: "task"` is set after the spread now, and the step's own kind is the
+`udin` flag beside it, which is the only thing anything asks of it.
+`tests/engagements.test.js` asserts every template step comes back as a
+task, the UDIN step included — which is what nothing checked.
+
+It was visible in the screenshots taken when the kinds landed, in the line
+"there is nothing to tick" under a step that should have had a tick. Read
+past.
+
+### Same day — the letter is written where the step asks for it
+
+The owner walked the UDIN certificate job through and said what each step
+should do: upload the records, **draft and edit the certificate on the step
+that asks for it**, have the **CA open it, correct it and approve**, then
+**apply on the register and write the number and the acknowledgement back**
+on the UDIN step. Three of those four were a tab away.
+
+Nothing new was written to do it. `DocsPanel` — the Letters tab — already
+starts a draft, reads it, edits the words, saves, resets to the template,
+issues and sends. It gained a `bare` prop and is now rendered in three
+places from one set of data (`letters`, built once on the page):
+
+- **On the `doc` checklist row.** "Write the letter" opens the panel under
+  the row, with only that row's template offered and only its own letters
+  listed, matched by the template the catalog named on it. One template,
+  one button — a picker with one entry is a control with no decision in it.
+- **On the reviewer's step**, under the review points and above "Approve
+  for filing": read it, correct the wording, approve, in that order on one
+  screen. No template picker there — the review step corrects what the work
+  produced, it does not start new letters.
+- **On the Files tab**, because the whole checklist is drawn by the same row.
+
+**Issuing the letter closes the row it came from.** `rowForLetter()` in
+`lib/engagements/checklist.js` finds the unsettled `doc` row drafted from
+that template, and `issueDoc` accepts it inside the transaction that issues
+the letter, so the letter, the row and both audit entries land together.
+The guard that matters is the empty template id, which would otherwise
+match every row that is not a letter at all. This is the piece left open
+when the kinds landed ("a doc row does not tick itself"); the owner's walk
+through the job is the decision.
+
+**The UDIN step now takes the number back.** Under the question and the
+link into the register it renders `FilingPanel` bare — the UDIN, the member
+it was generated against, the acknowledgement number and the filed-on date,
+saved by the one action that keeps the engagement and the register in step.
+So "go to the register, apply, come back and write down what you got" is
+one step on one screen.
+
+Tests: 1964 passing (`rowForLetter` has its own, including the empty-id
+case). Lint clean. Rendered and read at 1280 before reporting. `next build`
+not run — it fights the dev server for `.next`.
+
+## 13-11-2026 — The engagement screen is one card
+
+The owner: "/engagements/[id] — currently it looks too much complex."
+
+The Work tab had four stacked panels. **Next** (a bordered band with one
+sentence and one link), **Move this on** (a title, a row of status buttons,
+a reason box and a two-column list of six facts), **Steps** (a panel whose
+open step was a second card nested inside it, whose work was a third box
+nested inside that) and the data. Three of the four described the same job
+from different angles, and two of them told two different stories about
+progress — a six-state pipeline and an N-step stepper — which the reader
+had to reconcile before doing anything. The sentence under the tab bar said
+"Next: …" on every tab, including the one where the band repeated it.
+
+It is now one card, and three lines of text around it.
+
+- **The head** keeps the service, the client, the period and the code. The
+  row of up to five chips — tier, status, statutory, "No statutory date",
+  internal — is a tier badge, the status, and the dates as a line of text
+  with only the lateness coloured.
+- **The status is the only chip left, because it is the only one anybody
+  presses.** `StatusMenu` opens the moves over it, each with its refusal
+  (P3-8) and the reason box where one is needed. The panel it replaces is
+  gone. `Completed` is still reached from the last step's own button, which
+  is what presses the stamp.
+- **The card is the open step**, flattened: the rail and "step 3 of 6" at
+  the top, the step's name as the heading, the one next sentence and its
+  link directly under it, the step's own work on the card's ground behind
+  a rule rather than in two more boxes, and the tick, the role floor and
+  who it is on as one foot row.
+- **The trail** of finished steps is a line of text under the card, not a
+  panel inside it.
+- **Who it is on and what it is worth** is one grey sentence where a
+  six-pair definition list used to be. Setup still edits all of it.
+- The audit-file link and the GST data stack in one column; as a two-up
+  grid they drew one card beside an empty half on every job, since a job is
+  almost never both.
+
+Nothing was removed from the screen's powers: every move, refusal, reason,
+tick, undo and permission is where it was, enforced on the server as
+before. `dueWords`/`dueTone` moved out of `DueChip` into `chips.jsx` so the
+head's line and the list's chips cannot drift.
+
+Rendered at 1440 and 390, light and dark, before reporting. Tests, lint and
+`next build` deferred, as the owner asked.
+
+### Same day — the tabs are five icons, and Delete is back on Setup
+
+Two follow-ups from the owner on the screen above.
+
+**The tab bar is gone; the five faces are five icons in the top right**
+(`Tabs.jsx`), on the breadcrumb's row, so the head carries the switch and
+the page starts with the work. Checklist, folder, envelope, gear, clock —
+the same meanings the left rail already gives those glyphs. Each is a real
+link with the tab in its URL, so the back button and a shared link still
+work and none of it needs client state. The active one is a tone step and
+the full ink in `bold`, never Phosphor's `fill`, which at 18px is a solid
+block rather than an icon. The Files and Letters counts ride on their
+icons as before.
+
+An icon with no word beside it has to say what it is some other way, so
+each carries the same sentence as both `aria-label` and `title`: the
+screen reader hears it and the mouse shows it. If the firm finds the row
+hard to learn, the fix is a label on the active one, not five labels back.
+
+**Delete this job is on Setup only.** It was put on every tab on
+12-11-2026 so that it was findable an hour after raising a job against the
+wrong client; in practice it put a red-edged panel under the work on four
+screens that are read all day. Setup is where the job's settings are, and
+deleting it is the last of them.
+
+Rendered again at 1440 and 390, light and dark.
+
+### 13-11-2026 — Documents live on the step; Files is the register; Letters is what was sent
+
+The owner split the three tabs by what each one is *for*, rather than by
+what happened to be built there first.
+
+**Work.** Every task step now carries its own checklist rows, its own
+uploader and a template picker — not only a step the catalog happened to
+mark `workKey: "documents"`. Beside "attach a file" there is now "or write
+one from a template", which is `DocsPanel` embedded: pick, read it against
+the client's record, correct the wording, save. The link that asks the
+client for what is missing (`RequestPanel`) came off the Files tab and sits
+under the step's client-side rows, where the thing being asked for is on
+the screen. The rest of the job's checklist is a disclosure under the card,
+"Everything else on this job".
+
+**Files** (`FilesTab.jsx`, new). The register: what the job already has,
+and nothing else. A **By our side / By client side** switch, which is
+`Document.origin` — a field the vault has had since it was built and the
+engagement screen never asked. Our side also lists the documents written
+from templates, which have no file in the vault because the words are the
+record. Two actions and no others: **View**, and **Edit**. Edit means the
+same act either way — correcting the record without losing what it said
+before: a written document opens its wording in the editor the step wrote
+it in; an uploaded file takes a corrected copy as a new version, through
+`confirmUpload`'s `replacesId`, which has always worked and had no button.
+Nothing is deleted from this tab and nothing is attached here.
+
+That is the reviewer's round: open the job on Files, read what the work
+produced, fix what is wrong, save — without going back through the step.
+
+**Letters** (`LettersTab.jsx`, new). Sent means sent. The register at the
+top reads `MessageLog` for this engagement *and* for its generated
+documents, so "what left this job?" has one answer; held and failed
+messages are shown too, with the reason, because believing a client was
+told something they were not is worse than knowing they were not. Below
+it, writing the next one: the template picker, the editor, and the drafts
+that have not gone out. The free-text Notify box stays under that.
+
+`DocsPanel` is the one editor in all three places — the step writes in it,
+Files corrects in it, Letters sends from it — so a letter cannot become two
+different letters depending on which screen somebody opened. It gained
+`mayDiscard`, off on Files; `mayIssue` is off on the step and on Files,
+because putting the firm's name on a document and emailing it are the
+Letters tab's business and the server still gates both.
+
+The tab badges now count what the tab holds: Files, the documents on the
+job; Letters, what has been sent. Files used to be badged with what the
+client still owed — true of the checklist, and the checklist is on the
+step now.
+
+### Same day — Files and Letters rewritten for somebody who has not been taught the system
+
+The owner looked at the first version of both tabs and rejected them. The
+fault was the same in each: too many headings, a paragraph under every
+one, and two different row shapes with two different sets of buttons.
+
+**Files.** One list, one row, two buttons. The split between "written
+from a template" and "uploaded" is gone — it exists because of how the
+two are stored, which is the system's problem and not the reader's. Every
+row now says its name, then in plain words what it is and what happened
+to it: *Letter we wrote · sent to the client on 02-11-2026*, *Spreadsheet
+· put up by Priya Nair · 06-11-2026 · 2 earlier copies kept*.
+
+**Open** shows it: a letter opens its words, a PDF or a photograph opens
+in the page, anything else downloads. **Edit** changes it: a letter opens
+its words in a box, a file takes a corrected copy with the old one kept
+behind it. *Read it, Edit the words, PDF, Word, View, Download, Preview*
+— seven words for two acts — are gone; PDF and Word are small links
+inside the opened letter, where they are a choice about saving rather
+than a button on every row.
+
+A letter that has been signed off has no Edit at all and its own line
+says `· cannot be changed now`. A greyed button that explains itself only
+on hover is the dead control the P3-2 pass was about.
+
+**Letters.** A list of what was sent, and one button. **Write to the
+client** opens three numbered steps, one on the screen at a time:
+
+  1. Which letter? — pick from the firm's templates
+  2. Check the wording — already filled in from the client's record
+  3. Send it — with an optional line to go with it
+
+The words *issue*, *draft* and *final* do not appear anywhere in it. Step
+3 still calls `issueAndSend`, so the firm's name goes on the letter, the
+signatory and the UDIN are checked, and the server can still refuse. None
+of that moved; it is only no longer the reader's vocabulary lesson.
+"Keep it for now" is the same gate's other side — `issueDoc` without the
+email — and the letter waits under **Half written**, which stays on the
+screen while a new one is being written so nobody writes a second copy of
+the letter they forgot about.
+
+`createDraft` now returns the new document's id. Step 2 has to know what
+step 1 started, and reading it back off the refreshed list would pick the
+wrong one the moment two people draft at the same time.
+
+`DocEditor.jsx` (new) is the box with the words in it — a heading, the
+text, one button, and nothing else. Files corrects in it and Letters
+writes in it. `DocsPanel` keeps the step, where somebody drafting against
+a checklist row does want every control at once.
+
+### Same day — the step asks for what the step names, and a catalog row may leave its template open
+
+**The step card is back to what it was.** It briefly carried a free
+uploader, a template picker and the "ask the client" link as well as its
+own rows. The owner took all three off: *a step asks for the documents
+the step names.* Anything somebody could attach or request outside the
+catalog is a document the catalog should have named, and a step that
+offers it has stopped describing the work. `checklistFor` is the two
+groups again and nothing else; `stepWork.documents` is keyed on
+`workKey` as before; the "Everything else on this job" disclosure is
+gone.
+
+The upload links given to the client (`RequestPanel`) went back where
+they were, on the Files tab, under the client's side — that panel asks
+for everything outstanding on the job, which is exactly the thing that
+does not belong inside one step.
+
+**A `doc` row may now leave its template open.** `saveService` used to
+refuse one, which forced every letter a service might produce to be
+decided in the catalog months before anybody saw the job. Left empty,
+the row offers the whole shelf on the engagement and whoever is on it
+picks — same editor, same audit, same Files tab afterwards. Naming one
+in the catalog is still the better answer when the service always writes
+the same letter; it is no longer the only one. The kind is now called
+**Create from a template** rather than "Letter we draft", and the
+catalog's picker says *Any — picked on the job* rather than prompting.
+
+**`GeneratedDoc.checklistItemId`** is how a row finds its own letters
+now. Matching by template stopped being safe the moment a row could
+leave its template open: two rows on one template would each show the
+other's letter, and an open row would find nothing. `createDraft` takes
+the row id and checks it against the job's own checklist before storing
+it — it arrives from the browser — which is why `loadEngagementForDoc`
+now selects `checklist`. Letters written before today have no row on
+them and still match by template, so nothing already drafted moves.
+
+### Review stops being a step (owner, 13-11-2026)
+
+"Remove the default second last review step also from all the services."
+The **Review** stage `stepsView` appended to every job — second-last, after
+the service's own steps and before **Complete** — is gone. It follows
+Filing out of the step list on exactly the same reasoning (12-11-2026): it
+was never the preparer's next move. It was the one step whose gate was
+about *who was reading the screen* rather than about the job, so for the
+person who did the work it was a card saying the reviewer has it, sitting
+in the place the next thing to do should be — and it stood between the last
+real step and the end of the job on all 15 services, whether that service
+had anything for a reviewer to tick or not.
+
+**The gate has not moved an inch.** `changeStatus` still refuses a
+completion by the person who did the work (CLAUDE.md rule 4), `blocksFiling`
+still reads `gates.approved`, and the reviewer's points and the
+"Approve for filing" button are still the only way to set it. What changed
+is where they are drawn:
+
+- `lib/engagements/steps.js` — `closingStages` returns one stage,
+  **Complete**. `REVIEW` is gone as an export, and with it the `ctx`
+  argument to `stepsView`: nothing in the step list depends on who is
+  reading it any more, so `stepsView(engagement)` takes the engagement
+  alone and `StepsPanel` no longer needs an `isReviewer` prop.
+- `EngagementWork.jsx` — the **Review** record on the Work tab was already
+  there, folded, but only *after* its step had closed. It is now always
+  there, next to **Filing**, with `id="review"` and a `reviewState()`
+  summary line that carries both acts, because they are two: a reviewer can
+  tick every point and still not have approved the version. `stepWork` no
+  longer has a `review` key.
+- The anchor the band and the Issues list point at for an approval is
+  `?tab=work#review` — `#approval` (to 03-11-2026) → `#steps` (to today) →
+  the record itself. `lib/issues/next.js` and `tests/issues.test.js` follow.
+
+A service that wants its *own* review point part-way through — read the
+working before the return goes in — still writes that step itself, and
+several in the starter catalog do (GSTR-3B, GSTR-9, the TDS return). Those
+are the firm's steps in the firm's order and are untouched; what is gone is
+the one nobody asked for.
+
+`tests/engagements.test.js` now expects three entries, not four, on the
+two-step fixture. 81 tests across the two files pass; ESLint and Prettier
+are clean on everything touched.
+
+### The services' own review steps go too (owner, 13-11-2026)
+
+"Yes remove those review steps from all services too." So the `"Review"` /
+`"Partner review"` step the starter catalog wrote into thirteen of the
+fifteen services is gone as well — the same decision as the appended stage
+above, carried into the catalog itself.
+
+- `lib/services/starter.js` — thirteen step entries removed, and the header
+  comment says why, beside the existing notes on the blank fees and SAC
+  codes. No service seeds a review step now. `TAX-AUD` keeps its
+  `Client acceptance`, `GSTR-3B` and the ITRs keep `Client approval`: those
+  are the *client* confirming, which is a different act from the firm
+  reviewing and is a real wait on a real person.
+- `lib/services/catalog.js` — new `withoutStep(template, index)`. Removing
+  a step is not removing one array element: `stepIndex` is a **position**,
+  so every step after the gap moves down one and every item pointing past
+  it has to move too, while an item *on* the removed step falls back to
+  `null` — belonging to the job rather than to a step, which is what every
+  item meant before the field existed. Pure, so the migration and the test
+  get the same answer.
+- `scripts/drop-review-steps.mjs` — the same change applied to the catalog
+  already in the database, because a seed never edits a service that
+  exists. Dry run unless `--apply`, like `db:reset`. Each write is a
+  transaction with its own System-attributed audit entry, and the version
+  goes up where `bumpsVersion` says the definition of the work changed.
+
+**Applied: 12 of 15 services changed**, versions bumped (ITR-BUS v2 → v3,
+the rest v1 → v2), 12 audit entries at seq 22–33. Nothing re-pointed, since
+no item on any of those twelve named a step.
+
+**`CERT` was left alone and reported.** Its step 3 is `Review of
+Certificate` — the owner's own, named by the owner, with a `ca` role floor
+and two tick boxes bound to it (*Approve the Draft Certificate*, *Check all
+the certificate and everything is correct*). The script only removes a step
+whose whole name is one of the two the starter catalog wrote, so a step the
+firm built itself cannot be swept away with the default; removing that one
+would leave its tick boxes on no step, which is the owner's call and not a
+migration's.
+
+`tests/services.test.js` gained three cases — the gap closes and the items
+move with it, it is a new version rather than a correction, and no starter
+service has a review step any more. 147 tests across the four affected
+files pass; ESLint and Prettier clean.

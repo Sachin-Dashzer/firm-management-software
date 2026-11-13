@@ -331,6 +331,7 @@ export default async function EngagementsPage({ searchParams }) {
         mayManage={can(actor, "edit", "engagementsCreate")}
         // only a checker is offered the batch sign-off (owner decision D5)
         mayApprove={actor.role === "ca" || actor.role === "partner"}
+        mayDelete={can(actor, "approve", "deleteRecord")}
         team={team.map((u) => ({
           id: String(u._id),
           name: u.name,

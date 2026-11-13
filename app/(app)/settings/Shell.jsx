@@ -42,7 +42,7 @@ export default function SettingsScreen({
   return (
     <div
       className={`mx-auto flex w-full flex-col gap-5 p-4 md:p-6 ${
-        wide ? "max-w-[1120px]" : "max-w-[820px]"
+        wide ? "max-w-[1220px]" : "max-w-[820px]"
       }`}
     >
       <div className="flex flex-col gap-0.5">

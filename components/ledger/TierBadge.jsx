@@ -28,7 +28,7 @@ export default function TierBadge({ level, withLabel = false }) {
   }[tier];
 
   return (
-    <span className="inline-flex items-center gap-2">
+    <span className="inline-flex items-center mr-2">
       <span
         title={TIER_RULES[tier]}
         className={`rounded-ledger text-13 grid size-5 shrink-0 place-items-center border font-mono font-medium ${tone}`}
@@ -36,11 +36,11 @@ export default function TierBadge({ level, withLabel = false }) {
         <span className="sr-only">{`Tier ${TIER_LABELS[tier]}. ${TIER_RULES[tier]}`}</span>
         <span aria-hidden="true">{tier}</span>
       </span>
-      {withLabel && (
+      {/* {withLabel && (
         <span className="text-13" aria-hidden="true">
           {TIER_LABELS[tier]}
         </span>
-      )}
+      )} */}
     </span>
   );
 }

@@ -41,13 +41,13 @@ import Branch from "@/models/Branch";
 import DocTemplate from "@/models/DocTemplate";
 import GeneratedDoc from "@/models/GeneratedDoc";
 import EngagementWork from "./EngagementWork";
-import NotifyPanel from "./NotifyPanel";
 import { notifyAudience } from "./notify";
-import RequestPanel from "./RequestPanel";
-import DocsPanel from "./DocsPanel";
-import Segmented from "@/components/ui/Segmented";
+import LettersTab from "./LettersTab";
+import MessageLog from "@/models/MessageLog";
+import Tabs from "./Tabs";
 import { issuerFor } from "@/lib/docs/rules";
-import { DueChip, StatusChip } from "../chips";
+import { dueTone, dueWords } from "../chips";
+import StatusMenu from "./StatusMenu";
 import { bookOf, BOOKS } from "@/lib/practice/books";
 import { isId } from "@/lib/routes/id";
 import {
@@ -56,6 +56,7 @@ import {
   filingProgress,
   proofPending,
 } from "@/lib/engagements/milestones";
+import { itemLink } from "@/lib/services/catalog";
 
 /** A date as an `<input type="date">` wants it: yyyy-mm-dd, in IST. */
 function dateInput(date) {
@@ -185,11 +186,117 @@ export default async function EngagementPage({ params, searchParams }) {
       : [],
   ]);
 
+  /**
+   * What this job has actually sent (owner, 13-11-2026).
+   *
+   * Two places record it, because two different things send: the mail
+   * queue logs every message against the engagement, and a document
+   * emailed to the client is logged against the document. The Letters
+   * tab asks one question — "what left this job?" — so both are read and
+   * merged.
+   *
+   * A held or failed message is read too. A firm that believes it told a
+   * client something it did not is in a worse position than one that
+   * knows it never sent it.
+   */
+  const mail = await MessageLog.find({
+    $or: [
+      { entityType: "Engagement", entityId: engagement._id },
+      ...(generated.length
+        ? [
+            {
+              entityType: "GeneratedDoc",
+              entityId: { $in: generated.map((d) => d._id) },
+            },
+          ]
+        : []),
+    ],
+  })
+    .sort({ createdAt: -1 })
+    .limit(100)
+    .lean();
+
+  /** The register at the top of Letters: mail, newest first. */
+  const sentOut = mail.map((row) => ({
+    id: String(row._id),
+    kind: row.entityType === "GeneratedDoc" ? "doc" : "mail",
+    subject: row.subject || row.template || "Message",
+    to: row.sentTo || row.to,
+    body: row.body || "",
+    status: row.status,
+    heldReason: row.heldReason || "",
+    by: "",
+    when: formatISTDate(row.sentAt ?? row.createdAt),
+    href: row.entityType === "GeneratedDoc" ? `/docs/${row.entityId}/pdf` : "",
+  }));
+
+  /**
+   * The letters, as one prop (owner, 12-11-2026).
+   *
+   * They used to be assembled inline for the Letters tab alone. The step
+   * that asks for a letter and the reviewer's step both draw the same
+   * panel now, so the data is built once here and handed to all three —
+   * a second copy of this mapping is a second place for a row to go stale.
+   */
+  const letters = {
+    mayGenerate,
+    // the tier rule: a partner issues an A-tier job's letters, a CA the
+    // rest — the same ladder that signs the work off (P2-4)
+    mayIssue:
+      can(actor, "approve", "docGenerate", target) &&
+      (issuerFor(engagement.templateSnapshot?.level ?? "") !== "partner" ||
+        actor.role === "partner"),
+    templates: docTemplates.map((t) => ({
+      id: String(t._id),
+      name: t.name,
+      verified: Boolean(t.verifiedAt),
+    })),
+    docs: {
+      engagementId: String(engagement._id),
+      rows: generated.map((d) => ({
+        id: String(d._id),
+        /** Which template it came from; kept for letters made before 13-11-2026. */
+        templateId: d.templateId ? String(d.templateId) : "",
+        /** Which checklist row asked for it, which is how a row finds its own. */
+        checklistItemId: d.checklistItemId ? String(d.checklistItemId) : "",
+        name: d.templateName,
+        final: d.state === "final",
+        version: d.templateVersion,
+        udin: d.udin,
+        byName: d.createdBy === actor.id ? "you" : "a colleague",
+        issuedByName: d.issuedByName,
+        issuedOn: d.issuedAt ? formatISTDate(d.issuedAt) : "",
+        /** Somebody has written in this draft, so it no longer re-resolves. */
+        edited: Boolean(d.edited),
+        editedByName: d.editedByName ?? "",
+        /** Whether the client has actually been sent it, and where to. */
+        sentOn: d.sentAt ? formatISTDate(d.sentAt) : "",
+        sentTo: d.sentTo ?? [],
+        /** Sorts the Files tab's one list against the uploaded files. */
+        at: d.createdAt ? new Date(d.createdAt).toISOString() : "",
+      })),
+    },
+  };
+
   const mayWork = can(actor, "edit", "engagementsWork", target);
   const mayManage = can(actor, "edit", "engagementsCreate", {
     branchId: String(engagement.branchId),
   });
   const isReviewer = target.reviewerId === actor.id || actor.role === "partner";
+
+  /**
+   * Every move this status could make, each with its refusal or null (P3-8).
+   * Read twice — the head's status menu offers them, and the last step's
+   * own button asks this whether Completing is on the table — so it is
+   * computed once.
+   */
+  const moves = offeredStatuses(actor, {
+    status: engagement.status,
+    assigneeId: target.assigneeId,
+    reviewerId: target.reviewerId,
+    minReviewRole: engagement.templateSnapshot?.minReviewRole ?? "",
+    level: engagement.templateSnapshot?.level ?? "",
+  });
 
   const view = {
     id: String(engagement._id),
@@ -408,6 +515,8 @@ export default async function EngagementPage({ params, searchParams }) {
       done: t.done,
       // empty means the step inherits the service's own floor
       minRole: t.minRole || "",
+      /** Ordinary work, or `udin` — the step that carries the number. */
+      kind: t.kind || "",
       assigneeId: t.assigneeId ? String(t.assigneeId) : "",
       /** Who ticked it and when, which the stepper shows on a done step. */
       doneOn: t.doneAt ? formatISTDate(t.doneAt) : "",
@@ -426,6 +535,22 @@ export default async function EngagementPage({ params, searchParams }) {
        * single undivided list used to sit.
        */
       stepIndex: Number.isInteger(c.stepIndex) ? c.stepIndex : null,
+      /**
+       * What the row asks for: a document, a tick, a trip to another
+       * screen, or a letter from a template (12-11-2026). The link is
+       * resolved here — the screen it points at and the ids it needs are
+       * the server's business, not something a client component should be
+       * assembling out of strings.
+       */
+      kind: c.kind || "upload",
+      link:
+        c.kind === "link"
+          ? itemLink(c.linkTo, {
+              clientId: String(engagement.clientId),
+              engagementId: String(engagement._id),
+            })
+          : null,
+      docTemplateId: c.docTemplateId ? String(c.docTemplateId) : "",
       status: c.status,
       /** Which submission, why it went back, and what the client said (P3-2). */
       submissionCount: c.submissionCount ?? 0,
@@ -490,35 +615,39 @@ export default async function EngagementPage({ params, searchParams }) {
   );
 
   return (
-    <div className="mx-auto flex max-w-[1200px] flex-col gap-6 p-4 md:p-6">
+    <div className="mx-auto flex max-w-[1060px] flex-col gap-5 p-4 md:p-6">
       <OutsideView note={outside} />
-      <div className="flex flex-col gap-2">
-        <Link
-          href="/engagements"
-          className="text-13 text-ink-muted underline underline-offset-4"
-        >
-          Engagements
-        </Link>
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <div>
-            <h1 className="font-display text-24 font-bold tracking-tight">
+
+      <header className="flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-4">
+          <Link
+            href="/engagements"
+            className="text-13 text-ink-muted hover:text-ink"
+          >
+            ← Engagements
+          </Link>
+        </div>
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+          <div className="min-w-0">
+            <h1 className="font-display text-24 align-baseline font-bold tracking-tight">
               {view.service}
+              <StatusMenu id={view.id} status={view.status} moves={moves} />
             </h1>
-            <p className="text-13 text-ink-muted">
+            <p className="text-13 text-ink-muted mt-2">
               <Link
                 href={`/clients/${engagement.clientId}`}
-                className="underline underline-offset-4"
+                className="text-ink underline-offset-4 hover:underline"
               >
                 {client?.tradeName || client?.legalName}
               </Link>{" "}
-              · {view.periodLabel} ·{" "}
-              <span className="font-mono">{view.code}</span>
+              <TierBadge level={view.level} withLabel />· {view.periodLabel} ·{" "}
+              <span className="num">{view.code}</span>
               {view.book && can(actor, "view", "practice", target) && (
                 <>
                   {" · "}
                   <Link
                     href={`/practice/${view.book}`}
-                    className="underline underline-offset-4"
+                    className="underline-offset-4 hover:underline"
                   >
                     {BOOKS[view.book].title} register
                   </Link>
@@ -526,122 +655,103 @@ export default async function EngagementPage({ params, searchParams }) {
               )}
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <TierBadge level={view.level} withLabel />
-            <StatusChip status={view.status} />
-            {view.statutoryDue ? (
-              <DueChip
-                label="Statutory"
-                date={view.statutoryDue}
-                days={view.statutoryDueDays}
-              />
-            ) : (
-              /* "Statutory date: Step 7" was a note to whoever was
-                 building this, left on a screen the firm reads
-                 (QA 09-11-2026, #21 and #34). When there is a date it is
-                 shown above, in DD-MM-YYYY; when there is not, this says
-                 so and where one comes from. */
-              <span
-                title="A statutory date appears here once a partner has confirmed the due-date rule for this service in Settings → Due dates."
-                className="rounded-chip border-rule text-13 text-ink-muted border px-2 py-0.5"
-              >
-                No statutory date
-              </span>
-            )}
-            {view.internalDue && (
-              <DueChip
-                label="Internal"
-                date={view.internalDue}
-                days={view.internalDueDays}
-              />
-            )}
-          </div>
+          <Tabs
+            id={id}
+            tab={tab}
+            /*
+              The badges count what the tab now holds (owner,
+              13-11-2026). Files was badged with what the client still
+              owed, which was true of the checklist and is no longer
+              true of the tab: the checklist is on the step. Letters was
+              badged with every generated document, most of which had
+              never been sent.
+            */
+            badges={{
+              files:
+                documents.length + generated.length
+                  ? { value: documents.length + generated.length }
+                  : undefined,
+              letters: sentOut.length ? { value: sentOut.length } : undefined,
+            }}
+          />
         </div>
-      </div>
+
+        {/*
+          The dates, as one line. "Statutory date: Step 7" was a note to
+          whoever was building this, left on a screen the firm reads
+          (QA 09-11-2026, #21 and #34); when there is no date this says so
+          and where one comes from.
+        */}
+        <p className="text-13 text-ink-muted">
+          {view.statutoryDue ? (
+            <>
+              Statutory{" "}
+              <span className="num text-ink">{view.statutoryDue}</span>
+              {" · "}
+              <span className={dueTone(view.statutoryDueDays)}>
+                {dueWords(view.statutoryDueDays)}
+              </span>
+            </>
+          ) : (
+            <span title="A statutory date appears here once a partner has confirmed the due-date rule for this service in Settings → Due dates.">
+              No statutory date yet
+            </span>
+          )}
+          {view.internalDue && (
+            <>
+              {" · internal "}
+              <span className="num">{view.internalDue}</span>
+              {" · "}
+              <span className={dueTone(view.internalDueDays)}>
+                {dueWords(view.internalDueDays)}
+              </span>
+            </>
+          )}
+        </p>
+      </header>
 
       {/*
-        The tab bar, and the one line that has to survive tabbing away from
-        it.
+        The one line that has to survive tabbing away from the work.
 
         Splitting a page into tabs costs something: the thing you were not
         looking at is now invisible rather than merely further down. The
-        next action is the one piece that cannot afford that — it is what
-        orients somebody who has just opened the job — so it is stated
-        here, above the tabs, on every tab, as a sentence with no controls
-        on it. The controls stay on Work, where `EngagementWork` owns the
-        permission and the pending state; the same button twice on one
-        screen is what P3-8 set out to stop.
+        next action is the one piece that cannot afford that, so it is
+        stated here — but only on the tabs that are not Work, because on
+        Work it is inside the step card, under the name of the step it
+        belongs to, and the same sentence twice on one screen is what made
+        this page read as busy.
       */}
-      <div className="flex flex-col gap-2">
-        <Segmented
-          label="What to look at on this job"
-          variant="underline"
-          value={tab}
-          items={[
-            { key: "work", label: "Work", href: `/engagements/${id}` },
-            {
-              key: "files",
-              label: "Files",
-              href: `/engagements/${id}?tab=files`,
-              badge: view.checklistOutstanding
-                ? { value: view.checklistOutstanding, tone: "soon" }
-                : undefined,
-            },
-            {
-              key: "letters",
-              label: "Letters",
-              href: `/engagements/${id}?tab=letters`,
-              badge: generated.length ? { value: generated.length } : undefined,
-            },
-            {
-              key: "setup",
-              label: "Setup",
-              href: `/engagements/${id}?tab=setup`,
-            },
-            {
-              key: "activity",
-              label: "Activity",
-              href: `/engagements/${id}?tab=activity`,
-            },
-          ]}
-        />
-
-        {view.next && view.next.stance !== "done" && (
-          <p className="text-13 text-ink-muted">
-            <span className="text-ink font-medium">Next:</span> {view.next.text}
-            {tab !== "work" && (
-              <>
-                {" · "}
-                <Link
-                  href={`/engagements/${id}`}
-                  className="hover:text-carbon underline underline-offset-4"
-                >
-                  go to Work
-                </Link>
-              </>
-            )}
-          </p>
-        )}
-      </div>
+      {tab !== "work" && view.next && view.next.stance !== "done" && (
+        <p className="text-13 text-ink-muted">
+          <span className="text-ink font-medium">Next:</span> {view.next.text}
+          {" · "}
+          <Link
+            href={`/engagements/${id}`}
+            className="hover:text-carbon underline underline-offset-4"
+          >
+            go to Work
+          </Link>
+        </p>
+      )}
 
       <EngagementWork
         tab={tab}
         engagement={view}
-        moves={offeredStatuses(actor, {
-          status: engagement.status,
-          assigneeId: target.assigneeId,
-          reviewerId: target.reviewerId,
-          minReviewRole: engagement.templateSnapshot?.minReviewRole ?? "",
-          level: engagement.templateSnapshot?.level ?? "",
-        })}
+        moves={moves}
         canEditWork={mayWork && canEditWork(actor, engagement)}
         mayManage={mayManage}
         mayPrice={can(actor, "edit", "invoices", {
           branchId: String(engagement.branchId),
         })}
         isPartner={can(actor, "approve", "feeWriteOff")}
+        mayDelete={can(actor, "approve", "deleteRecord")}
         isReviewer={isReviewer}
         actorRole={actor.role}
+        // a `doc` row on the checklist drafts a letter, and the reviewer
+        // reads and corrects it on their own step: the same panel and the
+        // same permissions the Letters tab uses
+        mayGenerate={mayGenerate}
+        letters={letters}
         documents={documents.map((d) => ({
           id: String(d._id),
           name: d.name,
@@ -650,28 +760,33 @@ export default async function EngagementPage({ params, searchParams }) {
           checklistItemId: d.checklistItemId ? String(d.checklistItemId) : null,
           versions: (d.versions ?? []).length,
           uploadedByName: d.uploadedByName,
+          // whose paper it is: the Files tab's two sides read this
+          origin: d.origin === "firm" ? "firm" : "client",
+          // for the Files tab: one list, newest first, in words
+          uploadedOn: d.createdAt ? formatISTDate(d.createdAt) : "",
+          at: d.createdAt ? new Date(d.createdAt).toISOString() : "",
         }))}
         mayAttach={can(actor, "edit", "documents", target)}
-        team={team.map((u) => ({
-          id: String(u._id),
-          name: u.name,
-          role: u.role,
-        }))}
-      />
+        /*
+          The upload links we have given the client, as data rather than
+          as a rendered panel (owner-reported console error, 13-11-2026).
 
-      {/* --- asking the client for what is missing: Files ------------- */}
-      {tab === "files" && (
-        <RequestPanel
-          engagementId={view.id}
-          mayRequest={can(actor, "edit", "documents", target)}
-          outstanding={
-            (engagement.checklist ?? []).filter(
-              (item) =>
-                item.side === "client" &&
-                !["Received", "Verified"].includes(item.status),
-            ).length
-          }
-          requests={requests.map((r) => ({
+          It was `requestPanel={<RequestPanel …/>}`: an element built in
+          this server component, handed to a client component, and placed
+          by a third among its own children. React could not account for
+          where it came from and asked for a key on every render. An
+          element is not a prop worth passing anyway — the panel is a
+          client component, so the client component that draws it can
+          import it, and only its figures have to cross the boundary.
+        */
+        docRequests={{
+          mayRequest: can(actor, "edit", "documents", target),
+          outstanding: (engagement.checklist ?? []).filter(
+            (item) =>
+              item.side === "client" &&
+              !["Received", "Verified"].includes(item.status),
+          ).length,
+          requests: requests.map((r) => ({
             id: String(r._id),
             hint: r.tokenHint,
             items: (r.items ?? []).length,
@@ -679,66 +794,23 @@ export default async function EngagementPage({ params, searchParams }) {
             expiresAt: new Date(r.expiresAt).toISOString(),
             open: !r.revokedAt && new Date(r.expiresAt) > new Date(),
             revoked: Boolean(r.revokedAt),
-          }))}
-        />
-      )}
+          })),
+        }}
+        team={team.map((u) => ({
+          id: String(u._id),
+          name: u.name,
+          role: u.role,
+        }))}
+      />
 
       {/* --- things going out: Letters -------------------------------- */}
       {tab === "letters" && (
-        <>
-          <DocsPanel
-            templates={docTemplates.map((t) => ({
-              id: String(t._id),
-              name: t.name,
-              verified: Boolean(t.verifiedAt),
-            }))}
-            mayGenerate={mayGenerate}
-            // the tier rule: a partner issues an A-tier job's letters, a CA the
-            // rest — the same ladder that signs the work off (P2-4)
-            mayIssue={
-              can(actor, "approve", "docGenerate", target) &&
-              (issuerFor(engagement.templateSnapshot?.level ?? "") !==
-                "partner" ||
-                actor.role === "partner")
-            }
-            docs={{
-              engagementId: view.id,
-              rows: generated.map((d) => ({
-                id: String(d._id),
-                name: d.templateName,
-                final: d.state === "final",
-                version: d.templateVersion,
-                udin: d.udin,
-                byName: d.createdBy === actor.id ? "you" : "a colleague",
-                issuedByName: d.issuedByName,
-                issuedOn: d.issuedAt ? formatISTDate(d.issuedAt) : "",
-                /** Somebody has written in this draft, so it no longer re-resolves. */
-                edited: Boolean(d.edited),
-                editedByName: d.editedByName ?? "",
-                /** Whether the client has actually been sent it, and where to. */
-                sentOn: d.sentAt ? formatISTDate(d.sentAt) : "",
-                sentTo: d.sentTo ?? [],
-              })),
-            }}
-          />
-
-          {/*
-        Notify sits with the letters, not on its own tab: both are the
-        firm saying something to somebody, and a tab with one box on it is
-        a tab nobody clicks twice.
-      */}
-          <section className="rounded-ledger border-rule bg-surface flex flex-col gap-2 border p-4">
-            <div>
-              <h2 className="font-display text-15 font-semibold">Notify</h2>
-              <p className="text-13 text-ink-muted max-w-[70ch]">
-                One message, to the people on this job and to the client&rsquo;s
-                own contacts, in your words. You see exactly what each of them
-                will get before any of it is sent.
-              </p>
-            </div>
-            <NotifyPanel {...await notifyAudience(id)} id={id} />
-          </section>
-        </>
+        <LettersTab
+          engagementId={view.id}
+          sent={sentOut}
+          letters={letters}
+          notify={await notifyAudience(id)}
+        />
       )}
 
       {/* --- how it got here: Activity -------------------------------- */}

@@ -219,10 +219,17 @@ export default async function AppLayout({ children }) {
            * its diary, the issues table with four columns and an action —
            * and at 1280 the rail was taking width from the table rather
            * than from the window. The reference the owner gave is 1440.
+           *
+           * This is also the only scrolling element in the app, which makes it
+           * the one browser extensions that override smooth scrolling write an
+           * inline `scroll-behavior` onto before React hydrates. Its own
+           * attributes never change, so suppressing that one warning here
+           * hides nothing of ours.
            */}
           <main
             id="content"
             className="relative z-10 min-h-0 w-full max-w-[1440px] flex-1 self-center overflow-auto"
+            suppressHydrationWarning
           >
             {children}
           </main>

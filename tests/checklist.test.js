@@ -15,6 +15,7 @@ import {
   clientLabel,
   outstandingSummary,
   blockingItems,
+  rowForLetter,
   ACCEPTED,
   RECEIVED,
   FORMAT_CHECKED,
@@ -108,6 +109,39 @@ describe("a person accepts, not the format check", () => {
   it("refuses to accept twice", () => {
     const i = item();
     recordSubmission(i);
+    accept(i, ACTOR);
+    expect(accept(i, ACTOR).ok).toBe(false);
+  });
+
+  /**
+   * The rows that are not documents (12-11-2026).
+   *
+   * Nothing arrives for a tick, a link to the screen where the work really
+   * happens, or a letter the firm drafts from a template — so "nothing has
+   * arrived yet" made all three unsatisfiable. They sat Pending for ever
+   * and held their step shut, which is exactly what the kinds were added
+   * to fix.
+   */
+  it("settles a tick, a link and a letter with nothing uploaded", () => {
+    for (const kind of ["tick", "link", "doc"]) {
+      const i = item({ kind, side: "firm", status: "Pending" });
+      const out = accept(i, ACTOR);
+      expect(out.ok, kind).toBe(true);
+      expect(i.status).toBe(ACCEPTED);
+      expect(i.acceptedByName).toBe("Ritika Chandra");
+      expect(isSettled(i)).toBe(true);
+    }
+  });
+
+  it("still refuses a document with nothing uploaded", () => {
+    // the guard is narrowed to `upload`, not removed
+    const out = accept(item({ kind: "upload", status: "Pending" }), ACTOR);
+    expect(out.ok).toBe(false);
+    expect(out.error).toMatch(/nothing to accept/i);
+  });
+
+  it("will not tick one of them twice either", () => {
+    const i = item({ kind: "tick", side: "firm", status: "Pending" });
     accept(i, ACTOR);
     expect(accept(i, ACTOR).ok).toBe(false);
   });
@@ -286,6 +320,45 @@ describe("what the client is shown", () => {
     const i = item({ status: LEGACY_VERIFIED });
     expect(isSettled(i)).toBe(true);
     expect(clientLabel(i)).toBe("Received, thank you");
+  });
+});
+
+/**
+ * A letter closing the row that asked for it (12-11-2026).
+ *
+ * The row names a template and nothing else, so that is the match. The
+ * edge that matters is the empty id: a letter with no template must not
+ * settle every row that is not a letter.
+ */
+describe("the row a letter satisfies", () => {
+  const rows = [
+    item({ name: "Bank statements", kind: "upload", status: REQUESTED }),
+    item({ name: "Engagement letter", kind: "doc", docTemplateId: "t1" }),
+    item({ name: "Covering note", kind: "doc", docTemplateId: "t2" }),
+  ];
+
+  it("finds the row drafted from that template", () => {
+    expect(rowForLetter(rows, "t2").name).toBe("Covering note");
+  });
+
+  it("matches nothing when the letter names no template", () => {
+    expect(rowForLetter(rows, "")).toBe(null);
+    expect(rowForLetter(rows, null)).toBe(null);
+    expect(rowForLetter(rows, undefined)).toBe(null);
+  });
+
+  it("leaves a row somebody has already settled alone", () => {
+    const settled = rows.map((row) =>
+      row.docTemplateId === "t1" ? { ...row, status: ACCEPTED } : row,
+    );
+    expect(rowForLetter(settled, "t1")).toBe(null);
+  });
+
+  it("never settles an uploaded document", () => {
+    const uploads = [
+      item({ name: "Bank statements", kind: "upload", docTemplateId: "t1" }),
+    ];
+    expect(rowForLetter(uploads, "t1")).toBe(null);
   });
 });
 

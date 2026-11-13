@@ -24,6 +24,7 @@ import TierBadge from "@/components/ledger/TierBadge";
 import { AtRiskChip, DueChip, PriorityChip, StatusChip } from "./chips";
 import {
   bulkApprove,
+  bulkDelete,
   bulkInternalDue,
   bulkPriority,
   bulkReassign,
@@ -48,6 +49,8 @@ export default function EngagementViews({
   pageSize,
   showingAll,
   mayManage,
+  /** Partner only: `deleteRecord`. The server asks the same question. */
+  mayDelete = false,
   mayApprove = false,
   team,
   params,
@@ -190,6 +193,8 @@ export default function EngagementViews({
           }
           onDue={(date) => run((list) => bulkInternalDue(list, date))}
           onPriority={(p) => run((list) => bulkPriority(list, p))}
+          mayDelete={mayDelete}
+          onDelete={(why) => run((list) => bulkDelete(list, why))}
           onClear={() => setSelected(new Set())}
         />
       )}
@@ -239,10 +244,14 @@ function BulkBar({
   onReviewer,
   onDue,
   onPriority,
+  mayDelete,
+  onDelete,
   onClear,
 }) {
   const [status, setStatus] = useState("");
   const [reason, setReason] = useState("");
+  /** Why these jobs are being deleted — not the status reason above. */
+  const [binReason, setBinReason] = useState("");
 
   return (
     <section
@@ -384,6 +393,47 @@ function BulkBar({
           ))}
         </select>
       </label>
+
+      {/*
+        Deleting the selection, Partner only (owner, 12-11-2026).
+
+        A run of recurring work generated against the wrong period is a
+        list, not a record, so it is undone from the list. Each job still
+        goes through `deleteEngagement` on the server — its own refusals,
+        its own cascade, its own audit entry — and anything that will not
+        go names itself in the line above the bar.
+      */}
+      {mayDelete && (
+        <div className="border-rule flex w-full flex-wrap items-end gap-2 border-t pt-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-12 text-ink-muted">
+              Delete — reason (required)
+            </span>
+            <input
+              value={binReason}
+              onChange={(e) => setBinReason(e.target.value)}
+              placeholder="Generated for the wrong period"
+              className="rounded-control border-rule bg-paper text-14 h-9 w-72 max-w-full border px-2"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={!binReason.trim() || pending}
+            title={
+              binReason.trim()
+                ? "Each job goes with its files, letters and time entries, all recorded."
+                : "Type a reason first"
+            }
+            onClick={() => {
+              onDelete(binReason);
+              setBinReason("");
+            }}
+            className="rounded-control border-rule text-14 hover:bg-redpen-wash hover:text-redpen h-9 border px-3 disabled:opacity-60"
+          >
+            Delete {count}
+          </button>
+        </div>
+      )}
     </section>
   );
 }

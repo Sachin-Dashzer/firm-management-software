@@ -9,6 +9,9 @@ import {
   RECURRENCES,
   EXEC_ROLES,
   REVIEW_ROLES,
+  ITEM_KINDS,
+  ITEM_LINK_KEYS,
+  STEP_KINDS,
 } from "../lib/services/catalog.js";
 
 /**
@@ -56,6 +59,30 @@ const checklistItemSchema = new mongoose.Schema(
      * when steps move, and anything out of range falls back to `null`.
      */
     stepIndex: { type: Number, default: null, min: 0 },
+
+    /**
+     * What the row asks somebody to do (owner request, 12-11-2026).
+     *
+     * `upload` is a document: a file arrives and a person accepts it, which
+     * is what every row written before this field meant — so the default
+     * keeps every service and every job already created exactly as it was.
+     *
+     * The other three are the rows the firm was writing as documents and
+     * nobody could ever satisfy: `tick` for something to confirm, `link`
+     * for work done on another screen, `doc` for a letter drafted from one
+     * of the firm's own templates. See `ITEM_KINDS` for why.
+     */
+    kind: { type: String, enum: ITEM_KINDS, default: "upload" },
+
+    /** For `link` only: which screen, by key from `ITEM_LINKS`. */
+    linkTo: { type: String, enum: ["", ...ITEM_LINK_KEYS], default: "" },
+
+    /** For `doc` only: which letter template the job drafts from. */
+    docTemplateId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "DocTemplate",
+      default: null,
+    },
   },
   { _id: true },
 );
@@ -70,6 +97,16 @@ const stepSchema = new mongoose.Schema(
      * which is what every step did before this field existed.
      */
     minRole: { type: String, enum: ["", ...EXEC_ROLES], default: "" },
+
+    /**
+     * Ordinary work, or the UDIN step (owner request, 12-11-2026).
+     *
+     * `udin` is the step that carries the number: the question, the way into
+     * the register, and the refusal to close until a number is recorded. It
+     * is also how `udinRequired` below is now decided, so a service says
+     * *when* the UDIN is wanted rather than only that it is.
+     */
+    kind: { type: String, enum: STEP_KINDS, default: "" },
   },
   { _id: true },
 );
@@ -118,6 +155,16 @@ const serviceTemplateSchema = new mongoose.Schema(
     defaultFeePaise: { type: Number, default: 0, min: 0 },
     gstRate: { type: Number, default: 18, min: 0, max: 28 },
 
+    /**
+     * **Derived, not chosen** (owner request, 12-11-2026).
+     *
+     * It used to be a checkbox in the billing defaults, miles from the work
+     * it described: it said a number would be demanded at completion and
+     * never said at which point in the job anybody was supposed to get one.
+     * Now `saveService` writes it from the steps — true exactly when one of
+     * them is the UDIN step — and the field stays because the completion
+     * gate, the reviewer's checklist and the certificate rules all read it.
+     */
     udinRequired: { type: Boolean, default: false },
 
     /**

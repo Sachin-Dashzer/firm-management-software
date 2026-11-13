@@ -5,6 +5,7 @@ import User from "../models/User.js";
 import { connectDB } from "../lib/db.js";
 import { systemAudit } from "../lib/audit/system.js";
 import { recordAudit, ACTIONS } from "../lib/audit/index.js";
+import GeneratedDoc from "../models/GeneratedDoc.js";
 import { quotationToClient } from "../lib/mailer/events.js";
 
 /**
@@ -27,9 +28,11 @@ import { quotationToClient } from "../lib/mailer/events.js";
  * @param {string} payload.clientId
  * @param {string} payload.actorId   who onboarded them
  * @param {{lines: string[], totalLine: string, unpriced: number}} payload.quote
+ * @param {Array<object>} [payload.attachments] the pack, already rendered
+ * @param {string} [payload.attachedLine] what the email says is attached
+ * @param {string} [payload.documentsLine] what we still need, and the link
+ * @param {string[]} [payload.docIds] the GeneratedDocs to stamp as sent
  */
-
-
 
 export async function quotationJob(payload = {}) {
   await connectDB();
@@ -39,7 +42,15 @@ export async function quotationJob(payload = {}) {
     .lean();
   if (!client) return { skipped: "that client no longer exists" };
 
-  if (!payload.quote?.lines?.length) return { skipped: "nothing to quote" };
+  const pack = {
+    attachments: payload.attachments,
+    attachedLine: payload.attachedLine,
+    documentsLine: payload.documentsLine,
+  };
+
+  if (!payload.quote?.lines?.length && !pack.attachments?.length) {
+    return { skipped: "nothing to send" };
+  }
 
   // the quotation is signed by the person who took them on, not by "the
   // system": the client reads a name they have spoken to
@@ -56,10 +67,39 @@ export async function quotationJob(payload = {}) {
       payload.quote,
       { id: payload.actorId, name: actor?.name ?? "The team" },
       session,
+      pack,
     );
     sent = outcome.sent;
     error = outcome.error ?? "";
     if (!outcome.sent.length) return;
+
+    /*
+     * The letters are only `sent` once the post room has them. The
+     * records were written when the pack was built, so this is the
+     * half that was not knowable then: who it went to, and when.
+     */
+    for (const id of payload.docIds ?? []) {
+      const doc = await GeneratedDoc.findById(id).session(session);
+      if (!doc || doc.sentAt) continue;
+      doc.sentAt = new Date();
+      doc.sentBy = payload.actorId ?? null;
+      doc.sentByName = actor?.name ?? "";
+      doc.sentTo = outcome.sent;
+      await doc.save({ session });
+    }
+
+    const lines = payload.quote?.lines?.length ?? 0;
+    const posted = [
+      lines
+        ? `the fees for ${lines} ${lines === 1 ? "service" : "services"}`
+        : "",
+      payload.attachments?.length
+        ? `${payload.attachments.length} attached ${payload.attachments.length === 1 ? "paper" : "papers"}`
+        : "",
+      payload.documentsLine ? "the list of what we still need" : "",
+    ]
+      .filter(Boolean)
+      .join(", ");
 
     await recordAudit(
       {
@@ -67,9 +107,7 @@ export async function quotationJob(payload = {}) {
         entityType: "Client",
         entityId: client._id,
         clientId: client._id,
-        note: `Quotation for ${payload.quote.lines.length} ${
-          payload.quote.lines.length === 1 ? "service" : "services"
-        } emailed to ${outcome.sent.join(", ")}`,
+        note: `Welcome pack (${posted}) emailed to ${outcome.sent.join(", ")}`,
       },
       session,
     );

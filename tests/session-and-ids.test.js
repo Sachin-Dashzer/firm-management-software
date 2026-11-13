@@ -24,6 +24,20 @@ describe("an id out of a URL (#7)", () => {
   });
 
   /**
+   * A form's own sentinel is untrusted input too (12-11-2026).
+   *
+   * The new-engagement form offers "Other — not in the catalog" with the
+   * id `other`, and the prefill action handed it straight to Mongoose:
+   * picking that option answered a `CastError` 500 on
+   * `ClientService.findOne`. `subscriptionDefaults` asks this first now —
+   * a one-off job has no subscription to prefill from, which is the same
+   * answer as a client who never subscribed.
+   */
+  it("rejects a form sentinel that is not an id", () => {
+    expect(isId("other")).toBe(false);
+  });
+
+  /**
    * An id of the right shape belonging to nothing is a different case: it
    * casts cleanly, matches nothing, and reaches the not-found page from the
    * `if (!doc) notFound()` each route already has.

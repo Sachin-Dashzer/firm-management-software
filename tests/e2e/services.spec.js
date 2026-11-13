@@ -23,9 +23,13 @@ const EMAIL = "playwright-services@phmgindia.test";
 const EMPLOYEE_EMAIL = "playwright-services-staff@phmgindia.test";
 const PASSWORD = "test-password-not-real";
 const CODE = "PW-TEST";
+const UDIN_CODE = "PW-UDIN";
 
 async function cleanUp() {
-  await ServiceTemplate.deleteMany({ code: CODE }, { withDeleted: true });
+  await ServiceTemplate.deleteMany(
+    { code: { $in: [CODE, UDIN_CODE] } },
+    { withDeleted: true },
+  );
   await User.deleteMany({ email: { $in: [EMAIL, EMPLOYEE_EMAIL] } });
 }
 
@@ -81,26 +85,19 @@ test("add a service, edit it, and archive it", async ({ page }) => {
   await page.getByLabel("Recurrence").selectOption("quarterly");
   await page.getByLabel("Turnaround (working days)").fill("7");
 
-  // one checklist row and one step
+  // one step, and one thing that step needs
+  await page.getByRole("button", { name: "Start with one blank step" }).click();
   await page
-    .locator("section")
-    .filter({ hasText: "Checklist" })
-    .getByRole("button", { name: "Add a row" })
+    .getByRole("textbox", { name: "Step 1 name", exact: true })
+    .fill("Collect data");
+  await page
+    .getByRole("button", { name: "Add something this step needs" })
     .click();
   await page
-    .getByRole("textbox", { name: "Checklist item 1", exact: true })
+    .getByRole("textbox", { name: "Step 1 item 1", exact: true })
     .fill("Bank statements");
 
-  await page
-    .locator("section")
-    .filter({ hasText: "Steps" })
-    .getByRole("button", { name: "Add a row" })
-    .click();
-  await page
-    .getByRole("textbox", { name: "Steps item 1", exact: true })
-    .fill("Collect data");
-
-  await page.getByRole("button", { name: "Add service" }).click();
+  await page.getByRole("button", { name: "Create this service" }).click();
   await expect(page).toHaveURL(/\/settings\/services$/);
   await expect(page.getByText("Playwright test service")).toBeVisible();
 
@@ -129,12 +126,10 @@ test("add a service, edit it, and archive it", async ({ page }) => {
   // a checklist change redefines the work: version 2
   await page.goto(`/settings/services/${created._id}`);
   await page
-    .locator("section")
-    .filter({ hasText: "Checklist" })
-    .getByRole("button", { name: "Add a row" })
+    .getByRole("button", { name: "Add something this step needs" })
     .click();
   await page
-    .getByRole("textbox", { name: "Checklist item 2", exact: true })
+    .getByRole("textbox", { name: "Step 1 item 2", exact: true })
     .fill("Purchase register");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page).toHaveURL(/\/settings\/services$/);
@@ -154,17 +149,68 @@ test("a duplicate code is refused", async ({ page }) => {
   await gotoForm(page, "/settings/services/new");
   await page.getByLabel("Name").fill("Another service");
   await page.getByLabel("Code", { exact: true }).fill(CODE);
+  await page.getByRole("button", { name: "Start with one blank step" }).click();
   await page
-    .locator("section")
-    .filter({ hasText: "Steps" })
-    .getByRole("button", { name: "Add a row" })
-    .click();
-  await page
-    .getByRole("textbox", { name: "Steps item 1", exact: true })
+    .getByRole("textbox", { name: "Step 1 name", exact: true })
     .fill("Do the work");
-  await page.getByRole("button", { name: "Add service" }).click();
+  await page.getByRole("button", { name: "Create this service" }).click();
 
   await expect(alertBox(page)).toContainText("already used");
+});
+
+/**
+ * What a step and a row *are* (owner request, 12-11-2026).
+ *
+ * The two halves of the same change, checked where they meet: a step marked
+ * as the UDIN step is what makes the service one that needs a UDIN — there
+ * is no checkbox for that any more — and a row can be a tick or a link
+ * rather than a document nobody will ever upload.
+ */
+test("a UDIN step decides the service's UDIN rule", async ({ page }) => {
+  await signIn(page, EMAIL);
+
+  await gotoForm(page, "/settings/services/new");
+  await page.getByLabel("Name").fill("Playwright UDIN service");
+  await page.getByLabel("Code", { exact: true }).fill(UDIN_CODE);
+  await page.getByLabel("Category").selectOption("Certification");
+
+  // the UDIN is not asked for anywhere but on a step
+  await expect(page.getByLabel(/A UDIN is required/)).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Start with one blank step" }).click();
+  await page
+    .getByRole("textbox", { name: "Step 1 name", exact: true })
+    .fill("Prepare the working");
+  await page.getByRole("button", { name: "Add a step" }).click();
+  await page
+    .getByRole("textbox", { name: "Step 2 name", exact: true })
+    .fill("Generate UDIN");
+  await page
+    .getByLabel("What kind of step 2 is", { exact: true })
+    .selectOption("udin");
+  await expect(page.getByText(/stops here until a UDIN/)).toBeVisible();
+
+  // a tick on step one: no file, so no "who provides it" question either
+  await page
+    .getByRole("button", { name: "Add something this step needs" })
+    .first()
+    .click();
+  await page
+    .getByRole("textbox", { name: "Step 1 item 1", exact: true })
+    .fill("Confirm the purpose with the client");
+  await page
+    .getByLabel("Step 1 item 1: what kind of thing it is", { exact: true })
+    .selectOption("tick");
+
+  await page.getByRole("button", { name: "Create this service" }).click();
+  await expect(page).toHaveURL(/\/settings\/services$/);
+
+  const made = await ServiceTemplate.findOne({ code: UDIN_CODE });
+  expect(made.steps[1].kind).toBe("udin");
+  // derived from the step, not from a box anybody ticked
+  expect(made.udinRequired).toBe(true);
+  expect(made.checklist[0].kind).toBe("tick");
+  expect(made.checklist[0].side).toBe("firm");
 });
 
 test("an employee can read the catalog but cannot change it", async ({

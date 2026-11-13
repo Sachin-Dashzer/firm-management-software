@@ -4,6 +4,7 @@ import { can } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import ServiceTemplate from "@/models/ServiceTemplate";
 import ServiceForm from "../ServiceForm";
+import { letterTemplates } from "../templates";
 import SettingsScreen from "../../Shell";
 import { isId } from "@/lib/routes/id";
 
@@ -56,10 +57,15 @@ export default async function EditServicePage({ params }) {
         c.stepIndex < (doc.steps ?? []).length
           ? c.stepIndex
           : null,
+      /** What the row asks for; anything older than the field is a document. */
+      kind: c.kind ?? "upload",
+      linkTo: c.linkTo ?? "",
+      docTemplateId: c.docTemplateId ? String(c.docTemplateId) : "",
     })),
     steps: (doc.steps ?? []).map((s) => ({
       name: s.name,
       minRole: s.minRole ?? "",
+      kind: s.kind ?? "",
     })),
   };
 
@@ -73,8 +79,9 @@ export default async function EditServicePage({ params }) {
         </>
       }
       back={{ href: "/settings/services", label: "Services" }}
+      wide
     >
-      <ServiceForm service={service} />
+      <ServiceForm service={service} docTemplates={await letterTemplates()} />
     </SettingsScreen>
   );
 }

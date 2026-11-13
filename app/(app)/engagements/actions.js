@@ -23,6 +23,9 @@ import Engagement from "@/models/Engagement";
 import ServiceTemplate from "@/models/ServiceTemplate";
 import ClientService from "@/models/ClientService";
 import Client from "@/models/Client";
+import Invoice from "@/models/Invoice";
+import Udin from "@/models/Udin";
+import { cascadeSoftDelete, OF_ENGAGEMENT } from "@/lib/cascade";
 import ClientAccess from "@/models/ClientAccess";
 import Branch from "@/models/Branch";
 import Comment from "@/models/Comment";
@@ -32,6 +35,7 @@ import { buildEngagement } from "@/lib/engagements/create";
 import { checkAssignment, roleName, stepFloor } from "@/lib/engagements/assign";
 import { nextEngagementCode } from "@/lib/engagements/code";
 import { stepBlock } from "@/lib/engagements/steps";
+import { isId } from "@/lib/routes/id";
 import {
   recordFiling,
   correctFiling,
@@ -1574,6 +1578,83 @@ async function signingMember(actor, memberId) {
   return { id, membershipNo: person.icai?.membershipNo ?? "" };
 }
 
+/**
+ * Delete a job, Partner only (owner, 12-11-2026).
+ *
+ * The owner's case is the ordinary one: a job created against the wrong
+ * client or the wrong period, noticed an hour later. Cancelling it keeps it
+ * on every list for ever, so there is a delete — a **soft** one
+ * (CLAUDE.md rule 3), with its reason, and it takes the job's own files,
+ * letters, document requests, time entries and comments with it rather than
+ * leaving them pointing at a job nobody can open.
+ *
+ * It refuses twice, for the two records that are not the firm's to erase: a
+ * UDIN on the statutory register, and an invoice that has gone out to the
+ * client. Both have to be dealt with on their own terms first.
+ *
+ * @param {string} id
+ * @param {string} reason
+ */
+export async function deleteEngagement(id, reason) {
+  const actor = await requireUser();
+  assertCan(actor, "approve", "deleteRecord");
+  if (!String(reason ?? "").trim()) {
+    return { error: "Give a reason for deleting this job." };
+  }
+
+  await connectDB();
+  const engagement = await Engagement.findById(id);
+  if (!engagement) return { error: "That job no longer exists." };
+
+  const udin = await Udin.findOne({ engagementId: id }).select("udin").lean();
+  if (udin || (engagement.udin ?? "").trim()) {
+    return {
+      error: `UDIN ${udin?.udin || engagement.udin} is recorded against this job. The UDIN register is a statutory record — cancel the job instead, so the number keeps its file.`,
+    };
+  }
+
+  const billed = await Invoice.findOne({
+    "lines.engagementId": id,
+    status: { $nin: ["Draft", "Cancelled"] },
+  })
+    .select("number")
+    .lean();
+  if (billed) {
+    return {
+      error: `This job is billed on invoice ${billed.number}, which has gone out. Cancel or credit-note the invoice first, or cancel the job instead.`,
+    };
+  }
+
+  let went = [];
+  await audited(actor, async (session) => {
+    went = await cascadeSoftDelete(OF_ENGAGEMENT, [id], actor.id, session);
+    engagement.deletedAt = new Date();
+    engagement.deletedBy = actor.id;
+    engagement.updatedBy = actor.id;
+    await engagement.save({ session });
+    await recordAudit(
+      {
+        action: ACTIONS.softDelete,
+        entityType: "Engagement",
+        entityId: engagement._id,
+        clientId: engagement.clientId,
+        note: went.length
+          ? `${String(reason).trim()} — and with it ${went.join(", ")}`
+          : String(reason).trim(),
+      },
+      session,
+    );
+  });
+
+  revalidatePath("/engagements");
+  revalidatePath(`/clients/${engagement.clientId}`);
+  return {
+    ok: went.length
+      ? `${engagement.code} deleted, and with it ${went.join(", ")}.`
+      : `${engagement.code} deleted.`,
+  };
+}
+
 /** Priority and tags: small edits that do not move the pipeline. */
 export async function setPriority(id, priority) {
   const actor = await requireUser();
@@ -2163,10 +2244,20 @@ export async function removeClientService(clientId, id) {
   return { ok: "Service removed. Existing engagements are untouched." };
 }
 
-/** Used by the create form to prefill from the client's subscription. */
+/**
+ * Used by the create form to prefill from the client's subscription.
+ *
+ * **Neither id is trusted to be one.** The form's service list carries a
+ * sentinel — `other`, the one-off job that is not in the catalog — and
+ * handing that to Mongoose threw a `CastError` 500 the moment anybody
+ * picked it. A one-off has no subscription by definition, and nor has any
+ * other string somebody posts at this action: there is nothing to prefill,
+ * which is exactly what "no subscription" already means here.
+ */
 export async function subscriptionDefaults(clientId, serviceTemplateId) {
   const actor = await requireUser();
   if (!can(actor, "view", "engagementsWork")) return null;
+  if (!isId(clientId) || !isId(serviceTemplateId)) return null;
 
   await connectDB();
   const found = await ClientService.findOne({
@@ -2268,6 +2359,28 @@ export async function bulkInternalDue(ids, date) {
 export async function bulkPriority(ids, priority) {
   await requireUser();
   return runBulk(ids, (id) => setPriority(id, priority), `set to ${priority}`);
+}
+
+/**
+ * Delete a batch of jobs, Partner only (owner, 12-11-2026).
+ *
+ * The owner's case is a run of recurring work generated against the wrong
+ * period, which is a list and not one record. Each one goes through
+ * `deleteEngagement`, so each gets its own refusals, its own cascade and
+ * its own audit entry — the batch is a convenience over the single delete
+ * and never a second rule. One reason covers the batch, which is how the
+ * mistake happened in the first place.
+ *
+ * @param {string[]} ids
+ * @param {string} reason
+ */
+export async function bulkDelete(ids, reason) {
+  const actor = await requireUser();
+  assertCan(actor, "approve", "deleteRecord");
+  if (!String(reason ?? "").trim()) {
+    return { error: "Give a reason for deleting these jobs." };
+  }
+  return runBulk(ids, (id) => deleteEngagement(id, reason), "deleted");
 }
 
 /**

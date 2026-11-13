@@ -7,7 +7,7 @@
  * on colour alone.
  */
 
-const STATUS_TONE = {
+export const STATUS_TONE = {
   Scheduled: "border-rule text-ink-muted",
   "Awaiting documents": "border-waiting bg-waiting-wash text-waiting",
   "In progress": "border-carbon bg-carbon-wash text-carbon",
@@ -30,6 +30,25 @@ export function StatusChip({ status }) {
   );
 }
 
+/**
+ * How a deadline reads in words, and the ink it reads in.
+ *
+ * Both were written inside `DueChip`. The engagement screen's head says the
+ * same thing as a line of text rather than as a chip (13-11-2026), and two
+ * copies of "3 days left" would be two places for the arithmetic to drift.
+ */
+export function dueWords(days) {
+  if (days < 0)
+    return `${Math.abs(days)} ${Math.abs(days) === 1 ? "day" : "days"} overdue`;
+  if (days === 0) return "today";
+  return `${days} ${days === 1 ? "day" : "days"} left`;
+}
+
+/** Red once it is past, amber on the last three days, otherwise quiet. */
+export function dueTone(days) {
+  return days < 0 ? "text-redpen" : days <= 3 ? "text-waiting" : "text-filed";
+}
+
 /** Days remaining, coloured green / amber / red (spec section 5). */
 export function DueChip({ label, date, days }) {
   const tone =
@@ -39,16 +58,9 @@ export function DueChip({ label, date, days }) {
         ? "border-waiting bg-waiting-wash text-waiting"
         : "border-filed bg-filed-wash text-filed";
 
-  const when =
-    days < 0
-      ? `${Math.abs(days)} ${Math.abs(days) === 1 ? "day" : "days"} overdue`
-      : days === 0
-        ? "today"
-        : `${days} ${days === 1 ? "day" : "days"} left`;
-
   return (
     <span className={`rounded-chip text-13 border px-2 py-0.5 ${tone}`}>
-      {label} {date} · {when}
+      {label} {date} · {dueWords(days)}
     </span>
   );
 }

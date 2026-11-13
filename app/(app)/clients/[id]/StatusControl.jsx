@@ -18,6 +18,13 @@ export default function StatusControl({ clientId, status, canApprove }) {
   const [pending, startTransition] = useTransition();
 
   const reasonNeeded = ["On hold", "Closed"].includes(next);
+  /**
+   * The reason box used to appear only for On hold and Closed, which left a
+   * partner having to pick a status they did not want before the Delete
+   * button below would unlock (owner, 12-11-2026). It is the same box for
+   * both, so a partner always gets it.
+   */
+  const showReason = reasonNeeded || canApprove;
 
   return (
     <div className="relative">
@@ -27,7 +34,8 @@ export default function StatusControl({ clientId, status, canApprove }) {
         aria-expanded={open}
         className="rounded-control border-rule text-14 hover:bg-carbon-wash h-9 border px-3"
       >
-        Change status
+        {/* a partner's delete lives in here, so the button says so */}
+        {canApprove ? "Status or delete" : "Change status"}
       </button>
 
       {open && (
@@ -49,10 +57,10 @@ export default function StatusControl({ clientId, status, canApprove }) {
             </select>
           </label>
 
-          {reasonNeeded && (
+          {showReason && (
             <label className="mt-2 flex flex-col gap-1">
               <span className="text-13 text-ink-muted font-medium">
-                Reason (required)
+                Reason {reasonNeeded ? "(required)" : "(required to delete)"}
               </span>
               <input
                 value={reason}
@@ -61,6 +69,15 @@ export default function StatusControl({ clientId, status, canApprove }) {
                 className="rounded-control border-rule bg-paper text-14 h-9 border px-2"
               />
             </label>
+          )}
+
+          {canApprove && (
+            <p className="text-12 text-ink-muted mt-2">
+              Deleting takes the client&rsquo;s jobs, files, invoices,
+              credentials and portal users with it, all recoverable from the
+              audit trail. It is refused if an invoice has already gone out or a
+              UDIN is on the register — use Closed for those.
+            </p>
           )}
 
           {next === "Active" && (

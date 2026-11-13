@@ -51,6 +51,14 @@ export default async function ClientHome() {
       checklist: {
         $elemMatch: {
           side: "client",
+          /**
+           * A document, and nothing else (12-11-2026). A row that is a tick
+           * or a trip to one of our own screens is the firm's work even
+           * when it concerns the client — listing it here would read as a
+           * demand for a file that does not exist. `null` matches the rows
+           * written before the field, every one of which was a document.
+           */
+          kind: { $in: [null, "upload"] },
           // "Replacement requested" is a thing we are waiting for too, and
           // the one most worth showing — it comes with a reason (P3-2)
           status: {
@@ -74,6 +82,7 @@ export default async function ClientHome() {
       .filter(
         (item) =>
           item.side === "client" &&
+          (item.kind ?? "upload") === "upload" &&
           ["Pending", "Requested", "Replacement requested"].includes(
             item.status,
           ),

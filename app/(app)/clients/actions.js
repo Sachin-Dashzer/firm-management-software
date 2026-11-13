@@ -18,6 +18,9 @@ import { readClientForm, clientUpdate } from "@/lib/clients/form";
 import { findDuplicates } from "@/lib/clients/duplicates";
 import { nextClientCode } from "@/lib/clients/code";
 import { CONTACT_CHANNELS, PORTALS } from "@/lib/validators";
+import Invoice from "@/models/Invoice";
+import Udin from "@/models/Udin";
+import { cascadeSoftDelete, OF_CLIENT } from "@/lib/cascade";
 
 /**
  * Everything that changes a client.
@@ -233,7 +236,16 @@ export async function setClientStatus(clientId, status, reason = "") {
   return { ok: `Status changed to ${value.status}.` };
 }
 
-/** Soft delete, Partner only (spec section 2). */
+/**
+ * Soft delete, Partner only (spec section 2) — and it now takes the client's
+ * jobs, files, invoices and the rest of `OF_CLIENT` with it (owner,
+ * 12-11-2026). Leaving them behind left live work on the queues pointing at
+ * a client nobody could open.
+ *
+ * Two refusals stand in the way, both because the record is not the firm's
+ * to erase: an invoice that has gone out is a GST document, and a UDIN is a
+ * statutory number. Deal with those first, or put the client on Closed.
+ */
 export async function deleteClient(clientId, reason) {
   const actor = await requireUser();
   assertCan(actor, "approve", "deleteRecord");
@@ -245,7 +257,28 @@ export async function deleteClient(clientId, reason) {
   const client = await Client.findById(clientId);
   if (!client) return { error: "That client no longer exists." };
 
+  const issued = await Invoice.findOne({
+    clientId,
+    status: { $nin: ["Draft", "Cancelled"] },
+  })
+    .select("number")
+    .lean();
+  if (issued) {
+    return {
+      error: `Invoice ${issued.number} has gone out to this client, so the client cannot be deleted. Cancel or credit-note it first, or set the client to Closed instead.`,
+    };
+  }
+
+  const udin = await Udin.findOne({ clientId }).select("udin").lean();
+  if (udin) {
+    return {
+      error: `UDIN ${udin.udin} is recorded against this client. The UDIN register is a statutory record — set the client to Closed instead.`,
+    };
+  }
+
+  let went = [];
   await audited(actor, async (session) => {
+    went = await cascadeSoftDelete(OF_CLIENT, [clientId], actor.id, session);
     client.deletedAt = new Date();
     client.deletedBy = actor.id;
     await client.save({ session });
@@ -255,14 +288,22 @@ export async function deleteClient(clientId, reason) {
         entityType: "Client",
         entityId: clientId,
         clientId,
-        note: String(reason).trim(),
+        note: went.length
+          ? `${String(reason).trim()} — and with it ${went.join(", ")}`
+          : String(reason).trim(),
       },
       session,
     );
   });
 
   revalidatePath("/clients");
-  return { ok: `${client.legalName} moved to the recycle bin.` };
+  revalidatePath("/engagements");
+  revalidatePath("/invoices");
+  return {
+    ok: went.length
+      ? `${client.legalName} deleted, and with it ${went.join(", ")}.`
+      : `${client.legalName} moved to the recycle bin.`,
+  };
 }
 
 // --- notes and the communication log (spec section 3) ----------------------

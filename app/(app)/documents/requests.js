@@ -56,6 +56,14 @@ export async function createDocRequest(engagementId, options = {}) {
     (item) =>
       item.side === "client" &&
       /**
+       * A document, and nothing else (12-11-2026). A row that is a tick, a
+       * link to another screen or a letter the firm drafts has no upload
+       * behind it — asking the client to send one would be asking for
+       * something that does not exist, and the upload page has nowhere to
+       * put it.
+       */
+      (item.kind ?? "upload") === "upload" &&
+      /**
        * Outstanding means not settled and not already arrived (P3-2).
        * `Replacement requested` is outstanding — it is the case most worth
        * re-asking for — while `Accepted`, `Not required`, `Received` and

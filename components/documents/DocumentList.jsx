@@ -5,6 +5,7 @@ import {
   deleteDocument,
   linkToDocument,
 } from "../../app/(app)/documents/actions";
+import Uploader from "./Uploader";
 
 /**
  * The files attached to something, with preview, download and delete
@@ -26,11 +27,26 @@ const PREVIEWABLE = [
 export default function DocumentList({
   documents,
   mayDelete = false,
+  /**
+   * May this person correct a file in place (owner, 13-11-2026)?
+   *
+   * A PDF cannot be edited in a browser, so **Edit** means what it has
+   * always meant in the vault: a corrected copy goes up and the one it
+   * replaces stays behind it as a version. `confirmUpload` has taken
+   * `replacesId` since the vault was built; this is the button for it.
+   *
+   * It needs `engagementId` or `clientId` to know where the new file may
+   * go — the same check the first upload passed.
+   */
+  mayReplace = false,
+  engagementId,
+  clientId,
   onChange,
   empty = "Nothing attached yet.",
 }) {
   const [message, setMessage] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [replacing, setReplacing] = useState(null);
   const [pending, startTransition] = useTransition();
 
   function open(document, inline) {
@@ -86,7 +102,7 @@ export default function DocumentList({
                   onClick={() => open(d, true)}
                   className="underline underline-offset-4 disabled:opacity-60"
                 >
-                  Preview
+                  View
                 </button>
               )}
               <button
@@ -97,6 +113,17 @@ export default function DocumentList({
               >
                 Download
               </button>
+              {mayReplace && (
+                <button
+                  type="button"
+                  disabled={pending}
+                  aria-expanded={replacing === d.id}
+                  onClick={() => setReplacing(replacing === d.id ? null : d.id)}
+                  className="underline underline-offset-4 disabled:opacity-60"
+                >
+                  {replacing === d.id ? "Cancel" : "Edit"}
+                </button>
+              )}
               {mayDelete && (
                 <button
                   type="button"
@@ -114,6 +141,27 @@ export default function DocumentList({
                 </button>
               )}
             </span>
+
+            {replacing === d.id && (
+              <div className="rounded-ledger border-carbon bg-carbon-wash mt-1 flex w-full flex-col gap-1 border p-3">
+                <p className="text-12 text-ink-muted max-w-[72ch]">
+                  Put the corrected file up and it becomes the current one.
+                  Nothing is lost — this copy stays behind it as a version, and
+                  the change is on the job&rsquo;s record.
+                </p>
+                <Uploader
+                  engagementId={engagementId}
+                  clientId={clientId}
+                  replacesId={d.id}
+                  origin={d.origin === "firm" ? "firm" : "client"}
+                  label="Choose the corrected file"
+                  onDone={() => {
+                    setReplacing(null);
+                    onChange?.();
+                  }}
+                />
+              </div>
+            )}
           </li>
         ))}
       </ul>

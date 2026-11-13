@@ -37,6 +37,15 @@ const taskSchema = new mongoose.Schema(
      * P2-4 has.
      */
     minRole: { type: String, default: "" },
+    /**
+     * Ordinary work, or `udin` — the step that carries the UDIN, snapshotted
+     * from the template's step like everything else here (12-11-2026).
+     *
+     * A string rather than the catalog's enum on purpose: the enum is the
+     * catalog's business, and a job already under way must not fail to save
+     * because the firm retired a kind of step last month.
+     */
+    kind: { type: String, default: "" },
     done: { type: Boolean, default: false },
     doneAt: { type: Date, default: null },
     doneBy: { type: String, default: null },
@@ -91,6 +100,27 @@ const checklistItemSchema = new mongoose.Schema(
      * step one, where the single undivided checklist effectively lived.
      */
     stepIndex: { type: Number, default: null, min: 0 },
+
+    /**
+     * What the row asks somebody to do, snapshotted from the template
+     * (12-11-2026): `upload`, `tick`, `link` or `doc`.
+     *
+     * Only `upload` has a document behind it. The other three run through
+     * the same status machine below — a person settles them, and the gate
+     * in `stepBlock` counts them the same way — but nothing waits for a
+     * file, which is what made them unsatisfiable before.
+     *
+     * Not the catalog's enum, for the same reason as a task's `kind`.
+     */
+    kind: { type: String, default: "upload" },
+    /** For `link`: which screen, by key from `ITEM_LINKS`. */
+    linkTo: { type: String, default: "" },
+    /** For `doc`: the template the job drafts the letter from. */
+    docTemplateId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "DocTemplate",
+      default: null,
+    },
 
     /**
      * Requested → Received → Format checked → Accepted, or Replacement

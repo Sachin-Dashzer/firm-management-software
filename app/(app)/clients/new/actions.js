@@ -13,8 +13,10 @@ import ClientService from "@/models/ClientService";
 import ServiceTemplate from "@/models/ServiceTemplate";
 import DocTemplate from "@/models/DocTemplate";
 import DocRequest from "@/models/DocRequest";
+import GeneratedDoc from "@/models/GeneratedDoc";
 import { findDuplicates } from "@/lib/clients/duplicates";
 import { feeToPaise, quotation } from "@/lib/clients/quotation";
+import { buildWelcomePack, packLines } from "@/lib/clients/pack";
 import { readAmount } from "@/lib/money";
 import { enqueue } from "@/lib/jobs/queue";
 import { ENTITY_BY_KEY, entityLabel } from "@/lib/clients/entityTypes";
@@ -373,56 +375,63 @@ export async function createFromOnboarding(payload) {
     .lean();
 
   /*
-   * --- the quotation (06-11-2026) ---
+   * --- the welcome pack (06-11-2026, widened 12-11-2026) ---
    *
-   * The fees that were just written to `clientServices`, sent to the
-   * client in the same words the firm recorded them in. It goes out here
-   * rather than being left for somebody to remember, because the day a
-   * client is taken on is the day a wrong fee costs nothing to correct.
+   * One email, with everything the wizard settled in it: the fees as
+   * written to `clientServices`, the letters ticked on step 6 attached
+   * as PDFs, and the documents still wanted, with the upload link. It
+   * goes out here rather than being left for somebody to remember,
+   * because the day a client is taken on is the day a wrong fee costs
+   * nothing to correct — and because the pack used to be settled on
+   * screen and then sent by nobody.
+   *
+   * The posting itself goes to the post room, not out of this request
+   * (#36): the rules, the firm's record, the client-mail switch, the
+   * message-log row and the send are five round trips to Mumbai that
+   * nothing about the client depends on. What this request does is the
+   * part the queue cannot — render the PDFs, which needs JSX the plain
+   * node runner cannot import — and hand the bytes over.
    *
    * It is the last thing that can go wrong and the least important: a
-   * client whose quotation was held by the guard, or who has no email
+   * client whose pack was held by the guard, or who has no email
    * address yet, is still a created client with its services on record.
-   * So every failure here comes back as a sentence on the Done screen and
-   * nothing more.
-   */
-  /**
-   * The quotation goes to the post room, not out of this request (#36).
-   *
-   * It used to be sent here: its own transaction, and inside it the
-   * notification rules, the firm's record, the client-mail switch, a
-   * message-log row and a job to post it — five more round trips to
-   * Mumbai while somebody watched a spinner. Nothing about the client
-   * depends on it, so onboarding writes the client and queues the letter.
-   *
-   * The Done screen still names the addresses it is going to, because
-   * those are the contacts we already have in hand; what it can no longer
-   * claim is that the post has happened. Settings → Messages is where the
-   * firm sees whether it did.
+   * So every failure here comes back as a sentence on the Done screen
+   * and nothing more.
    */
   const quote = quotation(quoteRows);
+  const addressed = (client?.contacts ?? [])
+    .map((contact) => contact.email)
+    .filter(Boolean);
+  /** Whether a pack is going out at all, which the request below reads. */
+  const willEmail = payload.emailQuotation !== false && addressed.length > 0;
+  // --- the pack itself: the letters and the quotation, as PDFs ---
   /** @type {string[]} */
   let quotedTo = [];
   let quoteError = "";
-  if (quote.lines.length && payload.emailQuotation !== false) {
-    const addressed = (client?.contacts ?? [])
-      .map((contact) => contact.email)
-      .filter(Boolean);
+  let packNames = [];
+  /** Letters that could not go, each with the reason, for the Done screen. */
+  let packSkipped = [];
+  let built = { attachments: [], docs: [], names: [], skipped: [] };
 
-    if (addressed.length === 0) {
-      quoteError =
-        "No contact on this client has an email address, so the quotation has not been queued. Add one and send it from the client's record.";
-    } else {
-      try {
-        await enqueue("quotation", {
-          clientId: String(clientId),
-          actorId: actor.id,
-          quote,
-        });
-        quotedTo = addressed;
-      } catch (err) {
-        quoteError = `The quotation could not be queued: ${err.message}`;
-      }
+  if (payload.emailQuotation !== false && addressed.length === 0) {
+    quoteError =
+      "No contact on this client has an email address, so nothing has been sent. Add one and send the pack from the client's record.";
+  }
+
+  if (willEmail) {
+    try {
+      built = await buildWelcomePack({
+        actor,
+        clientId: String(clientId),
+        client,
+        codes: Array.isArray(payload.pack) ? payload.pack : [],
+        quote,
+      });
+      packNames = built.names;
+      packSkipped = built.skipped;
+    } catch (err) {
+      quoteError = `The letters could not be prepared, so nothing has been sent: ${err.message}`;
+      built = { attachments: [], docs: [], names: [], skipped: [] };
     }
   }
 
@@ -470,31 +479,99 @@ export async function createFromOnboarding(payload) {
   const outstanding = wanted.filter(
     (name) => !received.has(name.toLowerCase()),
   );
+
+  /*
+   * --- the papers, in one transaction (#36, extended 12-11-2026) ---
+   *
+   * The upload request and the letters are the same act — the papers that
+   * go with taking a client on — and a letter recorded as issued while the
+   * request it is posted with failed is a record of something that did not
+   * happen. One transaction, so they stand or fall together, and
+   * onboarding still opens three in all rather than five.
+   *
+   * A letter that went to a client must be reprintable, so each one is
+   * recorded as issued here, before it is posted. Who it reached and when
+   * is the post room's answer: the job fills in `sentAt` and `sentTo`.
+   */
+  const makeRequest =
+    outstanding.length > 0 && payload.requestDocuments !== false;
+  const token = makeRequest ? newRequestToken() : null;
+  /** @type {string[]} */
+  let docIds = [];
   let link = null;
-  if (outstanding.length && payload.requestDocuments !== false) {
-    const token = newRequestToken();
-    await audited(actor, async (session) => {
-      await DocRequest.create(
-        [
-          {
-            // only the hash is kept; the link itself is shown once, below
-            tokenHash: hashRequestToken(token),
-            tokenHint: token.slice(0, 6),
-            clientId,
-            branchId: client?.branchId ?? null,
-            items: outstanding.map((name) => ({ name, mandatory: true })),
-            expiresAt: requestExpiry(),
-            message: `Onboarding ${payload.values?.legalName ?? ""}`.trim(),
-            sentVia: "link",
-            createdBy: actor.id,
-            createdByName: actor.name,
-            updatedBy: actor.id,
-          },
-        ],
-        { session },
-      );
-    });
-    link = requestLink(token);
+
+  if (makeRequest || built.docs.length) {
+    try {
+      await audited(actor, async (session) => {
+        if (makeRequest) {
+          await DocRequest.create(
+            [
+              {
+                // only the hash is kept; the link itself is shown once, below
+                tokenHash: hashRequestToken(token),
+                tokenHint: token.slice(0, 6),
+                clientId,
+                branchId: client?.branchId ?? null,
+                items: outstanding.map((name) => ({ name, mandatory: true })),
+                expiresAt: requestExpiry(),
+                message: `Onboarding ${payload.values?.legalName ?? ""}`.trim(),
+                /* the pack names these documents and carries the link, so
+                   when it is going the request was delivered by email and
+                   the three-day chasing starts from now */
+                sentVia: willEmail ? "email" : "link",
+                sentAt: willEmail ? new Date() : null,
+                lastReminderAt: willEmail ? new Date() : null,
+                createdBy: actor.id,
+                createdByName: actor.name,
+                updatedBy: actor.id,
+              },
+            ],
+            { session },
+          );
+        }
+
+        if (built.docs.length) {
+          const rows = await GeneratedDoc.create(built.docs, {
+            session,
+            ordered: true,
+          });
+          docIds = rows.map((row) => String(row._id));
+        }
+      });
+      if (makeRequest) link = requestLink(token);
+    } catch (err) {
+      quoteError = `The papers could not be recorded, so nothing has been sent: ${err.message}`;
+      built = { attachments: [], docs: [], names: [], skipped: [] };
+      packNames = [];
+    }
+  }
+
+  if (
+    willEmail &&
+    !quoteError &&
+    (quote.lines.length || built.attachments.length)
+  ) {
+    try {
+      await enqueue("quotation", {
+        clientId: String(clientId),
+        actorId: actor.id,
+        quote,
+        attachments: built.attachments,
+        docIds,
+        ...packLines({
+          names: built.names,
+          /* only what the client is actually being asked for: with no
+             request made there is no link, and listing documents with
+             nowhere to put them is a question nobody can answer */
+          documents: link ? outstanding : [],
+          link,
+          days: REQUEST_DAYS,
+        }),
+      });
+      quotedTo = addressed;
+    } catch (err) {
+      quoteError = `The welcome pack could not be queued: ${err.message}`;
+    }
   }
 
   const fromRegister = await markPotentialConverted(
@@ -512,6 +589,8 @@ export async function createFromOnboarding(payload) {
     quotedTo,
     quoteError,
     quoteLines: quote.lines.length,
+    packNames,
+    packSkipped,
     outstanding: outstanding.length,
     requestDays: REQUEST_DAYS,
     link,

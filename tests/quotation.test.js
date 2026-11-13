@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { quotation, feeToPaise } from "../lib/clients/quotation.js";
+import { packLines, quotationBody } from "../lib/clients/pack.js";
+import { compose } from "../lib/mailer/templates.js";
 
 describe("feeToPaise", () => {
   it("reads what the wizard puts in the box", () => {
@@ -73,5 +75,111 @@ describe("quotation", () => {
       totalLine: "",
       unpriced: 0,
     });
+  });
+});
+
+describe("the welcome pack email", () => {
+  const quote = {
+    lines: ["GST monthly returns — ₹2,000.00 per month, plus GST"],
+    totalLine: "Total: ₹2,000.00 per month",
+    unpriced: 0,
+  };
+
+  it("names what is attached and what is still wanted", () => {
+    const lines = packLines({
+      names: ["Engagement letter", "Quotation"],
+      documents: ["PAN card", "Aadhaar of the partners"],
+      link: "https://files.example.com/u/abc",
+      days: 7,
+    });
+
+    expect(lines.attachedLine).toContain("Engagement letter");
+    expect(lines.documentsLine).toContain("PAN card");
+    expect(lines.documentsLine).toContain("https://files.example.com/u/abc");
+    expect(lines.documentsLine).toContain("7 days");
+  });
+
+  it("says nothing at all when there is nothing to say", () => {
+    expect(packLines({})).toEqual({ attachedLine: "", documentsLine: "" });
+    // a list with no link is a list, not an invitation to upload
+    expect(packLines({ documents: ["PAN card"] }).documentsLine).not.toContain(
+      "upload",
+    );
+  });
+
+  /* #15 again: an empty optional block must leave no blank hole and no
+     literal {placeholder} in a letter a client reads. */
+  it("composes a message with no placeholder left in it, either way", () => {
+    const full = compose("quotation", {
+      name: "Rupal",
+      client: "Patil Textiles",
+      services: "What we have agreed\n— GST monthly returns",
+      totals: quote.totalLine,
+      unpricedLine: "",
+      from: "Meera Pandit",
+      ...packLines({
+        names: ["Engagement letter"],
+        documents: ["PAN card"],
+        link: "https://files.example.com/u/abc",
+      }),
+    });
+
+    expect(full.text).not.toMatch(/[{}]/);
+    expect(full.text).toContain("Attached to this email");
+    expect(full.text).toContain("What we need from you");
+    expect(full.text).not.toMatch(/\n\n\n/);
+
+    const bare = compose("quotation", {
+      name: "Rupal",
+      client: "Patil Textiles",
+      services: "What we have agreed\n— GST monthly returns",
+      totals: quote.totalLine,
+      unpricedLine: "",
+      from: "Meera Pandit",
+      ...packLines({}),
+    });
+
+    expect(bare.text).not.toMatch(/[{}]/);
+    expect(bare.text).not.toContain("Attached to this email");
+    expect(bare.text).not.toMatch(/\n\n\n/);
+  });
+});
+
+describe("the quotation as a document", () => {
+  const body = quotationBody(
+    {
+      lines: [
+        "GST monthly returns — ₹2,000.00 per month, plus GST",
+        "Statutory audit — fee to be agreed",
+      ],
+      totalLine: "Total: ₹2,000.00 per month",
+      unpriced: 1,
+    },
+    {
+      clientName: "Patil Textiles",
+      firmName: "PHMG & Associates",
+      signedBy: "Meera Pandit",
+      on: "12-11-2026",
+    },
+  );
+
+  it("reads as a letter, signed, and dated from the day it was made", () => {
+    expect(body).toContain("Patil Textiles");
+    expect(body).toContain("— GST monthly returns — ₹2,000.00 per month");
+    expect(body).toContain("Total: ₹2,000.00 per month");
+    expect(body).toContain("holds for 30 days from 12-11-2026");
+    expect(body).toContain("For PHMG & Associates\nMeera Pandit");
+  });
+
+  it("says out loud that a fee is still to be agreed", () => {
+    // a client who reads "to be agreed" and hears nothing further assumes
+    // it is free
+    expect(body).toContain('the fee marked "to be agreed"');
+  });
+
+  // paragraphs are what the PDF lays out: blank lines, nothing else
+  it("separates its paragraphs and leaves no empty one", () => {
+    expect(body).not.toMatch(/\n\n\n/);
+    expect(body.split("\n\n").every((block) => block.trim())).toBe(true);
   });
 });

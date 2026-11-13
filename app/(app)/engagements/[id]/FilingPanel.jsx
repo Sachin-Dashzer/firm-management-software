@@ -59,8 +59,18 @@ export default function FilingPanel({
         </h2>
       )}
 
-      <UdinQuestion engagement={engagement} pending={pending} run={run} />
+      {/*
+        The UDIN question used to open this panel and hold the step shut
+        (owner, 12-11-2026). It is `UdinQuestion` below, exported now and
+        rendered on the step the firm marked as its UDIN step — so the
+        question is asked where the firm decided the number is generated,
+        and not on every job whether it needs one or not.
 
+        The number and the member stay on this form: they are part of the
+        filing record, they are how a number recorded before any of this
+        existed is still corrected, and `saveFiling` is the one write that
+        keeps them and the register in step.
+      */}
       <form
         onSubmit={saving(
           async (formData) => {
@@ -249,19 +259,21 @@ export default function FilingPanel({
 }
 
 /**
- * "Does this work need a UDIN?" — the question that opens this step.
+ * "Does this work need a UDIN?" — the work of the UDIN step.
  *
- * Asked here rather than at the end of the job, because this is the step
- * the owner put it on and because it is the question the UDIN field below
- * depends on: there is no point typing a number for work that needs none.
+ * Shown on the step the service marks as its UDIN step (owner request,
+ * 12-11-2026), and nowhere else. It used to open the Filing step on every
+ * job: a gate the firm had not asked for, on work that often needed no
+ * number, three steps from where anybody would actually get one.
  *
  * *Yes* goes to the register with the client and the engagement already
- * filled in (P2-7). *No* is recorded. It is not offered at all where the
- * service's own catalog entry says a UDIN is required, because the
- * pipeline will refuse the completion without one and a screen that
- * accepted "no" would be promising something it cannot honour.
+ * filled in (P2-7) — the number is generated against a member's own ICAI
+ * membership, never here. *No* is recorded, and is not offered at all on a
+ * service whose steps say a UDIN is required: `setUdinNotRequired` refuses
+ * it on the server, and a button that promised something the server will
+ * not honour is worse than no button.
  */
-function UdinQuestion({ engagement, pending, run }) {
+export function UdinQuestion({ engagement, pending, run }) {
   if ((engagement.udin ?? "").trim()) {
     return (
       <p className="text-13 text-ink-muted">

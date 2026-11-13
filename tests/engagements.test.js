@@ -19,8 +19,11 @@ import {
   LEVEL_OF,
   TIERS,
   TIER_RULES,
+  needsUdin,
+  itemLink,
 } from "../lib/services/catalog.js";
 import { buildEngagement } from "../lib/engagements/create.js";
+import { stepsView, stepBlock } from "../lib/engagements/steps.js";
 import { addWorkingDays, daysUntil, formatISTDate } from "../lib/dates.js";
 
 /** 16 October 2026 is a Friday. */
@@ -390,6 +393,182 @@ describe("building an engagement from a template", () => {
       period,
     });
     expect(audit.reviewChecklist.some((i) => /UDIN/.test(i.name))).toBe(true);
+  });
+});
+
+/**
+ * What a step and a checklist row *are*, beyond their names (owner request,
+ * 12-11-2026).
+ *
+ * Two things are being guarded here. A row that is not a document must be
+ * able to hold its step shut and then be settled by a person — before the
+ * kinds existed, a tick written as a document waited for an upload that
+ * was never coming. And the UDIN must be asked for on the step the firm
+ * chose, which means it must *not* be a gate at the end of every job: the
+ * Filing stage that used to carry that question is gone.
+ */
+describe("step kinds and row kinds", () => {
+  const template = {
+    _id: "tpl",
+    name: "Net worth certificate",
+    code: "CERT-NW",
+    category: "Certification",
+    level: "L3",
+    minExecRole: "ca",
+    minReviewRole: "partner",
+    recurrence: "one-time",
+    turnaroundDays: 3,
+    steps: [
+      { name: "Prepare the working" },
+      { name: "Generate UDIN", kind: "udin" },
+    ],
+    checklist: [
+      { name: "Audited financials", side: "client", mandatory: true },
+      {
+        name: "Confirm the purpose with the client",
+        side: "firm",
+        mandatory: true,
+        kind: "tick",
+        stepIndex: 0,
+      },
+      {
+        name: "Engagement letter",
+        side: "firm",
+        mandatory: true,
+        kind: "doc",
+        docTemplateId: "tmpl-letter",
+        stepIndex: 0,
+      },
+      {
+        name: "Record it on the register",
+        side: "firm",
+        mandatory: true,
+        kind: "link",
+        linkTo: "udin",
+        stepIndex: 1,
+      },
+      {
+        name: "Working papers",
+        side: "firm",
+        mandatory: true,
+        // a document the firm produces: it never held a step shut, and
+        // narrowing the gate to the new kinds must not change that
+        stepIndex: 0,
+      },
+    ],
+  };
+  const client = { _id: "cli", branchId: "br" };
+  const period = periodFor("one-time", FRIDAY);
+  const build = (over = {}) => ({
+    ...buildEngagement({ template, client, period, now: FRIDAY }),
+    ...over,
+  });
+
+  it("snapshots what each step and row is", () => {
+    const made = buildEngagement({ template, client, period, now: FRIDAY });
+    expect(made.tasks.map((t) => t.kind)).toEqual(["", "udin"]);
+    expect(made.checklist.map((c) => c.kind)).toEqual([
+      "upload",
+      "tick",
+      "doc",
+      "link",
+      "upload",
+    ]);
+    expect(made.checklist[2].docTemplateId).toBe("tmpl-letter");
+    expect(made.checklist[3].linkTo).toBe("udin");
+    // a kind that does not use them keeps neither
+    expect(made.checklist[1].linkTo).toBe("");
+    expect(made.checklist[1].docTemplateId).toBeNull();
+  });
+
+  it("holds a step shut for a tick and a letter, not for our own paper", () => {
+    const made = build();
+    const block = stepBlock(made, 0);
+    expect(block.missing).toEqual([
+      "Audited financials",
+      "Confirm the purpose with the client",
+      "Engagement letter",
+    ]);
+    expect(block.missing).not.toContain("Working papers");
+  });
+
+  it("holds the UDIN step shut until a number is recorded", () => {
+    const settled = build({
+      checklist: build().checklist.map((row) => ({
+        ...row,
+        status: "Accepted",
+      })),
+    });
+    expect(stepBlock(settled, 1).reason).toMatch(/no udin/i);
+
+    const numbered = { ...settled, udin: "26123456AMAAAA1234" };
+    expect(stepBlock(numbered, 1)).toBeNull();
+  });
+
+  it("asks for no UDIN at all where no step is the UDIN step", () => {
+    const plain = {
+      ...build(),
+      tasks: build().tasks.map((t) => ({ ...t, kind: "" })),
+      checklist: build().checklist.map((row) => ({
+        ...row,
+        status: "Accepted",
+      })),
+    };
+    expect(stepBlock(plain, 1)).toBeNull();
+    expect(needsUdin(template.steps.map((s) => ({ ...s, kind: "" })))).toBe(
+      false,
+    );
+    expect(needsUdin(template.steps)).toBe(true);
+  });
+
+  /**
+   * The step's own kind must never overwrite the entry's discriminator.
+   *
+   * `stepsView` builds each entry as `{ kind: "task", ...task }`, and a
+   * task has carried a `kind` of its own since the UDIN step existed. The
+   * spread won, every step came back as neither a task nor a stage, and
+   * the screen drew the open step as a card with a name and nothing in
+   * it — no tick, no assignee, no checklist.
+   */
+  it("keeps every step a task, whatever kind of step it is", () => {
+    const view = stepsView(build(), {});
+    const tasks = [...view.done, ...(view.open ? [view.open] : [])].filter(
+      (entry) => entry.name !== "Review" && entry.name !== "Complete",
+    );
+    expect(tasks.length).toBeGreaterThan(0);
+    for (const entry of tasks) expect(entry.kind, entry.name).toBe("task");
+
+    // and the UDIN step is still marked as one, by its own flag
+    const all = stepsView(
+      { ...build(), tasks: build().tasks.map((t) => ({ ...t, done: true })) },
+      {},
+    );
+    const udinStep = all.done.find((entry) => entry.name === "Generate UDIN");
+    expect(udinStep.kind).toBe("task");
+    expect(udinStep.udin).toBe(true);
+  });
+
+  it("ends the job at Complete, with no Review or Filing gate", () => {
+    const view = stepsView(build(), {});
+    const names = [
+      ...view.done.map((s) => s.name),
+      ...(view.open ? [view.open.name] : []),
+    ];
+    expect(view.total).toBe(3); // two steps, then Complete
+    expect(names).not.toContain("Filing");
+    expect(names).not.toContain("Review");
+    // the UDIN step is the service's own, in the place the firm put it
+    expect(view.open.name).toBe("Prepare the working");
+  });
+
+  it("sends a link row to a real screen, with the job filled in", () => {
+    const made = buildEngagement({ template, client, period, now: FRIDAY });
+    const link = itemLink(made.checklist[3].linkTo, {
+      clientId: "cli",
+      engagementId: "eng",
+    });
+    expect(link.href).toBe("/practice/udin?new=1&client=cli&engagement=eng");
+    expect(itemLink("a-screen-we-never-built", {})).toBeNull();
   });
 });
 

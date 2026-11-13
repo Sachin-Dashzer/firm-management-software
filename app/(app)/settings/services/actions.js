@@ -8,10 +8,12 @@ import { connectDB } from "@/lib/db";
 import { audited } from "@/lib/audit/request";
 import { toPaise } from "@/lib/money";
 import ServiceTemplate from "@/models/ServiceTemplate";
+import DocTemplate from "@/models/DocTemplate";
 import ClientService from "@/models/ClientService";
 import Client from "@/models/Client";
 import User from "@/models/User";
 import { checkAssignment } from "@/lib/engagements/assign";
+import { isId } from "@/lib/routes/id";
 import {
   SERVICE_CATEGORIES,
   SERVICE_LEVELS,
@@ -19,6 +21,10 @@ import {
   EXEC_ROLES,
   REVIEW_ROLES,
   bumpsVersion,
+  needsUdin,
+  ITEM_KINDS,
+  ITEM_LINK_KEYS,
+  STEP_KINDS,
 } from "@/lib/services/catalog";
 
 /**
@@ -46,6 +52,19 @@ const checklistItem = z.object({
     (v) => (v === "" || v === null || v === undefined ? null : v),
     z.coerce.number().int().min(0).nullable(),
   ),
+  /**
+   * What the row asks for (owner request, 12-11-2026). Anything that does
+   * not name a kind is a document, which is what every row meant before
+   * the field existed.
+   */
+  kind: z.enum(ITEM_KINDS).default("upload"),
+  linkTo: z.enum(["", ...ITEM_LINK_KEYS]).default(""),
+  /** Blank, or an id. The template itself is checked in `saveService`. */
+  docTemplateId: z
+    .string()
+    .trim()
+    .default("")
+    .refine((v) => v === "" || isId(v), "That is not a letter template"),
 });
 
 const serviceInput = z
@@ -81,7 +100,6 @@ const serviceInput = z
       .or(z.literal("")),
     defaultFee: z.string().trim().default("0"),
     gstRate: z.coerce.number().min(0).max(28),
-    udinRequired: z.boolean().default(false),
     checklist: z.array(checklistItem).default([]),
     steps: z
       .array(
@@ -89,6 +107,8 @@ const serviceInput = z
           name: z.string().trim().min(1),
           // blank means the step inherits the service's own `minExecRole`
           minRole: z.enum(["", ...EXEC_ROLES]).default(""),
+          /** Ordinary work, or the UDIN step (owner request, 12-11-2026). */
+          kind: z.enum(STEP_KINDS).default(""),
         }),
       )
       .default([])
@@ -113,6 +133,42 @@ const serviceInput = z
           message: `“${item.name}” is attached to a step this service no longer has. Move it to a step, or to the whole job.`,
         });
       }
+      /**
+       * A row that points nowhere is worse than no row: on the job it is a
+       * button with no destination, or a letter with no template, and the
+       * step it sits on cannot be satisfied. Caught here, where both the
+       * kind and what it needs are in hand.
+       */
+      if (item.kind === "link" && !item.linkTo) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["checklist", i, "linkTo"],
+          message: `“${item.name}” sends somebody to another screen — choose which one.`,
+        });
+      }
+      /*
+        A `doc` row with no template is allowed (owner, 13-11-2026).
+
+        It used to be refused, which forced every letter a service might
+        produce to be decided in the catalog months before anybody saw
+        the job. Left empty, the row offers the whole shelf on the
+        engagement instead and whoever is on it picks — the same editor,
+        the same audit, the same place it is saved. Naming one here is
+        still the better answer when the service always writes the same
+        letter; it is just no longer the only one.
+      */
+    }
+    /**
+     * Two UDIN steps would mean two gates on one number: the second could
+     * never do anything the first had not already done, and both would
+     * claim the job was waiting on them.
+     */
+    if (data.steps.filter((step) => step.kind === "udin").length > 1) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["steps"],
+        message: "A service has one UDIN step, not two.",
+      });
     }
   });
 
@@ -144,7 +200,6 @@ function readForm(formData) {
     sac: formData.get("sac") ?? "",
     defaultFee: formData.get("defaultFee") ?? "0",
     gstRate: formData.get("gstRate") ?? 18,
-    udinRequired: formData.get("udinRequired") === "on",
     checklist: json("checklist"),
     steps: json("steps"),
   };
@@ -173,6 +228,33 @@ export async function saveService(_prev, formData) {
     return { error: `Code ${data.code} is already used by ${clash.name}.` };
   }
 
+  /**
+   * A `doc` row has to name a template that is really there.
+   *
+   * The form only offers live ones, so reaching this is a stale tab or a
+   * posted payload — and the cost of not checking is a job offering a
+   * button that cannot draft anything, discovered by whoever is doing the
+   * work rather than by whoever wrote the service.
+   */
+  const wanted = [
+    ...new Set(
+      data.checklist
+        .filter((item) => item.kind === "doc" && item.docTemplateId)
+        .map((item) => item.docTemplateId),
+    ),
+  ];
+  if (wanted.length) {
+    const live = await DocTemplate.find({ _id: { $in: wanted }, active: true })
+      .select("_id")
+      .lean();
+    if (live.length !== wanted.length) {
+      return {
+        error:
+          "One of the letter templates chosen is no longer available. Reload the page and choose again.",
+      };
+    }
+  }
+
   const fields = {
     name: data.name,
     code: data.code,
@@ -187,8 +269,24 @@ export async function saveService(_prev, formData) {
     sac: data.sac,
     defaultFeePaise,
     gstRate: data.gstRate,
-    udinRequired: data.udinRequired,
-    checklist: data.checklist,
+    /**
+     * Derived from the steps, not asked for (owner request, 12-11-2026).
+     *
+     * The checkbox that used to set this sat in the billing defaults and
+     * said a number would be demanded at completion without saying when
+     * anybody was meant to get one. A UDIN step says both, so it is the
+     * only thing that sets this now — and everything that reads the flag
+     * (the completion gate, the reviewer's list, the certificate rules)
+     * carries on unchanged.
+     */
+    udinRequired: needsUdin(data.steps),
+    checklist: data.checklist.map((item) => ({
+      ...item,
+      // only the kind that uses it keeps it: an item switched from `link`
+      // to `tick` must not keep a stale destination it no longer shows
+      linkTo: item.kind === "link" ? item.linkTo : "",
+      docTemplateId: item.kind === "doc" ? item.docTemplateId || null : null,
+    })),
     steps: data.steps,
     updatedBy: actor.id,
   };

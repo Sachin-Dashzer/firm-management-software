@@ -50,6 +50,23 @@ const generatedDocSchema = new mongoose.Schema(
       ref: "Engagement",
       default: null,
     },
+    /**
+     * The checklist row that asked for this document (owner, 13-11-2026).
+     *
+     * A `doc` row used to find its own letters by matching the template
+     * the catalog had named on it. That stops working the moment a row
+     * is allowed to leave the template open — two rows picking the same
+     * template would each show the other's letter, and a row with no
+     * template would find nothing at all. The row's own id is the only
+     * answer that cannot be ambiguous.
+     *
+     * Null on a letter written from the Letters tab, which belongs to
+     * the job rather than to any row.
+     */
+    checklistItemId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+    },
     branchId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Branch",
@@ -110,6 +127,7 @@ generatedDocSchema.plugin(auditPlugin, { entityType: "GeneratedDoc" });
 
 generatedDocSchema.index({ clientId: 1, createdAt: -1 });
 generatedDocSchema.index({ engagementId: 1, createdAt: -1 });
+generatedDocSchema.index({ checklistItemId: 1 });
 generatedDocSchema.index({ state: 1, issuedAt: -1 });
 
 export default mongoose.models.GeneratedDoc ??

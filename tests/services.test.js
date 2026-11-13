@@ -11,6 +11,7 @@ import {
   canExecute,
   canReview,
   turnaroundLabel,
+  withoutStep,
 } from "../lib/services/catalog.js";
 import { STARTER_CATALOG } from "../lib/services/starter.js";
 
@@ -76,6 +77,55 @@ describe("bumpsVersion", () => {
       checklist: [{ name: "Sales register", side: "client", mandatory: false }],
     };
     expect(bumpsVersion(base, after)).toBe(true);
+  });
+
+  /**
+   * A row that changes from a document into a tick, and a step that becomes
+   * the UDIN step, change what the work *is* — and the second decides
+   * whether the service needs a UDIN at all. Both have to carry a version
+   * with them, or a job started last week and one started today would be
+   * doing different work under the same number.
+   */
+  it("bumps when a row changes kind, destination or template", () => {
+    for (const checklist of [
+      [
+        {
+          name: "Sales register",
+          side: "client",
+          mandatory: true,
+          kind: "tick",
+        },
+      ],
+      [
+        {
+          name: "Sales register",
+          side: "client",
+          mandatory: true,
+          kind: "link",
+          linkTo: "gst-cycle",
+        },
+      ],
+      [
+        {
+          name: "Sales register",
+          side: "client",
+          mandatory: true,
+          kind: "doc",
+          docTemplateId: "tmpl-1",
+        },
+      ],
+    ]) {
+      expect(bumpsVersion(base, { ...base, checklist })).toBe(true);
+    }
+  });
+
+  it("bumps when a step becomes the UDIN step", () => {
+    const after = {
+      ...base,
+      steps: [{ name: "Collect data" }, { name: "File", kind: "udin" }],
+    };
+    expect(bumpsVersion(base, after)).toBe(true);
+    expect(bumpsVersion(after, { ...after })).toBe(false);
   });
 
   it("bumps when the steps are reordered, not only when one is added", () => {
@@ -219,6 +269,64 @@ describe("starter catalog", () => {
     for (const s of STARTER_CATALOG) {
       expect(s.version).toBe(1);
       expect(s.active).toBe(true);
+    }
+  });
+});
+
+/**
+ * Removing a step moves every step after it down one, and `stepIndex` is a
+ * position — so the items have to move too, or a checklist row ends up on
+ * whichever step slid into the gap.
+ */
+describe("taking a step out of a service", () => {
+  const template = {
+    steps: [
+      { name: "Collect" },
+      { name: "Prepare" },
+      { name: "Review" },
+      { name: "File" },
+    ],
+    checklist: [
+      { name: "Bank statement", stepIndex: 0 },
+      { name: "Computation tied out", stepIndex: 1 },
+      { name: "Partner has read it", stepIndex: 2 },
+      { name: "Acknowledgement", stepIndex: 3 },
+      { name: "Engagement letter", stepIndex: null },
+    ],
+  };
+
+  it("closes the gap and takes the items with it", () => {
+    const after = withoutStep(template, 2);
+    expect(after.steps.map((s) => s.name)).toEqual([
+      "Collect",
+      "Prepare",
+      "File",
+    ]);
+    // before the gap: untouched. after it: down one. on it: on no step.
+    expect(after.checklist.map((i) => i.stepIndex)).toEqual([
+      0,
+      1,
+      null,
+      2,
+      null,
+    ]);
+    // and the acknowledgement still names the step it always named
+    const ack = after.checklist.find((i) => i.name === "Acknowledgement");
+    expect(after.steps[ack.stepIndex].name).toBe("File");
+  });
+
+  it("is a new version of the work, not a correction", () => {
+    const after = withoutStep(template, 2);
+    expect(bumpsVersion(template, after)).toBe(true);
+  });
+
+  it("no service in the starter catalog has a review step any more", () => {
+    for (const service of STARTER_CATALOG) {
+      const names = service.steps.map((step) =>
+        typeof step === "string" ? step : step.name,
+      );
+      expect(names, service.code).not.toContain("Review");
+      expect(names, service.code).not.toContain("Partner review");
     }
   });
 });

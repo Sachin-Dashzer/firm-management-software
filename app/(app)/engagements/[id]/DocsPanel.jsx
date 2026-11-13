@@ -45,7 +45,37 @@ import {
  * would be a way round all three. "Issue and send" is one button, not one
  * step: both checks still run on the server, and either can refuse.
  */
-export default function DocsPanel({ templates, docs, mayGenerate, mayIssue }) {
+export default function DocsPanel({
+  templates,
+  docs,
+  mayGenerate,
+  mayIssue,
+  /**
+   * Drop the card and the heading, for the panel rendered **inside a step**
+   * (owner, 12-11-2026).
+   *
+   * The letter used to live only on the Letters tab, so a step that said
+   * "draft the certificate" sent people to another tab to do it and
+   * another to come back. The same panel is now embedded in the step that
+   * asks for the letter and in the reviewer's step, where a CA reads it,
+   * corrects it and approves. One component, three places: an editor
+   * written twice is a wording bug waiting to happen.
+   */
+  bare = false,
+  /**
+   * May a draft be thrown away here (owner, 13-11-2026)?
+   *
+   * Off on the Files tab, which is the register: it reads what the job
+   * has and corrects it, and nothing is removed from a register. The
+   * step that started the draft, and the Letters tab that is about to
+   * send it, both still offer the way out.
+   */
+  mayDiscard = true,
+  /** The checklist row this panel belongs to, when it is inside one. */
+  checklistItemId = null,
+  /** The empty line, when the step already says what the letter is for. */
+  empty = "Nothing generated for this job yet.",
+}) {
   const [message, setMessage] = useState(null);
   const [open, setOpen] = useState(null);
   const [editing, setEditing] = useState(null);
@@ -101,22 +131,64 @@ export default function DocsPanel({ templates, docs, mayGenerate, mayIssue }) {
     });
   }
 
+  const Frame = bare ? "div" : "section";
+
   return (
-    <section className="rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4">
-      <div>
-        <h2 className="font-display text-15 font-semibold">
-          Letters and documents
-        </h2>
-        <p className="text-13 text-ink-muted max-w-[72ch]">
-          Generated from the firm&rsquo;s templates, editable here, and sent to
-          the client from here — so what the client received is what the file
-          says they received.
-        </p>
-      </div>
+    <Frame
+      className={
+        bare
+          ? "flex flex-col gap-3"
+          : "rounded-ledger border-rule bg-surface flex flex-col gap-3 border p-4"
+      }
+    >
+      {!bare && (
+        <div>
+          <h2 className="font-display text-15 font-semibold">
+            Letters and documents
+          </h2>
+          <p className="text-13 text-ink-muted max-w-[72ch]">
+            Generated from the firm&rsquo;s templates, editable here, and sent
+            to the client from here — so what the client received is what the
+            file says they received.
+          </p>
+        </div>
+      )}
 
       <Result message={message} />
 
-      {mayGenerate && templates.length > 0 && (
+      {/*
+        One template, one button. Inside a step the template is already
+        decided — the catalog row names it — so a picker with one entry
+        would be a control with no decision in it.
+      */}
+      {mayGenerate && templates.length === 1 && (
+        <div>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() =>
+              run(() =>
+                createDraft(
+                  docs.engagementId,
+                  templates[0].id,
+                  checklistItemId,
+                ),
+              )
+            }
+            className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
+          >
+            {pending ? "Starting…" : `Draft the ${templates[0].name}`}
+          </button>
+          {!templates[0].verified && (
+            <p className="text-12 text-ink-muted mt-1">
+              This template&rsquo;s wording is not approved yet, so it drafts
+              watermarked until a partner approves it.
+            </p>
+          )}
+        </div>
+      )}
+
+      {mayGenerate && templates.length > 1 && (
         <div className="flex flex-wrap items-end gap-2">
           <label className="flex min-w-[14rem] flex-1 flex-col gap-1">
             <span className="text-13 text-ink-muted font-medium">
@@ -139,7 +211,9 @@ export default function DocsPanel({ templates, docs, mayGenerate, mayIssue }) {
           <button
             type="button"
             disabled={!chosen || pending}
-            onClick={() => run(() => createDraft(docs.engagementId, chosen))}
+            onClick={() =>
+              run(() => createDraft(docs.engagementId, chosen, checklistItemId))
+            }
             className="rounded-control bg-carbon text-14 text-on-carbon h-9 px-3 font-medium disabled:opacity-60"
           >
             Start the draft
@@ -147,7 +221,7 @@ export default function DocsPanel({ templates, docs, mayGenerate, mayIssue }) {
         </div>
       )}
 
-      {templates.length === 0 && (
+      {templates.length === 0 && !bare && (
         <p className="text-13 text-ink-muted">
           No templates yet. A partner adds them in Settings → Templates.
         </p>
@@ -155,7 +229,7 @@ export default function DocsPanel({ templates, docs, mayGenerate, mayIssue }) {
 
       {docs.rows.length === 0 ? (
         <p className="text-13 text-ink-muted rounded-ledger border-rule border border-dashed px-3 py-6 text-center">
-          Nothing generated for this job yet.
+          {empty}
         </p>
       ) : (
         <ul className="flex flex-col gap-2">
@@ -234,7 +308,7 @@ export default function DocsPanel({ templates, docs, mayGenerate, mayIssue }) {
                   >
                     Word
                   </a>
-                  {!doc.final && mayGenerate && (
+                  {!doc.final && mayGenerate && mayDiscard && (
                     <button
                       type="button"
                       disabled={pending}
@@ -423,6 +497,6 @@ export default function DocsPanel({ templates, docs, mayGenerate, mayIssue }) {
           ))}
         </ul>
       )}
-    </section>
+    </Frame>
   );
 }
