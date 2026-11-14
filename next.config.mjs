@@ -19,7 +19,20 @@ const nextConfig = {
    * fall back to Helvetica and print the wrong glyph again.
    */
   outputFileTracingIncludes: {
-    "**/*": ["./lib/billing/fonts/*.ttf"],
+    /*
+     * pdfkit (under React-PDF) loads its built-in fonts through the subpath
+     * import `#standard-fonts/Helvetica`, which Next's tracer does not
+     * follow either — so on Vercel the first PDF died with "Cannot find
+     * module '/var/task/node_modules/pdfkit/js/standard-fonts/Helvetica.cjs'"
+     * (client onboarding letters, 14-11-2026). pdfkit sets Helvetica as the
+     * document's font before any `Font.register` of ours takes effect, so
+     * these ship whether the PDF uses them or not.
+     */
+    "**/*": [
+      "./lib/billing/fonts/*.ttf",
+      "./node_modules/pdfkit/js/standard-fonts/*",
+      "./node_modules/pdfkit/js/data/*",
+    ],
   },
   experimental: {
     /**
