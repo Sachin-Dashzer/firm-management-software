@@ -309,6 +309,8 @@ export function UdinQuestion({ engagement, pending, run }) {
       <span className="mt-2 flex flex-wrap items-center gap-3">
         <Link
           href={`/practice/udin?new=1&client=${engagement.clientId}&engagement=${engagement.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
           className="rounded-control bg-carbon text-13 text-on-carbon h-9 px-3 leading-9 font-medium"
         >
           Yes — apply for the UDIN
