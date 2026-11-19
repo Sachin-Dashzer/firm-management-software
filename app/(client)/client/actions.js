@@ -6,12 +6,23 @@ import { connectDB } from "@/lib/db";
 import { audited } from "@/lib/audit/request";
 import { recordAudit, ACTIONS } from "@/lib/audit";
 import Engagement from "@/models/Engagement";
+import DocumentModel from "@/models/Document";
+import Client from "@/models/Client";
 import { engagementScope } from "@/lib/access/clientScope";
 import {
   clientCannotProvide,
   clientDelegates,
   clientAsks,
+  recordSubmission,
+  clientMayUpload,
 } from "@/lib/engagements/checklist";
+import {
+  ALLOWED_TYPES,
+  MAX_UPLOAD_BYTES,
+  getUploadTicket,
+} from "@/lib/storage";
+import { buildFileKey } from "@/lib/storage/paths";
+import { financialYearLabel } from "@/lib/dates";
 import { createDelegateRequest } from "@/lib/documents/delegate";
 import { recordClientConfirmation } from "@/lib/engagements/gates";
 
@@ -38,9 +49,18 @@ import { recordClientConfirmation } from "@/lib/engagements/gates";
  *   nothing here accepts anything
  * - every one writes an audit entry naming the portal user
  *
- * A client still cannot upload here. That stays on the token link, which has
- * its own narrow scope — a second way into the vault is a second thing to
- * get wrong.
+ * A client **can** now upload here (owner, 19-11-2026), which reverses the
+ * decision of 21-10-2026 that had kept uploading on the emailed token link
+ * alone. The reason it was kept out was that a second door into the vault is
+ * a second thing to get wrong. The reason it is now in: a person who has
+ * signed in, uploading against a document the firm itself asked for, is the
+ * *narrower* case of the two — the emailed link works for anybody holding it.
+ *
+ * It is the same two steps as that link (`app/upload/[token]/actions.js`) with
+ * the token swapped for the session, and it buys no new authority along the
+ * way: **Received is as far as anything moves**, a person at the firm still
+ * accepts, and nothing uploaded here is `sharedWithClient` — the file is
+ * theirs, but sharing is a CA's act and stays one.
  */
 
 /** Load an engagement and one client-side item, or explain why not. */
@@ -175,6 +195,181 @@ export async function askAboutRequest(engagementId, itemId, formData) {
     `Client asks about ${item.name}: ${item.clientReply.question}`,
   );
   return { ok: "Sent. Your CA will come back to you." };
+}
+
+/**
+ * Where a file for this job belongs: the folder, and a key inside it.
+ *
+ * Both steps of the upload call this, which is the point of it being a
+ * function. The browser hands the key back at step two, and a key arriving
+ * from a browser is a key somebody can rewrite — so step two recomputes the
+ * **folder** here and refuses anything outside it. The last segment is a
+ * fresh UUID and so cannot be recomputed, but it does not need to be: what
+ * matters is that the key belongs to this client, this year and this job.
+ *
+ * `fy` comes from the period the work is *for*, never the day it was sent,
+ * so the two computations agree.
+ */
+async function fileKeyFor(engagement, filename) {
+  const client = await Client.findById(engagement.clientId)
+    .select("code")
+    .lean();
+
+  const fy = `FY${financialYearLabel(
+    new Date(engagement.periodStart ?? Date.now()),
+  )}`;
+
+  const key = buildFileKey({
+    clientCode: client?.code ?? "unfiled",
+    filename,
+    fy,
+    serviceCode: engagement.templateSnapshot?.code,
+    engagementCode: engagement.code,
+  });
+
+  return { key, fy, folder: key.replace(/[^/]+$/, "") };
+}
+
+/**
+ * Step one of an upload: a ten-minute ticket for one file.
+ *
+ * The same shape as `publicUploadTicket` on the token link, and the same
+ * limits — they live in `lib/storage` so there is one answer to "what may be
+ * uploaded" rather than two that drift. The gateway re-checks both against
+ * the signed ticket, so these are the courteous refusals, given before a
+ * phone spends two minutes sending something that will be turned away.
+ *
+ * @param {string} engagementId
+ * @param {string} itemId
+ * @param {{ filename: string, mime: string, size: number }} file
+ */
+export async function uploadTicket(engagementId, itemId, file) {
+  const person = await requireClientUser();
+  const loaded = await loadOwnItem(person, engagementId, itemId);
+  if (loaded.error) return { error: loaded.error };
+  const { engagement, item } = loaded;
+
+  const allowed = clientMayUpload(item);
+  if (!allowed.ok) return { error: allowed.error };
+
+  if (!file?.filename) return { error: "That file has no name." };
+  if (!Number.isFinite(file.size) || file.size <= 0) {
+    return { error: "That file is empty." };
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return {
+      error: `That file is too large. The limit is ${Math.round(
+        MAX_UPLOAD_BYTES / 1024 / 1024,
+      )} MB.`,
+    };
+  }
+  if (!ALLOWED_TYPES.includes(file.mime)) {
+    return { error: "We cannot accept that kind of file." };
+  }
+
+  const { key, fy } = await fileKeyFor(engagement, file.filename);
+  return { ok: true, key, fy, ...getUploadTicket({ key }) };
+}
+
+/**
+ * Step two: the gateway has the bytes, so record the document against the
+ * item it was asked for.
+ *
+ * Everything here is one transaction, because a `Document` row with no
+ * checklist item pointing at it is a file nobody will ever be asked about,
+ * and a checklist item marked Received with no document is worse.
+ *
+ * `recordSubmission` is what keeps a replacement honest: a new file is a new
+ * submission and it clears the format check and the acceptance on the one
+ * before it, so the firm cannot be left vouching for a file nobody opened.
+ *
+ * @param {string} engagementId
+ * @param {string} itemId
+ * @param {{ key: string, filename: string, mime?: string, size?: number, checksum: string }} stored
+ *   `fy` is ignored if sent: it is recomputed from the engagement below.
+ */
+export async function confirmUpload(engagementId, itemId, stored) {
+  const person = await requireClientUser();
+  const loaded = await loadOwnItem(person, engagementId, itemId);
+  if (loaded.error) return { error: loaded.error };
+  const { engagement, item } = loaded;
+
+  const allowed = clientMayUpload(item);
+  if (!allowed.ok) return { error: allowed.error };
+
+  if (!stored?.key || !stored?.checksum) {
+    return { error: "The upload did not finish. Please try again." };
+  }
+
+  /**
+   * The key came back through a browser, so it is recomputed rather than
+   * believed. Without this, somebody could hand back the key of a file
+   * belonging to another client and have it recorded on their own file —
+   * where a member of the firm would then see it, under the wrong name.
+   *
+   * `fy` is recomputed for the same reason, instead of being read off the
+   * message.
+   */
+  const { fy, folder } = await fileKeyFor(engagement, stored.filename);
+  if (!String(stored.key).startsWith(folder)) {
+    return { error: "That upload does not belong to this request." };
+  }
+
+  const actor = {
+    id: `client:${person.id}`,
+    name: `${person.name} (client)`,
+  };
+
+  await audited(actor, async (session) => {
+    const [document] = await DocumentModel.create(
+      [
+        {
+          name: stored.filename,
+          fileKey: stored.key,
+          size: stored.size ?? 0,
+          mime: stored.mime ?? "application/octet-stream",
+          checksum: stored.checksum,
+          fy,
+          clientId: engagement.clientId,
+          engagementId: engagement._id,
+          checklistItemId: item._id,
+          branchId: engagement.branchId ?? person.branchId,
+          /**
+           * Not shared back. The file is the client's own, but
+           * `sharedWithClient` is the record of a CA deciding to put
+           * something in front of them, and nothing should be able to set
+           * that except a CA doing it.
+           */
+          sharedWithClient: false,
+          uploadedBy: null,
+          uploadedByName: `${person.name} (client portal)`,
+          createdBy: null,
+          updatedBy: null,
+        },
+      ],
+      { session },
+    );
+
+    await recordAudit(
+      {
+        action: ACTIONS.documentUpload,
+        entityType: "Document",
+        entityId: document._id,
+        clientId: engagement.clientId,
+        note: `uploaded on the client portal by ${person.name} (${person.email}) against ${item.name}`,
+      },
+      session,
+    );
+
+    item.documentIds.push(document._id);
+    recordSubmission(item);
+    await engagement.save({ session });
+  });
+
+  revalidatePath("/client");
+  revalidatePath("/client/work");
+  revalidatePath(`/engagements/${engagementId}`);
+  return { ok: `${stored.filename} received. Thank you.` };
 }
 
 /**

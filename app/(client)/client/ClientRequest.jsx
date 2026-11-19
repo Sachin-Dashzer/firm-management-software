@@ -2,21 +2,30 @@
 
 import { saving } from "@/lib/forms/saving";
 import { useState, useTransition } from "react";
-import { sayCannotProvide, delegateRequest, askAboutRequest } from "./actions";
+import {
+  sayCannotProvide,
+  delegateRequest,
+  askAboutRequest,
+  uploadTicket,
+  confirmUpload,
+} from "./actions";
 
 /**
- * One thing the firm is waiting for, and what the client can say back
+ * One thing the firm is waiting for, and what the client can do about it
  * (P3-2).
  *
- * There is no upload here. That stays on the emailed link, which has its own
- * narrow scope — a second way into the vault is a second thing to get wrong.
- * What is here is the three answers that used to be a phone call: *I don't
+ * **Send it** first, because sending the thing is the answer to being asked
+ * for it (owner, 19-11-2026) — until today the only way to do that from here
+ * was the link we emailed, and a client who was already signed in had to go
+ * and find it. Then the three answers that used to be a phone call: *I don't
  * have it*, *my accountant has it*, *I'm not sure what you mean*.
  */
 
 export default function ClientRequest({ item }) {
   const [form, setForm] = useState(null);
   const [said, setSaid] = useState(null);
+  /** What is going up right now, in words, because a bar tells nobody which file. */
+  const [sending, setSending] = useState(null);
   const [pending, startTransition] = useTransition();
 
   const close = () => setForm(null);
@@ -28,6 +37,66 @@ export default function ClientRequest({ item }) {
       setSaid(out);
       if (out.ok) close();
     });
+
+  /**
+   * The same three steps as the emailed link: a ticket, the bytes straight to
+   * the gateway, then the record. The file never passes through the app.
+   *
+   * One at a time and it stops at the first failure — somebody on a phone
+   * connection should not have to work out which four of six went.
+   */
+  async function send(files) {
+    if (files.length === 0) return;
+    setSaid(null);
+
+    for (const file of [...files]) {
+      setSending(`Sending ${file.name}…`);
+
+      const ticket = await uploadTicket(item.engagementId, item.id, {
+        filename: file.name,
+        mime: file.type,
+        size: file.size,
+      });
+      if (ticket?.error) {
+        setSending(null);
+        setSaid({ error: ticket.error });
+        return;
+      }
+
+      const body = new FormData();
+      body.append(ticket.field, file);
+      let stored;
+      try {
+        const response = await fetch(ticket.url, { method: "POST", body });
+        stored = await response.json();
+        if (!response.ok) throw new Error(stored?.error ?? "Upload refused");
+      } catch {
+        setSending(null);
+        setSaid({
+          error: `${file.name} could not be sent. Please check your connection and try again.`,
+        });
+        return;
+      }
+
+      const saved = await confirmUpload(item.engagementId, item.id, {
+        key: ticket.key,
+        fy: ticket.fy,
+        filename: file.name,
+        mime: stored.mime || file.type,
+        size: stored.size ?? file.size,
+        checksum: stored.checksum,
+      });
+      if (saved?.error) {
+        setSending(null);
+        setSaid({ error: saved.error });
+        return;
+      }
+      setSaid(saved);
+    }
+
+    setSending(null);
+    close();
+  }
 
   return (
     <li className="border-rule flex flex-col gap-2 border-t pt-3 first:border-0 first:pt-0">
@@ -64,38 +133,74 @@ export default function ClientRequest({ item }) {
         </p>
       )}
 
-      {said && (
+      {(said || sending) && (
         <p
-          className={`text-13 ${said.ok ? "text-filed" : "text-redpen"}`}
+          className={`text-13 ${
+            sending ? "text-ink-muted" : said.ok ? "text-filed" : "text-redpen"
+          }`}
           role="status"
         >
-          {said.ok ?? said.error}
+          {sending ?? said.ok ?? said.error}
         </p>
       )}
 
-      {!form && !reply && (
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setForm("cannot")}
-            className="rounded-ledger border-rule text-12 h-7 border px-2"
-          >
-            I don&rsquo;t have this
-          </button>
-          <button
-            type="button"
-            onClick={() => setForm("delegate")}
-            className="rounded-ledger border-rule text-12 h-7 border px-2"
-          >
-            Someone else will send it
-          </button>
-          <button
-            type="button"
-            onClick={() => setForm("ask")}
-            className="rounded-ledger border-rule text-12 h-7 border px-2"
-          >
-            Please clarify
-          </button>
+      {!form && !sending && (
+        <div className="flex flex-wrap items-center gap-2">
+          {/*
+            A label around a hidden input: the native file picker, which
+            already knows how to take several files, a photograph from a
+            phone camera, and a drop. Nothing here needs a library.
+
+            It stays available after a reply, because "I don't have it" and
+            then finding it is the ordinary course of things — sending the
+            file clears that reply (`recordSubmission`).
+          */}
+          <label className="rounded-control bg-carbon text-12 text-on-carbon focus-within:outline-brass flex h-7 cursor-pointer items-center px-2 font-medium focus-within:outline-2 focus-within:outline-offset-2">
+            Send it now
+            <input
+              type="file"
+              multiple
+              className="sr-only"
+              onChange={(event) => {
+                /**
+                 * Copied out of the `FileList` **before** the input is
+                 * cleared: the list is live, so clearing the value empties
+                 * the very array we are about to send. Clearing it at all is
+                 * so that picking the same file again after a failed attempt
+                 * still fires a change.
+                 */
+                const picked = [...event.target.files];
+                event.target.value = "";
+                send(picked);
+              }}
+            />
+          </label>
+
+          {!reply && (
+            <>
+              <button
+                type="button"
+                onClick={() => setForm("cannot")}
+                className="rounded-ledger border-rule text-12 h-7 border px-2"
+              >
+                I don&rsquo;t have this
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm("delegate")}
+                className="rounded-ledger border-rule text-12 h-7 border px-2"
+              >
+                Someone else will send it
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm("ask")}
+                className="rounded-ledger border-rule text-12 h-7 border px-2"
+              >
+                Please clarify
+              </button>
+            </>
+          )}
         </div>
       )}
 

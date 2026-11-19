@@ -5,6 +5,7 @@ import {
   requestReplacement,
   markNotRequired,
   request,
+  clientMayUpload,
   clientCannotProvide,
   clientDelegates,
   clientAsks,
@@ -22,6 +23,7 @@ import {
   REPLACEMENT,
   NOT_REQUIRED,
   REQUESTED,
+  PENDING,
   LEGACY_VERIFIED,
 } from "../lib/engagements/checklist.js";
 
@@ -292,6 +294,65 @@ describe("what the client says back", () => {
 
   it("will not answer a question that was never asked", () => {
     expect(answerClient(item(), "Sure.", ACTOR).ok).toBe(false);
+  });
+});
+
+describe("sending it from the portal (19-11-2026)", () => {
+  it("takes a file for anything still open, asked for or not", () => {
+    for (const status of [PENDING, REQUESTED, REPLACEMENT, RECEIVED]) {
+      expect(clientMayUpload(item({ status })).ok).toBe(true);
+    }
+  });
+
+  it("refuses an item that is settled, by name and in words", () => {
+    const accepted = clientMayUpload(item({ status: ACCEPTED }));
+    expect(accepted.ok).toBe(false);
+    expect(accepted.error).toContain("Purchase register");
+    expect(accepted.error).toContain("accepted");
+
+    expect(clientMayUpload(item({ status: NOT_REQUIRED })).ok).toBe(false);
+    // a pre-P3-2 row that was ticked as verified is settled too
+    expect(clientMayUpload(item({ status: LEGACY_VERIFIED })).ok).toBe(false);
+  });
+
+  it("refuses a row that is not a document at all", () => {
+    // a tick or a trip to one of our screens is the firm's work: there is
+    // nothing for a client to attach to it
+    for (const kind of ["confirm", "link", "letter"]) {
+      expect(clientMayUpload(item({ kind })).ok).toBe(false);
+    }
+  });
+
+  it("treats a row written before `kind` existed as a document", () => {
+    // every one of them was
+    expect(clientMayUpload(item({ kind: undefined })).ok).toBe(true);
+    expect(clientMayUpload(item({ kind: null })).ok).toBe(true);
+    expect(clientMayUpload(item({ kind: "" })).ok).toBe(true);
+  });
+
+  it("refuses an item that is not there", () => {
+    expect(clientMayUpload(null).ok).toBe(false);
+    expect(clientMayUpload(undefined).ok).toBe(false);
+  });
+
+  it("clears the reply when the file they said they lacked arrives", () => {
+    const i = item({ status: PENDING });
+    clientCannotProvide(i, { note: "", byName: "Rohit Jaiswal" });
+    expect(clientMayUpload(i).ok).toBe(true);
+
+    recordSubmission(i);
+    // the open question is answered by the thing itself
+    expect(i.clientReply).toBe(null);
+    expect(i.status).toBe(RECEIVED);
+  });
+
+  it("leaves the acceptance to the firm, never to the upload", () => {
+    const i = item();
+    recordSubmission(i);
+    // Received is as far as a client can move anything
+    expect(i.status).toBe(RECEIVED);
+    expect(isSettled(i)).toBe(false);
+    expect(i.acceptedBy).toBe(null);
   });
 });
 

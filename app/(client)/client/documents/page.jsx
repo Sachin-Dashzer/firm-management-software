@@ -23,9 +23,10 @@ function size(bytes) {
  * paper and the client's own filed return live in the same collection, and
  * the difference between them is that tick.
  *
- * There is no upload here on purpose. The document-request link from Step
- * 6b already does that properly, with its own token and its own narrow
- * scope; a second way into the same vault is a second thing to get wrong.
+ * **This page stays read-only** even though the client can now upload
+ * (19-11-2026). Sending happens where the asking happens — against the named
+ * item on the overview — because a file that arrives here would belong to no
+ * job, and somebody at the firm would have to work out what it was for.
  */
 export default async function ClientDocumentsPage() {
   const person = await requireClientUser();

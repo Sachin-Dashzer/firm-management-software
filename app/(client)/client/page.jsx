@@ -143,7 +143,8 @@ export default async function ClientHome() {
             ))}
           </ul>
           <p className="text-13 text-ink-muted mt-3">
-            Send these to the office, or use the upload link we emailed you.
+            Send a file straight from here, or tell us why you cannot. The
+            upload link we emailed you still works too.
           </p>
         </section>
       )}
