@@ -32,6 +32,7 @@ import ServiceTemplate from "@/models/ServiceTemplate";
 import ClientServices from "./ClientServices";
 import DocumentModel from "@/models/Document";
 import DocumentsPanel from "./DocumentsPanel";
+import { folderNames } from "@/lib/documents/folders";
 import Invoice from "@/models/Invoice";
 import Payment from "@/models/Payment";
 import LedgerPanel from "./LedgerPanel";
@@ -871,12 +872,23 @@ async function DocumentsTab({ clientId, actor, scope, only }) {
     versions: (d.versions ?? []).length,
     uploadedByName: d.uploadedByName,
     isPermanent: Boolean(d.isPermanent),
+    /** The folder it is filed under — the document's `kind`. */
+    folder: (d.kind ?? "").trim(),
   });
+
+  /**
+   * Every folder this client's files are filed under, for the suggestions
+   * list. Read from the files themselves rather than kept in a list of its
+   * own: a folder exists because something is in it, so there is nothing to
+   * create, nothing to keep in step and no empty folder to tidy away.
+   */
+  const folders = folderNames(documents);
 
   return (
     <DocumentsPanel
       clientId={clientId}
       mayEdit={mayEdit}
+      folders={folders}
       permanent={documents.filter((d) => d.isPermanent).map(shape)}
       byEngagement={engagements.map((e) => ({
         id: String(e._id),

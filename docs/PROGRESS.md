@@ -6125,3 +6125,52 @@ migration's.
 move with it, it is a new version rather than a correction, and no starter
 service has a review step any more. 147 tests across the four affected
 files pass; ESLint and Prettier clean.
+
+## 23-11-2026 — Folders on a client's files (owner)
+
+A client with a thousand files has a list nobody can read. The files now
+carry a **folder** and the list is grouped under it, so a year of bank
+statements is one heading rather than two hundred rows between the PAN card
+and an audit report.
+
+- A folder is a label on the record — the `kind` field the `documents`
+  collection has always had — **not a place in the vault**. Nothing is
+  created and nothing moves: filing a file under "Bank statements" writes a
+  word on its row. So a wrong answer costs one rename, a folder can be
+  renamed or emptied without touching bytes, and there is no folder tree to
+  drift out of step with the files. The gateway's own paths (client, FY,
+  engagement) are untouched.
+- `lib/documents/folders.js` — `folderNames` and `groupByFolder`, used by
+  both the server page and the list component so they cannot disagree.
+  Folders sort A–Z with the unfiled pile last, and a padded name is the
+  same folder as the unpadded one. `tests/folders.test.js` holds it:
+  every file appears exactly once, filed or not.
+- `components/documents/Uploader.jsx` — a **Folder** box beside the
+  existing Type picker, with the client's folders as suggestions. One
+  answer for the whole drop, which is the point: a hundred statements land
+  in one place. Typing a name nobody has used yet creates that folder.
+  A replacement keeps the folder of the file it replaces.
+- `components/documents/DocumentList.jsx` — folder headings with a count
+  (shown only once something is filed, so a short list grows no dividers),
+  and **Rename / move** on each row: name, folder, and — where the whole
+  client is in view — whether it belongs in the permanent file.
+- `app/(app)/clients/[id]/DocumentsPanel.jsx` — a search box over the
+  whole tab, matching name and folder, with the folders listed as
+  shortcuts and a count of what is showing. Sections with no match drop
+  out while a search is running rather than standing empty.
+- **Deleted:** the wall of "Move _X_ to the permanent file" links under
+  every engagement — one per file, seven of them on one job, unreadable on
+  a phone. That choice is now a tick box on the row it belongs to.
+- Permissions and audit are unchanged: the folder rides on
+  `confirmUpload` and `updateDocument`, which already check `edit
+  documents` and write their audit entry in the same transaction.
+
+**Left over:** the Documents tab still loads every file for the client in
+one go. Fine at a thousand rows, slow well before ten thousand — when it
+bites, the fix is to filter and page on the server rather than in the
+browser. The engagement and UDIN lists show folders too but have no folder
+box on their uploader yet; files attached there arrive unfiled and are
+filed from the client's tab.
+
+Vitest 1981 pass, ESLint and Prettier clean, `next build` compiles.
+Screenshotted light and dark at 1440 and 390 before reporting.

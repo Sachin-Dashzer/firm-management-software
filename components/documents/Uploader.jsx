@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import {
   confirmUpload,
   requestUpload,
@@ -26,8 +26,13 @@ export default function Uploader({
   onDone,
   disabled = false,
   origin: initialOrigin = "client",
+  /** Folder names already in use on this client, offered as suggestions. */
+  folders = [],
+  /** The folder a batch starts in — the one the person was just looking at. */
+  defaultFolder = "",
 }) {
   const input = useRef(null);
+  const listId = useId();
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(null);
   const [message, setMessage] = useState(null);
@@ -38,6 +43,14 @@ export default function Uploader({
    * already finished.
    */
   const [origin, setOrigin] = useState(initialOrigin);
+  /**
+   * Which folder this batch is filed under. One answer for the whole drop,
+   * because the whole point is that a hundred bank statements go in at once
+   * and land in one place; anything filed wrongly is renamed from the list
+   * afterwards. Typing a name nobody has used yet creates that folder — it
+   * is only a label on the record, so there is nothing to create first.
+   */
+  const [folder, setFolder] = useState(defaultFolder);
 
   async function send(files) {
     if (disabled || files.length === 0) return;
@@ -87,6 +100,7 @@ export default function Uploader({
         permanent,
         replacesId,
         origin,
+        kind: folder.trim(),
         key: ticket.key,
         fy: ticket.fy,
         filename: file.name,
@@ -148,6 +162,28 @@ export default function Uploader({
             <option value="firm">Issued by us</option>
           </select>
         </label>
+
+        {/* a replacement keeps the folder of the file it replaces */}
+        {!replacesId && (
+          <label className="text-13 text-ink-muted flex items-center gap-1.5">
+            <span className="sr-only sm:not-sr-only">Folder</span>
+            <input
+              type="text"
+              value={folder}
+              list={`${listId}-folders`}
+              disabled={disabled || Boolean(busy)}
+              onChange={(event) => setFolder(event.target.value)}
+              aria-label="Folder to file these under"
+              placeholder="Unfiled"
+              className="rounded-control border-rule bg-paper text-13 text-ink h-8 w-40 border px-1.5 disabled:opacity-60"
+            />
+            <datalist id={`${listId}-folders`}>
+              {folders.map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
+          </label>
+        )}
 
         <span className="text-13 text-ink-muted">
           {busy ?? "or drop files here"}
