@@ -6,7 +6,6 @@ import { connectDB } from "@/lib/db";
 import Engagement from "@/models/Engagement";
 import Client from "@/models/Client";
 import User from "@/models/User";
-import DocumentModel from "@/models/Document";
 import DocRequest from "@/models/DocRequest";
 import AuditLog from "@/models/AuditLog";
 import ActivityFeed from "@/components/audit/ActivityFeed";
@@ -39,8 +38,8 @@ import { outsideViewNote } from "@/lib/access/view";
 import { OutsideView } from "@/components/shell/ViewNote";
 import Branch from "@/models/Branch";
 import DocTemplate from "@/models/DocTemplate";
-import GeneratedDoc from "@/models/GeneratedDoc";
 import EngagementWork from "./EngagementWork";
+import { filesForEngagement } from "@/lib/documents/forEngagement";
 import { notifyAudience } from "./notify";
 import LettersTab from "./LettersTab";
 import MessageLog from "@/models/MessageLog";
@@ -141,7 +140,7 @@ export default async function EngagementPage({ params, searchParams }) {
     redirect(`/no-access?client=${engagement.clientId}`);
   }
 
-  const [client, assignee, reviewer, team, audit, documents, requests] =
+  const [client, assignee, reviewer, team, audit, files, requests] =
     await Promise.all([
       Client.findById(engagement.clientId)
         .select("legalName tradeName code branchId")
@@ -160,9 +159,15 @@ export default async function EngagementPage({ params, searchParams }) {
         .sort({ ts: -1 })
         .limit(50)
         .lean(),
-      DocumentModel.find({ engagementId: engagement._id })
-        .sort({ createdAt: -1 })
-        .lean(),
+      /**
+       * Everything this job has, from the one function the job's folder in
+       * the work drive reads too (P3-48b) — the files on the job, the
+       * letters written from templates, the papers linked in from the
+       * client's permanent file, and the UDIN and sample vouchers. Two
+       * answers to "what is on this job" is the bug nobody notices until
+       * an auditor does.
+       */
+      filesForEngagement(actor, String(engagement._id), { engagement }),
       DocRequest.find({ engagementId: engagement._id })
         .sort({ createdAt: -1 })
         .limit(20)
@@ -171,20 +176,31 @@ export default async function EngagementPage({ params, searchParams }) {
 
   // documents generated from the firm's templates (P2-8b)
   const mayGenerate = can(actor, "edit", "docGenerate", target);
-  const [docTemplates, generated] = await Promise.all([
-    mayGenerate
-      ? DocTemplate.find({ active: true })
-          .select("name kind verifiedAt")
-          .sort({ kind: 1, name: 1 })
-          .lean()
-      : [],
-    can(actor, "view", "docGenerate", target)
-      ? GeneratedDoc.find({ engagementId: engagement._id })
-          .sort({ createdAt: -1 })
-          .limit(50)
-          .lean()
-      : [],
-  ]);
+  const docTemplates = mayGenerate
+    ? await DocTemplate.find({ active: true })
+        .select("name kind verifiedAt")
+        .sort({ kind: 1, name: 1 })
+        .lean()
+    : [];
+  /**
+   * The letters came back with the files above, read and permission-checked
+   * there — `filesForEngagement` leaves them out for anybody without
+   * `view docGenerate`, which is the check this query used to make itself.
+   */
+  const generated = files.letters ?? [];
+  /**
+   * One list for the Files tab: the job's own files, the papers linked in
+   * from elsewhere, and the UDIN and sample vouchers. They were not on this
+   * tab before P3-48b, which meant the tab and the job's folder in the
+   * drive disagreed about what the job holds — and a reviewer signed off
+   * whichever of the two they happened to open.
+   */
+  const fileRows = [
+    ...(files.files ?? []),
+    ...(files.linked ?? []),
+    ...(files.udin ?? []),
+    ...(files.samples ?? []),
+  ];
 
   /**
    * What this job has actually sent (owner, 13-11-2026).
@@ -206,7 +222,7 @@ export default async function EngagementPage({ params, searchParams }) {
         ? [
             {
               entityType: "GeneratedDoc",
-              entityId: { $in: generated.map((d) => d._id) },
+              entityId: { $in: generated.map((d) => d.id) },
             },
           ]
         : []),
@@ -251,30 +267,14 @@ export default async function EngagementPage({ params, searchParams }) {
       name: t.name,
       verified: Boolean(t.verifiedAt),
     })),
+    /**
+     * Shaped by `letterRow` in `lib/documents/rows.js` now (P3-48b), beside
+     * the file row, so the job's folder in the work drive draws the same
+     * letter as this tab does.
+     */
     docs: {
       engagementId: String(engagement._id),
-      rows: generated.map((d) => ({
-        id: String(d._id),
-        /** Which template it came from; kept for letters made before 13-11-2026. */
-        templateId: d.templateId ? String(d.templateId) : "",
-        /** Which checklist row asked for it, which is how a row finds its own. */
-        checklistItemId: d.checklistItemId ? String(d.checklistItemId) : "",
-        name: d.templateName,
-        final: d.state === "final",
-        version: d.templateVersion,
-        udin: d.udin,
-        byName: d.createdBy === actor.id ? "you" : "a colleague",
-        issuedByName: d.issuedByName,
-        issuedOn: d.issuedAt ? formatISTDate(d.issuedAt) : "",
-        /** Somebody has written in this draft, so it no longer re-resolves. */
-        edited: Boolean(d.edited),
-        editedByName: d.editedByName ?? "",
-        /** Whether the client has actually been sent it, and where to. */
-        sentOn: d.sentAt ? formatISTDate(d.sentAt) : "",
-        sentTo: d.sentTo ?? [],
-        /** Sorts the Files tab's one list against the uploaded files. */
-        at: d.createdAt ? new Date(d.createdAt).toISOString() : "",
-      })),
+      rows: generated,
     },
   };
 
@@ -668,8 +668,8 @@ export default async function EngagementPage({ params, searchParams }) {
             */
             badges={{
               files:
-                documents.length + generated.length
-                  ? { value: documents.length + generated.length }
+                fileRows.length + generated.length
+                  ? { value: fileRows.length + generated.length }
                   : undefined,
               letters: sentOut.length ? { value: sentOut.length } : undefined,
             }}
@@ -752,20 +752,7 @@ export default async function EngagementPage({ params, searchParams }) {
         // same permissions the Letters tab uses
         mayGenerate={mayGenerate}
         letters={letters}
-        documents={documents.map((d) => ({
-          id: String(d._id),
-          name: d.name,
-          size: d.size,
-          mime: d.mime,
-          checklistItemId: d.checklistItemId ? String(d.checklistItemId) : null,
-          versions: (d.versions ?? []).length,
-          uploadedByName: d.uploadedByName,
-          // whose paper it is: the Files tab's two sides read this
-          origin: d.origin === "firm" ? "firm" : "client",
-          // for the Files tab: one list, newest first, in words
-          uploadedOn: d.createdAt ? formatISTDate(d.createdAt) : "",
-          at: d.createdAt ? new Date(d.createdAt).toISOString() : "",
-        }))}
+        documents={fileRows}
         mayAttach={can(actor, "edit", "documents", target)}
         /*
           The upload links we have given the client, as data rather than

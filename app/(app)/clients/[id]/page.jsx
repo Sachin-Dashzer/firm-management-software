@@ -31,8 +31,8 @@ import ClientService from "@/models/ClientService";
 import ServiceTemplate from "@/models/ServiceTemplate";
 import ClientServices from "./ClientServices";
 import DocumentModel from "@/models/Document";
-import DocumentsPanel from "./DocumentsPanel";
-import { folderNames } from "@/lib/documents/folders";
+import DocumentsTab from "./DocumentsTab";
+import { CLIENT_FILES } from "@/lib/documents/zones";
 import Invoice from "@/models/Invoice";
 import Payment from "@/models/Payment";
 import LedgerPanel from "./LedgerPanel";
@@ -372,9 +372,10 @@ export default async function ClientPage({ params, searchParams }) {
         <DocumentsTab
           clientId={id}
           actor={actor}
-          client={client}
-          scope={scope}
-          only={access.engagementIds}
+          /* the folder being read, as the tab's own address carries it */
+          path={String(query.path ?? "")
+            .split("/")
+            .filter(Boolean)}
         />
       )}
 
@@ -835,75 +836,6 @@ async function EngagementsTab({ clientId, actor, mayEdit, only }) {
 }
 
 /** The client's files: the permanent file first, then work by engagement. */
-async function DocumentsTab({ clientId, actor, scope, only }) {
-  const mayEdit = can(actor, "edit", "documents", scope);
-
-  /**
-   * Somebody here through the work on their desk sees that work's files and
-   * the client's permanent file — the PAN card, the incorporation
-   * certificate, the things every engagement refers to. Not the files of
-   * work they are not on.
-   */
-  const documents = await DocumentModel.find({
-    clientId,
-    ...(only
-      ? { $or: [{ engagementId: { $in: only } }, { isPermanent: true }] }
-      : {}),
-  })
-    .sort({ createdAt: -1 })
-    .lean();
-
-  const engagementIds = [
-    ...new Set(
-      documents
-        .filter((d) => d.engagementId)
-        .map((d) => String(d.engagementId)),
-    ),
-  ];
-  const engagements = await Engagement.find({ _id: { $in: engagementIds } })
-    .select("code templateSnapshot periodLabel period")
-    .lean();
-
-  const shape = (d) => ({
-    id: String(d._id),
-    name: d.name,
-    size: d.size,
-    mime: d.mime,
-    versions: (d.versions ?? []).length,
-    uploadedByName: d.uploadedByName,
-    isPermanent: Boolean(d.isPermanent),
-    /** The folder it is filed under — the document's `kind`. */
-    folder: (d.kind ?? "").trim(),
-  });
-
-  /**
-   * Every folder this client's files are filed under, for the suggestions
-   * list. Read from the files themselves rather than kept in a list of its
-   * own: a folder exists because something is in it, so there is nothing to
-   * create, nothing to keep in step and no empty folder to tidy away.
-   */
-  const folders = folderNames(documents);
-
-  return (
-    <DocumentsPanel
-      clientId={clientId}
-      mayEdit={mayEdit}
-      folders={folders}
-      permanent={documents.filter((d) => d.isPermanent).map(shape)}
-      byEngagement={engagements.map((e) => ({
-        id: String(e._id),
-        title: `${e.templateSnapshot?.name ?? "Engagement"} · ${e.periodLabel || e.period}`,
-        code: e.code,
-        documents: documents
-          .filter(
-            (d) => !d.isPermanent && String(d.engagementId) === String(e._id),
-          )
-          .map(shape),
-      }))}
-    />
-  );
-}
-
 /** The client's account: what they owe, and everything behind it. */
 async function InvoicesTab({ clientId, actor, client }) {
   if (!can(actor, "view", "invoices", { branchId: String(client.branchId) })) {
@@ -1245,6 +1177,7 @@ async function tabCounts(tabs, { clientId, only }) {
       "documents",
       DocumentModel.countDocuments({
         clientId,
+        ...CLIENT_FILES,
         ...(only
           ? { $or: [{ engagementId: { $in: only } }, { isPermanent: true }] }
           : {}),

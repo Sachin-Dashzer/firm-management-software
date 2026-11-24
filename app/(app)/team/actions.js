@@ -8,6 +8,8 @@ import { connectDB } from "@/lib/db";
 import User from "@/models/User";
 import Engagement from "@/models/Engagement";
 import ClientAccess from "@/models/ClientAccess";
+import Folder from "@/models/Folder";
+import Document from "@/models/Document";
 import { hashPassword } from "@/lib/crypto";
 import { temporaryPassword } from "@/lib/security/password";
 import { audited } from "@/lib/audit/request";
@@ -501,3 +503,113 @@ export async function offboard(userId, reason) {
  * person page's Leave panel and the leave board call the same four, so there
  * is one set of rules rather than two that drift.
  */
+
+/**
+ * Somebody's My Docs, when they leave (P3-48f, decision D-F2).
+ *
+ * My Docs is private to its owner — not even a partner browses it — which
+ * is exactly why it cannot simply stay behind when the account is switched
+ * off. The papers would be unreadable by anybody, for ever, while still
+ * taking room in the vault and still being the firm's records.
+ *
+ * So offboarding moves them, and the only two honest answers are **HQ**,
+ * where the firm's own papers live, or **a named colleague**, who then owns
+ * them as their own. Both are audited, per folder and per file, as any
+ * other change of ownership is.
+ *
+ * It does **not** read them. Nothing here opens a file; the folders and the
+ * documents change whose they are and nothing else.
+ *
+ * @param {string} userId the person leaving
+ * @param {{ to: "hq" | string }} where "hq", or the id of a colleague
+ */
+export async function moveMyDocs(userId, { to } = {}) {
+  const actor = await requireUser();
+  assertCan(actor, "edit", "team");
+  await connectDB();
+
+  const leaver = String(userId ?? "");
+  if (!leaver) return { error: "Whose files?" };
+
+  const toHq = to === "hq";
+  const colleague = toHq
+    ? null
+    : await User.findById(to).select("name active").lean();
+  if (!toHq && !colleague) return { error: "Choose where they should go." };
+  if (colleague && colleague.active === false) {
+    return { error: "That person has left as well. Choose somebody else." };
+  }
+  if (!toHq && String(to) === leaver) {
+    return { error: "They are the one leaving." };
+  }
+
+  const folders = await Folder.find({ zone: "personal", ownerId: leaver });
+  const documents = await Document.find({ zone: "personal", ownerId: leaver });
+  if (!folders.length && !documents.length) {
+    return { ok: "They had nothing in My Docs.", moved: 0 };
+  }
+
+  await audited(actor, async (session) => {
+    for (const folder of await Folder.find({
+      zone: "personal",
+      ownerId: leaver,
+    }).session(session)) {
+      if (toHq) {
+        folder.zone = "firm";
+        folder.ownerId = null;
+        folder.anchor = folder.anchor === "my" ? "hq" : folder.anchor;
+      } else {
+        folder.ownerId = String(to);
+      }
+      folder.updatedBy = actor.id;
+      await folder.save({ session });
+    }
+
+    for (const document of await Document.find({
+      zone: "personal",
+      ownerId: leaver,
+    }).session(session)) {
+      if (toHq) {
+        document.zone = "firm";
+        document.ownerId = null;
+      } else {
+        document.ownerId = String(to);
+      }
+      document.updatedBy = actor.id;
+      await document.save({ session });
+    }
+
+    await recordAudit(
+      {
+        action: ACTIONS.documentMove,
+        entityType: "User",
+        entityId: leaver,
+        note: `My Docs — ${folders.length} folder(s) and ${documents.length} file(s) moved to ${
+          toHq ? "HQ" : colleague.name
+        }`,
+      },
+      session,
+    );
+  });
+
+  revalidatePath("/documents/folders");
+  return {
+    ok: `${documents.length} file${documents.length === 1 ? "" : "s"} moved to ${
+      toHq ? "HQ" : colleague.name
+    }.`,
+    moved: documents.length + folders.length,
+  };
+}
+
+/** What is still in their My Docs, so the wizard knows whether to block. */
+export async function myDocsCount(userId) {
+  const actor = await requireUser();
+  assertCan(actor, "view", "team");
+  await connectDB();
+
+  const [folders, files] = await Promise.all([
+    Folder.countDocuments({ zone: "personal", ownerId: String(userId) }),
+    Document.countDocuments({ zone: "personal", ownerId: String(userId) }),
+  ]);
+  return { folders, files };
+}

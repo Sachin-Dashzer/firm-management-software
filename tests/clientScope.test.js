@@ -54,6 +54,8 @@ describe("documents", () => {
     expect(documentScope(person)).toEqual({
       clientId: "c-1",
       sharedWithClient: true,
+      // and nothing from outside the client zone (P3-48a)
+      zone: { $nin: ["firm", "personal"] },
     });
   });
 });

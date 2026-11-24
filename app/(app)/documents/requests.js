@@ -2,12 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/auth";
-import { assertCan } from "@/lib/permissions";
+import { assertCan, can } from "@/lib/permissions";
 import { connectDB } from "@/lib/db";
 import { audited } from "@/lib/audit/request";
 import { recordAudit, ACTIONS } from "@/lib/audit";
 import DocRequest from "@/models/DocRequest";
 import Engagement from "@/models/Engagement";
+import Document from "@/models/Document";
+import AuditLog from "@/models/AuditLog";
+import { targetOf } from "@/lib/documents/target";
+import { describeEntry } from "@/lib/audit/describe";
 import Client from "@/models/Client";
 import {
   hashRequestToken,
@@ -299,4 +303,64 @@ export async function pendingFromClients(actor, branchScope) {
       )
       .map((i) => i.name),
   }));
+}
+
+/**
+ * What has happened to one file (P3-48e).
+ *
+ * Every view, download and delete of a document has been written to the
+ * audit log since the vault was built (spec section 6). The record is only
+ * worth keeping where somebody can read it, so the preview drawer shows it
+ * beside the file — the same entries the Activity tab shows, narrowed to
+ * this one document.
+ *
+ * It asks the same question of the permission system that opening the file
+ * does: somebody who may not read the file may not read its history either.
+ *
+ * @param {string} id
+ */
+export async function fileActivity(id) {
+  const actor = await requireUser();
+  await connectDB();
+
+  const document = await Document.findById(id)
+    .select("clientId engagementId")
+    .lean({ withDeleted: true });
+  if (!document) return [];
+
+  const engagement = document.engagementId
+    ? await Engagement.findById(document.engagementId).lean()
+    : null;
+
+  if (
+    !can(
+      actor,
+      "view",
+      "documents",
+      await targetOf(actor, engagement, null, document.clientId),
+    )
+  ) {
+    return [];
+  }
+
+  const entries = await AuditLog.find({ entityType: "Document", entityId: id })
+    .sort({ ts: -1 })
+    .limit(40)
+    .lean();
+
+  /*
+    `describeEntry` returns the whole description — a headline, the list of
+    changes, and whether it is worth printing at all — and the drawer wants
+    the sentence. Handing the object straight to React is React error #31,
+    which is what the browser suite found the moment a file had any history.
+  */
+  return entries
+    .map((entry) => ({ ...describeEntry(entry), id: String(entry._id) }))
+    .filter((described) => !described.empty)
+    .map((described) => ({
+      id: described.id,
+      when: described.when,
+      what: described.headline,
+      changes: described.changes ?? [],
+    }));
 }

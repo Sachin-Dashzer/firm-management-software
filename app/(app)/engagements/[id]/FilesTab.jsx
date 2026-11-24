@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Segmented from "@/components/ui/Segmented";
+import Chip from "@/components/ui/Chip";
 import Uploader from "@/components/documents/Uploader";
 import DocEditor from "./DocEditor";
 import RequestPanel from "./RequestPanel";
@@ -86,7 +87,7 @@ export default function FilesTab({
     mime: d.mime,
     origin: d.origin,
     at: d.at ?? "",
-    what: fileWord(d.mime),
+    what: d.from || fileWord(d.mime),
     said: [
       d.uploadedByName ? `put up by ${d.uploadedByName}` : "uploaded",
       d.uploadedOn || "",
@@ -96,7 +97,16 @@ export default function FilesTab({
     ]
       .filter(Boolean)
       .join(" · "),
-    fixed: false,
+    /**
+     * A paper that lives somewhere else and is only pointed at from here
+     * (P3-48b): a checklist item answered from the client's permanent file
+     * points at the PAN card, which belongs to the client for ever. It is
+     * shown — the job really does rest on it — but it is not this job's to
+     * correct, so it has no Edit: a replacement here would quietly rewrite
+     * the client's permanent file from inside one month's return.
+     */
+    linked: Boolean(d.linked),
+    fixed: Boolean(d.linked),
   }));
 
   const ours = [...written, ...uploaded.filter((r) => r.origin === "firm")];
@@ -200,7 +210,17 @@ function Row({ row, engagementId, mayEdit }) {
     <li className="flex flex-col gap-2 px-3 py-3">
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1">
-          <p className="text-14 font-medium break-words">{row.name}</p>
+          <p className="text-14 flex flex-wrap items-center gap-2 font-medium break-words">
+            {row.name}
+            {row.linked && (
+              <Chip
+                tone="neutral"
+                title="It lives elsewhere; this job points at it"
+              >
+                linked
+              </Chip>
+            )}
+          </p>
           <p className="text-13 text-ink-muted">
             {row.what} · {row.said}
           </p>

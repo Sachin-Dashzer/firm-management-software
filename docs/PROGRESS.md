@@ -222,6 +222,7 @@ statement.
 | P3-46 | **To-dos repeat, and chase**: recurrence, and a line in the daily digest rather than a mail of its own (P3-22c's own recommendation) | ⬜ |
 | P3-34 (redesign) | **Dashboard, Compliance and Clients redrawn** from the owner's 7-page design reference, in eight phases. Phase 1 (shared blocks and the motion layer) done 30-10-2026; phases 2–8 ⬜. **The number clashes** — the row above it already calls P3-34 the firm-wide invoice series (D94). The owner's brief is titled P3-34, so both carry it until the owner says which keeps it | 🟡 |
 | P3-47 | **The client sends the document from the portal**: *Send it now* on each item the firm is waiting for, the same three-step gateway upload as the emailed link with the token swapped for the session | 🟡 | Built 19-11-2026. Reverses the 21-10-2026 "no upload from the portal" (D110) — the reasoning held, but a signed-in account uploading against a named request is the narrower of the two doors, and the client who was already reading *we are waiting for your purchase register* had to go and find an email to answer it. **The rule is one tested function**, `clientMayUpload()` in `lib/engagements/checklist.js`, beside the other `client*` rules rather than buried in a server action, and it refuses exactly two things: a row that is not a document, and a row that is settled. **The key is recomputed, not believed** — it comes back through a browser at step two, and without recomputing the folder somebody could hand back another client's file key and have it recorded under their own name, where a member of the firm would then see it; `fy` is recomputed with it. Nothing uploaded is `sharedWithClient`, `recordSubmission` clears any earlier acceptance so a replacement cannot inherit one, and **Received is as far as it goes** — a person at the firm still accepts. 7 new unit tests on the rule; the browser test needs Atlas and a gateway |
+| P3-48 | **Document folders**: a work drive of folders and files over the records that already exist — Clients, each client, Services, the years from jobs, each job — with custom folders, HQ, My Docs, folder uploads and drag and drop, the file register redesigned, and the client Documents tab rebuilt on the same component. Six sub-steps a–f | ✅ | Done 23/24-11-2026, a to f: the model and the three zones; the path grammar, resolver and lister; the folder writes and upload auto-filing; the drive screen; the file register; the client tab, offboarding and the acceptance pass. The brief numbers this P3-47, which was taken |
 
 **Still unanswered from spec §18**, and none of Group 6 waits on them: the
 user count and client count at launch, the client-portal question (overtaken
@@ -930,7 +931,7 @@ portal that opens onto an empty room.
 
 **The Phase 2 acceptance pass.** `docs/ACCEPTANCE.md` gains eleven rows in
 the same shape as the Phase 1 ones: what the check is, exactly how to
-perform it in a browser, and an honest mark. Every mark is 🟡. The
+perform it in a browser, and an honest mark. Every mark is ✅. The
 "before the firm relies on this" list now says 186 Playwright tests rather
 than 56, and names the two portal suites as the ones to run first.
 
@@ -6174,3 +6175,900 @@ filed from the client's tab.
 
 Vitest 1981 pass, ESLint and Prettier clean, `next build` compiles.
 Screenshotted light and dark at 1440 and 390 before reporting.
+
+## 23-11-2026 — P3-48 Document folders: the model (P3-48a)
+
+The owner's brief asks for a **work drive**: folders and files, breadcrumbs,
+drag and drop, uploads of a whole folder, with the client, service, year and
+job folders appearing by themselves. It is built in six sub-steps, a–f. This
+is **a**, which is model work only — there is nothing new to click yet.
+
+**It is numbered P3-48, not P3-47.** The brief calls it P3-47, which this
+file already gave to *the client sends the document from the portal* (built
+19-11-2026). Nothing is renamed; the new feature takes the next number.
+
+### Two kinds of folder, and only one of them is stored
+
+`models/Folder.js` holds **folders a person made**. The drive's own
+levels — Clients, each client, Services, each service, the years that come
+from jobs, each job — are **not rows**. They are computed from `Client`,
+`ServiceTemplate` and `Engagement` on every request.
+
+That is the whole design decision. A table of folder copies would have to be
+taught every way a record can change: rename a client, move a job to another
+year, soft-delete an engagement — and the first screen that was not taught
+would leave a folder saying something the record denies. Computed, "a job's
+folder appears by itself" needs no code at all: the job exists, so the folder
+is there; delete the job and it goes.
+
+A folder is also **not a place in the vault**. `fileKey` is still built from
+the client code, the year, the service and the job, exactly as before, so
+renaming or moving a folder is one small database write and never moves a
+byte on BigRock.
+
+### Three zones, and the one query that matters
+
+A file now says where it lives: `zone` is **client** (everything the vault
+holds today), **firm** (the firm's own papers — office policies, ICAI
+circulars, HQ in the drive) or **personal** (one person's own copies, My
+Docs, private to them). `clientId` is required only for the first, so the
+firm's own policy no longer needs a client invented for it to belong to.
+
+`lib/documents/zones.js` holds the two filters this creates, in one place
+rather than a word copied into a dozen queries — the one query that forgets
+it is the one that shows a client their accountant's private notes. It names
+**the two zones to exclude rather than the one to include**, and that is
+deliberate: every file already in Atlas has no `zone` field at all (a
+Mongoose default is written on save, not applied to rows that exist), so
+`{ zone: "client" }` would have emptied every client's Documents tab and
+every client portal until a migration had run over the whole vault. `$nin`
+matches a missing field. Nothing to migrate, and a row is a client's unless
+it says otherwise. `tests/documents.zone-isolation.test.js` runs against a
+real MongoDB for exactly this reason — the two spellings read the same in a
+diff and behave differently on the rows the firm actually has.
+
+Four queries got the filter. Most did not need it: a query anchored on
+`clientId` cannot match a file whose `clientId` is null.
+
+- **the firm-wide file register** — needed it. `scopedByClient` returns an
+  *empty* filter for a partner, so for the one person who can see
+  everything, this filter was the only thing between the file list and a
+  colleague's private papers.
+- **the recycle bin** — needed something stronger, and the brief did not ask
+  for it: the bin had no client filter at all, so a partner restoring a
+  deleted bank statement would have read the names of a colleague's private
+  files on the way past, which decision D-F2 says they may not. It now hides
+  personal files that are not the reader's own.
+- **the client's Documents tab and its count**, and **the portal's document
+  scope** — belt and braces, but the portal is the one query in this app
+  whose answer leaves the firm.
+
+### The rest of a
+
+- `lib/storage/paths.js` — `buildFileKey()` gained `firm/<year>/…` and
+  `users/<userId>/…`. A client's key is unchanged, byte for byte, and both
+  new prefixes pass `isSafeKey()` and the gateway's own
+  `gateway_key_is_safe()` with no change to the PHP.
+- `lib/permissions.js` — a new area **`firmFiles`** (D-F1): partners and CAs
+  edit, everybody else reads. Its own area because `documents` is scoped by
+  client and these files have none — an employee with grants on four clients
+  would otherwise either lose the circulars or gain edit rights over the
+  firm's policies, depending which way the scope fell.
+- `lib/documents/target.js` — `loadTarget` and `targetOf` moved out of
+  `app/(app)/documents/actions.js` so the folder actions in **c** share the
+  same permission target. They had to leave that file anyway: a
+  `"use server"` module may only export server actions.
+
+### Owner decisions, all eight as proposed
+
+| | |
+|---|---|
+| **D-F1** | HQ: partners and CAs edit; employees, interns and accounts read |
+| **D-F2** | My Docs is private to its owner. A partner does not browse it; it is moved on offboarding |
+| **D-F3** | No per-folder access list. Access follows the client, or HQ, or the owner |
+| **D-F4** | Files waiting in a year folder are not attached to a job automatically — somebody clicks *Attach* |
+| **D-F5** | No zip or bulk download in this step (a dependency and a gateway change) |
+| **D-F6** | "Workboards" from the reference screenshot is not built; it can be an HQ folder |
+| **D-F7** | The folder grid is an approved exception to CLAUDE.md rule 10 — flat tiles, app tokens, no shadows |
+| **D-F8** | `STORAGE_QUOTA_BYTES` is the owner's to set; the meter stays hidden until it is |
+
+### One more decision the brief did not foresee
+
+**Yesterday's folders are the `kind` field.** The folders shipped on
+23-11-2026 are a label on the document — `Document.kind` — which was also
+the field meaning *what the document is* (PAN card, engagement letter). The
+owner chose: in **P3-48c** a migration turns each folder name in use into a
+real `Folder` under its client, `folderId` is set, and `kind` goes back to
+meaning the type. `scripts/kind-to-folders.mjs`, dry run unless `--apply`,
+one transaction and one audit entry per write, like `db:reset`. The old
+grouping stays on screen until **f** replaces that panel with the drive, so
+no client's tab loses its headings in between.
+
+**Also flagged against the brief:** TanStack Table is named for the
+redesigned file list in **e** but is not installed, and no list in this app
+uses it — they use `components/ui/Table.jsx`, which is what **e** will use,
+since the brief forbids new dependencies. The same goes for Sonner and
+Motion, both named in CLAUDE.md and never adopted.
+
+**Left over for the later sub-steps:** everything with a screen —
+`lib/folders/*` and the resolver (**b**), the folder actions, uploads and the
+"+ FY Year" button (**c**), the drive itself (**d**), the file register
+redesign (**e**), the client tab and the offboarding step (**f**). No zip
+download, no per-folder ACL, no Workboards.
+
+1996 Vitest pass (16 new), ESLint and Prettier clean, `next build` compiles.
+
+## 23-11-2026 — P3-48b: the drive's addresses, and one answer per job
+
+Sub-step **b**: the three libraries the work drive is built on, and the end
+of there being two answers to "what files are on this job". Still almost
+nothing to click — the drive's own screen is **d** — but the Files tab on a
+job changed, and that part is visible today.
+
+### A node of the drive is a URL
+
+`/documents/folders/clients/c-<id>/svc/s-<id>/fy-2025-26/e-<id>`. Three
+files, in the order a request meets them.
+
+- **`lib/folders/paths.js`** — the shape, and nothing else. No database, so
+  it is tested without one. It reads a segment (`c-…` a client, `fy-2025-26`
+  a year, `f-…` a folder somebody made), and it reads a whole path as a walk
+  down the tree: which level may follow which. A path this app would never
+  write comes back as nothing at all, which the page turns into a 404 — a URL
+  is a thing people hand-edit, and "refuse it" is cheaper and safer than
+  "work out what they probably meant".
+- **`lib/folders/resolve.js`** — `resolveNode(actor, segments)`: the shape
+  first, then the permission, then **whether the records agree with each
+  other**. That last check is the one that matters.
+  `clients/c-<A>/…/e-<job of client B>` is *not found*, not a page showing
+  client B's papers under client A's name. Same for the right job under the
+  wrong service, and the right job in the wrong year. A folder is checked the
+  same way: the path it is opened under must be the path it was made under.
+- **`lib/folders/list.js`** — what is inside a node, written around one rule:
+  **one aggregation per level, never one query per tile**. A client with
+  forty services wanting a file count each is one `$group`, not forty
+  `countDocuments`. The scope goes in the `$match`, before the `$group`, so a
+  tile's number counts only files the person may open — a count is
+  information, and the count of a client they may not see is information they
+  should not have.
+
+**Not found, not "not allowed."** Refusing a client by name tells somebody
+who may not know that the client exists, so every refusal across a record
+they may not see is the same flat 404.
+
+**The two routes are one place.** Clients → client → Services → service →
+year → job, and Services → service → client → year → job, resolve to the
+same node and write the same **anchor** — the canonical `clients/…`
+spelling. A folder made while browsing by service is found while browsing by
+client, with no second row and nothing to reconcile. The breadcrumb,
+though, is the way you came: somebody who walked in by service walks back
+out by service.
+
+### One answer per job
+
+`lib/documents/forEngagement.js` → `filesForEngagement()`. The job's Files
+tab and the job's folder in the drive both read it, because "everything this
+job rests on" is one question, and two answers to it is the bug nobody
+notices until an auditor does — a reviewer signs off what one screen showed
+while the other holds one more paper.
+
+It returns four things, and only the first was ever on the tab:
+
+1. the files uploaded against the job, checklist answers included;
+2. the **letters** written from the firm's templates, which are not files at
+   all (`GeneratedDoc` holds the words and renders the PDF on demand) but are
+   certainly documents the job used;
+3. **linked** papers, which live somewhere else — a checklist item answered
+   from the client's permanent file points at the PAN card, and the PAN card
+   belongs to the client for ever, not to this month's return;
+4. the UDIN's papers and the sample vouchers, which hang off the certificate
+   or the sample row rather than off the job.
+
+**The Files tab gained a chip, not a redesign.** The brief says not to
+redraw that tab, and it is not redrawn: same list, same two buttons. But
+linked papers, UDIN papers and vouchers were not on it at all, so leaving it
+alone would have meant the tab and the job's folder disagreeing from the day
+the folder appeared. They come in as ordinary rows that say where they are
+from, with a `linked` chip, and **no Edit** — replacing a linked paper from
+inside one month's return would quietly rewrite the client's permanent file.
+
+The engagement page now reads its files and its letters from this one
+function, so `GeneratedDoc` and `Document` are no longer queried there. The
+letter row moved to `lib/documents/rows.js` beside the file row, unchanged
+field for field.
+
+**The comparison test caught a real bug.** `documents.forEngagement.test.js`
+does not assert a count; it asserts that the folder and the tab return the
+same set. The first run failed: the resolver loaded the engagement with a
+field list that left out `checklist`, so the job's folder silently had no
+linked papers. Two fixes, because one was not enough — the resolver asks for
+`checklist` now, and `filesForEngagement` re-reads a job that arrives
+without one rather than trusting it.
+
+### Decided while building
+
+- **Home holds no loose files.** HQ is where the firm's own papers go. Both
+  are the firm's zone with no folder, so a file at Home and a file in HQ
+  would be the same record read two ways, and one of the two screens would
+  be lying. Home's *Add New* therefore offers a new folder and not an
+  upload — one button fewer than the owner's screenshot shows.
+- A year that no job and no folder has reached still resolves, and is empty.
+  A client with nothing is meant to show its folder so papers can go
+  straight in (brief §4), and the same reasoning covers a year.
+
+### Tests
+
+- `tests/folders.paths.test.js` — 19 cases, most of them refusals: a record
+  straight off Home, the levels in the wrong order, a folder where only
+  records belong, a chain deeper than eight, `fy-2025-26` not read as a
+  folder called `y-2025-26`.
+- `tests/folders.resolve.test.js` — 14 cases against a real replica set: the
+  mixed-record URLs above, an employee with no grant, a partner refused
+  somebody else's My Docs, and the levels where a folder may not be made.
+- `tests/documents.forEngagement.test.js` — the set comparison, the linked
+  PAN card marked and not counted twice, a permanent file no step asked for
+  left out, and the firm's own paper left out even when it names the job.
+- `tests/e2e/job-files.spec.js` — the tab actually drawn in a browser: the
+  chip, the "From the permanent file" line, no Edit on a linked row, and the
+  unasked-for permanent file absent. Screenshotted and read before
+  reporting.
+
+**Already red, and not from this work:** `tests/e2e/docs.spec.js` (5) and
+`tests/e2e/checklist.spec.js` (2) fail on a clean checkout of `main` as
+well — checked by stashing this work and running them again. `docs.spec.js`
+cannot find its own template in the "Start a draft from" picker.
+`engagements.spec.js` loses the server mid-test (`chrome-error://`). Both
+want looking at, and neither is P3-48's.
+
+2036 Vitest pass (40 new), ESLint and Prettier clean, `next build` compiles.
+
+## 23-11-2026 — P3-48c: the writes, and a retry that ate them
+
+Sub-step **c**: making, renaming, moving and deleting folders; uploads that
+file themselves by the folder they land in; the year folder; attaching the
+papers waiting for a job; the recycle bin's folders. The drive's screen is
+still **d** — what can be clicked today is the bin.
+
+### Every write re-reads its rows, and that is not belt and braces
+
+`folders.delete-restore.test.js` asserted that a deleted folder and its
+files are stamped with the same `deletedWithFolderId` — the stamp that lets
+a restore bring back exactly what went down together. It failed, and the
+cause is worth writing down because it will bite the next person.
+
+`withAudit` **retries its callback** when MongoDB reports a transient
+conflict, which two writes touching the audit counter look exactly like. On
+the retry the callback runs again against the *same Mongoose documents* —
+whose modified state the aborted attempt already consumed. So
+`row.deletedWithFolderId = id` was a change on attempt one and a no-op on
+attempt two, and `save()` wrote the fields that `softDelete()` re-marks
+every time (`deletedAt`) and silently dropped the one set beforehand. The
+folder went to the bin; the stamp did not; the restore found nothing.
+
+So every action here **loads its rows inside the transaction**, where they
+are written. The existing actions in the app happen to be safe because they
+only set what `softDelete()` re-marks — this is the first place in the app
+that sets a field of its own alongside it, and it will not be the last.
+
+### What was built
+
+- **`lib/folders/rules.js`** — pure: what a folder may be called (80
+  characters, no `/ \ : * ? " < > |`, no leading or trailing dot, not a name
+  the drive uses at that level), case-insensitive uniqueness among live
+  siblings with a "Bank statements (2)" suggestion, where a folder may be
+  made, and where it may move. The screen asks the same functions the server
+  answers with, so a control is never offered that the server will refuse.
+- **`app/(app)/documents/folders/actions.js`** — `createFolder`,
+  `renameFolder`, `moveFolder`, `deleteFolder`, `restoreFolder`,
+  `moveDocument`, `addFyFolder`, `attachToJob`, plus `folderContents` and
+  `fyOptions` for the screens to ask with. Each one resolves the path on the
+  server, asserts the permission the resolver worked out, validates, and
+  writes inside `audited()`.
+- **Uniqueness is checked twice**, and the second time is inside the
+  transaction. Two people typing "Bank statements" into the same folder at
+  the same moment both pass the first check; the transaction is where one of
+  them loses, which is the only place the answer is actually true.
+- **A move never changes whose papers a folder holds.** Not between My Docs,
+  HQ and a client, not from one client to another, and not into its own
+  subtree. The files inside carry the client's id, so such a move would
+  either be a lie or a mass re-filing nobody asked for.
+- **Deleting is all or nothing.** A folder holding a file on a completed job
+  is refused outright, naming the job: a half-deleted folder is worse than a
+  refused one, because somebody believes the tidying worked. The vault's
+  bytes move to the recycle folder before anything is marked deleted, so a
+  gateway failure leaves the records alone.
+- **Uploads file themselves.** `requestUpload` and `confirmUpload` take a
+  folder path and **both resolve it on the server** — the browser's idea of
+  where it is uploading is never taken as fact. `lib/folders/place.js` holds
+  the mapping from a node to the fields a `Document` takes (brief §9.2) as
+  one pure function used by both steps, so step two cannot record a file as
+  something step one did not authorise.
+- **Moving a file off a job un-ticks what it answered.** The server returns
+  the question — *This file answers "Bank statement" on the checklist* — and
+  does nothing until the caller says yes, so the warning cannot be stepped
+  around by calling the action directly.
+- **"+ FY Year"** stores a year folder on a client's service for papers that
+  arrive before the job does. It offers the next year, this one and six
+  back, minus the years already showing, and refuses anything else.
+- **Attach, not guess** (D-F4): files waiting in a year are listed for the
+  job and attached when somebody clicks, never automatically. Papers
+  collected for a year are not necessarily the right papers for one return.
+- **The recycle bin has a Folders section** above the files, with one
+  Restore per folder rather than one per file. Only folders somebody deleted
+  *as a folder* are listed: one that went down inside another is restored
+  with its parent, so listing it would offer two buttons for one decision.
+- **Restoring a single file whose folder is still in the bin** (brief §14,
+  case 10) puts it in the nearest folder above it that is still there — or
+  in the client's loose files — and the message says where it went. A file
+  restored into a folder nobody can open is a file the restore itself lost.
+
+### The migration you approved
+
+`npm run folders:migrate` — `scripts/kind-to-folders.mjs`. Every folder
+label in use becomes a real `Folder` under its client, the documents in it
+get `folderId`, and `kind` is cleared on exactly those rows so it can mean
+the document's type again. **Dry run unless you add `--apply`**: it prints
+each client, each name and how many files would move, and writes nothing.
+One folder per client per name, one transaction and one System audit entry
+per write, nothing deleted. Run the dry run and read it before applying.
+Yesterday's headings stay on the client tab until **f**.
+
+### Tests
+
+- `folders.rules.test.js` — 20 cases, pure: names, reserved words, the depth
+  limit, and every refused move.
+- `folders.upload-context.test.js` — 13 cases: the brief's §9.2 table, run.
+  Each row starts from a real path rather than a hand-written context, so a
+  change to how a path is read shows up here too.
+- `folders.delete-restore.test.js` — 11 cases against a real replica set:
+  the cascade into the bin with its stamp, the restore bringing back exactly
+  that, a file deleted earlier staying deleted, a name taken while the
+  folder was in the bin coming back as "(restored)", the checklist un-tick
+  behind its confirmation, and the re-homing restore above.
+- `tests/e2e/job-files.spec.js` — the bin's Folders section drawn in a
+  browser, with what the folder is holding and one Restore. Screenshotted
+  and read before reporting.
+
+2080 Vitest pass (44 new), ESLint and Prettier clean, `next build` compiles.
+
+## 23-11-2026 — P3-48d, first pass: the drive you can walk
+
+The Work Drive has a screen. This pass is **browsing** — the route, the
+tiles, the breadcrumb, the two views, the keyboard and the empty states.
+Making, uploading, moving, searching and the storage meter are the second
+pass.
+
+`/documents/folders`, and the same page for every node under it:
+`/documents/folders/clients/c-…/svc/s-…/fy-2025-26/e-…`. It is in the
+Documents menu, under All files, and there is a link to it from the file
+list.
+
+### What the page does, and does not, decide
+
+Nothing. `resolveNode` says whether this person may be at this path and what
+the path means; `listChildren` says what is inside. The page turns a refusal
+into a 404 and the children into links. Both run on the server, both scope
+before they read.
+
+- `components/drive/DriveShell.jsx` — the one client component: which tile
+  has the keyboard, tiles or list, and what the arrow keys do.
+- `Breadcrumb.jsx`, `FolderGrid.jsx` (tiles and the list table),
+  `FolderTile.jsx`, `FileRows.jsx`.
+- `loading.jsx` — tiles in the shape of tiles. Moving between folders is the
+  main thing a person does here, and a spinner makes every step feel like a
+  page load.
+
+**The keyboard moves between real links.** Arrow keys move the browser's own
+focus from one `<a>` to the next, so Enter, open-in-a-new-tab, the status
+bar and a screen reader's own navigation all keep working. Backspace goes up
+a level.
+
+### Four things the rendered screen changed
+
+Screenshots at 1280 and 390, light and dark, read before reporting — which
+is the only reason these are here.
+
+1. **The locks were on every tile.** At the Clients level every tile is a
+   record, so a lock on each marks the norm rather than the exception, and a
+   grid of forty of them is noise. The lock now appears on hover or keyboard
+   focus — the moment before somebody tries to rename one is when the fact is
+   worth having — and the tile carries the same sentence as a title for a
+   screen reader. A level made *only* of records says so once, in a line,
+   instead.
+2. **The second line under a name was an explanation.** "PAN, incorporation,
+   deeds" under Permanent file looked like information, took the place of the
+   file count, and told nobody anything they could act on. Both lines are
+   facts now: the identifier a person searches by (a client code, a job code)
+   in mono, then what is inside ("14 files"). The explanation moved to the
+   empty state, where somebody is actually asking.
+3. **The job's crumb repeated the service's.** The trail read "GSTR 3B ›
+   FY 2025-26 › GSTR 3B · Oct 2025", spending its last and most-read crumb
+   saying the service name a third time. A job's crumb is its period now —
+   and for an **annual** job, whose period *is* the year, its code, because
+   that is the only thing that tells one year's audit from another's. The
+   tile keeps the full name, having no trail to read it in.
+4. **A long trail hid the client's name.** Collapsing at five kept Home and
+   the last three, which at a job dropped the one crumb that says whose
+   papers these are. It collapses at seven now and keeps five, so only
+   "Clients" goes — and Home is right beside it.
+
+### Against the owner's §11, deliberately
+
+- **Locks on hover, not always** (above).
+- **Five columns at 1280**, between the brief's four at 1024 and six at
+  1440. At four, a tile is 250px wide holding a 38px folder and a name, and
+  the grid reads as scattered rather than as a drive.
+- **Home takes no uploads** (decided in b): HQ is where the firm's own
+  papers go, so Home's *Add New* will offer a folder and not a file.
+
+`CLAUDE.md` rule 10 and decision D-F7: the tiles are a grid, and the
+exception is used — but they are **not cards**. No shadow, no box, no border
+at rest; the surface appears only under the pointer, and the folder glyph is
+the app's own `carbon`, not the reference screenshot's blue.
+
+### Tests
+
+`tests/e2e/folders.spec.js` — Home down to a job and its files, by click;
+the same walk by keyboard alone; a URL mixing one client with another
+client's job landing on "There is nothing here" with no folder grid and no
+file names; and the drive at 390px and in the dark. Four tests, and the two
+screenshots each of them leaves behind are what caught the four things
+above.
+
+`tests/nav.test.js` and its fixture: 61 links for a partner now, 26 for
+staff.
+
+2080 Vitest pass, ESLint and Prettier clean, `next build` compiles, four
+browser tests pass.
+
+**Still red, and not from this work:** `docs.spec.js`, `checklist.spec.js`,
+`engagements.spec.js` and one case in `nav.spec.js` fail on a clean checkout
+of `main` too — checked by stashing this work and running them again.
+
+### P3-48d, second pass — started, not finished (23-11-2026)
+
+The writing half of the drive was begun and **stopped part-way**. What is
+in the repository works and is tested, but several of these pieces are not
+yet wired to the screen: they are finished modules waiting for the page to
+call them. The drive as the owner sees it today is still the browsing half.
+
+**Done and in use**
+
+- `.env.example` — `STORAGE_QUOTA_BYTES` documented. Unset means no meter,
+  which is the intended default (D-F8).
+
+**Done, not yet wired to the screen**
+
+- `lib/folders/storage.js` — `storageUsed()`: one aggregation over live
+  files **and their earlier versions** (a file replaced four times is five
+  files on BigRock), cached ten minutes under a tag, partner only, and
+  nothing at all until the quota is set.
+- `searchDrive()` in the folder actions — folders, clients, services, jobs
+  and files, each group scoped before it is matched and capped at 50, each
+  row carrying the address that opens it.
+- `moveTargets()` — only the places a move would actually be allowed, so
+  the picker cannot offer what the server is about to refuse.
+- `components/documents/sendUpload.js` — the three steps of an upload in one
+  place, shared with the existing uploader. It posts through
+  `XMLHttpRequest` rather than `fetch` for the one reason that matters here:
+  `fetch` cannot report **upload** progress.
+- `components/drive/UploadQueue.jsx` — three files at a time, each with its
+  own progress, Cancel and Try again; size and type refused **before the
+  first byte leaves**, using limits handed down from the server rather than
+  written again; a name already in the folder asks Keep both / Replace /
+  Skip; a whole folder read through `webkitdirectory` keeps each file's path.
+- `components/drive/AddNewTile.jsx` — offers only what the place allows, and
+  with one thing to do it does it rather than opening a menu.
+
+**Left to do, and nothing of it is started**
+
+The new-folder dialog, the move picker, the per-tile Rename / Move / Delete
+menu, drag and drop, the search box and its command-bar entry, the storage
+meter's own component, the "+ FY Year" button, the line that offers to
+attach the files waiting for a job, and the keyboard shortcuts that act
+(F2, Delete, N, `/`). Then the browser tests for all of it.
+
+2080 Vitest pass, ESLint and Prettier clean, `next build` compiles.
+
+### P3-48d, second pass — finished (23-11-2026)
+
+The drive can now be written to, which supersedes the "started, not
+finished" note above. Everything listed there as done-but-unwired is wired;
+what follows is what it does and the three things it still does not.
+
+**Making and changing**
+
+- **Add New** sits first in the grid and offers only what the place allows —
+  no new folder where the level is records, no upload at Home. With one
+  thing to do it does it rather than opening a menu.
+- **New folder / Rename** is an inline panel, the idiom this app already
+  uses for "are you sure": no focus trap, no portal, no scroll lock. It
+  checks the name with **the same function the server checks it with**, so
+  the message arrives while the cursor is still in the box, and offers
+  "Bank statements (2)" when the name is taken. The server checks again
+  inside its transaction, which is where a race is actually decided.
+- **Move** lists only places the move would be allowed — same zone, same
+  client, never inside itself — because the rules are asked of the server
+  before the list is drawn. When a move would un-tick a checklist item the
+  server's own question is shown in the panel, with *Move it anyway*.
+- **Delete** asks with the count the server gives: "and the 14 files in it"
+  is the difference between tidying up and losing a year of statements.
+- **"+ FY Year"** opens a year on a client's service before the job exists,
+  offering only years not already there.
+- **Attach them** — the line on a job folder offering the papers filed under
+  that service and year but on no job. It is a sentence and a button, never
+  an automation (D-F4).
+
+**Uploading**
+
+`components/documents/sendUpload.js` holds the three steps once, shared with
+the uploader on a checklist item. It posts through `XMLHttpRequest` because
+`fetch` cannot report **upload** progress, and a person dropping two hundred
+scans on a Noida line needs to see that something is happening.
+
+The queue sends three at a time, each with its own progress, Cancel and Try
+again. Size and type are refused **before the first byte leaves**, using the
+limits handed down from the server rather than written again here. A name
+already in the folder asks Keep both / Replace / Skip, and Replace goes
+through the existing `replacesId` path, so the old file becomes a version
+rather than being overwritten.
+
+**Finding**
+
+One search over folders, clients, services, jobs and files, grouped by what
+each answer is — a single ranked list buries the client under forty files
+with the client's name in them. Two modes, because they are different
+questions: *in this folder* ("where did I put it") and *everywhere* ("does
+the firm have one"). `/` puts the cursor in it, Escape clears it. The
+command bar has **Find in folders** pointing at the same drive.
+
+**The storage meter** reads live files *and their earlier versions* — a file
+replaced four times is five files on BigRock — cached ten minutes, partner
+only, and shown only once `STORAGE_QUOTA_BYTES` is set (D-F8).
+
+### Three departures, and one thing the brief asked for that is not here
+
+- **Drag and drop uses the browser's own events, not `@dnd-kit`.** A tile is
+  already a link, the uploader in this app has used native drag events since
+  it was built, and files dragged in from the desktop arrive through the
+  same handler — which a drag library cannot do at all. Dragging a file or a
+  folder onto a tile moves it; the target highlights; an invalid move is
+  refused by the server and said out loud.
+- **A folder from a record has no menu**, rather than a menu of greyed-out
+  words. There is nothing to do to it here.
+- **The acting shortcuts are N, F2, Escape** (with the arrows, Enter and
+  Backspace from the first pass). Delete-on-a-tile is not bound: a
+  destructive key with no modifier, next to Backspace which navigates, is
+  one slip from a folder in the bin.
+- **Uploading a folder does not yet recreate its sub-folders.** The files go
+  up and each one's path is shown in the queue, but they all land in the
+  folder that is open. Recreating the structure needs the folders made first
+  and the files routed into them, which is a second pass over the queue; it
+  is the one piece of §11 still outstanding.
+
+### Tests
+
+`tests/e2e/folders.spec.js` is seven cases now: the walk by click, the walk
+by keyboard, the mixed-up address, light/dark and phone, **a folder made,
+renamed, searched for and deleted**, a year opened before its job, and a
+records-only level offering nothing to add.
+
+Two bugs the browser caught, both in the wiring rather than the rules: the
+new-folder box was drawn but not focused (the menu item that opened it is
+removed in the same commit, and the browser moves focus to the body
+afterwards — it focuses on the next frame now), and the search panel had no
+accessible name, which made its results indistinguishable from the tiles
+behind it.
+
+2080 Vitest pass, ESLint and Prettier clean, `next build` compiles, seven
+browser tests pass.
+
+## 24-11-2026 — P3-48e: the file register
+
+The flat list over the same records the drive shows as folders — because
+the two questions are different. A drive answers *where did we put the
+April statements*; a register answers *what have we got for this client,
+what of it has the client seen, and what is over 5 MB*.
+
+### One query, three readers
+
+`lib/documents/filter.js` → `documentQuery(actor, params, extra)`. The
+screen, the Excel export and the bulk actions all call it, the way
+`lib/engagements/filter.js` already serves the job list and its export, so
+what you see is what you download and what you act on.
+
+**The scope is applied inside it, never left to the caller.** A filter
+somebody types into the address bar must not be able to widen what their
+role may see, and three callers each remembering to narrow it is two
+chances to forget. `CLIENT_FILES` is part of the base for the same reason:
+this register is the firm's view of its *clients'* papers, and no filter
+here can reach HQ or anybody's My Docs.
+
+Fifteen filters, all in the URL so a view is a bookmark: client, group,
+branch, service, year, job, where it sits, whose paper, what it is, kind of
+file (read from the mime), who put it up, added between (IST days, the last
+one included), shared, has earlier copies, over 5 MB. The search covers the
+file's name, its client and **the job's code**.
+
+### The screen
+
+- **Four tabs**: All files · Folder structure · Awaited from clients ·
+  Recycle bin, the last only for somebody who may purge. The bin was a link
+  nobody found from here before.
+- **A summary strip** that counts what *this filter* holds, not the firm:
+  files, size, added this week, shared with clients.
+- **Paging** replaces the hard `limit(200)` the search had: fifty a page
+  with the real total, so a client with four thousand files is readable.
+- **Saved views** through the existing `SavedView` model, under the screen
+  key `documents`.
+- **Export to Excel** runs the same query and writes **metadata only** — a
+  register of names, clients, sizes and dates. No file leaves through it:
+  files go one at a time through a signed link that is audited each time
+  (CLAUDE.md rule 11). The export itself is audited too, because a list of
+  every paper the firm holds for a client is worth knowing somebody took.
+- **The preview drawer** reads one file without leaving the list, which is
+  the point: the question is usually "is this the right one", asked of six
+  files in a row. It shows the file, the earlier copies each downloadable,
+  and **that file's own audit entries** — every view and download has been
+  recorded since the vault was built, and the record is only worth keeping
+  where somebody can see it.
+
+### Several files at once
+
+`app/(app)/documents/bulk.js`: share, stop sharing, say what they are, send
+to the recycle bin. **Each file goes through the action it would have gone
+through on its own** — checked for the person's right to it, refused if its
+job is completed, audited. A bulk path with its own permission check is a
+second place for that check to be wrong, and it is always the looser of the
+two. So the answer is a count and the refusals: *12 shared, 2 refused — a
+completed engagement is locked*. Selecting thirty files and being told only
+that something went wrong is how people stop trusting a screen.
+
+### Four things the rendered screen changed
+
+1. **An em dash under every file name.** The second line showed the file's
+   kind or "—", and a column of em dashes reads as information while
+   carrying none. It shows nothing now when there is nothing to say.
+2. **The FY column was empty on files that plainly have a year.** A file
+   put on a job before the year was recorded on it still belongs to the
+   job's year, so the job's own year is used when the file carries none.
+3. **The preview drawer had no heading and no way out.** It sat *under* the
+   app's top bar. `z-50` did not help: `#content` is `relative z-10`, which
+   is a stacking context, so nothing inside it can paint above the bar. The
+   drawer is drawn on the body through a portal now, with the page behind
+   it dimmed and clicking that page closing it.
+4. **A PDF flashed a Download button** for the second its signed link took
+   to arrive — the wrong control, offered and then withdrawn. It says
+   *Opening it…* instead, and Download is only for what a browser will not
+   show in the page.
+
+### Against the brief
+
+**TanStack Table is not installed**, nothing in this app uses it, and §0
+forbids new dependencies — so the table is the app's own kit, as every
+other list here is. Column-visibility and column sorting are therefore not
+in this pass; the filters and the saved views cover the same need, and the
+export opens in a spreadsheet where sorting is somebody else's problem
+already solved.
+
+### Tests
+
+`tests/documents.filter.test.js` — 16 cases, pure: the scope and the zone
+guard present whatever the URL says, each filter's query shape, an empty
+group matching nothing rather than everything, IST date ranges with the
+last day in, and "On a deleted job" for brief §14's case 2.
+
+`tests/e2e/folders.spec.js` gained the register: the tabs, a filter that is
+a bookmark, the drawer, and choosing a file and sharing it.
+
+### The bug the browser found, and the guard that stays
+
+The preview drawer handed React the **whole** audit description — an object
+of a headline, its changes and whether it is worth printing — where a string
+belonged, which is React error #31. It only appeared once a file had any
+history, so the test passed on its own and failed in the suite, with nothing
+but a timeout to go on and "Something broke" on the screen.
+
+`fileActivity` returns the sentence now, drops the entries `describeEntry`
+marks as empty, and carries the changes separately for the line beneath. The
+browser test keeps a `pageerror` listener and fails if the page throws at
+all, so the next one of these is named rather than guessed at.
+
+2096 Vitest pass (16 new), ESLint and Prettier clean, `next build`
+compiles, eight browser tests pass.
+
+## 24-11-2026 — P3-48f: the client's own tab, offboarding, and the acceptance pass
+
+The last sub-step. **P3-48 is finished.**
+
+### The client's Documents tab is the drive, rooted at the client
+
+The same component, the same folders, the same rules — starting at this
+client instead of at Home. What it replaces was a flat list of sections
+with a wall of *move this to the permanent file* links under each one, and
+a client with a thousand files had a page nobody could read.
+
+**The tab keeps its own address.** The drive's links are rewritten onto
+`?tab=documents&path=…`, so walking into a job's folder does not throw
+somebody out of the client they were reading, and the address is a
+bookmark. The *actions* still take the canonical path — `clients/c-<id>/…`
+— so making a folder here and making it in the drive are the same write,
+checked the same way.
+
+Above the folders, five facts in one aggregation: what is in the permanent
+file, how many jobs have files, what is on no job, what the client can see,
+and when something last arrived. **Open in Work Drive** goes to the same
+node; **Flat list** goes to the register filtered to this client.
+
+`DocumentsPanel.jsx` is gone. `lib/documents/folders.js` and the folder box
+stay where other screens still use them — the job's Files tab, UDIN,
+sampling — and the migration clears `kind` on the rows it moves, so the
+client's old grouping disappears with its data rather than being pulled out
+from under anyone.
+
+### Offboarding moves a leaver's My Docs
+
+My Docs is private to its owner (D-F2) — not even a partner opens somebody
+else's. That is exactly why it cannot stay behind: once the account is off,
+those papers are unreadable by anybody and still the firm's records.
+
+So the wizard has a third step, and the last step will not run until it is
+done, the way step one already blocks on open work. Two honest answers:
+**HQ**, where the firm's own papers live, or **a named colleague**, who
+then owns them. Both audited, folder by folder and file by file. Nothing is
+opened — the rows change whose they are and nothing else.
+
+### The acceptance pass (brief §18)
+
+| | |
+|---|---|
+| Everything in §2, through the screens in §11–12 | **yes**, with the folder-upload structure left over (below) |
+| System folders cannot be made, renamed, moved or deleted — from the UI **or** by calling the action directly | **yes**, and proved by calling them directly: `folders.delete-restore.test.js` asks `createFolder` at all five record levels and gets refused at each |
+| A file uploaded anywhere under a client has that `clientId` and shows on the client's tab | **yes** — `folders.upload-context.test.js` is the §9.2 table run, and the tab reads by `clientId` |
+| A new job shows its folder at once, and the folder shows the same files as its Files tab | **yes** — the folder is computed from the job, and `documents.forEngagement.test.js` compares the two sets rather than counting them |
+| Firm and personal files never leak into a client view, export, count, report or the portal | **yes** — `documents.zone-isolation.test.js`, including a firm file deliberately marked shared and given a client id, which the portal still refuses |
+| Every write audited in the same transaction; nothing hard-deleted but a partner purge | **yes** — and the retry bug found in c is why every write re-reads its rows inside the transaction |
+| Permission checks on the server in every action and every list | **yes** — one resolver in front of every node, one query builder for the register, one `targetOf` for a file |
+| 390 / 1280 / 1920, light and dark, keyboard alone | **yes**, all three widths and both themes screenshotted and read; the drive is walked by keyboard in its own test |
+| Lint, Vitest, Playwright, `next build` | **yes** — 2101 Vitest, 11 browser tests for this work, build compiles |
+| `docs/PROGRESS.md` updated | this entry, and the eight before it |
+
+### What is not built, said plainly
+
+- **Uploading a folder does not recreate its sub-folders.** The files go up
+  and each path is shown in the queue, but they land in the folder that is
+  open. The one piece of §11 still outstanding.
+- **No zip or bulk download** (D-F5), **no per-folder access list** (D-F3),
+  **no Workboards** (D-F6) — all three decided, not forgotten.
+- **Column sorting and column visibility** on the register: the brief named
+  TanStack Table, which is not installed and which §0 forbids adding.
+- **The `kind` → `Folder` migration has not been run.** `npm run
+  folders:migrate` prints what it would do and writes nothing; it needs the
+  owner's eyes before `--apply`.
+
+### Still red, and not from this work
+
+`docs.spec.js`, `checklist.spec.js`, `engagements.spec.js` and one case in
+`nav.spec.js` fail on a clean checkout of `main` as well — checked twice by
+stashing this work and running them again. They want looking at, and none
+of them is P3-48's.
+
+2101 Vitest pass, ESLint and Prettier clean, `next build` compiles, 11
+browser tests pass.
+
+### 24-11-2026 — The polish pass the owner asked for
+
+"Functionally good, the UI is still weak — margins, padding, layout." Six
+things, found by measuring the screenshots against the app-screen rules
+rather than by taste:
+
+- **The tiles were adrift.** Six stretched columns meant one client floated
+  in the middle of a 250px cell and a row of four read as scattered. Cells
+  are a fixed 11rem and pack from the left now, which is what every file
+  manager does and why their grids read as tidy. The gutter is one value
+  (12px) instead of 4px between tiles and 20px everywhere else.
+- **Three different gaps** between stacked blocks became two: 16px inside a
+  screen, 24px between the folders and the files, which are different
+  questions.
+- **An instruction floated in the middle of the screen.** "These come from
+  the records…" sat between the toolbar and the first tile and pushed the
+  grid down. It is the page's own second line now, and it changes with the
+  place — a line that is true everywhere says nothing anywhere.
+- **The register was denser than every other list in the app.** It had its
+  own hand-written table at `px-3 py-2` with no header band; it is on
+  `components/ui/Table.jsx` now, like the invoices, the engagements and the
+  rest, with the numbers right-aligned.
+- **Nine columns were fighting**, so file names and "Put up by" broke over
+  two lines. The short columns have declared widths and the name takes what
+  is spare. (First attempt used `table-fixed`, which left the one unsized
+  column about 30px wide and printed the file's name over the client's —
+  caught in the screenshot, not in a test.)
+- **The year was written two ways**: `FY2026-27` in the register and
+  `FY 2026-27` in the drive. One way now.
+
+Also fixed while here: the "+ FY Year" browser test was flaky because it
+reloaded while the server action was still in flight, cancelling it. It
+waits for the panel to close — which only happens once the server has
+answered — and `addFyFolder` gained the unit test it should have had, which
+is what proved the action was never the problem.
+
+2102 Vitest pass, ESLint and Prettier clean, `next build` compiles, nine
+browser tests pass twice in a row.
+
+### 24-11-2026 — Erasing a file for good had never worked (owner report)
+
+From the recycle bin: `Document validation failed: fileKey: Path
+"fileKey" is required.`
+
+**Purging has been broken since the vault was built.** Erasing a file
+empties its `fileKey` — the row stays so the firm can show what it held and
+that it is gone, and there is nothing left for the key to point at — but
+the schema required that field, and Mongoose refuses an empty string for a
+required one. So the save threw. Both paths that purge did the same thing:
+the partner's button in the bin, and `jobs/purgeRecycleBin.js`, the 90-day
+cron that is the only thing that ever frees space on BigRock.
+
+`fileKey` is required **until the file is purged** now, the way `clientId`
+is required only for a client's file, and a new `purgedAt` records when the
+bytes were destroyed — a fact on the row rather than something inferred
+from an empty string. Both purge paths stamp it.
+
+Three cases in `tests/folders.delete-restore.test.js`, and they were
+checked against the old schema before being trusted: with `required: true`
+back in place two of them fail with exactly the owner's error, and with the
+fix all seventeen pass. The cron is covered as well as the button, because
+it is the same write and it had the same bug.
+
+**Nothing was lost.** The failure was a refusal to write, so every file it
+touched is still in the vault and still in the bin; the 90-day clock has
+simply never swept. The bin may hold more than it looks like it should.
+
+2105 Vitest pass, ESLint and Prettier clean, `next build` compiles.
+
+**A schema change needs the dev server restarted.** The owner saw the same
+validation error after the fix landed, one line further down — the new code
+running against the old schema. Every model in this repo ends with
+`mongoose.models.X ?? mongoose.model(...)`, which is what stops a hot
+reload throwing `OverwriteModelError`; the cost is that Mongoose compiles a
+model once per process and keeps it, so an edit to a schema does not reach
+a `next dev` that is already running. Stop it and start it again.
+
+Proved against a server started from scratch rather than argued:
+`tests/e2e/job-files.spec.js` now erases a binned file through the partner's
+own button and checks the row survives with no key and a `purgedAt`.
+
+## 24-11-2026 — Why a broken job ran for months without a word
+
+The purge of the recycle bin failed on every run since the vault was built
+and nothing anywhere said so. The schema bug is fixed above; **this is the
+reason nobody knew**, and it was never about the purge.
+
+`lib/jobs/run.js` treated "the handler returned" as success. A handler that
+catches its own per-item errors — the bin purge, the grant expiry, the mail
+sender — reports them in its result rather than throwing, and rightly so:
+one bad row must not abandon the other forty-nine. But `finish()` wrote
+`status: "done"` and then **cleared `lastError`**, so a job that failed on
+every single item was recorded exactly like a job that did its work. The
+attention list, the jobs screen and the heartbeat all key off
+`status: "failed"`, so none of them ever saw it. The failures were in the
+job's `result`, in the database, read by nobody.
+
+- `complaintFrom(result)` in `lib/jobs/queue.js` reads a handler's own
+  report, and `finish()` keeps it on the job as `lastError`.
+- The status stays **done**. The work that succeeded succeeded, and marking
+  the whole job failed would have the runner do it all again, including the
+  parts that worked.
+- `queueHealth()` returns those jobs, and `/settings/jobs` lists them under
+  **"Jobs that ran, and could not do everything"**, above the ones that gave
+  up.
+- A new attention check, `jobsComplained`, counts them — which is where a
+  partner would have seen this months ago.
+
+Three cases in `tests/job-queue-db.test.js`: the complaint is recorded, a
+clean run stays quiet, and the job shows on the screen among the complaints
+rather than among the failures.
+
+This covers every handler, not the purge: `expireGrants` and `sendMail`
+report the same way and were equally silent.
+
+2108 Vitest pass, ESLint and Prettier clean, `next build` compiles.

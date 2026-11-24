@@ -3,12 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/auth";
 import { assertCan, can } from "@/lib/permissions";
-import { targetForClient } from "@/lib/access/clientAccess";
 import { connectDB } from "@/lib/db";
 import { audited } from "@/lib/audit/request";
 import { recordAudit, ACTIONS } from "@/lib/audit";
+import { loadTarget, targetOf } from "@/lib/documents/target";
+import { resolveNode } from "@/lib/folders/resolve";
+import { fieldsFromContext, originFor } from "@/lib/folders/place";
 import Document from "@/models/Document";
-import Client from "@/models/Client";
+import Folder from "@/models/Folder";
 import Engagement from "@/models/Engagement";
 import Udin from "@/models/Udin";
 import {
@@ -35,59 +37,49 @@ import { canEditWork } from "@/lib/engagements/status";
  */
 
 /**
- * Who may touch files on this engagement or client, and what they are.
+ * Where a file goes when the upload names a folder in the work drive.
+ *
+ * One function for both steps of the upload, so step two cannot record a
+ * file somewhere step one did not authorise. It returns the fields the
+ * `Document` takes — the table in brief §9.2, in code — along with the job
+ * and client the permission check needs.
+ *
  * @param {object} actor
- * @param {{ engagementId?: string, clientId?: string }} where
+ * @param {string[]} folderPath
  */
-async function loadTarget(actor, { engagementId, clientId }) {
-  await connectDB();
-
-  if (engagementId) {
-    const engagement = await Engagement.findById(engagementId).lean();
-    if (!engagement) throw new Error("That engagement no longer exists.");
-    const client = await Client.findById(engagement.clientId)
-      .select("code branchId legalName tradeName")
-      .lean();
-    return { engagement, client };
+async function placeFromFolder(actor, folderPath) {
+  const resolved = await resolveNode(actor, folderPath);
+  if (resolved?.error === "notFound")
+    return { error: "That folder is not there." };
+  if (resolved?.error === "noAccess") {
+    return { error: resolved.reason || "You cannot open that folder." };
+  }
+  if (!resolved?.writeRules?.upload) {
+    return {
+      error:
+        resolved?.writeRules?.reason ||
+        "Files cannot be put here. Open a client, a year or a job.",
+    };
   }
 
-  const client = await Client.findById(clientId)
-    .select("code branchId legalName tradeName")
-    .lean();
-  if (!client) throw new Error("That client no longer exists.");
-  return { engagement: null, client };
-}
-
-/** The permission target for a document: its branch and the work it is on. */
-/**
- * The target for a `can(… "documents" …)` call about one file.
- *
- * Everything that decides whether somebody may touch a document asks this,
- * so the five paths through this file cannot drift apart. It carries three
- * kinds of attachment:
- *
- *  - the branch, for a CA;
- *  - the engagement's own assignee and reviewer, for work on their desk;
- *  - who holds a grant on the client, and whether this person is on any of
- *    its open work (`targetForClient`) — which is what lets somebody reach
- *    the client's **permanent file**, the PAN card and the incorporation
- *    certificate that belong to no single engagement.
- *
- * `targetForClient` returns early for a Partner, a CA or the accounts
- * person, so their downloads pay for no extra query.
- */
-async function targetOf(actor, engagement, client, clientId) {
-  const id = String(engagement?.clientId ?? client?._id ?? clientId ?? "");
-  const branchId = String(engagement?.branchId ?? client?.branchId ?? "");
-
-  const base = id
-    ? await targetForClient(actor, { _id: id, branchId })
-    : { branchId };
-
+  const { context, records } = resolved;
   return {
-    ...base,
-    assigneeId: String(engagement?.assigneeId ?? ""),
-    reviewerId: String(engagement?.reviewerId ?? ""),
+    engagement: records.engagement ?? null,
+    client: records.client ?? null,
+    serviceCode: records.service?.code ?? "",
+    target: { branchId: context.branchId ?? "" },
+    fields: {
+      zone: context.zone,
+      clientId: context.clientId ?? null,
+      ownerId: context.zone === "personal" ? actor.id : null,
+      folderId: context.folderId ?? null,
+      serviceTemplateId: context.serviceTemplateId ?? null,
+      engagementId: context.engagementId ?? null,
+      fy: context.fy ?? "",
+      isPermanent: Boolean(context.permanent),
+      branchId:
+        records.engagement?.branchId ?? records.client?.branchId ?? null,
+    },
   };
 }
 
@@ -107,10 +99,26 @@ async function targetOf(actor, engagement, client, clientId) {
  */
 export async function requestUpload(input) {
   const actor = await requireUser();
-  const { engagement, client } = await loadTarget(actor, input);
-  const target = await targetOf(actor, engagement, client);
 
-  assertCan(actor, "edit", "documents", target);
+  /**
+   * An upload from the work drive names the **folder** it is going into
+   * rather than a client or a job, and the folder decides the rest
+   * (P3-48c). The path is resolved here, on the server, and again in
+   * `confirmUpload` — the browser's idea of where it is uploading is never
+   * taken as fact, or a hand-edited request could file a paper under
+   * another client's name.
+   */
+  const where = input.folderPath
+    ? await placeFromFolder(actor, input.folderPath)
+    : null;
+  if (where?.error) return { error: where.error };
+
+  const { engagement, client } = where ?? (await loadTarget(actor, input));
+  const target = where
+    ? where.target
+    : await targetOf(actor, engagement, client);
+
+  if (!where) assertCan(actor, "edit", "documents", target);
 
   if (engagement && !canEditWork(actor, engagement)) {
     return {
@@ -131,17 +139,21 @@ export async function requestUpload(input) {
     return { error: `${input.mime || "That kind of file"} is not accepted.` };
   }
 
-  const fy = engagement?.periodStart
-    ? `FY${financialYearLabel(new Date(engagement.periodStart))}`
-    : `FY${financialYearLabel(new Date())}`;
+  const fy =
+    where?.fields.fy ||
+    (engagement?.periodStart
+      ? `FY${financialYearLabel(new Date(engagement.periodStart))}`
+      : `FY${financialYearLabel(new Date())}`);
 
   const key = buildFileKey({
-    clientCode: client.code,
+    clientCode: client?.code,
     filename: input.filename,
     fy,
-    serviceCode: engagement?.templateSnapshot?.code,
+    serviceCode: where?.serviceCode ?? engagement?.templateSnapshot?.code,
     engagementCode: engagement?.code,
-    permanent: Boolean(input.permanent),
+    permanent: Boolean(where ? where.fields.isPermanent : input.permanent),
+    zone: where?.fields.zone ?? "client",
+    userId: actor.id,
   });
 
   const ticket = getUploadTicket({ key, maxBytes: MAX_UPLOAD_BYTES });
@@ -156,9 +168,22 @@ export async function requestUpload(input) {
  */
 export async function confirmUpload(input) {
   const actor = await requireUser();
-  const { engagement, client } = await loadTarget(actor, input);
-  const target = await targetOf(actor, engagement, client);
-  assertCan(actor, "edit", "documents", target);
+
+  // resolved again, not believed: see `placeFromFolder`
+  const where = input.folderPath
+    ? await placeFromFolder(actor, input.folderPath)
+    : null;
+  if (where?.error) return { error: where.error };
+
+  const { engagement, client } = where ?? (await loadTarget(actor, input));
+  if (!where) {
+    assertCan(
+      actor,
+      "edit",
+      "documents",
+      await targetOf(actor, engagement, client),
+    );
+  }
 
   if (!input.key || !input.checksum) {
     return { error: "The upload did not finish." };
@@ -178,11 +203,29 @@ export async function confirmUpload(input) {
   if (input.udinId) {
     const udin = await Udin.findById(input.udinId).select("clientId").lean();
     if (!udin) return { error: "That UDIN is no longer in the register." };
-    if (String(udin.clientId) !== String(client._id)) {
+    if (String(udin.clientId) !== String(client?._id)) {
       return { error: "That UDIN belongs to a different client." };
     }
     udinId = udin._id;
   }
+
+  /**
+   * Where the file belongs: the folder's own context when it came from the
+   * drive, and otherwise the client or job the old uploaders name. One
+   * object, so the two routes cannot set different fields for the same
+   * upload.
+   */
+  const place = where?.fields ?? {
+    zone: "client",
+    clientId: client?._id ?? null,
+    ownerId: null,
+    folderId: null,
+    serviceTemplateId: engagement?.serviceTemplateId ?? null,
+    engagementId: engagement?._id ?? null,
+    fy: input.fy ?? "",
+    isPermanent: Boolean(input.permanent),
+    branchId: engagement?.branchId ?? client?.branchId ?? null,
+  };
 
   const saved = await audited(actor, async (session) => {
     if (existing) {
@@ -214,18 +257,31 @@ export async function confirmUpload(input) {
           size: input.size ?? 0,
           mime: input.mime ?? "application/octet-stream",
           checksum: input.checksum,
-          fy: input.fy ?? "",
+          fy: place.fy || input.fy || "",
           kind: input.kind ?? "",
-          /* ours or theirs — anything unrecognised is the client's */
-          origin: input.origin === "firm" ? "firm" : "client",
-          isPermanent: Boolean(input.permanent),
-          clientId: client._id,
-          engagementId: engagement?._id ?? null,
+          /*
+            ours or theirs — anything unrecognised is the client's, except
+            in HQ and My Docs, where there is no client whose paper it
+            could be
+          */
+          origin:
+            place.zone === "client"
+              ? input.origin === "firm"
+                ? "firm"
+                : "client"
+              : "firm",
+          zone: place.zone,
+          ownerId: place.ownerId,
+          folderId: place.folderId,
+          serviceTemplateId: place.serviceTemplateId,
+          isPermanent: place.isPermanent,
+          clientId: place.clientId,
+          engagementId: place.engagementId,
           checklistItemId: input.checklistItemId || null,
           /* the sample row a voucher photograph proves (P3-30) */
           sampleItemId: input.sampleItemId || null,
           udinId,
-          branchId: engagement?.branchId ?? client.branchId,
+          branchId: place.branchId,
           uploadedBy: actor.id,
           uploadedByName: actor.name,
           createdBy: actor.id,
@@ -373,7 +429,14 @@ export async function deleteDocument(id, reason = "") {
   return { ok: `${document.name} moved to the recycle bin.` };
 }
 
-/** Bring a file back out of the bin. */
+/**
+ * Bring a file back out of the bin.
+ *
+ * If the folder it was in is still deleted, the file is restored to the
+ * nearest folder above it that is still there — and the message says where
+ * it went (P3-48c). A file put back into a folder nobody can open is a file
+ * nobody can find, and it would be the restore itself that lost it.
+ */
 export async function restoreDocument(id) {
   const actor = await requireUser();
   assertCan(actor, "approve", "deleteRecord");
@@ -385,16 +448,53 @@ export async function restoreDocument(id) {
   if (!document) return { error: "That file is gone." };
   if (!document.deletedAt) return { ok: "It was never deleted." };
 
+  const home = await nearestLiveFolder(document.folderId);
+
   await remove(document.fileKey, { restore: true });
 
   await audited(actor, async (session) => {
-    document.updatedBy = actor.id;
-    await document.restore(actor.id, { session });
+    const live = await Document.findById(document._id)
+      .setOptions({ withDeleted: true })
+      .session(session);
+    if (!live) throw new Error("That file is gone.");
+    live.folderId = home.id;
+    live.deletedWithFolderId = null;
+    live.updatedBy = actor.id;
+    await live.restore(actor.id, { session });
   });
 
   revalidatePath("/documents/bin");
-  revalidatePath(`/clients/${document.clientId}`);
-  return { ok: `${document.name} restored.` };
+  revalidatePath("/documents/folders");
+  if (document.clientId) revalidatePath(`/clients/${document.clientId}`);
+  return {
+    ok: home.moved
+      ? `${document.name} restored to ${home.label} — the folder it was in is still in the bin.`
+      : `${document.name} restored.`,
+  };
+}
+
+/**
+ * The folder a restored file should land in: its own, if that is still
+ * there, else the nearest one above it that is, else none at all — which
+ * means the client's loose files, where somebody will see it.
+ *
+ * @param {any} folderId
+ */
+async function nearestLiveFolder(folderId) {
+  if (!folderId) return { id: null, moved: false, label: "" };
+
+  const own = await Folder.findById(folderId).lean();
+  if (own) return { id: own._id, moved: false, label: own.name };
+
+  const deleted = await Folder.findById(folderId)
+    .setOptions({ withDeleted: true })
+    .lean();
+  for (const id of [...(deleted?.ancestors ?? [])].reverse()) {
+    const parent = await Folder.findById(id).lean();
+    if (parent) return { id: parent._id, moved: true, label: parent.name };
+  }
+
+  return { id: null, moved: true, label: "the client's files" };
 }
 
 /**
@@ -431,6 +531,7 @@ export async function purgeDocument(id) {
       session,
     );
     document.name = `${document.name} (purged)`;
+    document.purgedAt = new Date();
     document.fileKey = "";
     document.versions = [];
     document.updatedBy = actor.id;

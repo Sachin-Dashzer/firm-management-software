@@ -40,6 +40,7 @@ const ACTIONS = [
   { title: "Changes waiting", href: "/clients/changes", area: "clients" },
   { title: "Statutory book", href: "/practice/statutory", area: "practice" },
   { title: "Tax book", href: "/practice/tax", area: "practice" },
+  { title: "Find in folders", href: "/documents/folders", area: "documents" },
   { title: "Recycle bin", href: "/documents/bin", area: "documents" },
   { title: "Users", href: "/settings/users", area: "usersSettings" },
   { title: "ICAI and the firm", href: "/settings/icai", area: "icai" },

@@ -186,6 +186,59 @@ describe("file keys", () => {
     });
     expect(displayName(key)).toBe("Form-16.pdf");
   });
+
+  /**
+   * A file about no client (P3-48): the firm's own papers, and somebody's
+   * own working copies. Both have to pass the same key rule as everything
+   * else, because the gateway's PHP applies it with no idea which zone a
+   * file came from.
+   */
+  it("files the firm's own papers under the year", () => {
+    const key = buildFileKey({ zone: "firm", filename: "ICAI circular.pdf" });
+
+    expect(key).toMatch(/^firm\/\d{4}\//);
+    expect(key).not.toContain("clients/");
+    expect(isSafeKey(key)).toBe(true);
+    expect(displayName(key)).toBe("ICAI-circular.pdf");
+  });
+
+  it("files somebody's own copies under their user id", () => {
+    const key = buildFileKey({
+      zone: "personal",
+      userId: "66b1f2a4c9d0e1f2a3b4c5d6",
+      filename: "my notes.xlsx",
+    });
+
+    expect(key).toMatch(/^users\/66b1f2a4c9d0e1f2a3b4c5d6\//);
+    expect(isSafeKey(key)).toBe(true);
+  });
+
+  it("never lets a missing user id climb out of the vault", () => {
+    const key = buildFileKey({
+      zone: "personal",
+      userId: "../../etc",
+      filename: "x.pdf",
+    });
+
+    expect(key.startsWith("users/")).toBe(true);
+    expect(key).not.toContain("..");
+    expect(isSafeKey(key)).toBe(true);
+  });
+
+  it("leaves a client's key exactly as it was", () => {
+    const key = buildFileKey({
+      zone: "client",
+      clientCode: "PHMG-NOI-0142",
+      fy: "FY2026-27",
+      serviceCode: "GSTR3B",
+      engagementCode: "NOI-GSTR3B-2026-10-0412",
+      filename: "sales.pdf",
+    });
+
+    expect(key).toMatch(
+      /^clients\/PHMG-NOI-0142\/FY2026-27\/GSTR3B\/NOI-GSTR3B-2026-10-0412\//,
+    );
+  });
 });
 
 describe("the stored file layout PHP has to agree with", () => {

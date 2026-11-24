@@ -33,7 +33,28 @@ const versionSchema = new mongoose.Schema(
 const documentSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
-    fileKey: { type: String, required: true },
+
+    /**
+     * Where the bytes are in the vault.
+     *
+     * Required until the file is **purged**, which is the one path in this
+     * app that destroys anything: the row stays so the firm can show what
+     * it held and that it is gone, and the key is emptied because there is
+     * nothing left for it to point at. A flat `required: true` refused
+     * that empty string, so a partner's purge and the 90-day cron that
+     * clears the bin both died on validation — the one operation that
+     * frees space on BigRock, failing since the vault was built.
+     */
+    fileKey: {
+      type: String,
+      required: function keyUntilPurged() {
+        return !this.purgedAt;
+      },
+    },
+
+    /** When the bytes were destroyed. The record of them outlives them. */
+    purgedAt: { type: Date, default: null },
+
     size: { type: Number, default: 0 },
     mime: { type: String, default: "application/octet-stream" },
     checksum: { type: String, default: "" },
@@ -79,10 +100,57 @@ const documentSchema = new mongoose.Schema(
       index: true,
     },
 
+    /**
+     * Which of the three places this file lives in (P3-48, and
+     * `lib/documents/zones.js`): a client's paper, the firm's own, or one
+     * person's private copy.
+     *
+     * Not indexed on its own — nothing asks for "every firm file" without
+     * also saying which folder — but part of the compound indexes below.
+     */
+    zone: {
+      type: String,
+      enum: ["client", "firm", "personal"],
+      default: "client",
+    },
+    /** zone "personal": whose it is, and the only person who may read it. */
+    ownerId: { type: String, default: null, index: true },
+
+    /**
+     * A client's file has a client, and nothing else does.
+     *
+     * Conditional rather than a flat `required: true`, because the firm's
+     * own policies and somebody's own working copies belong to no client and
+     * a placeholder client would be a lie the whole app then has to filter
+     * out. A row with no zone at all — every file uploaded before this
+     * step — still needs its client, which is what the two `!==` say rather
+     * than `=== "client"`.
+     */
     clientId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Client",
-      required: true,
+      required: function requiredForClientFiles() {
+        return this.zone !== "firm" && this.zone !== "personal";
+      },
+    },
+    /** The folder somebody filed it in, if any (`models/Folder.js`). */
+    folderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Folder",
+      default: null,
+      index: true,
+    },
+    /**
+     * The service this is about. Taken from the engagement when there is
+     * one, and from the folder's own context when there is not — papers
+     * collected for next year's audit before the job exists are still about
+     * the audit, and the drive has to put them under it.
+     */
+    serviceTemplateId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ServiceTemplate",
+      default: null,
+      index: true,
     },
     engagementId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -125,6 +193,21 @@ const documentSchema = new mongoose.Schema(
 
     versions: { type: [versionSchema], default: [] },
 
+    /**
+     * The folder this went to the bin with (P3-48c).
+     *
+     * Deleting a folder sends everything under it down too, and restoring
+     * must bring back exactly that and nothing else — a file somebody
+     * deleted on its own last week is still deleted, and would otherwise
+     * come back because it happens to sit in the same folder.
+     */
+    deletedWithFolderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Folder",
+      default: null,
+      index: true,
+    },
+
     /** Erased on a DPDP deletion request: the row stays, the file does not. */
     redactedAt: { type: Date, default: null },
 
@@ -156,6 +239,10 @@ documentSchema.index({ udinId: 1, createdAt: -1 });
 documentSchema.index({ sampleItemId: 1 });
 documentSchema.index({ fileKey: 1 });
 documentSchema.index({ name: "text" });
+// the drive, listing one folder at a time (P3-48)
+documentSchema.index({ zone: 1, folderId: 1, createdAt: -1 });
+documentSchema.index({ clientId: 1, serviceTemplateId: 1, fy: 1 });
+documentSchema.index({ engagementId: 1, createdAt: -1 });
 // the recycle bin asks for recently deleted files
 documentSchema.index({ deletedAt: -1 });
 

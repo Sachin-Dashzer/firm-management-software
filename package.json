@@ -22,7 +22,8 @@
     "purge:sample": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/purge-sample-data.mjs",
     "opinions:empty": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/report-empty-audit-opinions.mjs",
     "invoice:gaps": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/invoice-gap-report.mjs",
-    "gateway:smoke": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/gateway-smoke.mjs"
+    "gateway:smoke": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/gateway-smoke.mjs",
+    "folders:migrate": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/kind-to-folders.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

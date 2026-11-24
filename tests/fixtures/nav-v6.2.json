@@ -89,6 +89,7 @@
       "label": "Documents",
       "items": [
         "All files",
+        "Folder structure",
         "Awaited from clients",
         "DSC register",
         "Logins vault"
@@ -165,6 +166,7 @@
       "label": "Documents",
       "items": [
         "All files",
+        "Folder structure",
         "Awaited from clients"
       ]
     },

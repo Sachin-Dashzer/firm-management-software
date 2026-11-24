@@ -108,6 +108,44 @@ export default function JobsAdmin({ health, schedules }) {
         </p>
       </section>
 
+      {(health.complained ?? []).length > 0 && (
+        <section className="flex flex-col gap-2">
+          <h2 className="font-display text-15 font-semibold">
+            Jobs that ran, and could not do everything
+          </h2>
+          <p className="text-13 text-ink-muted max-w-[72ch]">
+            These did not fail — they ran and finished. But something each one
+            was asked to do did not happen, and until now that was recorded in
+            the job and read by nobody.
+          </p>
+          <div className="rounded-table border-rule bg-surface overflow-x-auto border">
+            <table className="text-14 w-full">
+              <thead>
+                <tr className="border-rule text-12 text-faint border-b text-left font-normal">
+                  <th className="px-3 py-2 font-medium">Job</th>
+                  <th className="px-3 py-2 font-medium">When</th>
+                  <th className="px-3 py-2 font-medium">
+                    What it could not do
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {health.complained.map((job) => (
+                  <tr
+                    key={job.id}
+                    className="border-rule border-b last:border-0"
+                  >
+                    <td className="px-3 py-2 font-mono">{job.type}</td>
+                    <td className="num text-13 px-3 py-2">{job.when}</td>
+                    <td className="text-13 px-3 py-2">{job.lastError}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
       {health.failed.length > 0 && (
         <section className="flex flex-col gap-2">
           <h2 className="font-display text-15 font-semibold">

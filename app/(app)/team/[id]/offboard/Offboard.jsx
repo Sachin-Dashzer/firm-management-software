@@ -1,9 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { reassign } from "../../../engagements/actions";
-import { offboard } from "../../actions";
+import { moveMyDocs, myDocsCount, offboard } from "../../actions";
 
 /**
  * The four steps. Reassigning is per engagement rather than one bulk
@@ -15,14 +15,29 @@ import { offboard } from "../../actions";
  * notification to both people — applies here exactly as it does there. The
  * wizard adds no new path into an engagement.
  */
-export default function Offboard({ userId, name, rows, grants }) {
+export default function Offboard({ userId, name, rows, grants, team = [] }) {
   const router = useRouter();
   const [outstanding, setOutstanding] = useState(rows);
   const [picked, setPicked] = useState({});
   const [message, setMessage] = useState(null);
   const [reason, setReason] = useState("");
   const [done, setDone] = useState(false);
+  /** What is still in their My Docs, and where it should go (P3-48f). */
+  const [myDocs, setMyDocs] = useState(null);
+  const [moveTo, setMoveTo] = useState("hq");
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    myDocsCount(userId).then(setMyDocs);
+  }, [userId]);
+
+  function handOver() {
+    startTransition(async () => {
+      const result = await moveMyDocs(userId, { to: moveTo });
+      setMessage(result);
+      if (result?.ok) setMyDocs(await myDocsCount(userId));
+    });
+  }
 
   const first = name.split(" ")[0];
   const clear = outstanding.length === 0;
@@ -212,6 +227,60 @@ export default function Offboard({ userId, name, rows, grants }) {
       {/* --- 3 and 4 --- */}
       <Step
         number={3}
+        title={`Move ${first}'s My Docs`}
+        done={myDocs !== null && myDocs.files + myDocs.folders === 0}
+        summary={
+          myDocs === null
+            ? "Reading…"
+            : myDocs.files + myDocs.folders === 0
+              ? "Nothing of theirs is left."
+              : `${myDocs.files} file(s) and ${myDocs.folders} folder(s) to move.`
+        }
+      >
+        {myDocs === null ? (
+          <p className="text-14 text-ink-muted">Reading their My Docs…</p>
+        ) : myDocs.files + myDocs.folders === 0 ? (
+          <p className="text-14">
+            {first} kept nothing in My Docs, so there is nothing to hand over.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <p className="text-14 max-w-[68ch]">
+              My Docs is private to the person it belongs to — not even a
+              partner opens somebody else&rsquo;s. That is exactly why it cannot
+              stay behind: once the account is off, those papers are unreadable
+              by anybody and still the firm&rsquo;s records. They are moved, not
+              opened.
+            </p>
+            <label className="flex flex-col gap-1">
+              <span className="text-13 text-ink-muted">Where they go</span>
+              <select
+                value={moveTo}
+                onChange={(event) => setMoveTo(event.target.value)}
+                className="rounded-control border-rule bg-paper text-14 h-9 max-w-md border px-2"
+              >
+                <option value="hq">HQ — the firm&rsquo;s own files</option>
+                {team.map((person) => (
+                  <option key={person.id} value={person.id}>
+                    {person.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={handOver}
+              className="rounded-control border-carbon text-carbon text-14 h-9 self-start border px-4 font-medium disabled:opacity-50"
+            >
+              {pending ? "Moving…" : "Move them"}
+            </button>
+          </div>
+        )}
+      </Step>
+
+      <Step
+        number={4}
         title="Switch off the account and close the record"
         done={done}
         summary={
@@ -249,7 +318,12 @@ export default function Offboard({ userId, name, rows, grants }) {
             </label>
             <button
               type="button"
-              disabled={pending || !clear || reason.trim().length < 3}
+              disabled={
+                pending ||
+                !clear ||
+                reason.trim().length < 3 ||
+                (myDocs !== null && myDocs.files + myDocs.folders > 0)
+              }
               onClick={finish}
               className="rounded-control border-redpen text-redpen text-14 h-9 self-start border px-4 disabled:opacity-50"
             >

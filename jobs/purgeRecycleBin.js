@@ -55,6 +55,7 @@ export async function purgeRecycleBin({
           },
           session,
         );
+        document.purgedAt = new Date();
         document.fileKey = "";
         document.versions = [];
         await document.save({ session });

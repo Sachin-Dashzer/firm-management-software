@@ -49,9 +49,14 @@ export default async function OffboardPage({ params }) {
    * take-over page (P3-16), so the two screens cannot offer different
    * people for the same engagement.
    */
-  const [rows, grants] = await Promise.all([
+  const [rows, grants, colleagues] = await Promise.all([
     handoverRows(String(id), actor),
     ClientAccess.find({ userId: id, active: true }).lean(),
+    // who could take their private files, if they are not to go to HQ
+    User.find({ active: true, _id: { $ne: id } })
+      .select("name")
+      .sort({ name: 1 })
+      .lean(),
   ]);
 
   const grantClients = await Client.find({
@@ -86,6 +91,8 @@ export default async function OffboardPage({ params }) {
       <Offboard
         userId={String(id)}
         name={person.name}
+        /* who their private files could go to, if not to HQ (P3-48f) */
+        team={colleagues.map((u) => ({ id: String(u._id), name: u.name }))}
         rows={rows}
         grants={grants.map((grant) => ({
           id: String(grant._id),

@@ -36,6 +36,13 @@ export default async function JobsPage() {
           lastError: job.lastError,
           when: formatISTDateTime(job.updatedAt),
         })),
+        /* ran, and said something it was asked to do did not happen */
+        complained: health.complained.map((job) => ({
+          id: String(job._id),
+          type: job.type,
+          lastError: job.lastError,
+          when: formatISTDateTime(job.finishedAt ?? job.updatedAt),
+        })),
       }}
       schedules={SCHEDULES.map((s) => ({
         key: s.key,

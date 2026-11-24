@@ -203,8 +203,16 @@ describe("finishing a job", () => {
 
 describe("enqueuing the same scheduled job twice", () => {
   it("is harmless, which is what makes offering every schedule safe", async () => {
-    const first = await queue.enqueue("dailyDigest", {}, { uniqueKey: "digest:2026-11-01" });
-    const second = await queue.enqueue("dailyDigest", {}, { uniqueKey: "digest:2026-11-01" });
+    const first = await queue.enqueue(
+      "dailyDigest",
+      {},
+      { uniqueKey: "digest:2026-11-01" },
+    );
+    const second = await queue.enqueue(
+      "dailyDigest",
+      {},
+      { uniqueKey: "digest:2026-11-01" },
+    );
 
     expect(first.added).toBe(true);
     expect(second.added).toBe(false);
@@ -235,5 +243,56 @@ describe("queue health", () => {
     const health = await queue.queueHealth();
     expect(health.stale).toBe(false);
     expect(health.byStatus.queued).toBe(1);
+  });
+});
+
+describe("a job that finishes but could not do the work", () => {
+  /**
+   * The recycle bin's purge caught its own per-item errors and reported
+   * them in its result, as a handler should — one bad row must not abandon
+   * the other forty-nine. The runner read none of it: a handler returning
+   * was success, so a job that failed on **every** item was recorded
+   * exactly like one that did its work, and the attention list, the jobs
+   * screen and the heartbeat all key off `status: "failed"`. It purged
+   * nothing for months and nothing anywhere said so (owner, 24-11-2026).
+   */
+  it("says so on the job, rather than looking like a clean run", async () => {
+    await queue.enqueue("purgeRecycleBin", {});
+    const job = await queue.claimNext("runner-a");
+    await queue.finish(job, {
+      purged: 0,
+      considered: 50,
+      failed: [
+        { id: "a", error: "Document validation failed: fileKey" },
+        { id: "b", error: "Document validation failed: fileKey" },
+      ],
+    });
+
+    const done = await Job.findById(job._id).lean();
+    // it ran, so it is done — the work that succeeded is not undone
+    expect(done.status).toBe("done");
+    expect(done.lastError).toMatch(/2 of them failed/);
+    expect(done.lastError).toMatch(/fileKey/);
+  });
+
+  it("stays quiet when the handler had nothing to complain about", async () => {
+    await queue.enqueue("expireGrants", {});
+    const job = await queue.claimNext("runner-a");
+    await queue.finish(job, { expired: 3, failed: [] });
+
+    const done = await Job.findById(job._id).lean();
+    expect(done.lastError).toBe("");
+  });
+
+  it("is on the jobs screen, which only listed give-ups before", async () => {
+    // the queue is emptied between tests, so this one makes its own
+    await queue.enqueue("purgeRecycleBin", {});
+    const job = await queue.claimNext("runner-a");
+    await queue.finish(job, { purged: 0, failed: [{ error: "no" }] });
+
+    const health = await queue.queueHealth();
+    expect(health.complained.map((j) => j.type)).toContain("purgeRecycleBin");
+    // and it is not among the failures, because it did not fail
+    expect(health.failed.map((j) => j.type)).not.toContain("purgeRecycleBin");
   });
 });

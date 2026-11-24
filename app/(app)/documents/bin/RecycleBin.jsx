@@ -2,12 +2,18 @@
 
 import { useState, useTransition } from "react";
 import { purgeDocument, restoreDocument } from "../actions";
+import { restoreFolder } from "../folders/actions";
 
 /**
  * The bin. Restoring is one click; erasing asks first, because it is the
  * only thing in the app that cannot be undone.
+ *
+ * Folders sit above the files (P3-48c) because restoring one brings its
+ * files back with it: a person looking for a file that went down with its
+ * folder should find the folder first and be done, rather than restoring
+ * fourteen files into a folder that is not there.
  */
-export default function RecycleBin({ rows }) {
+export default function RecycleBin({ rows, folders = [] }) {
   const [message, setMessage] = useState(null);
   const [confirming, setConfirming] = useState(null);
   const [pending, startTransition] = useTransition();
@@ -36,6 +42,66 @@ export default function RecycleBin({ rows }) {
         >
           {message.error}
         </p>
+      )}
+
+      {folders.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <h2 className="font-display text-15 font-semibold">
+            Folders ({folders.length})
+          </h2>
+          <div className="rounded-table border-rule bg-surface overflow-x-auto border">
+            <table className="text-14 w-full">
+              <thead>
+                <tr className="border-rule text-12 text-faint border-b text-left font-normal">
+                  <th className="px-3 py-2 font-medium">Folder</th>
+                  <th className="px-3 py-2 font-medium">Where it was</th>
+                  <th className="px-3 py-2 font-medium">Holding</th>
+                  <th className="px-3 py-2 font-medium">Deleted</th>
+                  <th className="px-3 py-2 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {folders.map((f) => (
+                  <tr key={f.id} className="border-rule border-b last:border-0">
+                    <td className="px-3 py-2">{f.name}</td>
+                    <td className="text-13 px-3 py-2">{f.where}</td>
+                    <td className="text-13 px-3 py-2">
+                      {f.files === 0 && f.folders === 0
+                        ? "nothing"
+                        : [
+                            f.files
+                              ? `${f.files} file${f.files === 1 ? "" : "s"}`
+                              : "",
+                            f.folders
+                              ? `${f.folders} folder${f.folders === 1 ? "" : "s"}`
+                              : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                    </td>
+                    <td className="num text-13 px-3 py-2">{f.deletedOn}</td>
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => run(() => restoreFolder(f.id))}
+                        className="text-13 underline underline-offset-4 disabled:opacity-60"
+                      >
+                        Restore
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-13 text-ink-muted">
+            Restoring a folder brings back the files that went into the bin with
+            it, in one go. Those files are listed below as well — restore one on
+            its own and it comes back to the nearest folder still there, which
+            the message will name.
+          </p>
+        </section>
       )}
 
       <div className="rounded-table border-rule bg-surface overflow-x-auto border">

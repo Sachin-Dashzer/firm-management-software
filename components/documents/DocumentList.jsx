@@ -8,6 +8,7 @@ import {
 } from "../../app/(app)/documents/actions";
 import Uploader from "./Uploader";
 import { UNFILED, groupByFolder } from "@/lib/documents/folders";
+import { formatSize } from "@/lib/documents/rows";
 
 /**
  * The files attached to something, with preview, download and delete
@@ -322,11 +323,4 @@ export default function DocumentList({
       )}
     </div>
   );
-}
-
-function formatSize(bytes) {
-  if (!bytes) return "—";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
