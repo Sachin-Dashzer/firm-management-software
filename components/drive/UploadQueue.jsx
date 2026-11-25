@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, ArrowClockwise } from "@phosphor-icons/react";
 import { sendUpload } from "@/components/documents/sendUpload";
+import { ensureFolderPath } from "@/app/(app)/documents/folders/actions";
+import { droppedPaths } from "@/lib/folders/dropped";
 import { formatSize } from "@/lib/documents/rows";
 
 /** Three at a time: enough to use the line, few enough to still cancel. */
@@ -59,7 +61,8 @@ export default function UploadQueue({
       sendUpload(
         row.file,
         {
-          folderPath,
+          // the folder it came in, where it came in one; otherwise here
+          folderPath: row.targetPath ?? folderPath,
           origin: row.origin,
           name: row.name,
           replacesId: row.replacesId,
@@ -77,6 +80,18 @@ export default function UploadQueue({
               : { state: "done", progress: 1 },
           );
         })
+        /*
+          A thrown upload has to land somewhere. Without this the row sits
+          at "sending" for ever — no error, no Try again, and the queue
+          never settles, so the folder is never refreshed either. That is
+          how a server fault in `confirmUpload` read as a hung screen.
+        */
+        .catch((err) => {
+          update(row.id, {
+            state: "failed",
+            error: err?.message || "It did not go up.",
+          });
+        })
         .finally(() => {
           running.current -= 1;
           cancels.current.delete(row.id);
@@ -89,7 +104,9 @@ export default function UploadQueue({
   useEffect(() => {
     if (!items.length) return;
     if (
-      items.some((row) => row.state === "waiting" || row.state === "sending")
+      items.some((row) =>
+        ["preparing", "waiting", "sending"].includes(row.state),
+      )
     ) {
       return;
     }
@@ -99,31 +116,97 @@ export default function UploadQueue({
     }
   }, [items, router, onDone]);
 
-  function add(files, { paths = new Map() } = {}) {
+  async function add(files, { paths = new Map() } = {}) {
+    /*
+      A name only clashes with what will land *beside* it. Files from a
+      dropped folder go into that folder, so they are checked against their
+      own folder — and a folder being made is empty, which is why only the
+      files aimed at this folder are checked against what is already here.
+    */
     const taken = new Set(
-      [...existing.map((e) => e.name), ...items.map((row) => row.name)].map(
-        (n) => String(n).toLowerCase(),
-      ),
+      [
+        ...existing.map((e) => e.name),
+        ...items.filter((row) => !row.from).map((row) => row.name),
+      ].map((n) => String(n).toLowerCase()),
     );
 
     const rows = [...files].map((file) => {
+      const from = paths.get(file) ?? "";
       const refusal = refuse(file, maxBytes, allowed);
-      const clash = !refusal && taken.has(file.name.toLowerCase());
-      if (!refusal && !clash) taken.add(file.name.toLowerCase());
+      const clash = !refusal && !from && taken.has(file.name.toLowerCase());
+      if (!refusal && !clash && !from) taken.add(file.name.toLowerCase());
 
       return {
         id: `${file.name}-${file.size}-${Math.random().toString(36).slice(2)}`,
         file,
         name: file.name,
-        from: paths.get(file) ?? "",
+        from,
         origin: "client",
         progress: 0,
-        state: refusal ? "refused" : clash ? "clash" : "waiting",
+        // a file with a folder behind it waits for that folder to exist
+        state: refusal
+          ? "refused"
+          : clash
+            ? "clash"
+            : from
+              ? "preparing"
+              : "waiting",
         error: refusal ?? "",
       };
     });
 
     setItems((old) => [...old, ...rows]);
+
+    /*
+      One call per distinct folder, not per file: two hundred scans in six
+      folders is six calls, and the second file in a folder reuses what the
+      first one made rather than racing it.
+    */
+    const dirs = [
+      ...new Set(
+        rows.filter((r) => r.state === "preparing").map((r) => r.from),
+      ),
+    ];
+
+    for (const dir of dirs) {
+      const made = await ensureFolderPath(folderPath, dir.split("/")).catch(
+        /*
+          A thrown action is still an answer. Without this the files it was
+          making a folder for sit at "making the folder" for ever, with no
+          error and no Try again — the one state a queue must never reach.
+        */
+        (err) => ({ error: err?.message || "The folder could not be made." }),
+      );
+      setItems((old) =>
+        old.map((row) =>
+          row.from === dir && row.state === "preparing"
+            ? made?.error
+              ? { ...row, state: "failed", error: made.error }
+              : { ...row, state: "waiting", targetPath: made.path }
+            : row,
+        ),
+      );
+    }
+  }
+
+  /**
+   * Try a failed file again — and if what failed was making its folder,
+   * make the folder again first. Without this it would quietly retry into
+   * the folder being looked at, which is the flattening this fixed.
+   */
+  async function retry(row) {
+    if (row.from && !row.targetPath) {
+      update(row.id, { state: "preparing", error: "" });
+      const made = await ensureFolderPath(folderPath, row.from.split("/"));
+      update(
+        row.id,
+        made?.error
+          ? { state: "failed", error: made.error }
+          : { state: "waiting", targetPath: made.path },
+      );
+      return;
+    }
+    update(row.id, { state: "waiting", error: "" });
   }
 
   /** A name already here: keep both, replace what is there, or skip. */
@@ -193,9 +276,7 @@ export default function UploadQueue({
                 </span>
                 <State
                   row={row}
-                  onRetry={() =>
-                    update(row.id, { state: "waiting", error: "" })
-                  }
+                  onRetry={() => retry(row)}
                   onCancel={() => cancels.current.get(row.id)?.abort()}
                 />
               </div>
@@ -262,6 +343,7 @@ function State({ row, onRetry, onCancel }) {
     );
   }
   const word = {
+    preparing: "making the folder",
     waiting: "waiting",
     done: "in",
     refused: "not accepted",
@@ -319,9 +401,10 @@ function PickFiles({ onPick }) {
  * A whole folder from the computer.
  *
  * `webkitdirectory` is the only way a browser offers this, and the files
- * arrive with their path in `webkitRelativePath`. The paths are shown so a
- * person can see the structure was read; recreating it as folders is the
- * next thing this will do.
+ * arrive flat, each with its path in `webkitRelativePath` — the folders
+ * themselves are never sent. The queue rebuilds them from those paths
+ * before any file goes up (`ensureFolderPath`), so a folder dropped on the
+ * drive arrives as that folder and not as a heap of its contents.
  */
 function PickFolder({ onPick }) {
   const input = useRef(null);
@@ -344,13 +427,7 @@ function PickFolder({ onPick }) {
         aria-label="A folder to upload"
         onChange={(event) => {
           const files = [...(event.target.files ?? [])];
-          const paths = new Map(
-            files.map((file) => [
-              file,
-              (file.webkitRelativePath ?? "").split("/").slice(0, -1).join("/"),
-            ]),
-          );
-          onPick(files, { paths });
+          onPick(files, { paths: droppedPaths(files) });
           event.target.value = "";
         }}
       />

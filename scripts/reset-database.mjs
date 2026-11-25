@@ -21,21 +21,24 @@
  *
  * **Everything else goes**, which is every other record with a client in it
  * and every log of the firm working: clients and their groups, contacts,
- * credentials and portal logins, engagements, tasks, comments, documents,
- * invoices, payments, the audit log, the job queue, notifications, the
- * notices and audit files, timesheets, leave, incidents, announcements and
- * saved views. A collection this script has never heard of goes too — for a
- * database about to hold real records that is the safe direction to be
- * wrong in.
+ * credentials and portal logins, engagements, tasks, comments, the client
+ * files and folders, invoices, payments, the audit log, the job queue,
+ * notifications, the notices and audit files, timesheets, leave, incidents,
+ * announcements and saved views. A collection this script has never heard of
+ * goes too — for a database about to hold real records that is the safe
+ * direction to be wrong in.
+ *
+ * **Only the client zone** of `documents` and `folders`: the firm's own
+ * files and somebody's private working copies belong to no client, so they
+ * stay, and on the local driver the vault directory is then left alone
+ * rather than emptied.
  *
  * Three things the demo dataset hides inside the *kept* collections are
  * named explicitly and go as well: the invented colleagues in `users`,
  * found by their `@sample.phmgindia.test` address, the invented GSTIN on a
  * branch, and any register row against an invented client. A real
  * colleague, a branch since given its real registration and a real
- * register row are left alone. On the local storage driver the vault
- * directory is emptied too, since nothing can reach those bytes once the
- * rows are gone.
+ * register row are left alone.
  *
  * What a kept register row loses is its client: the `clientId` on it will
  * point at nothing, and the screens print "Client" / "A client" where the
@@ -93,6 +96,9 @@ import Certificate from "../models/Certificate.js";
 import Udin from "../models/Udin.js";
 import Dsc from "../models/Dsc.js";
 import Counter from "../models/Counter.js";
+import Document from "../models/Document.js";
+import Folder from "../models/Folder.js";
+import { CLIENT_FILES } from "../lib/documents/zones.js";
 
 /**
  * The signed registers: kept, but a row against an invented client goes
@@ -139,6 +145,19 @@ const KEEP = [
  */
 const PART = {
   [Counter.collection.name]: { _id: { $not: /^certificate:/ } },
+
+  /*
+   * The firm's own files and somebody's private working copies belong to no
+   * client, so a reset that clears the clients has no business taking them:
+   * an ICAI circular and the office leave policy are not what anybody means
+   * by "wipe the test data". `CLIENT_FILES` is the same filter every
+   * client-facing query uses (`lib/documents/zones.js`), so this cannot
+   * disagree with the app about which files are a client's — including the
+   * rows written before zones existed, which have no `zone` at all and are
+   * a client's.
+   */
+  [Document.collection.name]: CLIENT_FILES,
+  [Folder.collection.name]: CLIENT_FILES,
 };
 
 const apply = process.argv.includes("--apply");
@@ -331,13 +350,27 @@ async function main() {
 
   /*
    * The rows are gone, so the bytes behind them are orphans nothing can
-   * reach. On the local driver they are ours to remove. On the gateway they
-   * are not: deleting a firm's file store from a script is the owner's
-   * decision and a different blast radius, so it says so instead.
+   * reach. On the local driver they are ours to remove — but only if no
+   * file row survived: the firm's own files and somebody's private copies
+   * sit in the same directory as the client bytes that just went, and
+   * emptying it would destroy exactly what the zone filter in `PART` kept.
+   * On the gateway they are not ours either way: deleting a firm's file
+   * store from a script is the owner's decision and a different blast
+   * radius, so it says so instead.
    */
-  if (driverName() === "local") {
+  const filesLeft = await db
+    .collection(Document.collection.name)
+    .countDocuments({});
+
+  if (driverName() === "local" && !filesLeft) {
     await rm(vaultDir(), { recursive: true, force: true });
     console.log(`  Local vault emptied: ${vaultDir()}`);
+  } else if (driverName() === "local") {
+    console.log(
+      `  Local vault left alone: ${filesLeft} firm/personal file(s) still\n` +
+        `  point into it, so the client bytes stay as unreachable orphans.\n` +
+        `  ${vaultDir()}`,
+    );
   } else {
     console.log(
       `  The ${driverName()} file store is untouched — the rows are gone, so\n` +

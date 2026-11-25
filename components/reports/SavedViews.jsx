@@ -29,7 +29,7 @@ export default function SavedViews({
   const path = base ?? `/reports/${reportKey}`;
 
   return (
-    <div className="flex flex-col bg-red-900 gap-2">
+    <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
         {views.length > 0 && (
           <span className="text-12 text-ink-muted">Saved</span>

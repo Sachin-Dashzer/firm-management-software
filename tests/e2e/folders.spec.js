@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { test, expect } from "@playwright/test";
 import mongoose from "mongoose";
 import { signIn, PASSWORD } from "./signin.js";
@@ -523,10 +525,10 @@ test("the register filters, opens a file and acts on several", async ({
 
   // the two fixture files are here, with where they sit
   await expect(
-    page.getByRole("button", { name: "PAN card.pdf" }),
+    page.getByRole("button", { name: "PAN card.pdf", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Trial balance 2026.pdf" }),
+    page.getByRole("button", { name: "Trial balance 2026.pdf", exact: true }),
   ).toBeVisible();
   await page.screenshot({
     path: `test-results/register-${testInfo.project.name}.png`,
@@ -536,14 +538,14 @@ test("the register filters, opens a file and acts on several", async ({
   // a filter that is in the URL, so the view is a bookmark
   await page.goto("/documents?where=permanent");
   await expect(
-    page.getByRole("button", { name: "PAN card.pdf" }),
+    page.getByRole("button", { name: "PAN card.pdf", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Trial balance 2026.pdf" }),
+    page.getByRole("button", { name: "Trial balance 2026.pdf", exact: true }),
   ).toHaveCount(0);
 
   // the drawer reads one file without leaving the list
-  await page.getByRole("button", { name: "PAN card.pdf" }).click();
+  await page.getByRole("button", { name: "PAN card.pdf", exact: true }).click();
   const drawer = page.getByRole("complementary", { name: "PAN card.pdf" });
   await expect(drawer).toBeVisible();
   await expect(drawer.getByText("Permanent file")).toBeVisible();
@@ -612,3 +614,78 @@ test("a client's files are the same folders, on the client's page", async ({
 
   expect(broke, "the page threw while this ran").toEqual([]);
 });
+
+/**
+ * A folder dropped on the drive arrives as that folder (P3-48d).
+ *
+ * The bug: a browser never sends folders — `webkitdirectory` hands over a
+ * flat list of files, each carrying its old path in `webkitRelativePath` —
+ * and the queue sent every one of them to the folder being looked at. So
+ * picking "KYC" put four loose files in HQ and lost all three folders.
+ *
+ * Written as the owner reported it: pick a folder with folders inside it,
+ * and look for the structure afterwards rather than for the files.
+ */
+test("a picked folder arrives with its own folders, not as loose files", async ({
+  page,
+}, testInfo) => {
+  const fx = names(testInfo.project.name);
+  await signIn(page, fx.partner);
+  await page.goto("/documents/folders/hq");
+
+  await page
+    .getByRole("button", { name: /Add new|New folder|Upload/ })
+    .first()
+    .click();
+  const upload = page.getByRole("button", { name: /^Upload files$/ });
+  if (await upload.isVisible().catch(() => false)) await upload.click();
+
+  /*
+   * `setInputFiles` on a `webkitdirectory` input takes the directory
+   * itself, and Playwright fills in `webkitRelativePath` exactly as a
+   * browser would — which is the whole input this fix reads.
+   */
+  await page
+    .getByLabel("A folder to upload")
+    .setInputFiles(kycFolder(testInfo));
+
+  // every file settles before anything is looked at: the queue says so
+  await expect(page.getByRole("heading", { name: "3 of 3 done" })).toBeVisible({
+    timeout: 60_000,
+  });
+
+  // the folder, at the level it was dropped on
+  await expect(tile(page, "KYC")).toBeVisible({ timeout: 30_000 });
+  // and not its contents, flattened into here
+  await expect(page.getByText("noshad.txt", { exact: true })).toHaveCount(0);
+
+  // the folders it had inside it, one level down
+  await tile(page, "KYC").click();
+  await expect(tile(page, "Aadhaar")).toBeVisible();
+  await expect(tile(page, "PAN")).toBeVisible();
+  // the file that sat loose in the picked folder stays loose in it
+  await expect(page.getByText("cover.txt").first()).toBeVisible();
+
+  // two levels down, the files themselves
+  await tile(page, "Aadhaar").click();
+  await expect(page.getByText("noshad.txt").first()).toBeVisible();
+
+  await page.screenshot({
+    path: `test-results/drive-folder-upload-${testInfo.project.name}.png`,
+    fullPage: true,
+  });
+});
+
+/**
+ * The folder the test picks: two folders deep, with a file loose at the top
+ * so the "stays where it was" half of the claim has something to check.
+ */
+function kycFolder(testInfo) {
+  const root = testInfo.outputPath("KYC");
+  mkdirSync(join(root, "Aadhaar"), { recursive: true });
+  mkdirSync(join(root, "PAN"), { recursive: true });
+  writeFileSync(join(root, "cover.txt"), "what is in this folder");
+  writeFileSync(join(root, "Aadhaar", "noshad.txt"), "noshad aadhaar");
+  writeFileSync(join(root, "PAN", "imran.txt"), "imran pan");
+  return root;
+}

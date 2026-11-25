@@ -296,7 +296,10 @@ export async function confirmUpload(input) {
         action: ACTIONS.documentUpload,
         entityType: "Document",
         entityId: document._id,
-        clientId: client._id,
+        // null for the firm's own papers: HQ and My Docs have no client,
+        // and reading `._id` off that threw before a single byte of an
+        // HQ upload was ever recorded
+        clientId: client?._id ?? null,
         note: document.name,
       },
       session,
@@ -322,7 +325,8 @@ export async function confirmUpload(input) {
 
   if (engagement) revalidatePath(`/engagements/${engagement._id}`);
   if (udinId) revalidatePath("/practice/udin");
-  revalidatePath(`/clients/${client._id}`);
+  if (client) revalidatePath(`/clients/${client._id}`);
+  revalidatePath("/documents/folders");
   return { ok: `${saved.name} uploaded.`, id: String(saved._id) };
 }
 

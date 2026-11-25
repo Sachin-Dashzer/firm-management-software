@@ -683,6 +683,73 @@ export async function moveDocument(id, targetPath, options = {}) {
   };
 }
 
+/**
+ * The chain of folders a dropped folder brings with it, found or made.
+ *
+ * A browser hands a picked folder over as a flat list of files, each
+ * carrying its path in `webkitRelativePath` — "KYC/Aadhaar/noshad.pdf". The
+ * folders themselves are not sent, so unless something makes them the whole
+ * tree lands in one heap, which is what it used to do.
+ *
+ * Walked one level at a time, re-resolving the path each step, because
+ * every level has to pass the same checks a hand-made folder passes: the
+ * place must take folders, the name must be legal, and the person must be
+ * allowed to write there. A name already in use is **reused, not
+ * duplicated** — dropping the same folder twice puts the second batch of
+ * files beside the first instead of making "KYC (2)".
+ *
+ * @param {string[]} parentPath the drive path the upload is aimed at
+ * @param {string[]} names the folder names below it, outermost first
+ * @returns {Promise<{path: string[]}|{error: string}>}
+ */
+export async function ensureFolderPath(parentPath, names = []) {
+  const actor = await requireUser();
+  await connectDB();
+
+  const wanted = (names ?? []).filter((n) => String(n ?? "").trim());
+  if (wanted.length > 16) {
+    return { error: "That folder is nested too deeply to copy in." };
+  }
+
+  let path = [...(parentPath ?? [])];
+
+  for (const raw of wanted) {
+    const { error, resolved } = await nodeFor(actor, path);
+    if (error) return { error };
+
+    const checked = checkName(raw, {
+      parentType: parentTypeOf(resolved.node),
+      siblings: [],
+    });
+    if (!checked.ok) return { error: checked.error };
+
+    /*
+     * Reuse before create. The uniqueness check inside `createFolder` would
+     * refuse the second drop of the same folder, and refusing is the wrong
+     * answer: the person is adding more files to a folder they already
+     * made.
+     */
+    const ownerId = resolved.context.zone === "personal" ? actor.id : null;
+    const here = await Folder.findOne({
+      anchor: anchorFor(resolved.context),
+      parentId: resolved.context.folderId ?? null,
+      ...(ownerId ? { ownerId } : {}),
+      nameKey: checked.name.toLowerCase(),
+    }).select("_id");
+
+    if (here) {
+      path = [...path, `f-${here._id}`];
+      continue;
+    }
+
+    const made = await createFolder({ parentPath: path, name: checked.name });
+    if (made?.error) return { error: made.error };
+    path = [...path, `f-${made.id}`];
+  }
+
+  return { path };
+}
+
 // --- the year folder, and the files waiting in it -------------------------
 
 /**

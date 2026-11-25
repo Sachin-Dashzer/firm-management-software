@@ -13,9 +13,11 @@ import {
   Th,
   Tr,
 } from "@/components/ui/Table";
+import { Trash } from "@phosphor-icons/react";
 import { formatSize } from "@/lib/documents/rows";
 import { fyLabel } from "@/lib/folders/paths";
 import { bulkDelete, bulkSetKind, bulkShare } from "./bulk";
+import { deleteDocument } from "./actions";
 import PreviewDrawer from "./PreviewDrawer";
 
 /**
@@ -62,6 +64,29 @@ export default function FileTable({
       setMessage(result);
       if (result?.done) {
         setPicked(new Set());
+        router.refresh();
+      }
+    });
+  }
+
+  /**
+   * One file, through the same action a tick box full of them goes through.
+   *
+   * No "are you sure?": the bin *is* the undo, it says so in the message,
+   * and this screen already bins a selection on a single click. The ask is
+   * kept for what cannot be taken back, like issuing an invoice number.
+   */
+  function binOne(row) {
+    setMessage(null);
+    start(async () => {
+      const result = await deleteDocument(row.id);
+      setMessage(result);
+      if (result?.ok) {
+        setPicked((was) => {
+          const next = new Set(was);
+          next.delete(row.id);
+          return next;
+        });
         router.refresh();
       }
     });
@@ -170,6 +195,7 @@ export default function FileTable({
             <col className="w-[5.5rem]" />
             <col className="w-[9rem]" />
             <col className="w-[7rem]" />
+            {mayEdit && <col className="w-12" />}
           </colgroup>
           <Head>
             <Th className="w-10">
@@ -190,11 +216,17 @@ export default function FileTable({
             <Th align="right">Size</Th>
             <Th>Put up by</Th>
             <Th align="right">Added</Th>
+            {mayEdit && (
+              <Th align="right">
+                <span className="sr-only">Delete</span>
+              </Th>
+            )}
           </Head>
           <tbody>
             {rows.map((row) => (
               <Tr
                 key={row.id}
+                className="group/row"
                 tint={picked.has(row.id) ? "bg-carbon-soft" : ""}
               >
                 <Td>
@@ -265,6 +297,25 @@ export default function FileTable({
                 <Td align="right" className="num text-13 whitespace-nowrap">
                   {row.added}
                 </Td>
+                {mayEdit && (
+                  <Td align="right">
+                    {/*
+                      Faint until the row is under the pointer, so a column
+                      of red bins is not the first thing the eye lands on —
+                      but always there for the keyboard, which cannot hover.
+                    */}
+                    <button
+                      type="button"
+                      onClick={() => binOne(row)}
+                      disabled={pending}
+                      title={`Send ${row.name} to the recycle bin`}
+                      aria-label={`Send ${row.name} to the recycle bin`}
+                      className="rounded-control text-ink-muted hover:border-redpen/40 hover:text-redpen focus-visible:text-redpen inline-flex h-7 w-7 items-center justify-center border border-transparent opacity-0 transition duration-150 ease-out group-hover/row:opacity-100 focus-visible:opacity-100 disabled:opacity-30"
+                    >
+                      <Trash size={15} />
+                    </button>
+                  </Td>
+                )}
               </Tr>
             ))}
           </tbody>
