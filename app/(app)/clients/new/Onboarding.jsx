@@ -13,7 +13,11 @@ import { onboardingChecks, checksPass } from "@/lib/clients/checks";
 import { feeToPaise, quotation } from "@/lib/clients/quotation";
 import { formatPaise } from "@/lib/money";
 import { withArticle } from "@/lib/words";
-import { PAN_CHAR_FOR_ENTITY } from "@/lib/validators";
+import {
+  PAN_CHAR_FOR_ENTITY,
+  checkGSTIN,
+  entityTypesForPan,
+} from "@/lib/validators";
 import { keepDraft, dropDraft } from "../../drafts/actions";
 import { createGroup } from "../actions";
 import {
@@ -147,6 +151,42 @@ export default function Onboarding({
     setValues((previous) => ({ ...previous, [name]: value }));
 
   /**
+   * The client's GST registrations (owner request, 25-11-2026).
+   *
+   * A client with branches in three states has three of them, each with
+   * its own work and its own fees, and the wizard asked for one. They live
+   * in the same flat `values` map as every other field — `gstins.1.gstin`,
+   * `gstins.1.label` — because `createFromOnboarding` copies that map
+   * straight into the form the server already knows how to read, and
+   * because a draft saved halfway then carries them with no extra work.
+   */
+  const registrations = useMemo(() => {
+    /** @type {{gstin: string, label: string}[]} */
+    const rows = [];
+    for (const [key, value] of Object.entries(values)) {
+      const found = /^gstins\.(\d+)\.(gstin|label)$/.exec(key);
+      if (!found) continue;
+      const at = Number(found[1]);
+      rows[at] = { gstin: "", label: "", ...rows[at], [found[2]]: value ?? "" };
+    }
+    return rows.filter(Boolean);
+  }, [values]);
+
+  /** Rewrite the whole set, so removing the middle row closes the gap. */
+  function setRegistrations(rows) {
+    setValues((previous) => {
+      const next = Object.fromEntries(
+        Object.entries(previous).filter(([key]) => !key.startsWith("gstins.")),
+      );
+      rows.forEach((row, at) => {
+        next[`gstins.${at}.gstin`] = (row.gstin ?? "").toUpperCase();
+        next[`gstins.${at}.label`] = row.label ?? "";
+      });
+      return next;
+    });
+  }
+
+  /**
    * Move to a step, remembering how far the person has got — and putting
    * the step in the address bar (QA 09-11-2026, #19).
    *
@@ -196,6 +236,41 @@ export default function Onboarding({
    * your mind at step 1 should not leave a company's ticked documents
    * sitting on a trust.
    */
+  /**
+   * The GSTIN, first, and everything that follows from it (owner request,
+   * 25-11-2026).
+   *
+   * Onboarding used to open on twelve entity cards, which is the hardest
+   * question on the screen and the one the client's own GSTIN already
+   * answers. A GSTIN carries the state in characters 1–2 and the PAN in
+   * 3–12, and the PAN's 4th character is the holder type — so typing the
+   * one number the client always has to hand fills the state, the PAN and,
+   * when it leaves no doubt, the entity type as well.
+   *
+   * What it will not do is guess. "C" is a Private Limited, a Public
+   * Limited, an OPC and a Section 8 company equally; those four cards are
+   * marked as the ones that fit and the person picks. An unregistered
+   * client types nothing here and chooses a card, exactly as before.
+   */
+  function readGstin(value) {
+    set("gstins.0.gstin", value.toUpperCase());
+    const result = checkGSTIN(value);
+    if (!result.ok) return;
+
+    // never over the top of something already typed
+    setValues((previous) => ({
+      ...previous,
+      "gstins.0.gstin": result.value,
+      pan: previous.pan?.trim() ? previous.pan : result.pan,
+      "addresses.0.state": previous["addresses.0.state"]?.trim()
+        ? previous["addresses.0.state"]
+        : result.state,
+    }));
+
+    const possible = entityTypesForPan(result.pan);
+    if (possible.length === 1 && !entityType) chooseEntity(possible[0]);
+  }
+
   function chooseEntity(key) {
     setEntityType(key);
     setReceived([]);
@@ -571,13 +646,20 @@ export default function Onboarding({
         ) : (
           <>
             {step === 0 && (
-              <EntityStep chosen={entityType} onChoose={chooseEntity} />
+              <EntityStep
+                chosen={entityType}
+                onChoose={chooseEntity}
+                gstin={values["gstins.0.gstin"] ?? ""}
+                onGstin={readGstin}
+              />
             )}
             {step === 1 && (
               <MasterStep
                 entity={entity}
                 values={values}
                 set={set}
+                registrations={registrations}
+                setRegistrations={setRegistrations}
                 branches={branches}
                 partners={partners}
                 checks={checks}
@@ -632,6 +714,7 @@ export default function Onboarding({
               <CreateStep
                 entity={entity}
                 values={values}
+                registrations={registrations}
                 services={services}
                 fees={fees}
                 documents={documents}
@@ -753,13 +836,67 @@ function StepHead({ title, note }) {
 
 // --- step 1 -----------------------------------------------------------------
 
-function EntityStep({ chosen, onChoose }) {
+function EntityStep({ chosen, onChoose, gstin, onGstin }) {
+  const read = checkGSTIN(gstin ?? "");
+  /** The cards the GSTIN's PAN allows; empty means it tells us nothing. */
+  const fits = read.ok ? entityTypesForPan(read.pan) : [];
+
   return (
     <>
-      <StepHead title="What kind of entity is the client?" />
+      <StepHead
+        title="Start with the GSTIN, if the client has one"
+        note="A GSTIN carries the state and the PAN inside it, and the PAN says what kind of entity holds it. Type it and the rest of this wizard fills itself in. No GSTIN — an individual, a trust, a client not registered — just pick a card below."
+      />
+
+      {/* the reading is a sibling of the label, not inside it: a hint
+          inside a <label> becomes part of the field's name, so a screen
+          reader would announce the whole sentence as the field */}
+      <div className="mb-5 flex max-w-md flex-col gap-1">
+        <label
+          htmlFor="onboarding-gstin"
+          className="text-13 text-ink-muted font-medium"
+        >
+          GSTIN
+        </label>
+        <input
+          id="onboarding-gstin"
+          value={gstin ?? ""}
+          onChange={(event) => onGstin(event.target.value)}
+          maxLength={15}
+          autoFocus
+          placeholder="09AAAPZ1234C1ZX"
+          aria-describedby="gstin-read"
+          className="rounded-control border-rule bg-paper text-14 h-10 border px-2 font-mono uppercase"
+        />
+        <span
+          id="gstin-read"
+          role="status"
+          aria-live="polite"
+          className={`text-12 ${read.ok ? "text-filed" : "text-ink-muted"}`}
+        >
+          {!gstin?.trim()
+            ? "Leave it blank if the client is not registered."
+            : read.ok
+              ? `${read.state} · PAN ${read.pan}${
+                  fits.length === 1
+                    ? ` · ${fits[0]}`
+                    : fits.length
+                      ? ` · one of ${fits.length} kinds of entity — pick which below`
+                      : ""
+                }`
+              : read.reason}
+        </span>
+      </div>
+
+      <h3 className="text-12 text-ink-muted mb-3 font-semibold tracking-wide uppercase">
+        What kind of entity is the client?
+      </h3>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {ENTITY_CONFIGS.map((entity) => {
           const picked = entity.key === chosen;
+          /* what the GSTIN's PAN says is possible: a hint, never a lock —
+             the person on the screen may know better than the 4th letter */
+          const suggested = fits.includes(entity.key);
           return (
             <button
               key={entity.key}
@@ -769,11 +906,19 @@ function EntityStep({ chosen, onChoose }) {
               className={`rounded-ledger lift border p-3 text-left ${
                 picked
                   ? "border-carbon bg-carbon-wash"
-                  : "border-rule bg-paper hover:border-carbon"
+                  : suggested
+                    ? "border-carbon/40 bg-paper hover:border-carbon"
+                    : "border-rule bg-paper hover:border-carbon"
               }`}
             >
               <span className="text-14 block font-semibold">
                 {entity.label}
+                {suggested && !picked && (
+                  <span className="text-12 text-ink-muted font-normal">
+                    {" "}
+                    · fits this PAN
+                  </span>
+                )}
               </span>
               <span className="text-12 text-ink-muted mt-1 block">
                 PAN 4th character: {panCharLabel(entity.panChar)} ·{" "}
@@ -797,11 +942,32 @@ function MasterStep({
   entity,
   values,
   set,
+  registrations,
+  setRegistrations,
   branches,
   partners,
   checks,
   onBlurCheck,
 }) {
+  /**
+   * The entity's own GSTIN field is dropped: the registrations block below
+   * asks the same question and asks it for every branch, and two controls
+   * writing one value is how they disagree.
+   */
+  const entityFields = entity.fields.filter(
+    (field) => !field.name.startsWith("gstins."),
+  );
+
+  /** Always one row to type into, even before anything is typed. */
+  const rows = registrations.length
+    ? registrations
+    : [{ gstin: "", label: "" }];
+
+  const update = (at, change) =>
+    setRegistrations(
+      rows.map((row, index) => (index === at ? { ...row, ...change } : row)),
+    );
+
   return (
     <>
       <StepHead
@@ -846,7 +1012,7 @@ function MasterStep({
         {entity.label} details
       </h3>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {entity.fields.map((field) => (
+        {entityFields.map((field) => (
           <Field
             key={field.name}
             {...field}
@@ -856,6 +1022,55 @@ function MasterStep({
           />
         ))}
       </div>
+
+      <h3 className="text-12 text-ink-muted mt-6 mb-1 font-semibold tracking-wide uppercase">
+        GST registrations
+      </h3>
+      <p className="text-13 text-ink-muted mb-3">
+        One row per registration. A client with branches in more than one state
+        has one for each — name them, and every job, fee and invoice can then be
+        tracked against the right branch.
+      </p>
+
+      <div className="flex flex-col gap-2">
+        {rows.map((row, at) => (
+          <div key={at} className="flex flex-wrap items-center gap-2">
+            <input
+              value={row.gstin}
+              onChange={(event) => update(at, { gstin: event.target.value })}
+              onBlur={onBlurCheck}
+              maxLength={15}
+              aria-label={`GSTIN ${at + 1}`}
+              placeholder="09AAAPZ1234C1ZX"
+              className="rounded-control border-rule bg-paper text-14 h-9 flex-1 border px-2 font-mono uppercase"
+            />
+            <input
+              value={row.label}
+              onChange={(event) => update(at, { label: event.target.value })}
+              maxLength={60}
+              aria-label={`Name for registration ${at + 1}`}
+              placeholder="Name this registration"
+              className="rounded-control border-rule bg-paper text-14 h-9 flex-1 border px-2"
+            />
+            {rows.length > 1 && (
+              <Remove
+                label={`registration ${at + 1}`}
+                onClick={() =>
+                  setRegistrations(rows.filter((_, i) => i !== at))
+                }
+              />
+            )}
+          </div>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setRegistrations([...rows, { gstin: "", label: "" }])}
+        className="rounded-control border-rule text-13 hover:bg-carbon-wash mt-3 h-9 border px-3"
+      >
+        Add another registration
+      </button>
 
       <div className="border-rule mt-6 border-t pt-4">
         <CheckList checks={checks} />
@@ -1537,6 +1752,7 @@ function PackStep({
 function CreateStep({
   entity,
   values,
+  registrations,
   services,
   fees,
   documents,
@@ -1580,7 +1796,18 @@ function CreateStep({
         <Summary label="Entity type" value={entity.label} />
         <Summary label="Legal name" value={values.legalName} />
         <Summary label="PAN" value={values.pan} mono />
-        <Summary label="GSTIN" value={values["gstins.0.gstin"]} mono />
+        {/* every registration, not the first: three branches on the last
+            screen is the point of asking for three (25-11-2026) */}
+        <Summary
+          label={`GSTIN${registrations.length > 1 ? "s" : ""}`}
+          value={registrations
+            .filter((row) => row.gstin?.trim())
+            .map((row) =>
+              row.label ? `${row.gstin} (${row.label})` : row.gstin,
+            )
+            .join(" · ")}
+          mono
+        />
         <Summary label="Contact" value={values["contacts.0.name"]} />
         <Summary label="Group" value={group?.name ?? "— none —"} />
         <Summary

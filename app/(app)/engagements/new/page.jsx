@@ -22,7 +22,7 @@ export default async function NewEngagementPage({ searchParams }) {
   const scope = branchFilter(actor, "engagementsCreate");
   const [clients, templates, team] = await Promise.all([
     Client.find({ status: { $ne: "Closed" }, ...(scope ?? {}) })
-      .select("legalName tradeName code branchId")
+      .select("legalName tradeName code branchId gstins")
       .sort({ legalName: 1 })
       .limit(2000)
       .lean(),
@@ -58,6 +58,15 @@ export default async function NewEngagementPage({ searchParams }) {
           id: String(c._id),
           name: c.tradeName || c.legalName,
           code: c.code,
+          /* the client's GST registrations, so the form can ask which
+             branch the work is for without a round trip */
+          gstins: (c.gstins ?? [])
+            .filter((g) => g.active !== false)
+            .map((g) => ({
+              id: String(g._id),
+              gstin: g.gstin,
+              label: g.label || g.state || g.gstin,
+            })),
         }))}
         templates={templates.map((t) => ({
           id: String(t._id),

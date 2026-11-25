@@ -7,6 +7,7 @@ import {
 import { onboardingChecks, checksPass } from "../lib/clients/checks.js";
 import { ENTITY_TYPES, checkGSTIN } from "../lib/validators.js";
 import { validateClient } from "../lib/clients/validate.js";
+import { readClientForm } from "../lib/clients/form.js";
 import { STARTER_CATALOG } from "../lib/services/starter.js";
 
 const SERVICE_CODES = STARTER_CATALOG.map((service) => service.code);
@@ -58,6 +59,79 @@ describe("the entity table", () => {
     expect(panCharLabel("C")).toBe("C");
     expect(panCharLabel("AB")).toBe("A or B");
     expect(ENTITY_BY_KEY.AOP.panChar).toBe("AB");
+  });
+});
+
+/**
+ * The wizard collects a client's GST registrations as flat keys —
+ * `gstins.1.gstin`, `gstins.1.label` — and `createFromOnboarding` copies
+ * that map straight into the form the server already reads. This is the
+ * seam between the two, which is where a branch would quietly go missing
+ * (owner request, 25-11-2026).
+ */
+describe("a wizard payload with several GST registrations", () => {
+  /** A GSTIN for this state and PAN whose check digit is right. */
+  function gstinFor(stateCode, pan) {
+    for (const last of "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+      const candidate = `${stateCode}${pan}1Z${last}`;
+      if (checkGSTIN(candidate).ok) return candidate;
+    }
+    throw new Error("no valid check digit");
+  }
+
+  const PAN = "AABCM1429P";
+  const BRANCHES = [
+    { label: "Delhi", stateCode: "07", state: "Delhi" },
+    { label: "Mumbai", stateCode: "27", state: "Maharashtra" },
+    { label: "Hyderabad", stateCode: "36", state: "Telangana" },
+  ].map((b) => ({ ...b, gstin: gstinFor(b.stateCode, PAN) }));
+
+  /** What createFromOnboarding builds out of the wizard's values map. */
+  const formData = new FormData();
+  formData.set("entityType", "Private Limited");
+  formData.set("legalName", "Ryan Medihub Private Limited");
+  formData.set("pan", PAN);
+  BRANCHES.forEach((branch, at) => {
+    formData.set(`gstins.${at}.gstin`, branch.gstin);
+    formData.set(`gstins.${at}.label`, branch.label);
+  });
+
+  const { errors, value } = validateClient(readClientForm(formData));
+
+  it("keeps all three registrations, in order, with their names", () => {
+    // the branch and the group are the wizard's own later steps; nothing
+    // here is a complaint about a registration
+    expect(
+      Object.keys(errors).filter((key) => key.startsWith("gstins")),
+    ).toEqual([]);
+    expect(value.gstins).toHaveLength(3);
+    expect(value.gstins.map((g) => g.label)).toEqual([
+      "Delhi",
+      "Mumbai",
+      "Hyderabad",
+    ]);
+    expect(value.gstins.map((g) => g.gstin)).toEqual(
+      BRANCHES.map((b) => b.gstin),
+    );
+  });
+
+  it("derives each one's state from its own number", () => {
+    expect(value.gstins.map((g) => g.state)).toEqual([
+      "Delhi",
+      "Maharashtra",
+      "Telangana",
+    ]);
+  });
+
+  it("refuses a registration belonging to a different PAN", () => {
+    const wrong = new FormData();
+    wrong.set("entityType", "Private Limited");
+    wrong.set("legalName", "Ryan Medihub Private Limited");
+    wrong.set("pan", PAN);
+    wrong.set("gstins.0.gstin", BRANCHES[0].gstin);
+    wrong.set("gstins.1.gstin", gstinFor("27", "AAACZ1234C"));
+    const result = validateClient(readClientForm(wrong));
+    expect(result.errors["gstins.1"]).toMatch(/different PAN/);
   });
 });
 

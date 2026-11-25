@@ -375,6 +375,17 @@ export async function createMissingJobs({ fy, serviceId = "" }) {
           template,
           client,
           period,
+          /**
+           * The registration the subscription names, when it names one.
+           *
+           * ponytail: the grid's hole-finder is still per client and
+           * service, so a client with three registrations shows one row
+           * rather than three. Raising from here fills the registration
+           * the subscription points at. Widen `holes` the way the
+           * generator is widened when the firm wants a row per branch on
+           * this screen.
+           */
+          gstinId: subscription?.gstinId ?? null,
           assigneeId: legal.ok
             ? (subscription?.defaultAssigneeId ?? null)
             : null,

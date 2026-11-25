@@ -44,6 +44,7 @@ export default function EngagementForm({
 }) {
   const router = useRouter();
   const [clientId, setClientId] = useState(presetClientId || "");
+  const [gstinId, setGstinId] = useState("");
   const [templateId, setTemplateId] = useState("");
   const [period, setPeriod] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
@@ -66,6 +67,7 @@ export default function EngagementForm({
     setMessage((current) => (current?.error ? null : current));
   }, [
     clientId,
+    gstinId,
     templateId,
     period,
     assigneeId,
@@ -98,6 +100,24 @@ export default function EngagementForm({
     [template],
   );
 
+  /**
+   * The chosen client's GST registrations (owner request, 24-11-2026).
+   *
+   * A client with one is not asked which — that is the ordinary case and a
+   * select with one option in it is a question with no answer to give. Two
+   * or more and the question is real: a Delhi GSTR-1 and a Hyderabad one
+   * are different work, due the same day, with different figures.
+   */
+  const registrations = useMemo(
+    () => clients.find((c) => c.id === clientId)?.gstins ?? [],
+    [clientId, clients],
+  );
+
+  // a registration belongs to one client, so changing the client drops it
+  useEffect(() => {
+    setGstinId("");
+  }, [clientId]);
+
   // the period list changes with the service, so keep the choice valid
   useEffect(() => {
     if (!template) return;
@@ -120,7 +140,7 @@ export default function EngagementForm({
   useEffect(() => {
     if (!clientId || !templateId) return;
     let cancelled = false;
-    subscriptionDefaults(clientId, templateId).then((found) => {
+    subscriptionDefaults(clientId, templateId, gstinId).then((found) => {
       if (cancelled || !found) return;
       setFee(String(found.feePaise / 100));
       if (found.defaultAssigneeId) setAssigneeId(found.defaultAssigneeId);
@@ -129,7 +149,7 @@ export default function EngagementForm({
     return () => {
       cancelled = true;
     };
-  }, [clientId, templateId]);
+  }, [clientId, templateId, gstinId]);
 
   const canDo = template
     ? team.filter((u) => canExecute(u.role, template.minExecRole))
@@ -156,6 +176,7 @@ export default function EngagementForm({
               ok: "Created. Ready for the next client, same service and period.",
             });
             setClientId("");
+            setGstinId("");
             setFee("");
             return;
           }
@@ -192,6 +213,32 @@ export default function EngagementForm({
             hint: c.code,
           }))}
         />
+
+        {registrations.length > 1 && (
+          <label className="flex flex-col gap-1">
+            <span className="text-13 text-ink-muted font-medium">
+              GST registration
+            </span>
+            <select
+              name="gstinId"
+              value={gstinId}
+              onChange={(e) => setGstinId(e.target.value)}
+              className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
+            >
+              <option value="">The whole client — not one branch</option>
+              {registrations.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.label} — {g.gstin}
+                </option>
+              ))}
+            </select>
+            <span className="text-12 text-ink-muted">
+              This client has {registrations.length} registrations. A GST return
+              belongs to one of them; an ITR, a TDS return or an audit belongs
+              to the whole client.
+            </span>
+          </label>
+        )}
 
         <Combobox
           label="Service"

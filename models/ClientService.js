@@ -25,6 +25,21 @@ const clientServiceSchema = new mongoose.Schema(
       required: true,
     },
 
+    /**
+     * Which GST registration this subscription is for (owner request,
+     * 24-11-2026), as an `_id` from `client.gstins`.
+     *
+     * This is the row the recurring generator reads, so it is what makes
+     * three branches produce three monthly returns by themselves. One
+     * subscription per registration, each with its own fee and its own
+     * usual person — a Delhi return done by one employee and a Hyderabad
+     * one by another is the normal case, not an exception.
+     *
+     * `null` is work that belongs to the client as a whole, and is what
+     * every subscription written before this field means.
+     */
+    gstinId: { type: mongoose.Schema.Types.ObjectId, default: null },
+
     /** The agreed fee for this client, which may differ from the catalog. */
     feePaise: { type: Number, default: 0, min: 0 },
 
@@ -74,8 +89,9 @@ clientServiceSchema.plugin(auditPlugin, {
   clientIdField: "clientId",
 });
 
+// one subscription per client, service and GST registration
 clientServiceSchema.index(
-  { clientId: 1, serviceTemplateId: 1 },
+  { clientId: 1, serviceTemplateId: 1, gstinId: 1 },
   { unique: true, partialFilterExpression: { deletedAt: null } },
 );
 clientServiceSchema.index({ serviceTemplateId: 1, active: 1 });

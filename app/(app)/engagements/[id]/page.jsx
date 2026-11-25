@@ -640,6 +640,15 @@ export default async function EngagementPage({ params, searchParams }) {
               >
                 {client?.tradeName || client?.legalName}
               </Link>{" "}
+              {/* which branch, and under which number it is filed
+                  (owner request, 24-11-2026) */}
+              {engagement.gstinId && (
+                <>
+                  <span title={engagement.gstin}>
+                    {engagement.gstinLabel || engagement.gstin}
+                  </span>{" "}
+                </>
+              )}
               <TierBadge level={view.level} withLabel />· {view.periodLabel} ·{" "}
               <span className="num">{view.code}</span>
               {view.book && can(actor, "view", "practice", target) && (

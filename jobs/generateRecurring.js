@@ -38,8 +38,10 @@ import {
  *    date left empty and a note saying why. The work appears; the deadline
  *    waits for a person (CLAUDE.md rule 8).
  *  - It will not create the same engagement twice. The unique index on
- *    client + service + period is the backstop, and a duplicate is counted
- *    rather than treated as a failure.
+ *    client + service + period + GST registration is the backstop, and a
+ *    duplicate is counted rather than treated as a failure. One
+ *    subscription per registration is what makes a client with branches in
+ *    three states get three monthly returns rather than one.
  *
  * @param {{ now?: Date, limit?: number, leadDays?: number }} [options]
  */
@@ -99,6 +101,9 @@ export async function generateRecurring(options = {}) {
         clientId: client._id,
         serviceTemplateId: template._id,
         period: period.code,
+        // one per registration: a client with three GST branches owes three
+        // returns this month, not one (owner request, 24-11-2026)
+        gstinId: subscription.gstinId ?? null,
       })
         .select("_id")
         .lean();
@@ -143,6 +148,7 @@ export async function generateRecurring(options = {}) {
             template,
             client,
             period,
+            gstinId: subscription.gstinId ?? null,
             assigneeId: legal.ok
               ? (subscription.defaultAssigneeId ?? null)
               : null,

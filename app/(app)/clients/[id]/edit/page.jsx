@@ -69,6 +69,7 @@ export default async function EditClientPage({ params }) {
           gstins: client.gstins?.map((g) => ({
             _id: String(g._id),
             gstin: g.gstin,
+            label: g.label ?? "",
             qrmp: g.qrmp,
           })),
           addresses: client.addresses?.map((a) => ({

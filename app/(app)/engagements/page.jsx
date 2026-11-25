@@ -137,7 +137,15 @@ export default async function EngagementsPage({ searchParams }) {
     return {
       id: String(e._id),
       code: e.code,
-      client: clientName.get(String(e.clientId)) ?? "Client",
+      /**
+       * The branch is part of who the work is for (owner request,
+       * 24-11-2026): three GSTR-1s for one client in one month are only
+       * telling apart by registration, and the name is snapshotted on the
+       * engagement so this costs no extra read.
+       */
+      client:
+        (clientName.get(String(e.clientId)) ?? "Client") +
+        (e.gstinLabel ? ` · ${e.gstinLabel}` : ""),
       clientId: String(e.clientId),
       service: e.templateSnapshot?.name ?? "—",
       // the stored level; the badge and the tier filter turn it into A/B/C

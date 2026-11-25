@@ -9,6 +9,8 @@ import {
   ENTITY_TYPES,
   RISK_RATINGS,
   TURNOVER_BANDS,
+  checkGSTIN,
+  entityTypesForPan,
 } from "@/lib/validators";
 import { keepDraft, dropDraft } from "../drafts/actions";
 import {
@@ -54,8 +56,12 @@ export default function ClientForm({
       : [{ name: "", designation: "", mobile: "", email: "", primary: true }],
   );
   const [gstins, setGstins] = useState(
-    base?.gstins?.length ? base.gstins : [{ gstin: "", qrmp: false }],
+    base?.gstins?.length
+      ? base.gstins
+      : [{ gstin: "", label: "", qrmp: false }],
   );
+  /** What the GSTIN just filled in, said once under the field. */
+  const [filled, setFilled] = useState("");
   /**
    * Addresses (QA 09-11-2026, #1, second half).
    *
@@ -85,6 +91,50 @@ export default function ClientForm({
    * `requestSubmit()` bypasses the button.
    */
   const [, startCheck] = useTransition();
+
+  /**
+   * Fill in what the GSTIN already says (owner request, 24-11-2026).
+   *
+   * A GSTIN *contains* the PAN — characters 3 to 12 — and the PAN's 4th
+   * character says what kind of entity holds it. So the PAN, the state and
+   * often the entity type need no lookup at all, no key and no network:
+   * `checkGSTIN` has returned all of this since Step 3 and nothing read it.
+   *
+   * Three rules it keeps:
+   *  - It never overwrites something a person typed. A machine that
+   *    silently replaces a correction is worse than one that does nothing.
+   *  - It fills the entity type only when the PAN leaves one possibility.
+   *    "C" is a Private Limited, a Public Limited, an OPC or a Section 8
+   *    equally; guessing would put a wrong fact in the record in the firm's
+   *    name (CLAUDE.md rule 8 is the same instinct).
+   *  - It says what it did, so nobody has to notice.
+   *
+   * ponytail: the legal name is the one field not inside the number. It
+   * needs the GST portal, which is captcha-gated, or a paid API key the
+   * firm does not have yet. No placeholder config is left for it — when the
+   * owner picks a vendor, one server action beside this fills the name too.
+   */
+  function autofillFromGstin(formEl, value) {
+    const result = checkGSTIN(value);
+    if (!result.ok) return;
+
+    const done = [];
+    const pan = formEl?.elements?.pan;
+    if (pan && !pan.disabled && !pan.value.trim()) {
+      pan.value = result.pan;
+      done.push(`PAN ${result.pan}`);
+    }
+
+    const entity = formEl?.elements?.entityType;
+    const possible = entityTypesForPan(result.pan);
+    if (entity && !entity.value && possible.length === 1) {
+      entity.value = possible[0];
+      done.push(possible[0]);
+    }
+
+    done.push(result.state);
+    setFilled(`From this GSTIN: ${done.join(" · ")}.`);
+  }
 
   /** Ask the server whether anything already uses this PAN, GSTIN or mobile. */
   function runDuplicateCheck(formEl) {
@@ -374,11 +424,22 @@ export default function ClientForm({
 
       <Rows
         title="GST registrations"
-        hint="One per state. The PAN inside each GSTIN must match the client's PAN."
+        hint={
+          <>
+            One per registration. The PAN inside each GSTIN must match the
+            client&rsquo;s PAN. Name a registration when the client has more
+            than one — work and fees are tracked against each separately.
+            {/* what the number itself filled in, said once rather than
+                left for somebody to notice */}
+            <span role="status" aria-live="polite" className="text-filed block">
+              {filled}
+            </span>
+          </>
+        }
         rows={gstins}
         setRows={setGstins}
-        blank={{ gstin: "", qrmp: false }}
-        addLabel="Add another state"
+        blank={{ gstin: "", label: "", qrmp: false }}
+        addLabel="Add another registration"
         render={(row, i, update) => (
           <>
             {row._id && (
@@ -388,9 +449,20 @@ export default function ClientForm({
               name={`gstins.${i}.gstin`}
               value={row.gstin ?? ""}
               onChange={(e) => update({ gstin: e.target.value.toUpperCase() })}
-              onBlur={(e) => runDuplicateCheck(e.currentTarget.form)}
+              onBlur={(e) => {
+                autofillFromGstin(e.currentTarget.form, e.currentTarget.value);
+                runDuplicateCheck(e.currentTarget.form);
+              }}
               placeholder="09AAAPZ1234C1ZX"
               className="rounded-control border-rule bg-paper text-14 h-9 flex-1 border px-2 font-mono uppercase"
+            />
+            <input
+              name={`gstins.${i}.label`}
+              value={row.label ?? ""}
+              onChange={(e) => update({ label: e.target.value })}
+              maxLength={60}
+              placeholder="Name this registration"
+              className="rounded-control border-rule bg-paper text-14 h-9 flex-1 border px-2"
             />
             <label className="text-13 flex items-center gap-2 whitespace-nowrap">
               {/* an unticked checkbox submits nothing, and the server now

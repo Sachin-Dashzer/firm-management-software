@@ -12,6 +12,7 @@ import {
   checkEmail,
   optional,
   panMatchesEntityType,
+  entityTypesForPan,
   verhoeffCheckDigit,
   GST_STATES,
 } from "@/lib/validators";
@@ -50,6 +51,39 @@ describe("PAN", () => {
     const result = checkPAN("AABXS1429P");
     expect(result.ok).toBe(false);
     expect(result.reason).toMatch(/4th character/);
+  });
+
+  /**
+   * What a GSTIN can fill in by itself (owner request, 24-11-2026): the
+   * PAN is inside it and the PAN's 4th character says the holder type, so
+   * the form fills three fields with no lookup, no key and no network.
+   */
+  it("reads the entity types a PAN allows, and only those", () => {
+    // "C" is every kind of company, so the form must not pick one
+    expect(entityTypesForPan("AABCS1429P")).toEqual([
+      "Private Limited",
+      "Public Limited",
+      "One Person Company",
+      "Section 8 Company",
+    ]);
+    // "F" is a firm or an LLP — still two, still not guessed
+    expect(entityTypesForPan("AAAFZ1234C")).toEqual([
+      "Partnership Firm",
+      "LLP",
+    ]);
+    // "H" leaves exactly one, which is the case the form fills in
+    expect(entityTypesForPan("AAAHZ1234C")).toEqual(["HUF"]);
+    expect(entityTypesForPan("AAAPZ1234C")).toEqual([
+      "Individual",
+      "Proprietorship",
+    ]);
+  });
+
+  it("gives nothing for a PAN that is not one", () => {
+    expect(entityTypesForPan("")).toEqual([]);
+    expect(entityTypesForPan("NOTAPAN")).toEqual([]);
+    // a well-shaped PAN with a holder type that does not exist
+    expect(entityTypesForPan("AAAXZ1234C")).toEqual([]);
   });
 
   it("notices a PAN that does not match the entity type chosen", () => {

@@ -453,6 +453,31 @@ const engagementSchema = new mongoose.Schema(
       ref: "ServiceTemplate",
       required: true,
     },
+
+    /**
+     * Which of the client's GST registrations this work is for (owner
+     * request, 24-11-2026).
+     *
+     * A client with branches in three states has three registrations, and
+     * three separate GSTR-1s every month — one per registration, each with
+     * its own figures, its own portal login and often its own person doing
+     * it. Before this the unique index below allowed one, so the second
+     * branch's return could not be raised at all.
+     *
+     * The `_id` of a row in `client.gstins`, not a collection of its own:
+     * that array already *is* the list of registrations. `null` means the
+     * work belongs to the client as a whole, which is what an ITR, a TDS
+     * return or an audit is — and what every engagement created before this
+     * field means.
+     *
+     * The number and the name are snapshotted beside it like the template,
+     * so a list row can say which branch without reading the client, and so
+     * a return filed last year still shows the GSTIN it was filed under
+     * after somebody edits the client.
+     */
+    gstinId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    gstin: { type: String, default: "", uppercase: true, trim: true },
+    gstinLabel: { type: String, default: "", trim: true },
     branchId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Branch",
@@ -661,10 +686,12 @@ engagementSchema.index({ "templateSnapshot.level": 1, status: 1 });
 engagementSchema.index({ "templateSnapshot.category": 1, statutoryDue: 1 });
 // the compliance grid asks "which milestones are unfiled and overdue" (P3-1)
 engagementSchema.index({ "milestones.dueDate": 1, "milestones.filedOn": 1 });
-// one engagement per client, service and period: the duplicate guard for
-// recurring work, and what Step 7's generator relies on
+// one engagement per client, service, period and GST registration: the
+// duplicate guard for recurring work, and what Step 7's generator relies
+// on. `gstinId` is a value like any other here, so work with no
+// registration (null) is still one per client, service and period.
 engagementSchema.index(
-  { clientId: 1, serviceTemplateId: 1, period: 1 },
+  { clientId: 1, serviceTemplateId: 1, period: 1, gstinId: 1 },
   { unique: true, partialFilterExpression: { deletedAt: null } },
 );
 

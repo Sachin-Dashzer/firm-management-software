@@ -383,6 +383,90 @@ describe("building an engagement from a template", () => {
     expect(buildEngagement({ template, client, period }).feePaise).toBe(250000);
   });
 
+  /**
+   * One client, branches in three states, three GSTR-1s every month (owner
+   * request, 24-11-2026). The snapshot is what a list row reads, so it has
+   * to be right here or three identical rows is what the firm sees.
+   */
+  describe("GST registrations", () => {
+    const medihub = {
+      _id: "cli",
+      branchId: "br",
+      gstins: [
+        { _id: "g1", gstin: "07AAACR5055K1Z5", state: "Delhi", label: "" },
+        {
+          _id: "g2",
+          gstin: "27AAACR5055K1ZZ",
+          state: "Maharashtra",
+          label: "Mumbai — Andheri",
+        },
+      ],
+    };
+
+    it("snapshots the registration it is for", () => {
+      const made = buildEngagement({
+        template,
+        client: medihub,
+        period,
+        gstinId: "g2",
+      });
+      expect(String(made.gstinId)).toBe("g2");
+      expect(made.gstin).toBe("27AAACR5055K1ZZ");
+      // the firm's own name wins over the state
+      expect(made.gstinLabel).toBe("Mumbai — Andheri");
+    });
+
+    it("falls back to the state when the firm has not named it", () => {
+      const made = buildEngagement({
+        template,
+        client: medihub,
+        period,
+        gstinId: "g1",
+      });
+      expect(made.gstinLabel).toBe("Delhi");
+    });
+
+    it("leaves work for the whole client with no registration", () => {
+      const made = buildEngagement({ template, client: medihub, period });
+      expect(made.gstinId).toBeNull();
+      expect(made.gstin).toBe("");
+      expect(made.gstinLabel).toBe("");
+    });
+
+    it("refuses to snapshot a registration the client does not have", () => {
+      // the backstop behind the server check: a stale or forged form field
+      // must not stamp another client's GSTIN onto this client's work
+      const made = buildEngagement({
+        template,
+        client: medihub,
+        period,
+        gstinId: "someone-elses",
+      });
+      expect(made.gstinId).toBeNull();
+      expect(made.gstin).toBe("");
+    });
+
+    it("tells two branches' work apart on the key the index uses", () => {
+      const delhi = buildEngagement({
+        template,
+        client: medihub,
+        period,
+        gstinId: "g1",
+      });
+      const mumbai = buildEngagement({
+        template,
+        client: medihub,
+        period,
+        gstinId: "g2",
+      });
+      // same client, same service, same period — and the unique index
+      // declared on Engagement counts gstinId, so both can exist
+      const key = (e) =>
+        [e.clientId, e.serviceTemplateId, e.period, e.gstinId].join("|");
+      expect(key(delhi)).not.toBe(key(mumbai));
+    });
+  });
+
   it("adds a UDIN line to the review checklist only when one is needed", () => {
     const plain = buildEngagement({ template, client, period });
     expect(plain.reviewChecklist.some((i) => /UDIN/.test(i.name))).toBe(false);

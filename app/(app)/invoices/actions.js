@@ -104,20 +104,52 @@ export async function createDraft(input) {
 
   const branch = await Branch.findById(client.branchId).lean();
 
-  // the place of supply for a service is the recipient's state: their
-  // billing GSTIN if they have one, their registered address if not
-  const billingGstin = (client.gstins ?? [])[0]?.gstin ?? "";
-  const addressState = (client.addresses ?? [])[0]?.stateCode ?? "";
-  const placeOfSupply = billingGstin
-    ? String(billingGstin).slice(0, 2)
-    : addressState;
-
   const engagements = input.engagementIds?.length
     ? await Engagement.find({
         _id: { $in: input.engagementIds },
         clientId: client._id,
       }).lean()
     : [];
+
+  /**
+   * Which of the client's GST registrations this invoice is to (owner
+   * request, 25-11-2026).
+   *
+   * The place of supply for a service is the recipient's state, and a
+   * client with branches in three states has three. This took
+   * `gstins[0]` always — so billing the Hyderabad branch's work put
+   * Delhi's number and Delhi's state on the invoice, which decides IGST
+   * against CGST and SGST. The work knows which branch it was for, so the
+   * invoice follows the work.
+   *
+   * Work that belongs to the client as a whole — an ITR, an audit — names
+   * no registration, and falls back to the first as before.
+   */
+  const billed = [
+    ...new Set(
+      engagements.filter((e) => e.gstinId).map((e) => String(e.gstinId)),
+    ),
+  ];
+  if (billed.length > 1) {
+    const which = engagements
+      .filter((e) => e.gstinId)
+      .map((e) => e.gstinLabel || e.gstin)
+      .filter((v, i, all) => all.indexOf(v) === i);
+    return {
+      error: `This work is for more than one GST registration (${which.join(" and ")}). The place of supply is part of the invoice, so each registration needs its own. Raise one invoice per branch.`,
+    };
+  }
+
+  const registration = billed.length
+    ? (client.gstins ?? []).find((g) => String(g._id) === billed[0])
+    : null;
+
+  const billingGstin =
+    registration?.gstin ?? (client.gstins ?? [])[0]?.gstin ?? "";
+  const addressState = (client.addresses ?? [])[0]?.stateCode ?? "";
+  const placeOfSupply = billingGstin
+    ? String(billingGstin).slice(0, 2)
+    : addressState;
 
   /**
    * Nothing waived, nothing covered by a retainer, and nothing unpriced goes

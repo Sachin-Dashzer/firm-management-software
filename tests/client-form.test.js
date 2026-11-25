@@ -41,6 +41,8 @@ function storedClient() {
       {
         _id: "bbbbbbbbbbbbbbbbbbbbbbb1",
         gstin: "09AABCA1234C1ZD",
+        // the firm's own name for the registration (24-11-2026)
+        label: "Kanpur",
         state: "Uttar Pradesh",
         stateCode: "09",
         qrmp: false,
@@ -73,6 +75,7 @@ function editFormFor(client, changes = {}) {
   client.gstins.forEach((row, i) => {
     data.set(`gstins.${i}._id`, row._id);
     data.set(`gstins.${i}.gstin`, row.gstin);
+    data.set(`gstins.${i}.label`, row.label ?? "");
     // the real form pairs each checkbox with a hidden empty value, so the
     // field is submitted whether it is ticked or not
     data.set(`gstins.${i}.qrmp`, row.qrmp ? "on" : "");
@@ -231,6 +234,37 @@ describe("an edit that changes one thing", () => {
     ]);
     expect(value.gstins).toEqual(stored.gstins);
     expect(value.addresses).toEqual(stored.addresses);
+  });
+});
+
+/**
+ * A client with branches in three states has three registrations, and the
+ * name is how anyone tells their work apart (owner request, 24-11-2026).
+ */
+describe("naming a GST registration", () => {
+  const stored = storedClient();
+
+  it("keeps the name the form sent", () => {
+    const { value } = clientUpdate(
+      editFormFor(stored, { "gstins.0.label": "Kanpur — Civil Lines" }),
+      stored,
+    );
+    expect(value.gstins[0].label).toBe("Kanpur — Civil Lines");
+    // and nothing else about the row moved
+    expect(value.gstins[0]).toMatchObject({
+      _id: stored.gstins[0]._id,
+      gstin: stored.gstins[0].gstin,
+      state: "Uttar Pradesh",
+    });
+  });
+
+  it("leaves the name alone when the form does not ask about it", () => {
+    // the onboarding screen sends a GSTIN and no name; that must not wipe
+    // a name somebody set on the full form (the #1 rule for these rows)
+    const data = editFormFor(stored);
+    data.delete("gstins.0.label");
+    const { value } = clientUpdate(data, stored);
+    expect(value.gstins[0].label).toBe("Kanpur");
   });
 });
 

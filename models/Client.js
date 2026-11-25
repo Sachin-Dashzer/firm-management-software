@@ -41,6 +41,16 @@ const contactSchema = new mongoose.Schema(
 const gstinSchema = new mongoose.Schema(
   {
     gstin: { type: String, required: true, uppercase: true, trim: true },
+    /**
+     * What the firm calls this registration — "Delhi", "Medihub Hyderabad"
+     * (owner request, 24-11-2026).
+     *
+     * A client with three registrations has three sets of GST work, and a
+     * list that says "Ryan Medihub" three times tells nobody which one is
+     * which. Blank falls back to the state below, which is the right
+     * answer for the ordinary one-per-state case.
+     */
+    label: { type: String, default: "", trim: true },
     state: { type: String, default: "" },
     stateCode: { type: String, default: "" },
     registeredOn: Date,

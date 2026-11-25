@@ -163,6 +163,8 @@ const createInput = z.object({
   /** Read only when the service is "other": what the one-off work is. */
   otherName: z.string().trim().max(120).default(""),
   period: z.string().min(1, "Choose a period"),
+  /** Which GST registration, for a client that has more than one. */
+  gstinId: z.string().trim().default(""),
   assigneeId: z.string().optional(),
   reviewerId: z.string().optional(),
   priority: z.enum(PRIORITIES).default("Normal"),
@@ -265,6 +267,7 @@ export async function createEngagement(_prev, formData) {
     serviceTemplateId: formData.get("serviceTemplateId") ?? "",
     otherName: formData.get("otherName") ?? "",
     period: formData.get("period") ?? "",
+    gstinId: formData.get("gstinId") ?? "",
     assigneeId: formData.get("assigneeId") || undefined,
     reviewerId: formData.get("reviewerId") || undefined,
     priority: formData.get("priority") || "Normal",
@@ -311,6 +314,24 @@ export async function createEngagement(_prev, formData) {
     branchId: String(client.branchId),
   });
 
+  /**
+   * The registration must be one of **this client's**, checked here and not
+   * only in the form (CLAUDE.md rule 1): the id arrives in a form field,
+   * and an id belonging to another client would otherwise snapshot that
+   * client's GSTIN onto this client's work.
+   */
+  const registration = data.gstinId
+    ? (client.gstins ?? []).find((g) => String(g._id) === data.gstinId)
+    : null;
+  if (data.gstinId && !registration) {
+    return { error: "That GST registration is not on this client." };
+  }
+  if (registration && registration.active === false) {
+    return {
+      error: `${registration.gstin} is marked inactive. Make it active on the client first.`,
+    };
+  }
+
   let period;
   try {
     period = parsePeriod(data.period);
@@ -334,10 +355,14 @@ export async function createEngagement(_prev, formData) {
     clientId: client._id,
     serviceTemplateId: template._id,
     period: period.code,
+    gstinId: registration?._id ?? null,
   });
   if (already) {
+    const which = registration
+      ? ` for ${registration.label || registration.state || registration.gstin}`
+      : "";
     return {
-      error: `${template.name} for ${period.label} already exists (${already.code}).`,
+      error: `${template.name}${which} for ${period.label} already exists (${already.code}).`,
     };
   }
 
@@ -368,6 +393,7 @@ export async function createEngagement(_prev, formData) {
         template,
         client,
         period,
+        gstinId: registration?._id ?? null,
         assigneeId: assignee?.id ?? null,
         reviewerId: reviewer?.id ?? null,
         feePaise,
@@ -2163,6 +2189,16 @@ export async function saveClientService(clientId, formData) {
   const template = await ServiceTemplate.findById(serviceTemplateId).lean();
   if (!template) return { error: "That service no longer exists." };
 
+  // the registration this subscription is for, checked against this client
+  // like everything else that arrives in a form field (rule 1)
+  const gstinId = String(formData.get("gstinId") ?? "");
+  const registration = gstinId
+    ? (client.gstins ?? []).find((g) => String(g._id) === gstinId)
+    : null;
+  if (gstinId && !registration) {
+    return { error: "That GST registration is not on this client." };
+  }
+
   let feePaise = 0;
   try {
     feePaise = toPaise(String(formData.get("fee") ?? "0") || "0");
@@ -2185,6 +2221,7 @@ export async function saveClientService(clientId, formData) {
       const existing = await ClientService.findOne({
         clientId,
         serviceTemplateId,
+        gstinId: registration?._id ?? null,
       }).session(session);
 
       if (existing) {
@@ -2204,6 +2241,7 @@ export async function saveClientService(clientId, formData) {
           {
             clientId,
             serviceTemplateId,
+            gstinId: registration?._id ?? null,
             feePaise,
             startPeriod: periodFor(template.recurrence).code,
             defaultAssigneeId: assigneeId,
@@ -2220,7 +2258,11 @@ export async function saveClientService(clientId, formData) {
   }
 
   revalidatePath(`/clients/${clientId}`);
-  return { ok: `${template.name} added to this client.` };
+  return {
+    ok: registration
+      ? `${template.name} added for ${registration.label || registration.state || registration.gstin}.`
+      : `${template.name} added to this client.`,
+  };
 }
 
 /** Stop generating this service for this client. */
@@ -2254,17 +2296,37 @@ export async function removeClientService(clientId, id) {
  * other string somebody posts at this action: there is nothing to prefill,
  * which is exactly what "no subscription" already means here.
  */
-export async function subscriptionDefaults(clientId, serviceTemplateId) {
+export async function subscriptionDefaults(
+  clientId,
+  serviceTemplateId,
+  gstinId = "",
+) {
   const actor = await requireUser();
   if (!can(actor, "view", "engagementsWork")) return null;
   if (!isId(clientId) || !isId(serviceTemplateId)) return null;
 
   await connectDB();
-  const found = await ClientService.findOne({
-    clientId,
-    serviceTemplateId,
-    active: true,
-  }).lean();
+  /**
+   * The registration's own subscription first, the client-wide one as the
+   * fallback (owner request, 24-11-2026): a firm that agreed one GST fee
+   * for the whole client has one row and three branches should all read
+   * it, while a firm that priced Delhi differently has a row for Delhi.
+   */
+  const found =
+    (gstinId && isId(gstinId)
+      ? await ClientService.findOne({
+          clientId,
+          serviceTemplateId,
+          gstinId,
+          active: true,
+        }).lean()
+      : null) ??
+    (await ClientService.findOne({
+      clientId,
+      serviceTemplateId,
+      gstinId: null,
+      active: true,
+    }).lean());
   if (!found) return null;
 
   return {

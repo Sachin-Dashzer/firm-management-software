@@ -63,6 +63,10 @@ export async function GET(request) {
       "Code",
       "Client",
       "Client code",
+      /* which of the client's GST registrations, so three branches can be
+         told apart and filtered in the spreadsheet (25-11-2026) */
+      "GST branch",
+      "GSTIN",
       "Branch",
       "Service",
       "Tier",
@@ -89,6 +93,8 @@ export async function GET(request) {
         e.code,
         client ? client.tradeName || client.legalName : "",
         client?.code ?? "",
+        e.gstinLabel ?? "",
+        e.gstin ?? "",
         branchCode.get(String(e.branchId)) ?? "",
         e.templateSnapshot?.name ?? "",
         tierOf(e.templateSnapshot?.level) ?? "",

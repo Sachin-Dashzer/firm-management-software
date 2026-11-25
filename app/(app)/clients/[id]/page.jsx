@@ -235,7 +235,12 @@ export default async function ClientPage({ params, searchParams }) {
             mono
           />
           {client.gstins?.map((g) => (
-            <Chip key={g.gstin} label={g.state} value={g.gstin} mono />
+            <Chip
+              key={g.gstin}
+              label={g.label || g.state}
+              value={g.gstin}
+              mono
+            />
           ))}
           <Chip
             label="Branch"
@@ -464,7 +469,10 @@ async function Overview({
           <Row
             label="GST registrations"
             value={client.gstins
-              .map((g) => `${g.gstin} (${g.state}${g.qrmp ? ", QRMP" : ""})`)
+              .map(
+                (g) =>
+                  `${g.gstin} (${g.label || g.state}${g.qrmp ? ", QRMP" : ""})`,
+              )
               .join(" · ")}
           />
         )}
@@ -694,20 +702,34 @@ async function ActivityTab({ clientId, actor }) {
 async function EngagementsTab({ clientId, actor, mayEdit, only }) {
   const mine = only ? { _id: { $in: only } } : {};
 
-  const [engagements, subscriptions, templates, team] = await Promise.all([
-    Engagement.find({ clientId, ...mine })
-      .sort({ createdAt: -1 })
-      .limit(200)
-      .lean(),
-    ClientService.find({ clientId, active: true }).lean(),
-    ServiceTemplate.find({ active: true })
-      .select(
-        "name code level recurrence minExecRole minReviewRole defaultFeePaise",
-      )
-      .sort({ name: 1 })
-      .lean(),
-    User.find({ active: true }).select("name role").sort({ name: 1 }).lean(),
-  ]);
+  const [engagements, subscriptions, templates, team, registrations] =
+    await Promise.all([
+      Engagement.find({ clientId, ...mine })
+        .sort({ createdAt: -1 })
+        .limit(200)
+        .lean(),
+      ClientService.find({ clientId, active: true }).lean(),
+      ServiceTemplate.find({ active: true })
+        .select(
+          "name code level recurrence minExecRole minReviewRole defaultFeePaise",
+        )
+        .sort({ name: 1 })
+        .lean(),
+      User.find({ active: true }).select("name role").sort({ name: 1 }).lean(),
+      /* the client's GST registrations: this tab has the id, not the
+         client document, and a subscription now names one of them */
+      Client.findById(clientId).select("gstins").lean(),
+    ]);
+
+  /** The registrations, as the two lists below want them. */
+  const gstins = (registrations?.gstins ?? [])
+    .filter((g) => g.active !== false)
+    .map((g) => ({
+      id: String(g._id),
+      gstin: g.gstin,
+      label: g.label || g.state || g.gstin,
+    }));
+  const registrationLabel = new Map(gstins.map((g) => [g.id, g.label]));
 
   const templateName = new Map(templates.map((t) => [String(t._id), t.name]));
   const byId = new Map(templates.map((t) => [String(t._id), t]));
@@ -774,6 +796,12 @@ async function EngagementsTab({ clientId, actor, mayEdit, only }) {
                     >
                       {e.templateSnapshot?.name ?? "Engagement"}
                     </Link>
+                    {e.gstinLabel && (
+                      <span className="text-13 text-ink-muted">
+                        {" · "}
+                        {e.gstinLabel}
+                      </span>
+                    )}
                     <br />
                     <span className="text-13 text-ink-muted font-mono">
                       {e.code}
@@ -808,9 +836,12 @@ async function EngagementsTab({ clientId, actor, mayEdit, only }) {
       <ClientServices
         clientId={clientId}
         mayEdit={mayEdit}
+        registrations={gstins}
         subscriptions={subscriptions.map((s) => ({
           id: String(s._id),
           serviceTemplateId: String(s.serviceTemplateId),
+          gstinId: s.gstinId ? String(s.gstinId) : "",
+          gstinLabel: registrationLabel.get(String(s.gstinId ?? "")) ?? "",
           name: templateName.get(String(s.serviceTemplateId)) ?? "Service",
           level: byId.get(String(s.serviceTemplateId))?.level ?? "",
           fee: formatPaise(s.feePaise ?? 0),

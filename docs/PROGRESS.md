@@ -7072,3 +7072,135 @@ This covers every handler, not the purge: `expireGrants` and `sendMail`
 report the same way and were equally silent.
 
 2108 Vitest pass, ESLint and Prettier clean, `next build` compiles.
+
+## 24-11-2026 — A client's branches: work per GST registration
+
+**The owner's problem.** A group holds several businesses, and a business
+holds several branches — Delhi, Mumbai, Hyderabad, each with its own GSTIN
+and its own monthly returns. Assigning that work was impossible. Not for
+want of a place to put the branches: `client.gstins[]` has held one row per
+registration since Step 3 and nothing read it. The blocker was one line —
+the unique index on `engagements` was `client + service + period`, so the
+second branch's GSTR-1 for October was refused by the database.
+
+**What was not built.** No third level of hierarchy, no `clientBranches`
+collection. That would migrate engagements, documents, invoices, the
+ledger and the permission scopes to carry a new id, and a GST branch is
+already identified by the thing that makes it one: its registration.
+Engagements and subscriptions now point at a row in `client.gstins[]`.
+
+- `Engagement.gstinId` with the number and name snapshotted beside it
+  (`gstin`, `gstinLabel`), like `templateSnapshot` — so a list row says
+  which branch with no extra read, and a return filed last year still
+  shows the GSTIN it was filed under after the client is edited.
+- The unique index is now `client + service + period + gstinId`. Null is a
+  value like any other in a unique key, so work that belongs to the whole
+  client — an ITR, a TDS return, an audit — is still one per period, and
+  nothing already in the database moved.
+- `ClientService.gstinId`, with the same widening. **This is the one that
+  matters day to day**: the recurring generator walks subscriptions, so
+  three registrations signed up to GSTR-1 produce three jobs every month
+  on their own, each with its own fee and its own usual person.
+- `buildEngagement` takes `gstinId` and resolves the snapshot, so all four
+  creators — the form, the compliance grid, the nightly generator and the
+  sample script — got it from one edit. An id that is not on that client is
+  dropped rather than stored, behind the server check in `createEngagement`.
+- `client.gstins[].label`: the firm's own name for a registration. Blank
+  falls back to the state, which is right for the ordinary one-per-state
+  case. Shown on the client header, the engagement header, the engagement
+  list and the client's own work list.
+- The picker appears on the create form only when a client has two or more
+  registrations.
+
+**Run `node --env-file-if-exists=.env scripts/reindex-registrations.mjs
+--apply` once against the firm's database.** Mongoose builds the new index
+but never drops the old one, and while the old one is there the second
+branch's return is still refused. The script is a dry run without `--apply`
+and touches no documents.
+
+### Filling a client in from its GSTIN
+
+A GSTIN *contains* the PAN — characters 3 to 12 — and the PAN's 4th
+character says the holder type. So the PAN, the state and often the entity
+type need no lookup at all: `checkGSTIN` has returned them since Step 3 and
+only the server read them. The client form now fills them in as the GSTIN
+loses focus, and says what it filled.
+
+It never overwrites something a person typed, and it fills the entity type
+only when the PAN leaves one possibility — "C" is a Private Limited, a
+Public Limited, an OPC and a Section 8 equally, and guessing would put a
+wrong fact in the record in the firm's name (rule 8).
+
+**The legal name is the one field not inside the number.** It needs the GST
+portal, which is captcha-gated, or a paid API key. Nothing is stubbed for
+it; when the owner picks a vendor it is one server action.
+
+### Open
+
+- The compliance grid still finds holes per client and service, so a client
+  with three registrations shows one row rather than three. Raising from
+  there fills the registration its subscription names. Marked `ponytail:`
+  in `app/(app)/compliance/actions.js`.
+- Two branches **in one state** share a GSTIN and cannot be told apart this
+  way. Delhi, Mumbai and Hyderabad are three states, so the case that
+  prompted this is covered.
+
+2124 Vitest pass, ESLint clean, `next build` compiles.
+`tests/e2e/registrations.spec.js` raises October's return for Delhi and for
+Mumbai on one client and has both, then checks the duplicate guard still
+refuses Hyderabad twice and names the branch when it does.
+
+## 25-11-2026 — Onboarding starts with the GSTIN, and branches reach billing
+
+Following on from yesterday. Three places where a client's registrations
+were still asked for one at a time, or ignored.
+
+### The wizard opens on the GSTIN, not on twelve entity cards
+
+The hardest question on step 1 was "what kind of entity is this?", and the
+client's own GSTIN already answers most of it. The step now asks for the
+GSTIN first; typing one fills the state and the PAN, and when the PAN's
+4th character leaves exactly one kind of entity it picks that card too.
+
+It does not guess. "C" is a Private Limited, a Public Limited, an OPC and
+a Section 8 company equally — those four cards are marked **fits this PAN**
+and the person chooses. A client with no GSTIN leaves it blank and picks a
+card, exactly as before.
+
+### Several registrations, in the wizard
+
+Step 2 had one GSTIN field, taken from the entity's own field list. It now
+has a block of rows — GSTIN and the firm's name for it — and that entity
+field is filtered out so two controls never write one value.
+
+The rows live in the wizard's flat `values` map as `gstins.1.gstin`,
+`gstins.1.label`, because `createFromOnboarding` copies that map straight
+into the form the server already reads. No server change was needed; the
+seam is pinned by three cases in `tests/onboarding.test.js`, including a
+registration whose PAN disagrees with the client's.
+
+### An invoice follows the work's registration
+
+`createDraft` took `gstins[0]` always and derived the **place of supply**
+from it. Billing Hyderabad's work therefore put Delhi's number and Delhi's
+state on the invoice, which is what decides IGST against CGST and SGST.
+It now reads the registration off the engagements being billed.
+
+**A decision for the owner:** work for two different registrations on one
+invoice is refused, with a message saying to raise one per branch. One
+invoice carries one place of supply, so this is the safe default — but if
+the firm does combine them, say so and it is one line to relax.
+
+### Also
+
+- The engagements Excel export has **GST branch** and **GSTIN** columns.
+- The credentials vault needed nothing: it already has a free-text label,
+  so "Delhi GST portal" is a login somebody can file today.
+
+Looking at the screens caught two defects the tests did not: the hint under
+the new GSTIN field sat *inside* its `<label>`, so a screen reader would
+have read the whole sentence as the field's name; and the regex that reads
+the registrations out of the wizard's values map had lost its backslashes,
+so the GSTIN typed on step 1 never reached step 2.
+
+2127 Vitest pass, ESLint clean, `next build` compiles.

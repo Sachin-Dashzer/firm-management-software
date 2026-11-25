@@ -22,14 +22,24 @@ export default function ClientServices({
   subscriptions,
   templates,
   team,
+  registrations = [],
 }) {
   const [adding, setAdding] = useState(false);
   const [templateId, setTemplateId] = useState("");
+  const [gstinId, setGstinId] = useState("");
   const [message, setMessage] = useState(null);
   const [pending, startTransition] = useTransition();
 
   const template = templates.find((t) => t.id === templateId) ?? null;
-  const taken = new Set(subscriptions.map((s) => s.serviceTemplateId));
+  /**
+   * Which services are already signed up **for the registration chosen**
+   * (owner request, 24-11-2026). Keyed on both, because a client with three
+   * GST registrations takes GSTR-1 three times and the old per-service key
+   * hid the second and third from the list.
+   */
+  const taken = new Set(
+    subscriptions.map((s) => `${s.serviceTemplateId}:${s.gstinId ?? ""}`),
+  );
 
   return (
     <section className="flex flex-col gap-2">
@@ -74,6 +84,7 @@ export default function ClientServices({
               if (result?.ok) {
                 setAdding(false);
                 setTemplateId("");
+                setGstinId("");
               }
               return result;
             },
@@ -82,6 +93,32 @@ export default function ClientServices({
           )}
           className="rounded-ledger border-rule bg-surface grid gap-3 border p-4 sm:grid-cols-2"
         >
+          {registrations.length > 1 && (
+            <label className="flex flex-col gap-1 sm:col-span-2">
+              <span className="text-13 text-ink-muted font-medium">
+                For which GST registration
+              </span>
+              <select
+                name="gstinId"
+                value={gstinId}
+                onChange={(e) => setGstinId(e.target.value)}
+                className="rounded-control border-rule bg-paper text-14 h-10 border px-2"
+              >
+                <option value="">The whole client — not one branch</option>
+                {registrations.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.label} — {g.gstin}
+                  </option>
+                ))}
+              </select>
+              <span className="text-12 text-ink-muted">
+                Each registration needs its own row for a GST service, and each
+                generates its own work every period. An ITR or an audit is
+                signed up once for the whole client.
+              </span>
+            </label>
+          )}
+
           <label className="flex flex-col gap-1">
             <span className="text-13 text-ink-muted font-medium">Service</span>
             <select
@@ -93,7 +130,7 @@ export default function ClientServices({
             >
               <option value="">— choose —</option>
               {templates
-                .filter((t) => !taken.has(t.id))
+                .filter((t) => !taken.has(`${t.id}:${gstinId}`))
                 .map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
@@ -176,6 +213,12 @@ export default function ClientServices({
               <tr key={s.id} className="border-rule border-b last:border-0">
                 <td className="px-3 py-2">
                   {s.name}
+                  {s.gstinLabel && (
+                    <span className="text-13 text-ink-muted">
+                      {" · "}
+                      {s.gstinLabel}
+                    </span>
+                  )}
                   {s.stale && (
                     <>
                       <br />
