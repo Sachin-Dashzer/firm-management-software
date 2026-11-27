@@ -151,6 +151,10 @@ const clientSchema = new mongoose.Schema(
     },
     onboardedOn: Date,
     referralSource: { type: String, default: "" },
+    /** The ROC / company secretary the client uses (owner request, 27-11-2026). */
+    rocCs: { type: String, default: "", trim: true },
+    /** Who signs the audit report — free text; often a firm outside PHMG. */
+    signingAuditor: { type: String, default: "", trim: true },
 
     // --- classification ---
     industry: { type: String, default: "" },

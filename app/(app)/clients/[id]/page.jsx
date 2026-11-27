@@ -487,6 +487,8 @@ async function Overview({
         <Row label="Industry" value={client.industry || "—"} />
         <Row label="Turnover band" value={client.turnoverBand || "—"} />
         <Row label="Referral source" value={client.referralSource || "—"} />
+        <Row label="ROC / CS" value={client.rocCs || "—"} />
+        <Row label="Signing auditor" value={client.signingAuditor || "—"} />
         {/**
          * Where they came from, when they came from the potential register
          * (04-11-2026). The link was one-way until now: a converted row

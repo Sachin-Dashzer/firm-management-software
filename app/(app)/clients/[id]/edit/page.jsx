@@ -100,6 +100,8 @@ export default async function EditClientPage({ params }) {
           turnoverBand: client.turnoverBand,
           risk: client.risk,
           referralSource: client.referralSource,
+          rocCs: client.rocCs,
+          signingAuditor: client.signingAuditor,
           tags: client.tags,
           billingCycle: client.billingCycle,
           creditDays: client.creditDays,

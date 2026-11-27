@@ -668,6 +668,12 @@ export default function ClientForm({
           name="referralSource"
           defaultValue={base?.referralSource}
         />
+        <Field label="ROC / CS" name="rocCs" defaultValue={base?.rocCs} />
+        <Field
+          label="Signing auditor"
+          name="signingAuditor"
+          defaultValue={base?.signingAuditor}
+        />
         <Field
           label="Tags"
           name="tags"
